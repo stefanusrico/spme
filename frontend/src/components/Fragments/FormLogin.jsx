@@ -7,7 +7,6 @@ const handleLogin = (e, rememberMe) => {
   localStorage.setItem("email", e.target.email.value)
   localStorage.setItem("password", e.target.password.value)
 
-  // Simpan status 'Remember Me' jika dicentang
   if (rememberMe) {
     localStorage.setItem("rememberMe", true)
   } else {
