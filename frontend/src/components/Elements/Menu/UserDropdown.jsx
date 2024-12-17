@@ -5,8 +5,9 @@ import axios from "axios"
 
 const UserDropdown = () => {
   const [isOpen, setIsOpen] = useState(false)
+  const [userData, setUserData] = useState({ name: '', email: '' })
   const dropdownRef = useRef(null)
-  const navigate = useNavigate() // Hook untuk navigasi setelah logout
+  const navigate = useNavigate()
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -19,11 +20,48 @@ const UserDropdown = () => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside)
     }
+
   }, [])
+
+  useEffect(() => {
+    const cachedUserData = JSON.parse(localStorage.getItem('userData'));
+    if (cachedUserData) {
+      setUserData(cachedUserData);
+    } else {
+      const token = localStorage.getItem('token');
+      if (token) {
+        getUserData(token);
+      }
+    }
+  }, []);
 
   const toggleDropdown = () => {
     setIsOpen(!isOpen)
   }
+
+const getUserData = async () => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    try {
+      const response = await axios.get('http://localhost:8000/api/user', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      setUserData({
+        name: response.data.name,
+        email: response.data.email,
+      });
+
+      console.log('User Data:', response.data);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  } else {
+    console.log('No token found, user is not logged in');
+  }
+}
 
 const handleLogout = async () => {
   try {
@@ -40,6 +78,7 @@ const handleLogout = async () => {
       );
       localStorage.removeItem('email');
       localStorage.removeItem('token');
+      localStorage.removeItem('userData');
       console.log('Logged out successfully');
       navigate("/login");
     }
@@ -78,9 +117,9 @@ const handleLogout = async () => {
           alt="User profile"
         />
         <div className="hidden sm:block text-left">
-          <p className="text-sm text-gray-900 dark:text-black">Neil Sims</p>
+          <p className="text-sm text-gray-900 dark:text-black">{userData.name || 'Loading...'}</p>
           <p className="text-xs font-medium text-gray-500 truncate dark:text-gray-300">
-            Software Engineer
+           Admin
           </p>
         </div>
         <ChevronDown
@@ -97,7 +136,7 @@ const handleLogout = async () => {
           <div className="px-4 py-3">
             <p className="text-sm text-gray-900 dark:text-white">Neil Sims</p>
             <p className="text-sm font-medium text-gray-500 truncate dark:text-gray-300">
-              neil.sims@flowbite.com
+              {userData.email || 'Loading...'}
             </p>
           </div>
           <ul className="py-2 text-sm text-gray-700 dark:text-gray-200">

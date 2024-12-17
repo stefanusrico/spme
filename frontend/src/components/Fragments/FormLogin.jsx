@@ -25,6 +25,15 @@ const handleLogin = async (e, rememberMe, setError) => {
       localStorage.removeItem("rememberMe")
     }
 
+    const userResponse = await axios.get("http://localhost:8000/api/user", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    const { name} = userResponse.data
+    localStorage.setItem("userData", JSON.stringify({ name, email }))
+
     window.location.href = "/dashboard"
   } catch (error) {
     console.error("Login failed:", error)

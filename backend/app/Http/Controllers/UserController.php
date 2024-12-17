@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
@@ -55,6 +56,17 @@ class UserController extends Controller
                 'message' => 'Gagal membuat user: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Get the authenticated user's data.
+     */
+    public function getAuthenticatedUserData(Request $request)
+    {
+        $user = Auth::user();
+
+        // Mengembalikan data user
+        return response()->json($user);
     }
 
     public function show($id)

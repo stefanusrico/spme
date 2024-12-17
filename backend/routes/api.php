@@ -11,7 +11,7 @@ Route::post('login', [AuthController::class, 'login']);
 
 Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/user', [UserController::class, 'index']);
+    Route::get('/user', [UserController::class, 'getAuthenticatedUserData']);
     Route::get('/test-mongo', [AuthController::class, 'testMongoConnection']);
 });
 
