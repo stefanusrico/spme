@@ -1,4 +1,3 @@
-import React from "react"
 import UserDropdown from "./UserDropdown"
 import NotificationDropdown from "./NotificationDropdown"
 

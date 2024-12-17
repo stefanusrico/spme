@@ -1,29 +1,47 @@
 import { useState } from "react"
 import Button from "../Elements/Button"
 import InputForm from "../Elements/Input"
+import axios from "axios"
 
-const handleLogin = (e, rememberMe) => {
+const handleLogin = async (e, rememberMe, setError) => {
   e.preventDefault()
-  localStorage.setItem("email", e.target.email.value)
-  localStorage.setItem("password", e.target.password.value)
 
-  if (rememberMe) {
-    localStorage.setItem("rememberMe", true)
-  } else {
-    localStorage.removeItem("rememberMe")
+  const email = e.target.email.value
+  const password = e.target.password.value
+
+  try {
+    const response = await axios.post("http://localhost:8000/api/login", {
+      email,
+      password,
+    })
+    const { token } = response.data
+
+    localStorage.setItem("token", token)
+    localStorage.setItem("email", email)
+
+    if (rememberMe) {
+      localStorage.setItem("rememberMe", true)
+    } else {
+      localStorage.removeItem("rememberMe")
+    }
+
+    window.location.href = "/dashboard"
+  } catch (error) {
+    console.error("Login failed:", error)
+    setError("Invalid email or password")
   }
-
-  window.location.href = "/products"
 }
 
 const FormLogin = () => {
   const [rememberMe, setRememberMe] = useState(false)
+  const [error, setError] = useState("")
 
   return (
     <form
-      action=""
-      onSubmit={(e) => handleLogin(e, rememberMe)} // Tambahkan rememberMe ke fungsi
+      onSubmit={(e) => handleLogin(e, rememberMe, setError)} // Tambahkan setError
     >
+      {error && <p className="text-red-500 mb-2">{error}</p>} {/* Tampilkan pesan error */}
+
       <InputForm
         label="Email"
         type="email"

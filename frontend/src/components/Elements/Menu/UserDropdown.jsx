@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from "react"
 import { User, Settings, LogOut, HelpCircle, ChevronDown } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import axios from "axios"
 
 const UserDropdown = () => {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
+  const navigate = useNavigate() // Hook untuk navigasi setelah logout
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -22,8 +25,40 @@ const UserDropdown = () => {
     setIsOpen(!isOpen)
   }
 
+const handleLogout = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    if (token) {
+      await axios.post(
+        'http://localhost:8000/api/logout',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      localStorage.removeItem('email');
+      localStorage.removeItem('token');
+      console.log('Logged out successfully');
+      navigate("/login");
+    }
+  } catch (error) {
+    console.error("Logout failed:", error);
+  }
+}
+
   const handleMenuItemClick = (action) => {
-    console.log(`Clicked: ${action}`)
+    if (action === "dashboard") {
+      console.log(`Clicked: ${action}`)
+      navigate("/dashboard")
+    } else if (action === "settings") {
+      console.log(`Clicked: ${action}`)
+    } else if (action === "help") {
+      console.log(`Clicked: ${action}`)
+    } else {
+      console.log(`Clicked: ${action}`)
+    }
     setIsOpen(false)
   }
 
@@ -49,9 +84,7 @@ const UserDropdown = () => {
           </p>
         </div>
         <ChevronDown
-          className={`w-4 h-4 transition-transform ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -101,7 +134,7 @@ const UserDropdown = () => {
           </ul>
           <div className="py-2">
             <button
-              onClick={() => handleMenuItemClick("logout")}
+              onClick={handleLogout}
               className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-left"
               role="menuitem"
             >

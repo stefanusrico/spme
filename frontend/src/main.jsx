@@ -6,25 +6,36 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom"
 import LoginPage from "./pages/login.jsx"
 import RegisterPage from "./pages/register.jsx"
 import ErrorPage from "./pages/404.jsx"
-// import ProductPage from "./pages/products.jsx"
+import AuthWrapper from "./components/Auth/AuthWrapper.jsx"
 
 const router = createBrowserRouter([
   {
-    path: "/",
-    element: <div>Hello World</div>,
+    element: <AuthWrapper isProtected={false} />,
     errorElement: <ErrorPage />,
+    children: [
+      {
+          path: "/",
+          element: <LoginPage />,
+      },
+      {
+          path: "/login",
+          element: <LoginPage />,
+      },
+      {
+        path: "/register",
+        element: <RegisterPage />,
+      },
+    ],
   },
   {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
-    path: "/register",
-    element: <RegisterPage />,
-  },
-  {
-    path: "/dashboard",
-    element: <App />,
+    element: <AuthWrapper isProtected={true} />,
+    errorElement: <ErrorPage />,
+    children: [
+        {
+          path: "/dashboard",
+          element: <App />,
+        }
+      ]
   },
 ])
 

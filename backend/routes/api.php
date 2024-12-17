@@ -3,11 +3,19 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PostController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
+use App\Http\Middleware\JwtMiddleware;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+Route::post('login', [AuthController::class, 'login']);
+
+Route::middleware([JwtMiddleware::class])->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [UserController::class, 'index']);
+    Route::get('/test-mongo', [AuthController::class, 'testMongoConnection']);
+});
+
+Route::post('refresh', [AuthController::class, 'refresh']);
 
 Route::prefix('users')->group(function () {
     Route::get('/', [UserController::class, 'index']);

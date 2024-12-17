@@ -2,15 +2,21 @@
 
 namespace App\Models;
 
-use MongoDB\Laravel\Eloquent\Model;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Notifications\Notifiable;
+use MongoDB\Laravel\Eloquent\Model; // Model MongoDB dari mongodb/laravel-mongodb
+use Tymon\JWTAuth\Contracts\JWTSubject; // JWT Interface
+use Illuminate\Support\Facades\Hash;
 
-class User extends Model implements AuthenticatableContract
+class User extends Model implements JWTSubject, AuthenticatableContract
 {
     use Authenticatable, Notifiable;
+
+    // Menentukan koneksi MongoDB
     protected $connection = 'mongodb';
+
+    // Nama collection MongoDB
     protected $collection = 'users';
 
     /**
@@ -24,7 +30,7 @@ class User extends Model implements AuthenticatableContract
         'password',
         'username',
         'profile_picture',
-        'status'
+        'status',
     ];
 
     /**
@@ -47,10 +53,44 @@ class User extends Model implements AuthenticatableContract
     ];
 
     /**
-     * Hash the password before saving
+     * Hash the password before saving to the database.
+     *
+     * @param string $value
+     * @return void
      */
     public function setPasswordAttribute($value)
     {
-        $this->attributes['password'] = bcrypt($value);
+        $this->attributes['password'] = Hash::make($value);
+    }
+
+    /**
+     * Find a user by their email.
+     *
+     * @param string $email
+     * @return self|null
+     */
+    public static function findByEmail($email)
+    {
+        return self::where('email', $email)->first();
+    }
+
+    /**
+     * JWT: Get the identifier that will be stored in the JWT.
+     *
+     * @return mixed
+     */
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    /**
+     * JWT: Return a key value array, containing any custom claims.
+     *
+     * @return array
+     */
+    public function getJWTCustomClaims()
+    {
+        return [];
     }
 }
