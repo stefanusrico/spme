@@ -7,6 +7,8 @@ import LoginPage from "./pages/login.jsx"
 import RegisterPage from "./pages/register.jsx"
 import ErrorPage from "./pages/404.jsx"
 import AuthWrapper from "./components/Auth/AuthWrapper.jsx"
+import TestingPage from "./pages/testing.jsx"
+import Testing from "./pages/test2.jsx"
 
 const router = createBrowserRouter([
   {
@@ -14,16 +16,24 @@ const router = createBrowserRouter([
     errorElement: <ErrorPage />,
     children: [
       {
-          path: "/",
-          element: <LoginPage />,
+        path: "/",
+        element: <LoginPage />,
       },
       {
-          path: "/login",
-          element: <LoginPage />,
+        path: "/login",
+        element: <LoginPage />,
       },
       {
         path: "/register",
         element: <RegisterPage />,
+      },
+      {
+        path: "/testing",
+        element: <TestingPage />,
+      },
+      {
+        path: "/testing/1",
+        element: <Testing />,
       },
     ],
   },
@@ -31,11 +41,11 @@ const router = createBrowserRouter([
     element: <AuthWrapper isProtected={true} />,
     errorElement: <ErrorPage />,
     children: [
-        {
-          path: "/dashboard",
-          element: <App />,
-        }
-      ]
+      {
+        path: "/dashboard",
+        element: <App />,
+      },
+    ],
   },
 ])
 

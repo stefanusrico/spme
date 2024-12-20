@@ -21,7 +21,7 @@ const Sidebar = ({ items, className = "" }) => {
       <li key={index} className="group">
         <div
           onClick={() => toggleExpand(index)}
-          className="flex items-center justify-between p-2 text-black rounded-lg dark:text-black hover:bg-primary hover:text-white dark:hover:bg-primary cursor-pointer"
+          className="flex font-lg items-center justify-between p-2 text-black rounded-lg text-black hover:bg-primary hover:text-white dark:hover:bg-primary cursor-pointer"
         >
           <div className="flex items-center space-x-2">
             {item.icon && <FontAwesomeIcon icon={item.icon} />}

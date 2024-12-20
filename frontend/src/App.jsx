@@ -1,5 +1,7 @@
+import React from "react"
 import Sidebar from "./components/Elements/Menu/SidebarExpanded"
 import Navbar from "./components/Elements/Menu/Navbar"
+import MonitoringAkreditasi from "./components/Fragments/MonitoringAkreditasi"
 import {
   faHome,
   faCogs,
@@ -27,8 +29,9 @@ const sidebarItems = [
 function App() {
   return (
     <>
-      <div className="flex justify-center min-h-screen items-center ">
+      <div className="flex flex-col justify-center min-h-screen items-center bg-graybackground">
         <Navbar />
+        <MonitoringAkreditasi />
         <Sidebar items={sidebarItems} />
       </div>
     </>

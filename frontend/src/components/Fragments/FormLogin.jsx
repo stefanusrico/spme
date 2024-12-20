@@ -47,9 +47,9 @@ const FormLogin = () => {
 
   return (
     <form
-      onSubmit={(e) => handleLogin(e, rememberMe, setError)} // Tambahkan setError
+      onSubmit={(e) => handleLogin(e, rememberMe, setError)} 
     >
-      {error && <p className="text-red-500 mb-2">{error}</p>} {/* Tampilkan pesan error */}
+      {error && <p className="text-red-500 mb-2">{error}</p>}
 
       <InputForm
         label="Email"
