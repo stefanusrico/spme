@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+#search-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Tambahkan styling khusus untuk tabel */
+#search-table thead {
+  background-color: #f1f4f9 !important;
+  color: black !important;
+  border-radius: 24px 24px 0 0 !important;
+}
+
+#search-table thead tr {
+  border-radius: inherit !important;
+}

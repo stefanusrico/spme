@@ -8,7 +8,11 @@ export default {
       gray: "#e2e8f0",
       graytxt: "#9ca3af",
       black: "#000000",
-      red: "#ef4444",
+      red: "#dc4927",
+      green: "#22c55e",
+      blue: "#2763cd",
+      yellow: "#f1c21b",
+      graybackground: "#f5f6fa",
     },
     extend: {},
     fontFamily: {
