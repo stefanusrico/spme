@@ -1,6 +1,6 @@
-import Sidebar from "./components/Elements/Menu/SidebarExpanded"
-import Navbar from "./components/Elements/Menu/Navbar"
-import MonitoringAkreditasi from "./components/Fragments/MonitoringAkreditasi"
+import Navbar from "../components/Elements/Menu/Navbar"
+import MonitoringAkreditasi from "../components/Fragments/MonitoringAkreditasi"
+import Sidebar from "../components/Elements/Menu/SidebarExpanded"
 import {
   faHome,
   faCogs,
@@ -25,7 +25,7 @@ const sidebarItems = [
   },
 ]
 
-function App() {
+const DashboardAdmin = () => {
   return (
     <>
       <div className="flex flex-col justify-center min-h-screen items-center bg-graybackground">
@@ -37,4 +37,4 @@ function App() {
   )
 }
 
-export default App
+export default DashboardAdmin

@@ -9,6 +9,7 @@ import ErrorPage from "./pages/404.jsx"
 import AuthWrapper from "./components/Auth/AuthWrapper.jsx"
 import TestingPage from "./pages/testing.jsx"
 import Testing from "./pages/test2.jsx"
+import DashboardAdmin from "./pages/DashboardAdmin.jsx"
 
 const router = createBrowserRouter([
   {
@@ -43,7 +44,7 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/dashboard",
-        element: <App />,
+        element: <DashboardAdmin />,
       },
     ],
   },

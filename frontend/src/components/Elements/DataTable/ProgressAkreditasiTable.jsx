@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react"
 import { DataTable } from "simple-datatables"
 import ProgressBar from "../Chart/ProgressBar"
+import "simple-datatables/dist/style.css"
 
 const dataProgressAkreditasi = [
   [
@@ -165,28 +166,17 @@ const dataProgressAkreditasi = [
   ],
 ]
 
-const getColorStatus = () => {
-  return dataProgressAkreditasi.map((dataProgress) => {
-    switch (dataProgress[5]) {
-      case "Not Started":
-        return "red"
-      case "In Progress":
-        return "yellow"
-      case "Submitted":
-        return "green"
-      default:
-        return "gray"
-    }
-  })
+const statusColorMap = {
+  "Not Started": "bg-red text-white",
+  "In Progress": "bg-yellow text-white",
+  Submitted: "bg-green text-white",
 }
 
 const ProgressAkreditasiTable = () => {
   const tableRef = useRef(null)
   const [statusFilter, setStatusFilter] = useState("All")
-  const statusColors = getColorStatus()
 
   useEffect(() => {
-    console.log(statusColors)
     if (tableRef.current) {
       const dataTable = new DataTable(tableRef.current, {
         searchable: false,
@@ -198,7 +188,6 @@ const ProgressAkreditasiTable = () => {
         const rows = tableRef.current.querySelectorAll("tbody tr")
         rows.forEach((row) => {
           const status = row.cells[5].textContent
-          console.log(status)
           if (statusFilter === "All" || status === statusFilter) {
             row.style.display = ""
           } else {
@@ -212,57 +201,60 @@ const ProgressAkreditasiTable = () => {
   }, [statusFilter])
 
   return (
-    <div className="bg-white border border-gray rounded-lg shadow p-6 w-full max-w-[1425px]">
-      <div
-        className="filter-section"
-        style={{ display: "flex", justifyContent: "space-between" }}
-      >
-        <label htmlFor="tableTitle" className="text-3xl font-bold">
-          Progress Akreditasi
-        </label>
+    <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold">Progress Akreditasi</h2>
         <select
           id="statusFilter"
           onChange={(e) => setStatusFilter(e.target.value)}
           value={statusFilter}
+          className="px-4 py-2 rounded-lg border border-gray focus:outline-none focus:ring-2 focus:ring-blue focus:border-blue"
         >
-          <option value="All">All</option>
+          <option value="All">Status</option>
           <option value="Submitted">Submitted</option>
           <option value="In Progress">In Progress</option>
           <option value="Not Started">Not Started</option>
         </select>
       </div>
 
-      <table id="search-table" ref={tableRef} className="styled-table">
-        <thead>
-          <tr>
-            <th>Program Studi</th>
-            <th>Start Date</th>
-            <th>Completion Progress</th>
-            <th>Submission Timestamp</th>
-            <th>Submitted By</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {dataProgressAkreditasi.map((dataProgress, index) => (
-            <tr key={index}>
-              <td>{dataProgress[0]}</td>
-              <td>{dataProgress[1]}</td>
-              <td>
-                <ProgressBar progress={dataProgress[2]} />
-              </td>
-              <td>{dataProgress[3]}</td>
-              <td>{dataProgress[4]}</td>
-              <td
-                className={`text-black bg-${statusColors[index]} hover:bg-${statusColors[index]} focus:outline-none focus:ring-4 focus:ring-${statusColors[index]} font-normal rounded-full text-xs px-4 py-1 text-center dark:bg-${statusColors[index]} dark:hover:bg-${statusColors[index]} dark:focus:ring-${statusColors[index]}`}
-              >
-                {dataProgress[5]}
-              </td>
+      <div className="overflow-x-auto">
+        <table id="search-table" ref={tableRef} className="w-full">
+          <thead>
+            <tr className="bg-gray">
+              <th className="text-normal font-semibold">Program Studi</th>
+              <th className="text-normal font-semibold">Start Date</th>
+              <th className="text-normal font-semibold">Completion Progress</th>
+              <th className="text-normal font-semibold">
+                Submission Timestamp
+              </th>
+              <th className="text-normal font-semibold">Submitted By</th>
+              <th className="text-normal font-semibold">Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray">
+            {dataProgressAkreditasi.map((dataProgress, index) => (
+              <tr key={index} className="hover:bg-gray-50">
+                <td className="text-sm text-black">{dataProgress[0]}</td>
+                <td className="text-sm text-black">{dataProgress[1]}</td>
+                <td>
+                  <ProgressBar progress={dataProgress[2]} />
+                </td>
+                <td className="text-sm text-black">{dataProgress[3]}</td>
+                <td className="text-sm text-black">{dataProgress[4]}</td>
+                <td>
+                  <span
+                    className={`inline-flex justify-center items-center w-28 px-3.5 py-1 rounded-full text-sm font-medium ${
+                      statusColorMap[dataProgress[5]]
+                    }`}
+                  >
+                    {dataProgress[5]}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
