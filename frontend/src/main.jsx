@@ -1,52 +1,42 @@
 import React from "react"
 import ReactDOM from "react-dom/client"
-import App from "./App.jsx"
-import "./index.css"
 import { createBrowserRouter, RouterProvider } from "react-router-dom"
-import LoginPage from "./pages/login.jsx"
-import RegisterPage from "./pages/register.jsx"
-import ErrorPage from "./pages/404.jsx"
-import AuthWrapper from "./components/Auth/AuthWrapper.jsx"
-import TestingPage from "./pages/testing.jsx"
-import Testing from "./pages/test2.jsx"
-import DashboardAdmin from "./pages/DashboardAdmin.jsx"
+import LoginPage from "./pages/login"
+import RegisterPage from "./pages/register"
+import ErrorPage from "./pages/404"
+import AuthWrapper from "./components/Auth/AuthWrapper"
+import RoleBasedRoute from "./components/Auth/RoleBasedRoute"
+import DashboardAdmin from "./pages/DashboardAdmin"
+import App from "./App"
+import { isTokenExpired } from "./utils/axiosConfig"
+import { handleLogout } from "./components/Auth/auth.action"
+
+setInterval(() => {
+  const token = localStorage.getItem("token")
+  if (!token || isTokenExpired(token)) {
+    handleLogout()
+  }
+}, 1000)
 
 const router = createBrowserRouter([
   {
     element: <AuthWrapper isProtected={false} />,
     errorElement: <ErrorPage />,
     children: [
-      {
-        path: "/",
-        element: <LoginPage />,
-      },
-      {
-        path: "/login",
-        element: <LoginPage />,
-      },
-      {
-        path: "/register",
-        element: <RegisterPage />,
-      },
-      {
-        path: "/testing",
-        element: <TestingPage />,
-      },
-      {
-        path: "/testing/1",
-        element: <Testing />,
-      },
+      { path: "/", element: <LoginPage /> },
+      { path: "/login", element: <LoginPage /> },
+      { path: "/register", element: <RegisterPage /> },
     ],
   },
   {
-    element: <AuthWrapper isProtected={true} />,
-    errorElement: <ErrorPage />,
-    children: [
-      {
-        path: "/dashboard",
-        element: <DashboardAdmin />,
-      },
-    ],
+    path: "/dashboard",
+    element: <RoleBasedRoute allowedRoles={["admin"]} />,
+    children: [{ index: true, element: <DashboardAdmin /> }],
+  },
+  {
+    path: "/dash",
+    element: <RoleBasedRoute allowedRoles={["Ketua Program Studi"]} />,
+    children: [{ index: true, element: <App /> }],
   },
 ])
 

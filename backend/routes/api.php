@@ -12,18 +12,22 @@ Route::post('login', [AuthController::class, 'login']);
 Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [UserController::class, 'getAuthenticatedUserData']);
-    Route::get('/test-mongo', [AuthController::class, 'testMongoConnection']);
+
+    Route::middleware(['role:admin'])->group(function () {
+        Route::get('/test-mongo', [AuthController::class, 'testMongoConnection']);
+        Route::controller(UserController::class)->group(function () {
+            Route::get('/users', 'index');
+            Route::post('/users', 'store');
+            Route::get('/users/{id}', 'show');
+            Route::put('/users/{id}', 'update');
+            Route::delete('/users/{id}', 'destroy');
+        });
+    });
 });
+
 
 Route::post('refresh', [AuthController::class, 'refresh']);
 
-Route::prefix('users')->group(function () {
-    Route::get('/', [UserController::class, 'index']);
-    Route::post('/', [UserController::class, 'store']);
-    Route::get('/{id}', [UserController::class, 'show']);
-    Route::put('/{id}', [UserController::class, 'update']);
-    Route::delete('/{id}', [UserController::class, 'destroy']);
-});
 
 Route::resource('posts', PostController::class)->only([
     'destroy',

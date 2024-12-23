@@ -1,54 +1,20 @@
 import { useState } from "react"
 import Button from "../Elements/Button"
 import InputForm from "../Elements/Input"
-import axios from "axios"
-
-const handleLogin = async (e, rememberMe, setError) => {
-  e.preventDefault()
-
-  const email = e.target.email.value
-  const password = e.target.password.value
-
-  try {
-    const response = await axios.post("http://localhost:8000/api/login", {
-      email,
-      password,
-    })
-    const { token } = response.data
-
-    localStorage.setItem("token", token)
-    localStorage.setItem("email", email)
-
-    if (rememberMe) {
-      localStorage.setItem("rememberMe", true)
-    } else {
-      localStorage.removeItem("rememberMe")
-    }
-
-    const userResponse = await axios.get("http://localhost:8000/api/user", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-
-    const { name} = userResponse.data
-    localStorage.setItem("userData", JSON.stringify({ name, email }))
-
-    window.location.href = "/dashboard"
-  } catch (error) {
-    console.error("Login failed:", error)
-    setError("Invalid email or password")
-  }
-}
+import { handleLogin } from "../Auth/auth.action"
+import { useNavigate } from "react-router-dom"
 
 const FormLogin = () => {
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState("")
+  const navigate = useNavigate()
+
+  const handleLoginSubmit = (e) => {
+    handleLogin(e, rememberMe, setError, navigate)
+  }
 
   return (
-    <form
-      onSubmit={(e) => handleLogin(e, rememberMe, setError)} 
-    >
+    <form onSubmit={handleLoginSubmit}>
       {error && <p className="text-red-500 mb-2">{error}</p>}
 
       <InputForm

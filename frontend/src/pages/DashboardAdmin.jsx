@@ -29,9 +29,21 @@ const DashboardAdmin = () => {
   return (
     <>
       <div className="flex flex-col justify-center min-h-screen items-center bg-graybackground">
+        {/* Navbar that adjusts based on screen size */}
         <Navbar />
-        <MonitoringAkreditasi />
-        <Sidebar items={sidebarItems} />
+
+        {/* Monitoring Akreditasi Content */}
+
+        {/* Sidebar that toggles on mobile */}
+        <div className="flex w-full">
+          {/* Sidebar will be hidden on small screens, shown on large */}
+          <Sidebar items={sidebarItems} className="hidden sm:block" />
+
+          {/* Content area */}
+          <main className="w-full sm:w-9/12 p-4">
+            <MonitoringAkreditasi />
+          </main>
+        </div>
       </div>
     </>
   )

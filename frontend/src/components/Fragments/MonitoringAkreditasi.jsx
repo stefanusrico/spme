@@ -6,7 +6,6 @@ import "../../index.css"
 const MonitoringAkreditasi = () => {
   return (
     <div className="w-full max-w-[1600px] mx-auto mt-5">
-      {/* Top Container */}
       <div className="ml-32 mt-10 bg-white border border-gray-300 rounded-lg shadow bg-white border-gray p-6 w-full flex justify-between">
         <div className="ml-5 flex gap-8 items-center">
           <Card title="Akreditasi Unggul" value="13" />

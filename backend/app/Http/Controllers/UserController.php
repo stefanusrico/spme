@@ -27,6 +27,8 @@ class UserController extends Controller
             'email' => 'required|string|email|max:255|unique:users,email',
             'password' => 'required|string|min:8',
             'username' => 'nullable|string|unique:users,username',
+            'role' => 'required|string',
+            'phone_number' => 'required|unique:users,phone_number|string',
         ]);
 
         if ($validator->fails()) {
@@ -42,7 +44,9 @@ class UserController extends Controller
                 'email' => $request->email,
                 'password' => $request->password,
                 'username' => $request->username ?? null,
-                'status' => $request->status ?? 'active'
+                'status' => $request->status ?? 'active',
+                'role' => $request->role,
+                'phone_number' => $request->phone_number
             ]);
 
             return response()->json([
@@ -65,7 +69,6 @@ class UserController extends Controller
     {
         $user = Auth::user();
 
-        // Mengembalikan data user
         return response()->json($user);
     }
 
@@ -90,7 +93,6 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
 
-            // Validasi input
             $validator = Validator::make($request->all(), [
                 'name' => 'sometimes|string|max:255',
                 'email' => 'sometimes|string|email|max:255|unique:users,email,' . $id,
@@ -98,7 +100,6 @@ class UserController extends Controller
                 'username' => 'sometimes|string|unique:users,username,' . $id,
             ]);
 
-            // Kembalikan error jika validasi gagal
             if ($validator->fails()) {
                 return response()->json([
                     'status' => 'error',
@@ -106,7 +107,6 @@ class UserController extends Controller
                 ], 400);
             }
 
-            // Update data
             if ($request->has('name'))
                 $user->name = $request->name;
             if ($request->has('email'))

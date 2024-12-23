@@ -3,17 +3,24 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import {
   faChevronRight,
   faChevronDown,
+  faBars,
+  faTimes,
 } from "@fortawesome/free-solid-svg-icons"
 import PropTypes from "prop-types"
 
 const Sidebar = ({ items, className = "" }) => {
   const [expanded, setExpanded] = useState({})
+  const [isOpen, setIsOpen] = useState(false)
 
   const toggleExpand = (index) => {
     setExpanded((prev) => ({
       ...prev,
       [index]: !prev[index],
     }))
+  }
+
+  const toggleSidebar = () => {
+    setIsOpen(!isOpen)
   }
 
   const renderItems = (items) => {
@@ -41,15 +48,27 @@ const Sidebar = ({ items, className = "" }) => {
   }
 
   return (
-    <aside
-      id="logo-sidebar"
-      className={`fixed top-0 left-0 z-40 w-64 h-screen pt-20 transition-transform -translate-x-full bg-white border-r border-primary sm:translate-x-0 dark:bg-white dark:border-gray ${className}`}
-      aria-label="Sidebar"
-    >
-      <div className="h-full px-3 pb-4 overflow-y-auto bg-white dark:bg-gray-800">
-        <ul className="space-y-2 font-medium">{renderItems(items)}</ul>
-      </div>
-    </aside>
+    <>  
+      <button
+        onClick={toggleSidebar}
+        className="sm:hidden p-2 text-black"
+        aria-label="Toggle Sidebar"
+      >
+        <FontAwesomeIcon icon={isOpen ? faTimes : faBars} />
+      </button>
+
+      <aside
+        id="logo-sidebar"
+        className={`fixed top-0 left-0 z-40 w-64 h-screen pt-20 transition-transform bg-white border-r border-primary sm:translate-x-0 dark:bg-white dark:border-gray ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        } ${className}`}
+        aria-label="Sidebar"
+      >
+        <div className="h-full px-3 pb-4 overflow-y-auto bg-white dark:bg-gray-800">
+          <ul className="space-y-2 font-medium">{renderItems(items)}</ul>
+        </div>
+      </aside>
+    </>
   )
 }
 

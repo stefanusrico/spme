@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { DataTable } from "simple-datatables"
 import ProgressBar from "../Chart/ProgressBar"
 import "simple-datatables/dist/style.css"

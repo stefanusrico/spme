@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react"
+import { useEffect, useRef } from "react"
 import { DataTable } from "simple-datatables"
 import "simple-datatables/dist/style.css"
 
@@ -44,7 +44,7 @@ const SearchTable = () => {
       const dataTable = new DataTable(tableRef.current, {
         searchable: true,
         sortable: false,
-        perPage: 5, // Menentukan jumlah entri yang ditampilkan per halaman
+        perPage: 5,
       })
 
       if (searchRef.current) {
