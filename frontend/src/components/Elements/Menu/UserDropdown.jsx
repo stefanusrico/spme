@@ -20,8 +20,9 @@ const UserDropdown = () => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside)
     }
-  }, [])
+  }, []) // Empty dependency array ensures this runs once
 
+  // Fetch user data only once when component mounts
   useEffect(() => {
     const cachedUserData = localStorage.getItem("userData")
     if (cachedUserData) {
@@ -29,7 +30,7 @@ const UserDropdown = () => {
     } else {
       getUserData(setUserData)
     }
-  }, [])
+  }, []) // Empty dependency array ensures this runs once
 
   const toggleDropdown = () => {
     setIsOpen(!isOpen)
@@ -78,7 +79,6 @@ const UserDropdown = () => {
           src="https://flowbite.com/docs/images/people/profile-picture-5.jpg"
           alt="User profile"
         />
-        {/* Hide name and role on mobile */}
         <div className="hidden sm:block text-left">
           <p className="text-sm text-gray-900 dark:text-black">
             {userData.name || "Loading..."}
@@ -101,7 +101,6 @@ const UserDropdown = () => {
           aria-orientation="vertical"
         >
           <div className="px-4 py-3">
-            {/* Display user name and email */}
             <p className="text-sm text-gray-900 dark:text-white">
               {userData.name || "Loading..."}
             </p>

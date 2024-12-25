@@ -28,6 +28,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'username' => 'nullable|string|unique:users,username',
             'role' => 'required|string',
+            'profile_picture' => 'nullable|string',
             'phone_number' => 'required|unique:users,phone_number|string',
         ]);
 
@@ -46,6 +47,7 @@ class UserController extends Controller
                 'username' => $request->username ?? null,
                 'status' => $request->status ?? 'active',
                 'role' => $request->role,
+                'profile_picture' => $request->profile_picture ?? null,
                 'phone_number' => $request->phone_number
             ]);
 
@@ -96,7 +98,7 @@ class UserController extends Controller
             $validator = Validator::make($request->all(), [
                 'name' => 'sometimes|string|max:255',
                 'email' => 'sometimes|string|email|max:255|unique:users,email,' . $id,
-                'password' => 'sometimes|string|min:8',
+                'phone_number' => 'sometimes|string|unique:users,phone_number,' . $id,
                 'username' => 'sometimes|string|unique:users,username,' . $id,
             ]);
 
@@ -111,12 +113,10 @@ class UserController extends Controller
                 $user->name = $request->name;
             if ($request->has('email'))
                 $user->email = $request->email;
-            if ($request->has('password'))
-                $user->password = $request->password;
+            if ($request->has('phone_number'))
+                $user->phone_number = $request->phone_number;
             if ($request->has('username'))
                 $user->username = $request->username;
-            if ($request->has('status'))
-                $user->status = $request->status;
 
             $user->save();
 
@@ -129,6 +129,47 @@ class UserController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal update user: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function updatePassword(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'current_password' => 'required|string',
+                'password' => 'required|string|min:8|confirmed',
+                'password_confirmation' => 'required'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            if (!password_verify($request->current_password, $user->password)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Current password tidak sesuai'
+                ], 400);
+            }
+
+
+            $user->password = $request->password;
+            $user->save();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Password berhasil diupdate'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal update password: ' . $e->getMessage()
             ], 500);
         }
     }

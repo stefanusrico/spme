@@ -20,6 +20,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::post('/users', 'store');
             Route::get('/users/{id}', 'show');
             Route::put('/users/{id}', 'update');
+            Route::put('/users/password/{id}', 'updatePassword');
             Route::delete('/users/{id}', 'destroy');
         });
     });
@@ -27,11 +28,3 @@ Route::middleware([JwtMiddleware::class])->group(function () {
 
 
 Route::post('refresh', [AuthController::class, 'refresh']);
-
-
-Route::resource('posts', PostController::class)->only([
-    'destroy',
-    'show',
-    'store',
-    'update'
-]);
