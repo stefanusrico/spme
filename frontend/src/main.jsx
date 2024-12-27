@@ -8,8 +8,11 @@ import AuthWrapper from "./components/Auth/AuthWrapper"
 import RoleBasedRoute from "./components/Auth/RoleBasedRoute"
 import DashboardAdmin from "./pages/DashboardAdmin"
 import App from "./App"
+import TestingPage from "./pages/testing"
 import { isTokenExpired } from "./utils/axiosConfig"
 import { handleLogout } from "./components/Auth/auth.action"
+import Testing from "./pages/test2"
+import SigninSecurity from "./components/Elements/Profile/SigninSecurity"
 
 setInterval(() => {
   const token = localStorage.getItem("token")
@@ -29,9 +32,12 @@ const router = createBrowserRouter([
     ],
   },
   {
-    path: "/dashboard",
     element: <RoleBasedRoute allowedRoles={["admin"]} />,
-    children: [{ index: true, element: <DashboardAdmin /> }],
+    children: [
+      { path: "/dashboard", element: <DashboardAdmin /> },
+      { path: "/user/profile", element: <TestingPage /> },
+      { path: "/user/security", element: <TestingPage /> },
+    ],
   },
   {
     path: "/dash",

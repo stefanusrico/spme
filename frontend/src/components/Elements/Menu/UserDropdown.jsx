@@ -39,7 +39,7 @@ const UserDropdown = () => {
   const handleMenuItemClick = (action) => {
     switch (action) {
       case "settings":
-        navigate("/settings")
+        navigate("/user/profile")
         break
       case "help":
         navigate("/help")

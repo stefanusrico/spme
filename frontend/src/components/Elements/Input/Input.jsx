@@ -36,7 +36,7 @@ const EyeClosedIcon = () => (
 )
 
 const Input = (props) => {
-  const { type, placeholder, name } = props
+  const { type, placeholder, name, classname = "", disabled = false } = props
   const [showPassword, setShowPassword] = useState(false)
 
   const isPasswordType = type === "password"
@@ -46,12 +46,15 @@ const Input = (props) => {
     <div className="relative w-full">
       <input
         type={inputType}
-        className="text-sm w-full p-2 bg-gray rounded-md focus:outline-none focus:ring focus:ring-gray-400"
+        className={`text-sm ${classname} p-3 bg-gray rounded-md focus:outline-none focus:ring focus:ring-gray-400 ${
+          disabled ? "opacity-50 cursor-not-allowed" : ""
+        }`}
         placeholder={placeholder}
         name={name}
         id={name}
+        disabled={disabled}
       />
-      {isPasswordType && (
+      {isPasswordType && !disabled && (
         <button
           type="button"
           aria-label={showPassword ? "Hide password" : "Show password"}

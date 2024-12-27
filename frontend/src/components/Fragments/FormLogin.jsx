@@ -22,12 +22,14 @@ const FormLogin = () => {
         type="email"
         placeholder="example@email.com"
         name="email"
+        classname="w-full"
       />
       <InputForm
         label="Password"
         type="password"
         placeholder="Enter password"
         name="password"
+        classname="w-full"
       />
       <div className="flex items-center mb-4">
         <label

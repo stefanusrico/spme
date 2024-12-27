@@ -28,7 +28,7 @@ const sidebarItems = [
 const DashboardAdmin = () => {
   return (
     <>
-      <div className="flex flex-col justify-center min-h-screen items-center bg-graybackground">
+      <div className="flex flex-col justify-center min-h-screen bg-graybackground">
         <Navbar />
         <MonitoringAkreditasi />
         <Sidebar items={sidebarItems} />
