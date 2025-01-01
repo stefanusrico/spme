@@ -28,7 +28,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'username' => 'nullable|string|unique:users,username',
             'role' => 'required|string',
-            'profile_picture' => 'nullable|string',
+            'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png|max:2048', // Validasi gambar
             'phone_number' => 'required|unique:users,phone_number|string',
         ]);
 
@@ -40,6 +40,13 @@ class UserController extends Controller
         }
 
         try {
+            $profilePicturePath = null;
+
+            // Simpan gambar jika ada
+            if ($request->hasFile('profile_picture')) {
+                $profilePicturePath = $request->file('profile_picture')->store('profile_pictures', 'public');
+            }
+
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
@@ -47,7 +54,7 @@ class UserController extends Controller
                 'username' => $request->username ?? null,
                 'status' => $request->status ?? 'active',
                 'role' => $request->role,
-                'profile_picture' => $request->profile_picture ?? null,
+                'profile_picture' => $profilePicturePath, // Simpan path gambar
                 'phone_number' => $request->phone_number
             ]);
 
@@ -63,6 +70,7 @@ class UserController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Get the authenticated user's data.
@@ -90,6 +98,37 @@ class UserController extends Controller
         }
     }
 
+    public function uploadFile(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048',
+                'directory' => 'required|string'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            $filePath = $request->file('file')->store($request->directory, 'public');
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'File uploaded successfully',
+                'file_path' => $filePath
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to upload file: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
     public function update(Request $request, $id)
     {
         try {
@@ -100,6 +139,7 @@ class UserController extends Controller
                 'email' => 'sometimes|string|email|max:255|unique:users,email,' . $id,
                 'phone_number' => 'sometimes|string|unique:users,phone_number,' . $id,
                 'username' => 'sometimes|string|unique:users,username,' . $id,
+                'profile_picture' => 'sometimes|string', 
             ]);
 
             if ($validator->fails()) {
@@ -109,26 +149,27 @@ class UserController extends Controller
                 ], 400);
             }
 
-            if ($request->has('name'))
-                $user->name = $request->name;
-            if ($request->has('email'))
-                $user->email = $request->email;
-            if ($request->has('phone_number'))
-                $user->phone_number = $request->phone_number;
-            if ($request->has('username'))
-                $user->username = $request->username;
+            $user->fill($request->only([
+                'name',
+                'email',
+                'phone_number',
+                'username',
+                'profile_picture' 
+            ]));
 
             $user->save();
+            
+            $user->refresh();
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'User berhasil diupdate',
+                'message' => 'User updated successfully',
                 'data' => $user
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Gagal update user: ' . $e->getMessage()
+                'message' => 'Failed to update user: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -157,7 +198,6 @@ class UserController extends Controller
                     'message' => 'Current password tidak sesuai'
                 ], 400);
             }
-
 
             $user->password = $request->password;
             $user->save();

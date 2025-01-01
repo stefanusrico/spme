@@ -14,12 +14,15 @@ import { handleLogout } from "./components/Auth/auth.action"
 import Testing from "./pages/test2"
 import SigninSecurity from "./components/Elements/Profile/SigninSecurity"
 
-setInterval(() => {
+const CHECK_INTERVAL = 1000
+
+let tokenCheckInterval = setInterval(() => {
   const token = localStorage.getItem("token")
   if (!token || isTokenExpired(token)) {
+    clearInterval(tokenCheckInterval)
     handleLogout()
   }
-}, 1000)
+}, CHECK_INTERVAL)
 
 const router = createBrowserRouter([
   {

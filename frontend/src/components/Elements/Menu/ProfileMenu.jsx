@@ -1,40 +1,50 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { faChevronRight } from "@fortawesome/free-solid-svg-icons"
+import {
+  faChevronRight,
+  faChevronDown,
+} from "@fortawesome/free-solid-svg-icons"
 import PropTypes from "prop-types"
 import { useState } from "react"
 
-const ProfileMenu = ({ items, className = "", title = "" }) => {
+const ProfileMenu = ({ items, className = "", title = "", onItemClick }) => {
   const [activeItem, setActiveItem] = useState(null)
+  const [expandedItems, setExpandedItems] = useState({})
+
+  const toggleExpand = (key) => {
+    setExpandedItems((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const handleClick = (item) => {
+    setActiveItem(item.key)
+    if (onItemClick) onItemClick(item.key)
+  }
 
   const renderItems = (items) => {
-    return items.map((item, index) => (
-      <li key={index} className="group">
+    return items.map((item) => (
+      <li key={item.key} className="group">
         <div
-          onClick={() => setActiveItem(index)}
-          className={`flex font-lg items-center justify-between p-2 rounded-lg cursor-pointer transition-colors
+          onClick={() =>
+            item.children ? toggleExpand(item.key) : handleClick(item)
+          }
+          className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors
             ${
-              activeItem === index
+              activeItem === item.key
                 ? "bg-primary text-white"
                 : "text-black hover:bg-primary hover:text-white"
             }`}
         >
           <div className="flex items-center space-x-3">
-            {item.icon && (
-              <FontAwesomeIcon
-                icon={item.icon}
-                className={activeItem === index ? "text-white" : ""}
-              />
-            )}
+            {item.icon && <FontAwesomeIcon icon={item.icon} />}
             <span>{item.label}</span>
           </div>
           {item.children && (
             <FontAwesomeIcon
-              icon={faChevronRight}
-              className={activeItem === index ? "text-purple-600" : ""}
+              icon={expandedItems[item.key] ? faChevronDown : faChevronRight}
+              className="ml-2"
             />
           )}
         </div>
-        {item.children && (
+        {item.children && expandedItems[item.key] && (
           <ul className="ml-4 space-y-2">{renderItems(item.children)}</ul>
         )}
       </li>
@@ -43,7 +53,7 @@ const ProfileMenu = ({ items, className = "", title = "" }) => {
 
   return (
     <aside
-      id="logo-sidebar"
+      id="profile-sidebar"
       className={`w-96 h-screen pt-20 transition-transform bg-graybackground border-gray ${className}`}
       aria-label="Sidebar"
     >
@@ -56,9 +66,17 @@ const ProfileMenu = ({ items, className = "", title = "" }) => {
 }
 
 ProfileMenu.propTypes = {
-  items: PropTypes.array.isRequired,
+  items: PropTypes.arrayOf(
+    PropTypes.shape({
+      key: PropTypes.string.isRequired,
+      label: PropTypes.string.isRequired,
+      icon: PropTypes.object,
+      children: PropTypes.array,
+    })
+  ).isRequired,
   className: PropTypes.string,
   title: PropTypes.string,
+  onItemClick: PropTypes.func,
 }
 
 export default ProfileMenu

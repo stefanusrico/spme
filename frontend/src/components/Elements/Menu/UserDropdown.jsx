@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react"
 import { Globe, Settings, LogOut, HelpCircle, ChevronDown } from "lucide-react"
 import { useNavigate } from "react-router-dom"
-import { getUserData, handleLogout } from "../../Auth/auth.action"
+import { handleLogout } from "../../Auth/auth.action"
+import { fetchUserData } from "../Profile/profile.action"
 
 const UserDropdown = () => {
   const [isOpen, setIsOpen] = useState(false)
@@ -20,17 +21,27 @@ const UserDropdown = () => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside)
     }
-  }, []) // Empty dependency array ensures this runs once
+  }, [])
 
-  // Fetch user data only once when component mounts
   useEffect(() => {
-    const cachedUserData = localStorage.getItem("userData")
-    if (cachedUserData) {
-      setUserData(JSON.parse(cachedUserData))
-    } else {
-      getUserData(setUserData)
+    const loadUserData = async () => {
+      try {
+        const data = await fetchUserData()
+        if (data) {
+          setUserData({
+            name: data.name || "Unknown",
+            email: data.email || "No email",
+            role: data.role || "User",
+            profile_picture: data.profile_picture || "",
+          })
+        }
+      } catch (error) {
+        console.error("Failed to load user data", error)
+      }
     }
-  }, []) // Empty dependency array ensures this runs once
+
+    loadUserData()
+  }, [])
 
   const toggleDropdown = () => {
     setIsOpen(!isOpen)
@@ -76,7 +87,11 @@ const UserDropdown = () => {
         <span className="sr-only">Open user menu</span>
         <img
           className="w-8 h-8 rounded-full object-cover"
-          src="https://flowbite.com/docs/images/people/profile-picture-5.jpg"
+          src={
+            userData.profile_picture
+              ? `http://localhost:8000/storage/${userData.profile_picture}`
+              : "/default-avatar.png"
+          }
           alt="User profile"
         />
         <div className="hidden sm:block text-left">
@@ -84,7 +99,7 @@ const UserDropdown = () => {
             {userData.name || "Loading..."}
           </p>
           <p className="text-xs font-medium text-gray-500 truncate dark:text-gray-300">
-            {userData.role || "User"}
+            {userData.role.charAt(0).toUpperCase() + userData.role.slice(1)}
           </p>
         </div>
         <ChevronDown
@@ -101,7 +116,7 @@ const UserDropdown = () => {
           aria-orientation="vertical"
         >
           <div className="px-4 py-3">
-            <p className="text-sm text-gray-900 dark:text-white">
+            <p className="text-sm text-gray-900 dark:text-black">
               {userData.name || "Loading..."}
             </p>
             <p className="text-sm font-medium text-gray-500 truncate dark:text-gray-300">

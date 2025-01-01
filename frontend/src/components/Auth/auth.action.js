@@ -12,7 +12,7 @@ export const handleLogin = async (e, rememberMe, setError, navigate) => {
 
   try {
     const response = await axiosInstance.post("/login", { email, password })
-    const { token } = response.data
+    const { token, role } = response.data
 
     localStorage.setItem("token", token)
     localStorage.setItem("email", email)
@@ -22,10 +22,6 @@ export const handleLogin = async (e, rememberMe, setError, navigate) => {
     } else {
       localStorage.removeItem("rememberMe")
     }
-
-    const userResponse = await axiosInstance.get("/user")
-    const { name, role } = userResponse.data
-    localStorage.setItem("userData", JSON.stringify({ name, email, role }))
 
     if (role === "admin") {
       navigate("/dashboard")
@@ -76,7 +72,6 @@ export const handleLogout = async () => {
 const cleanupStorage = () => {
   localStorage.removeItem("email")
   localStorage.removeItem("token")
-  localStorage.removeItem("userData")
   localStorage.removeItem("rememberMe")
 }
 
@@ -88,30 +83,5 @@ const redirectToLogin = () => {
     currentPath !== "/"
   ) {
     window.location.href = "/login"
-  }
-}
-
-export const getUserData = async (setUserData) => {
-  const token = localStorage.getItem("token")
-  const currentPath = window.location.pathname
-
-  if (
-    !token &&
-    (currentPath === "/login" ||
-      currentPath === "/register" ||
-      currentPath === "/")
-  ) {
-    return
-  }
-
-  try {
-    const response = await axiosInstance.get("/user")
-    const { name, email, role } = response.data
-    setUserData({ name, email, role })
-  } catch (error) {
-    console.error("Error fetching user data:", error)
-    if (error.response?.status === 401) {
-      handleLogout()
-    }
   }
 }

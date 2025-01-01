@@ -36,7 +36,15 @@ const EyeClosedIcon = () => (
 )
 
 const Input = (props) => {
-  const { type, placeholder, name, classname = "", disabled = false } = props
+  const {
+    type,
+    placeholder,
+    name,
+    value,
+    onChange,
+    classname = "",
+    disabled = false,
+  } = props
   const [showPassword, setShowPassword] = useState(false)
 
   const isPasswordType = type === "password"
@@ -53,6 +61,8 @@ const Input = (props) => {
         name={name}
         id={name}
         disabled={disabled}
+        value={value}
+        onChange={onChange}
       />
       {isPasswordType && !disabled && (
         <button

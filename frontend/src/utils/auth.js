@@ -1,4 +1,5 @@
 import { jwtDecode } from "jwt-decode"
+import { fetchUserData } from "../components/Elements/Profile/profile.action"
 
 export const isAuthenticated = () => {
   const token = localStorage.getItem("token")
@@ -8,7 +9,6 @@ export const isAuthenticated = () => {
   try {
     const decoded = jwtDecode(token)
     const currentTime = Date.now() / 1000
-
     return decoded.exp > currentTime
   } catch (error) {
     console.error("Error decoding token:", error)
@@ -16,13 +16,19 @@ export const isAuthenticated = () => {
   }
 }
 
-export const getUserRole = () => {
+export const getUserRole = async () => {
   try {
-    const userData = localStorage.getItem("userData")
-    if (!userData) return null
-    const { role } = JSON.parse(userData)
+    const userData = await fetchUserData()
+    if (!userData || !userData.role) {
+      console.warn("User data or role not found")
+      return null
+    }
+
+    const role = userData.role
+    console.log("Role fetched successfully:", role)
     return role || null
-  } catch {
+  } catch (error) {
+    console.error("Error in getUserRole:", error)
     return null
   }
 }

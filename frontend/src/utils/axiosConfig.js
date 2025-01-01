@@ -3,7 +3,6 @@ import { jwtDecode } from "jwt-decode"
 
 const axiosInstance = axios.create({
   baseURL: "http://localhost:8000/api/",
-  timeout: 5000,
 })
 
 export const isTokenExpired = (token) => {
@@ -11,9 +10,9 @@ export const isTokenExpired = (token) => {
 
   try {
     const decoded = jwtDecode(token)
-    console.log("decoded:", decoded)
+    // console.log("decoded:", decoded)
     const currentTime = Date.now() / 1000
-    console.log("currentTime:", currentTime)
+    // console.log("currentTime:", currentTime)
     return decoded.exp < currentTime
   } catch (error) {
     console.error("Error decoding token:", error)
@@ -40,6 +39,7 @@ axiosInstance.interceptors.request.use(
       }
       config.headers.Authorization = `Bearer ${token}`
     }
+
     return config
   },
   (error) => Promise.reject(error)

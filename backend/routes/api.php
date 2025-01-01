@@ -15,6 +15,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
 
     Route::middleware(['role:admin'])->group(function () {
         Route::get('/test-mongo', [AuthController::class, 'testMongoConnection']);
+        Route::post('/upload', [UserController::class, 'uploadFile']);
         Route::controller(UserController::class)->group(function () {
             Route::get('/users', 'index');
             Route::post('/users', 'store');
