@@ -28,7 +28,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'username' => 'nullable|string|unique:users,username',
             'role' => 'required|string',
-            'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png|max:2048', // Validasi gambar
+            'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
             'phone_number' => 'required|unique:users,phone_number|string',
         ]);
 
@@ -139,7 +139,7 @@ class UserController extends Controller
                 'email' => 'sometimes|string|email|max:255|unique:users,email,' . $id,
                 'phone_number' => 'sometimes|string|unique:users,phone_number,' . $id,
                 'username' => 'sometimes|string|unique:users,username,' . $id,
-                'profile_picture' => 'sometimes|string', 
+                'profile_picture' => 'sometimes|string',
             ]);
 
             if ($validator->fails()) {
@@ -154,11 +154,11 @@ class UserController extends Controller
                 'email',
                 'phone_number',
                 'username',
-                'profile_picture' 
+                'profile_picture'
             ]));
 
             $user->save();
-            
+
             $user->refresh();
 
             return response()->json([
