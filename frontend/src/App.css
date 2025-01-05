@@ -10,3 +10,12 @@ select,
 button {
   font-size: 16px;
 }
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none; 
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; 
+}

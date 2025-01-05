@@ -1,6 +1,6 @@
 import React from "react"
 import ReactDOM from "react-dom/client"
-import { createBrowserRouter, RouterProvider } from "react-router-dom"
+import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom"
 import LoginPage from "./pages/login"
 import RegisterPage from "./pages/register"
 import ErrorPage from "./pages/404"
@@ -9,6 +9,11 @@ import RoleBasedRoute from "./components/Auth/RoleBasedRoute"
 import DashboardAdmin from "./pages/DashboardAdmin"
 import App from "./App"
 import TestingPage from "./pages/testing"
+import UserManagement from "./pages/userManagement"
+import EditUser from "./components/Fragments/manageUser/edit"
+import EditRole from "./components/Fragments/managePermission/edit"
+import AddUser from "./components/Fragments/manageUser/add"
+import AddPermission from "./components/Fragments/managePermission/add"
 import { isTokenExpired } from "./utils/axiosConfig"
 import { handleLogout } from "./components/Auth/auth.action"
 import Testing from "./pages/test2"
@@ -40,6 +45,12 @@ const router = createBrowserRouter([
       { path: "/dashboard", element: <DashboardAdmin /> },
       { path: "/user/profile", element: <TestingPage /> },
       { path: "/user/security", element: <TestingPage /> },
+      { path: "/user-management", element: <Navigate to="/user-management/1" replace /> },
+      { path: "/user-management/:modeParams", element: <UserManagement /> },
+      { path: "/user-management/user/:id/edit", element: <EditUser /> },
+      { path: "/user-management/role/:id/edit", element: <EditRole /> },
+      { path: "/user-management/user/add", element: <AddUser /> },
+      { path: "/user-management/role/add", element: <AddPermission /> },
     ],
   },
   {
