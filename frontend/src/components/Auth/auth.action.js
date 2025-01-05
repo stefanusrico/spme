@@ -26,7 +26,7 @@ export const handleLogin = async (e, rememberMe, setError, navigate) => {
     if (role === "admin") {
       navigate("/dashboard")
     } else if (role === "Ketua Program Studi") {
-      navigate("/dash")
+      navigate("/dashboar")
     }
   } catch (error) {
     console.error("Login failed:", error)

@@ -26,20 +26,32 @@ const Sidebar = ({ items, className = "" }) => {
   const renderItems = (items) => {
     return items.map((item, index) => (
       <li key={index} className="group">
-        <div
-          onClick={() => toggleExpand(index)}
-          className="flex font-lg items-center justify-between p-2 text-black rounded-lg text-black hover:bg-primary hover:text-white dark:hover:bg-primary cursor-pointer"
-        >
-          <div className="flex items-center space-x-2">
-            {item.icon && <FontAwesomeIcon icon={item.icon} />}
-            <span>{item.label}</span>
+        {item.href ? (
+          <a
+            href={item.href}
+            className="flex font-lg items-center justify-between p-2 text-black rounded-lg hover:bg-primary hover:text-white dark:hover:bg-primary cursor-pointer"
+          >
+            <div className="flex items-center space-x-2">
+              {item.icon && <FontAwesomeIcon icon={item.icon} />}
+              <span>{item.label}</span>
+            </div>
+          </a>
+        ) : (
+          <div
+            onClick={() => toggleExpand(index)}
+            className="flex font-lg items-center justify-between p-2 text-black rounded-lg hover:bg-primary hover:text-white dark:hover:bg-primary cursor-pointer"
+          >
+            <div className="flex items-center space-x-2">
+              {item.icon && <FontAwesomeIcon icon={item.icon} />}
+              <span>{item.label}</span>
+            </div>
+            {item.children && (
+              <FontAwesomeIcon
+                icon={expanded[index] ? faChevronDown : faChevronRight}
+              />
+            )}
           </div>
-          {item.children && (
-            <FontAwesomeIcon
-              icon={expanded[index] ? faChevronDown : faChevronRight}
-            />
-          )}
-        </div>
+        )}
         {item.children && expanded[index] && (
           <ul className="ml-4 space-y-2">{renderItems(item.children)}</ul>
         )}
@@ -48,7 +60,7 @@ const Sidebar = ({ items, className = "" }) => {
   }
 
   return (
-    <>  
+    <>
       <button
         onClick={toggleSidebar}
         className="sm:hidden p-2 text-black"

@@ -8,7 +8,6 @@ import AuthWrapper from "./components/Auth/AuthWrapper"
 import RoleBasedRoute from "./components/Auth/RoleBasedRoute"
 import DashboardAdmin from "./pages/DashboardAdmin"
 import App from "./App"
-import TestingPage from "./pages/testing"
 import UserManagement from "./pages/userManagement"
 import EditUser from "./components/Fragments/manageUser/edit"
 import EditRole from "./components/Fragments/managePermission/edit"
@@ -16,8 +15,7 @@ import AddUser from "./components/Fragments/manageUser/add"
 import AddPermission from "./components/Fragments/managePermission/add"
 import { isTokenExpired } from "./utils/axiosConfig"
 import { handleLogout } from "./components/Auth/auth.action"
-import Testing from "./pages/test2"
-import SigninSecurity from "./components/Elements/Profile/SigninSecurity"
+import ProfileManagement from "./pages/ProfileManagement"
 
 const CHECK_INTERVAL = 1000
 
@@ -43,9 +41,11 @@ const router = createBrowserRouter([
     element: <RoleBasedRoute allowedRoles={["admin"]} />,
     children: [
       { path: "/dashboard", element: <DashboardAdmin /> },
-      { path: "/user/profile", element: <TestingPage /> },
-      { path: "/user/security", element: <TestingPage /> },
-      { path: "/user-management", element: <Navigate to="/user-management/1" replace /> },
+      { path: "/user/profile", element: <ProfileManagement /> },
+      {
+        path: "/user-management",
+        element: <Navigate to="/user-management/1" replace />,
+      },
       { path: "/user-management/:modeParams", element: <UserManagement /> },
       { path: "/user-management/user/:id/edit", element: <EditUser /> },
       { path: "/user-management/role/:id/edit", element: <EditRole /> },

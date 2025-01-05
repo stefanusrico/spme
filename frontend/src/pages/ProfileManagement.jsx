@@ -10,7 +10,7 @@ import {
   profileMenuItems,
 } from "../components/Elements/Menu/sidebar"
 
-const TestingPage = () => {
+const ProfileManagement = () => {
   const [activeMenu, setActiveMenu] = useState("preferences")
 
   const renderContent = () => {
@@ -42,4 +42,4 @@ const TestingPage = () => {
   )
 }
 
-export default TestingPage
+export default ProfileManagement
