@@ -56,7 +56,7 @@ const ManagePermission = ({title = "User Management"}) => {
     if (confirm && selectedUserId) {
       try {
         const token = localStorage.getItem("token");
-        await axios.delete(`http://localhost:8000/api/users/${selectedUserId}`, {
+        await axios.delete(`http://localhost:8000/api/roles/${selectedUserId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

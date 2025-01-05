@@ -28,7 +28,8 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'username' => 'nullable|string|unique:users,username',
             'role' => 'required|string',
-            'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            // 'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'profile_picture' => 'nullable|string|max:255',
             'phone_number' => 'required|unique:users,phone_number|string',
         ]);
 
@@ -45,6 +46,8 @@ class UserController extends Controller
             // Simpan gambar jika ada
             if ($request->hasFile('profile_picture')) {
                 $profilePicturePath = $request->file('profile_picture')->store('profile_pictures', 'public');
+            } elseif ($request->input('profile_picture')) { //jika berbentuk path
+                $profilePicturePath = $request->input('profile_picture'); 
             }
 
             $user = User::create([
@@ -85,6 +88,10 @@ class UserController extends Controller
     public function show($id)
     {
         try {
+            if ($user->profile_picture) {
+                $user->profile_picture = asset('storage/' . $user->profile_picture);
+            }
+
             $user = User::findOrFail($id);
             return response()->json([
                 'status' => 'success',
@@ -140,6 +147,7 @@ class UserController extends Controller
                 'phone_number' => 'sometimes|string|unique:users,phone_number,' . $id,
                 'username' => 'sometimes|string|unique:users,username,' . $id,
                 'profile_picture' => 'sometimes|string',
+                'role' => 'sometimes|string',
             ]);
 
             if ($validator->fails()) {
@@ -154,7 +162,8 @@ class UserController extends Controller
                 'email',
                 'phone_number',
                 'username',
-                'profile_picture'
+                'profile_picture',
+                'role'
             ]));
 
             $user->save();

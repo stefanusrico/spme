@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\RoleController;
 use App\Http\Middleware\JwtMiddleware;
 
 Route::post('login', [AuthController::class, 'login']);
@@ -24,6 +25,13 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::put('/users/{id}', 'update');
             Route::put('/users/password/{id}', 'updatePassword');
             Route::delete('/users/{id}', 'destroy');
+        });
+        Route::controller(RoleController::class)->group(function() {
+            Route::get('/roles', 'index'); 
+            Route::post('/roles', 'store'); 
+            Route::get('roles/{id}', 'show'); 
+            Route::put('roles/{id}', 'update'); 
+            Route::delete('roles/{id}', 'destroy');
         });
     });
 });
