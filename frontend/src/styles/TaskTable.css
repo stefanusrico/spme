@@ -1,0 +1,96 @@
+.dataTables_wrapper .dataTables_filter {
+  margin-bottom: 1rem;
+}
+
+.dtr-control {
+  background-color: #f9fafb;
+}
+
+.group-header {
+  background-color: #f3f4f6;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+}
+
+.dataTable tbody tr.dtrg-group td {
+  background-color: #f3f4f6;
+  padding: 0.5rem 1rem;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  background: #2563eb !important;
+  color: white !important;
+  border: none;
+  border-radius: 0.25rem;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+  background: #3b82f6 !important;
+  color: white !important;
+  border: none;
+}
+
+.dataTables_wrapper .dataTables_length select {
+  padding: 0.25rem 2rem 0.25rem 0.5rem !important;
+  border-radius: 0.25rem;
+  border-color: #d1d5db;
+}
+
+.dataTables_wrapper .dataTables_filter input {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid #d1d5db;
+}
+
+.dataTables_wrapper .dataTables_filter input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.display td div.flex {
+  display: flex !important;
+}
+
+.display td div.items-center {
+  align-items: center !important;
+}
+
+.display td div.gap-2 {
+  gap: 0.5rem !important;
+}
+
+.display td img.rounded-full {
+  border-radius: 9999px !important;
+}
+
+.display td img.w-6 {
+  width: 1.5rem !important;
+}
+
+.display td img.h-6 {
+  height: 1.5rem !important;
+}
+
+.display td span.rounded {
+  border-radius: 0.25rem !important;
+  display: inline-block !important;
+  padding: 0.25rem 0.5rem !important;
+}
+
+.owner-cell {
+  transition: background-color 0.2s ease;
+}
+
+.owner-cell:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-radius: 0.375rem;
+}
+
+.dataTables_wrapper .dataTables_filter {
+  margin-bottom: 1rem;
+}
+
+.dataTables_wrapper .dataTables_filter input {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0;
+}

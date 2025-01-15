@@ -2,11 +2,11 @@ import { useState, useRef, useEffect } from "react"
 import { Globe, Settings, LogOut, HelpCircle, ChevronDown } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { handleLogout } from "../../Auth/auth.action"
-import { fetchUserData } from "../Profile/profile.action"
+import { useUser } from "../../../context/userContext"
 
 const UserDropdown = () => {
   const [isOpen, setIsOpen] = useState(false)
-  const [userData, setUserData] = useState({ name: "", email: "", role: "" })
+  const { userData, clearUserData } = useUser()
   const dropdownRef = useRef(null)
   const navigate = useNavigate()
 
@@ -21,26 +21,6 @@ const UserDropdown = () => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside)
     }
-  }, [])
-
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const data = await fetchUserData()
-        if (data) {
-          setUserData({
-            name: data.name || "Unknown",
-            email: data.email || "No email",
-            role: data.role || "User",
-            profile_picture: data.profile_picture || "",
-          })
-        }
-      } catch (error) {
-        console.error("Failed to load user data", error)
-      }
-    }
-
-    loadUserData()
   }, [])
 
   const toggleDropdown = () => {
@@ -67,6 +47,7 @@ const UserDropdown = () => {
   const handleLogoutSubmit = () => {
     handleLogout()
       .then(() => {
+        clearUserData()
         navigate("/login")
         setIsOpen(false)
       })

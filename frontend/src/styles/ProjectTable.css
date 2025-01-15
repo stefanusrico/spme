@@ -1,0 +1,4 @@
+.dataTables_wrapper .dataTable th:nth-child(5),
+.dataTables_wrapper .dataTable td:nth-child(5) {
+  text-align: center;
+}

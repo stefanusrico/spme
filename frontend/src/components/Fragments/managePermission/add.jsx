@@ -2,9 +2,6 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import InputForm from "../../Elements/Input/index"
 import Button from "../../Elements/Button/index"
-import Navbar from "../../../components/Elements/Menu/Navbar"
-import Sidebar from "../../../components/Elements/Menu/SidebarExpanded"
-import { sidebarAdmin } from "../../Elements/Menu/sidebar"
 import axiosInstance from "../../../utils/axiosConfig"
 
 const AddPermission = ({ title = "Add Role" }) => {
@@ -43,8 +40,6 @@ const AddPermission = ({ title = "Add Role" }) => {
 
   return (
     <div className="flex min-h-screen bg-graybackground">
-      <Sidebar items={sidebarAdmin} />
-      <Navbar />
       <div className="fixed justify w-[75%] ml-72 pt-20">
         <h2 className="text-3xl font-semibold mt-5 ml-2">{title}</h2>
         <div className="h-[80vh] my-10 pb-4 overflow-y-auto bg-white shadow-lg radius rounded-lg">

@@ -16,6 +16,15 @@ import AddPermission from "./components/Fragments/managePermission/add"
 import { isTokenExpired } from "./utils/axiosConfig"
 import { handleLogout } from "./components/Auth/auth.action"
 import ProfileManagement from "./pages/ProfileManagement"
+import { UserProvider } from "./context/userContext"
+import ProjectsTable from "./components/Elements/DataTable/ProjectsTable"
+import DashboardKaprodi from "./pages/DashboardKaprodi"
+import TaskTable from "./components/Elements/DataTable/TaskTable"
+import ProjectMemberTable from "./components/Elements/DataTable/ProjectMemberTable"
+import ProdiTable from "./components/Elements/DataTable/ProdiTable"
+import "datatables.net-dt/css/dataTables.dataTables.css"
+import "datatables.net-bs5/css/dataTables.bootstrap5.css"
+import "datatables.net-rowgroup-bs5/css/rowGroup.bootstrap5.css"
 
 const CHECK_INTERVAL = 1000
 
@@ -29,7 +38,11 @@ let tokenCheckInterval = setInterval(() => {
 
 const router = createBrowserRouter([
   {
-    element: <AuthWrapper isProtected={false} />,
+    element: (
+      <UserProvider>
+        <AuthWrapper isProtected={false} />
+      </UserProvider>
+    ),
     errorElement: <ErrorPage />,
     children: [
       { path: "/", element: <LoginPage /> },
@@ -38,10 +51,39 @@ const router = createBrowserRouter([
     ],
   },
   {
-    element: <RoleBasedRoute allowedRoles={["admin"]} />,
+    element: (
+      <UserProvider>
+        <RoleBasedRoute
+          allowedRoles={["Admin", "Ketua Program Studi"]}
+          roleComponents={{
+            Admin: DashboardAdmin,
+            "Ketua Program Studi": ProjectsTable,
+          }}
+        />
+      </UserProvider>
+    ),
+    children: [{ path: "/dashboard", element: null }],
+  },
+  {
+    element: (
+      <UserProvider>
+        <RoleBasedRoute
+          allowedRoles={["Admin", "Ketua Program Studi"]}
+          sharedComponents={{
+            profile: ProfileManagement,
+          }}
+        />
+      </UserProvider>
+    ),
+    children: [{ path: "/user/profile", element: null }],
+  },
+  {
+    element: (
+      <UserProvider>
+        <RoleBasedRoute allowedRoles={["Admin"]} />
+      </UserProvider>
+    ),
     children: [
-      { path: "/dashboard", element: <DashboardAdmin /> },
-      { path: "/user/profile", element: <ProfileManagement /> },
       {
         path: "/user-management",
         element: <Navigate to="/user-management/1" replace />,
@@ -54,9 +96,17 @@ const router = createBrowserRouter([
     ],
   },
   {
-    path: "/dash",
-    element: <RoleBasedRoute allowedRoles={["Ketua Program Studi"]} />,
-    children: [{ index: true, element: <App /> }],
+    element: (
+      <UserProvider>
+        <RoleBasedRoute allowedRoles={["Ketua Program Studi"]} />
+      </UserProvider>
+    ),
+    children: [
+      { path: "/projects", element: <ProjectsTable /> },
+      { path: "/projects/:projectId", element: <TaskTable /> },
+      { path: "/projects/:projectId/members", element: <ProjectMemberTable /> },
+      { path: "/prodi", element: <ProdiTable /> },
+    ],
   },
 ])
 

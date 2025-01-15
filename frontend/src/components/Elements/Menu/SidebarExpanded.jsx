@@ -29,7 +29,7 @@ const Sidebar = ({ items, className = "" }) => {
         {item.href ? (
           <a
             href={item.href}
-            className="flex font-lg items-center justify-between p-2 text-black rounded-lg hover:bg-primary hover:text-white dark:hover:bg-primary cursor-pointer"
+            className="flex font-lg items-center justify-between p-2 text-black rounded-lg hover:bg-base hover:text-white dark:hover:bg-base cursor-pointer"
           >
             <div className="flex items-center space-x-2">
               {item.icon && <FontAwesomeIcon icon={item.icon} />}
@@ -39,7 +39,7 @@ const Sidebar = ({ items, className = "" }) => {
         ) : (
           <div
             onClick={() => toggleExpand(index)}
-            className="flex font-lg items-center justify-between p-2 text-black rounded-lg hover:bg-primary hover:text-white dark:hover:bg-primary cursor-pointer"
+            className="flex font-lg items-center justify-between p-2 text-black rounded-lg hover:bg-base hover:text-white dark:hover:bg-base cursor-pointer"
           >
             <div className="flex items-center space-x-2">
               {item.icon && <FontAwesomeIcon icon={item.icon} />}
@@ -71,7 +71,7 @@ const Sidebar = ({ items, className = "" }) => {
 
       <aside
         id="logo-sidebar"
-        className={`fixed top-0 left-0 z-40 w-64 h-screen pt-20 transition-transform bg-white border-r border-primary sm:translate-x-0 dark:bg-white dark:border-gray ${
+        className={`fixed top-0 left-0 z-40 w-64 h-screen pt-20 transition-transform bg-white border-r border-gray sm:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } ${className}`}
         aria-label="Sidebar"

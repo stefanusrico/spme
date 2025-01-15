@@ -1,47 +1,26 @@
 /* eslint-disable react/prop-types */
-import { useState, useEffect, useRef } from "react"
+import { useState, useRef } from "react"
 import { ToastContainer, toast } from "react-toastify"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import Button from "../Button/index"
 import InputForm from "../Input/index"
-import { updateUserProfile, fetchUserData, uploadFile } from "./profile.action"
+import { updateUserProfile, uploadFile } from "./profile.action"
 import "react-toastify/dist/ReactToastify.css"
+import { useUser } from "../../../context/userContext"
 
 const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
   const fileInputRef = useRef(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [initialUserData, setInitialUserData] = useState(null)
-  const [userData, setUserData] = useState({
-    name: "",
-    username: "",
-    email: "",
-    role: "",
-    phone_number: "",
-    profile_picture: "",
+  const { userData, updateUserData, isUpdating } = useUser()
+  const [formData, setFormData] = useState({
+    name: userData.name || "",
+    username: userData.username || "",
+    email: userData.email || "",
+    role: userData.role || "",
+    phone_number: userData.phone_number || "",
+    profile_picture: userData.profile_picture || "",
   })
   const [previewImage, setPreviewImage] = useState(null)
-
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const data = await fetchUserData()
-        const formattedData = {
-          name: data.name || "",
-          username: data.username || "",
-          email: data.email || "",
-          role: data.role || "",
-          phone_number: data.phone_number || "",
-          profile_picture: data.profile_picture || "",
-        }
-        setInitialUserData(formattedData)
-        setUserData(formattedData)
-      } catch (error) {
-        console.error("Failed to fetch user data:", error)
-        toast.error("Gagal memuat data pengguna")
-      }
-    }
-    loadUserData()
-  }, [])
 
   const handleImageChange = (e) => {
     const file = e.target.files[0]
@@ -57,22 +36,17 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
       }
 
       setPreviewImage(URL.createObjectURL(file))
-      setUserData({ ...userData, profile_picture: file })
+      setFormData({ ...formData, profile_picture: file })
     }
   }
 
   const hasChanges = () => {
-    if (!initialUserData) return false
+    if (formData.profile_picture instanceof File) return true
 
-    if (userData.profile_picture instanceof File) return true
-
-    if (initialUserData.profile_picture && !userData.profile_picture)
-      return true
+    if (userData.profile_picture && !formData.profile_picture) return true
 
     const fieldsToCompare = ["name", "username", "email", "phone_number"]
-    return fieldsToCompare.some(
-      (field) => initialUserData[field] !== userData[field]
-    )
+    return fieldsToCompare.some((field) => userData[field] !== formData[field])
   }
 
   const handleUpdate = async () => {
@@ -84,19 +58,17 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
 
       setIsLoading(true)
 
-      if (!userData.name || !userData.email || !userData.username) {
+      if (!formData.name || !formData.email || !formData.username) {
         toast.warning("Nama, email, dan username harus diisi")
         return
       }
 
-      let updatedData = { ...userData }
-      let newProfilePicture = userData.profile_picture
+      let updatedData = { ...formData }
+      let newProfilePicture = formData.profile_picture
 
-      if (userData.profile_picture instanceof File) {
-        console.log("New file detected:", userData.profile_picture)
-
+      if (formData.profile_picture instanceof File) {
         const uploadPromise = uploadFile(
-          userData.profile_picture,
+          formData.profile_picture,
           "profile_pictures"
         )
 
@@ -108,14 +80,11 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
 
         const uploadResponse = await uploadPromise
 
-        console.log("Upload response received:", uploadResponse)
-
         if (uploadResponse.status === "success") {
           newProfilePicture =
             uploadResponse.file_path ||
             uploadResponse.path ||
             uploadResponse.url
-          console.log("New profile picture path:", newProfilePicture)
         } else {
           throw new Error("Gagal mengunggah foto profil")
         }
@@ -126,11 +95,9 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
         profile_picture: newProfilePicture,
       }
 
-      console.log("Final data to update:", dataToUpdate)
-
       await updateUserProfile(
         dataToUpdate,
-        (response) => {
+        async (response) => {
           console.log("Update success response:", response)
           onSuccess(response)
         },
@@ -147,13 +114,12 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
     }
   }
 
-  const onSuccess = (response) => {
-    console.log("Success handler response:", response)
+  const onSuccess = async (response) => {
     toast.success("Profil berhasil diperbarui")
 
     if (response.data) {
-      setUserData(response.data)
-      setInitialUserData(response.data)
+      setFormData(response.data)
+      await updateUserData()
     }
 
     if (previewImage) {
@@ -172,14 +138,20 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
       return
     }
 
-    if (initialUserData) {
-      setUserData(initialUserData)
+    setFormData({
+      name: userData.name || "",
+      username: userData.username || "",
+      email: userData.email || "",
+      role: userData.role || "",
+      phone_number: userData.phone_number || "",
+      profile_picture: userData.profile_picture || "",
+    })
+
+    if (previewImage) {
+      URL.revokeObjectURL(previewImage)
       setPreviewImage(null)
-      if (previewImage) {
-        URL.revokeObjectURL(previewImage)
-      }
-      toast.info("Perubahan dibatalkan")
     }
+    toast.info("Perubahan dibatalkan")
   }
 
   return (
@@ -195,7 +167,7 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
         draggable
         pauseOnHover
         theme="light"
-        style={{marginTop: "65px"}}
+        style={{ marginTop: "65px" }}
       />
       <div className="w-96 h-screen pt-20 transition-transform bg-graybackground border-gray">
         <div className="fixed mt-8 h-[800px] w-[1250px] px-7 pb-4 overflow-y-auto bg-white shadow-lg rounded-lg ml-[-620px]">
@@ -207,8 +179,8 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
             <img
               src={
                 previewImage ||
-                (userData.profile_picture
-                  ? `http://localhost:8000/storage/${userData.profile_picture}`
+                (formData.profile_picture
+                  ? `http://localhost:8000/storage/${formData.profile_picture}`
                   : "/default-avatar.png")
               }
               alt="User Avatar"
@@ -223,7 +195,7 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
                 onChange={handleImageChange}
               />
               <Button
-                className="bg-primary w-36 text-white"
+                className="bg-base w-36 text-white"
                 onClick={() => fileInputRef.current.click()}
                 aria-label="Change"
                 disabled={isLoading}
@@ -231,13 +203,13 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
                 Change
               </Button>
               <Button
-                className="bg-primary w-36 text-white"
+                className="bg-base w-36 text-white"
                 onClick={() => {
                   if (previewImage) {
                     URL.revokeObjectURL(previewImage)
                   }
                   setPreviewImage(null)
-                  setUserData({ ...userData, profile_picture: "" })
+                  setFormData({ ...formData, profile_picture: "" })
                   toast.info("Foto profil dihapus")
                 }}
                 aria-label="Remove"
@@ -255,9 +227,9 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
                 placeholder="Monica"
                 name="name"
                 classname="w-80"
-                value={userData.name}
+                value={formData.name}
                 onChange={(e) =>
-                  setUserData({ ...userData, name: e.target.value })
+                  setFormData({ ...formData, name: e.target.value })
                 }
                 disabled={isLoading}
                 required
@@ -268,9 +240,9 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
                 placeholder="example@email.com"
                 name="email"
                 classname="w-80"
-                value={userData.email}
+                value={formData.email}
                 onChange={(e) =>
-                  setUserData({ ...userData, email: e.target.value })
+                  setFormData({ ...formData, email: e.target.value })
                 }
                 disabled={isLoading}
                 required
@@ -283,7 +255,7 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
                 classname="w-80"
                 disabled={true}
                 value={
-                  userData.role.charAt(0).toUpperCase() + userData.role.slice(1)
+                  formData.role.charAt(0).toUpperCase() + formData.role.slice(1)
                 }
               />
             </div>
@@ -294,9 +266,9 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
                 placeholder="Mon"
                 name="username"
                 classname="w-80"
-                value={userData.username}
+                value={formData.username}
                 onChange={(e) =>
-                  setUserData({ ...userData, username: e.target.value })
+                  setFormData({ ...formData, username: e.target.value })
                 }
                 disabled={isLoading}
                 required
@@ -307,9 +279,9 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
                 placeholder="0821313532"
                 name="phoneNumber"
                 classname="w-80"
-                value={userData.phone_number}
+                value={formData.phone_number}
                 onChange={(e) =>
-                  setUserData({ ...userData, phone_number: e.target.value })
+                  setFormData({ ...formData, phone_number: e.target.value })
                 }
                 disabled={isLoading}
               />
@@ -317,7 +289,7 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
           </div>
           <div className="mt-10 ml-8 flex justify-start space-x-4">
             <Button
-              className="bg-primary"
+              className="bg-base"
               aria-label="Cancel"
               onClick={handleCancel}
               disabled={isLoading}
@@ -325,10 +297,10 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
               Cancel
             </Button>
             <Button
-              className="bg-primary"
+              className="bg-base"
               aria-label="Update"
               onClick={handleUpdate}
-              disabled={isLoading}
+              disabled={isUpdating}
             >
               {isLoading ? "Updating..." : "Update"}
             </Button>

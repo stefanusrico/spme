@@ -23,11 +23,7 @@ export const handleLogin = async (e, rememberMe, setError, navigate) => {
       localStorage.removeItem("rememberMe")
     }
 
-    if (role === "admin") {
-      navigate("/dashboard")
-    } else if (role === "Ketua Program Studi") {
-      navigate("/dashboar")
-    }
+    navigate("/dashboard")
   } catch (error) {
     console.error("Login failed:", error)
     setError(error.response?.data?.message || "Invalid email or password")

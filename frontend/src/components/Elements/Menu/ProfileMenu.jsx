@@ -29,8 +29,8 @@ const ProfileMenu = ({ items, className = "", title = "", onItemClick }) => {
           className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors
             ${
               activeItem === item.key
-                ? "bg-primary text-white"
-                : "text-black hover:bg-primary hover:text-white"
+                ? "bg-base text-white"
+                : "text-black hover:bg-base hover:text-white"
             }`}
         >
           <div className="flex items-center space-x-3">

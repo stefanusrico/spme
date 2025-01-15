@@ -17,7 +17,7 @@ export const sidebarAdmin = [
 
 export const sidebarKaprodi = [
   { label: "Dashboard", href: "/dashboard", icon: faHome },
-  { label: "Project", href: "/project", icon: faCogs },
+  { label: "Projects", href: "/projects", icon: faCogs },
 ]
 
 export const profileMenuItems = [

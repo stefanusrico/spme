@@ -43,13 +43,13 @@ const FormLogin = () => {
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
           />
-          <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-white dark:peer-focus:ring-white dark:bg-gray peer-checked:after:translate-x-full peer-checked:after:bg-white after:content-[''] after:absolute after:top-0.5 after:left-1 after:bg-white after:border-black after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-black peer-checked:bg-primary"></div>
+          <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-white dark:peer-focus:ring-white dark:bg-gray peer-checked:after:translate-x-full peer-checked:after:bg-white after:content-[''] after:absolute after:top-0.5 after:left-1 after:bg-white after:border-black after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-black peer-checked:bg-base"></div>
           <span className="ml-3 text-sm text-black dark:text-graytext">
             Remember me
           </span>
         </label>
       </div>
-      <Button className="bg-primary w-full text-white" type="submit">
+      <Button className="bg-base w-full text-white" type="submit">
         Sign In
       </Button>
     </form>

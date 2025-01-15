@@ -31,6 +31,8 @@ class UserController extends Controller
             // 'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
             'profile_picture' => 'nullable|string|max:255',
             'phone_number' => 'required|unique:users,phone_number|string',
+            'jurusan' => 'required|string',
+            'projects' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
@@ -43,11 +45,10 @@ class UserController extends Controller
         try {
             $profilePicturePath = null;
 
-            // Simpan gambar jika ada
             if ($request->hasFile('profile_picture')) {
                 $profilePicturePath = $request->file('profile_picture')->store('profile_pictures', 'public');
-            } elseif ($request->input('profile_picture')) { //jika berbentuk path
-                $profilePicturePath = $request->input('profile_picture'); 
+            } elseif ($request->input('profile_picture')) {
+                $profilePicturePath = $request->input('profile_picture');
             }
 
             $user = User::create([
@@ -57,8 +58,10 @@ class UserController extends Controller
                 'username' => $request->username ?? null,
                 'status' => $request->status ?? 'active',
                 'role' => $request->role,
-                'profile_picture' => $profilePicturePath, // Simpan path gambar
-                'phone_number' => $request->phone_number
+                'profile_picture' => $profilePicturePath,
+                'phone_number' => $request->phone_number,
+                'jurusan' => $request->jurusan,
+                'projects' => $request->projects ?? null,
             ]);
 
             return response()->json([
@@ -88,11 +91,12 @@ class UserController extends Controller
     public function show($id)
     {
         try {
+            $user = User::findOrFail($id);
+
             if ($user->profile_picture) {
                 $user->profile_picture = asset('storage/' . $user->profile_picture);
             }
 
-            $user = User::findOrFail($id);
             return response()->json([
                 'status' => 'success',
                 'data' => $user
@@ -146,7 +150,7 @@ class UserController extends Controller
                 'email' => 'sometimes|string|email|max:255|unique:users,email,' . $id,
                 'phone_number' => 'sometimes|string|unique:users,phone_number,' . $id,
                 'username' => 'sometimes|string|unique:users,username,' . $id,
-                'profile_picture' => 'sometimes|string',
+                'profile_picture' => 'sometimes|nullable|string',
                 'role' => 'sometimes|string',
             ]);
 

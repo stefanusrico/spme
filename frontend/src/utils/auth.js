@@ -1,5 +1,6 @@
 import { jwtDecode } from "jwt-decode"
 import { fetchUserData } from "../components/Elements/Profile/profile.action"
+import axiosInstance from "../utils/axiosConfig"
 
 export const isAuthenticated = () => {
   const token = localStorage.getItem("token")
@@ -13,6 +14,17 @@ export const isAuthenticated = () => {
   } catch (error) {
     console.error("Error decoding token:", error)
     return false
+  }
+}
+
+export const getAuthenticatedUser = async () => {
+  try {
+    const response = await axiosInstance.get("auth/user")
+    console.log("Fetched user data:", response.data)
+    return response.data
+  } catch (error) {
+    console.error("Error fetching authenticated user:", error)
+    return null
   }
 }
 

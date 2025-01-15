@@ -1,5 +1,3 @@
-
-
 const ProgressBar = ({ progress }) => {
   return (
     <div className="w-56 bg-gray-200 rounded-full bg-gray relative">

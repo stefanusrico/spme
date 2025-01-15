@@ -1,0 +1,15 @@
+.dataTables_paginate {
+  float: right !important;
+  margin-top: 1rem !important;
+}
+
+.dataTables_filter {
+  float: right !important;
+  margin-bottom: 1rem !important;
+}
+
+.bottom {
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin-top: 1rem !important;
+}

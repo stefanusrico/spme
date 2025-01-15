@@ -12,9 +12,29 @@ class RoleMiddleware
     {
         $user = auth()->user();
 
-        if (!$user || !in_array($user->role, $roles)) {
+        if (!$user) {
             return response()->json([
-                'message' => 'Unauthorized. Insufficient permissions.'
+                'message' => 'Unauthorized. User not authenticated.'
+            ], 401);
+        }
+
+        $allowedRoles = [];
+        foreach ($roles as $role) {
+            $allowedRoles = array_merge(
+                $allowedRoles,
+                array_map('trim', explode('|', $role))
+            );
+        }
+
+        $userRoles = is_array($user->role) ? $user->role : [$user->role];
+        
+        $hasRole = count(array_intersect($userRoles, $allowedRoles)) > 0;
+        
+        if (!$hasRole) {
+            return response()->json([
+                'message' => 'Unauthorized. Insufficient permissions.',
+                'required_roles' => $allowedRoles,
+                'user_roles' => $userRoles
             ], 403);
         }
 

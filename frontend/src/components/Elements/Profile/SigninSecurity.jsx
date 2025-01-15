@@ -163,7 +163,7 @@ const SigninSecurity = ({ title = "Sign in & Security", headingIcon }) => {
           </div>
           <div className="mt-10 ml-8 flex justify-start space-x-4">
             <Button
-              className="bg-primary"
+              className="bg-base"
               aria-label="Cancel"
               onClick={handleCancel}
               disabled={isLoading}
@@ -171,7 +171,7 @@ const SigninSecurity = ({ title = "Sign in & Security", headingIcon }) => {
               Cancel
             </Button>
             <Button
-              className="bg-primary"
+              className="bg-base"
               aria-label="Update"
               onClick={handleUpdate}
               disabled={isLoading}

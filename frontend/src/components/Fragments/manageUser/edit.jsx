@@ -3,13 +3,8 @@ import { useParams, useNavigate } from "react-router-dom"
 import InputForm from "../../Elements/Input/index"
 import Label from "../../Elements/Input/Label"
 import Button from "../../Elements/Button/index"
-import Navbar from "../../../components/Elements/Menu/Navbar"
-import Sidebar from "../../../components/Elements/Menu/SidebarExpanded"
-import {
-  uploadFile,
-} from "../../Elements/Profile/profile.action"
+import { uploadFile } from "../../Elements/Profile/profile.action"
 import axiosInstance from "../../../utils/axiosConfig"
-import { sidebarAdmin } from "../../Elements/Menu/sidebar"
 
 const EditUser = ({ title = "Edit User" }) => {
   const navigate = useNavigate()
@@ -127,8 +122,6 @@ const EditUser = ({ title = "Edit User" }) => {
 
   return (
     <div className="flex min-h-screen bg-graybackground">
-      <Sidebar items={sidebarAdmin} />
-      <Navbar />
       <div className="fixed justify w-[75%] ml-72 pt-20">
         <h2 className="text-3xl font-semibold mt-5 ml-2">{title}</h2>
         <div className="h-[80vh] my-10 pb-20 overflow-y-auto bg-white shadow-lg radius rounded-lg">

@@ -180,6 +180,7 @@ const ProgressAkreditasiTable = () => {
     if (tableRef.current) {
       const dataTable = new DataTable(tableRef.current, {
         searchable: false,
+        perPageSelect: false,
         sortable: false,
         perPage: 5,
       })
@@ -218,7 +219,7 @@ const ProgressAkreditasiTable = () => {
       </div>
 
       <div className="overflow-x-auto">
-        <table id="search-table" ref={tableRef} className="w-full">
+        <table id="default-table" ref={tableRef} className="w-full">
           <thead>
             <tr className="bg-gray">
               <th className="text-normal font-semibold">Program Studi</th>

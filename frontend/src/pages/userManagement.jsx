@@ -4,9 +4,6 @@ import ManageUser from "../components/Fragments/manageUser"
 import ManagePermission from "../components/Fragments/managePermission"
 import "../App.css"
 import Button from "../components/Elements/Button"
-import Navbar from "../components/Elements/Menu/Navbar"
-import Sidebar from "../components/Elements/Menu/SidebarExpanded"
-import { sidebarAdmin } from "../components/Elements/Menu/sidebar"
 
 const UserManagement = ({
   title = ["User Management", "Permission Management"],
@@ -45,8 +42,6 @@ const UserManagement = ({
 
   return (
     <div className="flex min-h-screen bg-graybackground">
-      <Sidebar items={sidebarAdmin} />
-      <Navbar />
       <div className="fixed justify w-[75%] ml-72 pt-20">
         <div className="h-[calc(100vh-5rem)] overflow-y-auto hide-scrollbar">
           {" "}

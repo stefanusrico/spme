@@ -9,9 +9,7 @@ export const uploadFile = async (file, directory) => {
     console.log("Uploading file:", file)
     console.log("To directory:", directory)
 
-    const response = await axiosInstance.post("/upload", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    })
+    const response = await axiosInstance.post("/upload", formData)
 
     console.log("Upload response:", response.data)
     return response.data
@@ -72,6 +70,17 @@ export const updatePassword = async (userId, passwordData) => {
 export const fetchUserData = async () => {
   try {
     const response = await axiosInstance.get("/user")
+    console.log("Fetched user data:", response.data)
+    return response.data
+  } catch (error) {
+    console.error("Error fetching user data:", error)
+    throw error
+  }
+}
+
+export const fetchUserDataById = async (userId) => {
+  try {
+    const response = await axiosInstance.get(`/users/${userId}`)
     console.log("Fetched user data:", response.data)
     return response.data
   } catch (error) {

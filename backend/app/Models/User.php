@@ -32,6 +32,8 @@ class User extends Model implements JWTSubject, AuthenticatableContract
         'profile_picture',
         'role',
         'phone_number',
+        'jurusan',
+        'projects',
     ];
 
     /**
