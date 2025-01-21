@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
 use App\Services\ProjectTemplateService;
+use App\Notifications\ProjectMemberAddedNotification;
 
 class ProjectController extends Controller
 {
@@ -93,6 +94,75 @@ class ProjectController extends Controller
         ]);
     }
 
+    public function getProjectDetails($projectId)
+    {
+        try {
+            // Mengambil data proyek
+            $project = Project::where('id', $projectId)
+                ->with([
+                    'tasks' => function ($query) {
+                        $query->with('users');
+                    }
+                ])
+                ->firstOrFail();
+
+            // Mengelompokkan tasks berdasarkan status
+            $groupedTasks = $project->tasks->groupBy('status');
+
+            // Menyiapkan response data
+            $tasksByStatus = [
+                'ACTIVE' => [],
+                'COMPLETED' => [],
+                'CANCELLED' => []
+            ];
+
+            // Mengisi data tasks berdasarkan status
+            foreach ($groupedTasks as $status => $tasks) {
+                $tasksByStatus[$status] = $tasks->map(function ($task) {
+                    return [
+                        'id' => $task->_id,
+                        'taskId' => $task->taskId,
+                        'name' => $task->name,
+                        'progress' => $task->progress,
+                        'owners' => $task->users->map(function ($user) {
+                            return [
+                                'id' => $user->_id,
+                                'name' => $user->name,
+                                'profile_picture' => $user->profile_picture
+                            ];
+                        }),
+                        'startDate' => $task->startDate,
+                        'endDate' => $task->endDate
+                    ];
+                });
+            }
+
+            $statistics = [
+                'totalTasks' => $project->tasks->count(),
+                'completedTasks' => $project->tasks->where('status', 'COMPLETED')->count(),
+                'activeTasks' => $project->tasks->where('status', 'ACTIVE')->count(),
+                'cancelledTasks' => $project->tasks->where('status', 'CANCELLED')->count()
+            ];
+
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'projectId' => $project->projectId,
+                    'projectName' => $project->name,
+                    'createdAt' => $project->created_at,
+                    'statistics' => $statistics,
+                    'tasks' => $tasksByStatus
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error retrieving project details: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function getProjectTaskLists($projectId)
     {
         try {
@@ -113,7 +183,7 @@ class ProjectController extends Controller
                 ->with([
                     'tasks' => function ($query) {
                         $query->orderBy('order', 'asc')
-                            ->with('user');
+                            ->with('users'); // Make sure this matches the relationship name
                     }
                 ])
                 ->orderBy('order', 'asc')
@@ -132,18 +202,20 @@ class ProjectController extends Controller
                             if ($today->lt($startDate)) {
                                 $duration = $startDate->diffInDays($endDate);
                             } else if ($today->lte($endDate)) {
-                                // Task is in progress
                                 $duration = $today->diffInDays($endDate);
                             }
-        
-                            $ownerData = null;
-                            if ($task->user) {
-                                $ownerData = [
-                                    'id' => $task->user->_id,
-                                    'name' => $task->user->name,
-                                    'profile_picture' => $task->user->profile_picture ?? null
-                                ];
-                            }
+
+                            $owners = collect($task->owners)->map(function ($ownerId) {
+                                $user = User::find($ownerId);
+                                if ($user) {
+                                    return [
+                                        'id' => $user->_id,
+                                        'name' => $user->name,
+                                        'profile_picture' => $user->profile_picture ?? null
+                                    ];
+                                }
+                                return null;
+                            })->filter();
 
                             return [
                                 'id' => $task->_id,
@@ -156,7 +228,7 @@ class ProjectController extends Controller
                                 'duration' => (int) $duration,
                                 'order' => $task->order,
                                 'taskListId' => $task->taskListId,
-                                'owner' => $ownerData
+                                'owners' => $owners->values()->all()
                             ];
                         })
                     ];
@@ -192,47 +264,81 @@ class ProjectController extends Controller
 
     public function addMember(Request $request, $projectId)
     {
-        $project = Project::where('id', $projectId)->firstOrFail();
+        try {
+            $project = Project::where('id', $projectId)->firstOrFail();
 
-        $request->validate([
-            'email' => 'required|email|exists:users,email',
-            'role' => 'required|in:user,read-only user'
-        ]);
+            $request->validate([
+                'email' => 'required|email|exists:users,email',
+                'role' => 'required|in:user,read-only user'
+            ]);
 
-        $user = User::where('email', $request->email)->first();
+            $user = User::where('email', $request->email)->first();
+            $addedBy = auth()->user();
 
-        $isMember = collect($project->members)
-            ->where('userId', $user->_id)
-            ->first();
+            \Log::info('Adding member to project:', [
+                'project_id' => $project->_id,
+                'user_email' => $user->email,
+                'added_by' => $addedBy->name
+            ]);
 
-        if ($isMember) {
+            // Check if user is already a member
+            $isMember = collect($project->members)
+                ->where('userId', $user->_id)
+                ->first();
+
+            if ($isMember) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User is already a member of this project'
+                ], 400);
+            }
+
+            // Add member to project
+            $project->push('members', [
+                'userId' => $user->_id,
+                'role' => $request->role,
+                'joinedAt' => now()
+            ]);
+
+            // Update user's projects array
+            $existingProjects = $user->projects ?? [];
+            $updatedProjects = array_merge($existingProjects, [
+                [
+                    'projectId' => $project->projectId,
+                    'role' => $request->role
+                ]
+            ]);
+            $user->projects = $updatedProjects;
+            $user->save();
+
+            // Send notification with debug log
+            try {
+                $user->notify(new ProjectMemberAddedNotification($project, $addedBy));
+                \Log::info('Notification sent successfully');
+            } catch (\Exception $e) {
+                \Log::error('Error sending notification:', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Member added successfully and notification sent',
+                'data' => $project
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error in addMember:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'status' => 'error',
-                'message' => 'User is already a member of this project'
-            ], 400);
+                'message' => 'Error adding member: ' . $e->getMessage()
+            ], 500);
         }
-
-        $project->push('members', [
-            'userId' => $user->_id,
-            'role' => $request->role,
-            'joinedAt' => now()
-        ]);
-
-        $existingProjects = $user->projects ?? [];
-        $updatedProjects = array_merge($existingProjects, [
-            [
-                'projectId' => $project->projectId,
-                'role' => $request->role
-            ]
-        ]);
-        $user->projects = $updatedProjects;
-        $user->save();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Member added successfully',
-            'data' => $project
-        ]);
     }
 
     public function getMembers($projectId)

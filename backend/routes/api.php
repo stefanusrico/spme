@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\{
     AuthController,
@@ -11,7 +10,8 @@ use App\Http\Controllers\{
     RoleController,
     TaskController,
     TaskListController,
-    UserController
+    UserController,
+    NotificationController
 };
 use App\Http\Middleware\JwtMiddleware;
 
@@ -23,6 +23,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
 
     Route::get('projects', [ProjectController::class, 'myProjects']);
+    Route::get('projects/{projectId}', [ProjectController::class, 'getProjectDetails']);
     Route::get('projects/{projectId}/members', [ProjectController::class, 'getMembers']);
     Route::get('projects/{projectId}/lists', [ProjectController::class, 'getProjectTaskLists']);
     Route::get('projects/{projectId}/tasklists/{taskListId}/tasks', [ProjectController::class, 'index']);
@@ -70,6 +71,14 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('roles/{id}', 'show');
             Route::put('roles/{id}', 'update');
             Route::delete('roles/{id}', 'destroy');
+        });
+
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [NotificationController::class, 'index']);
+            Route::post('/{id}/read', [NotificationController::class, 'markAsRead']);
+            Route::post('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+            Route::post('/{id}/accept-project', [NotificationController::class, 'markProjectInviteAsAccepted']);
+            Route::post('/send', [NotificationController::class, 'sendNotification']);
         });
     });
 });

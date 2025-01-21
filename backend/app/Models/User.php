@@ -5,9 +5,10 @@ namespace App\Models;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Notifications\Notifiable;
-use MongoDB\Laravel\Eloquent\Model; // Model MongoDB dari mongodb/laravel-mongodb
-use Tymon\JWTAuth\Contracts\JWTSubject; // JWT Interface
+use MongoDB\Laravel\Eloquent\Model;
+use Tymon\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Support\Facades\Hash;
+
 
 class User extends Model implements JWTSubject, AuthenticatableContract
 {
@@ -95,5 +96,10 @@ class User extends Model implements JWTSubject, AuthenticatableContract
     public function getJWTCustomClaims()
     {
         return [];
+    }
+
+    public function notifications()
+    {
+        return $this->morphMany(DatabaseNotification::class, 'notifiable')->orderBy('created_at', 'desc');
     }
 }

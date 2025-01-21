@@ -19,9 +19,8 @@ import ProfileManagement from "./pages/ProfileManagement"
 import { UserProvider } from "./context/userContext"
 import ProjectsTable from "./components/Elements/DataTable/ProjectsTable"
 import DashboardKaprodi from "./pages/DashboardKaprodi"
-import TaskTable from "./components/Elements/DataTable/TaskTable"
-import ProjectMemberTable from "./components/Elements/DataTable/ProjectMemberTable"
 import ProdiTable from "./components/Elements/DataTable/ProdiTable"
+import Projects from "./pages/Projects"
 import "datatables.net-dt/css/dataTables.dataTables.css"
 import "datatables.net-bs5/css/dataTables.bootstrap5.css"
 import "datatables.net-rowgroup-bs5/css/rowGroup.bootstrap5.css"
@@ -103,8 +102,7 @@ const router = createBrowserRouter([
     ),
     children: [
       { path: "/projects", element: <ProjectsTable /> },
-      { path: "/projects/:projectId", element: <TaskTable /> },
-      { path: "/projects/:projectId/members", element: <ProjectMemberTable /> },
+      { path: "/projects/:projectId", element: <Projects /> },
       { path: "/prodi", element: <ProdiTable /> },
     ],
   },

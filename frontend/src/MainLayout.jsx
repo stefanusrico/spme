@@ -22,7 +22,7 @@ const MainLayout = ({ children }) => {
 
   return (
     <div className="flex">
-      {/* <Sidebar items={sidebarItems} /> */}
+      <Sidebar items={sidebarItems} />
       <div className="flex-1">
         <Navbar />
         <main className="p-4">{children}</main>

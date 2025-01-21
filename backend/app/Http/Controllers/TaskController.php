@@ -44,7 +44,8 @@ class TaskController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'owner' => 'nullable|exists:users,_id',
+            'owners' => 'nullable|array',
+            'owners.*' => 'exists:users,_id',
             'startDate' => 'required|date',
             'endDate' => 'required|date|after:startDate',
             'order' => 'nullable|integer'
@@ -67,7 +68,7 @@ class TaskController extends Controller
             'taskListId' => $taskList->_id,
             'name' => $request->name,
             'progress' => false,
-            'owner' => $request->owner,
+            'owners' => $request->owners,
             'status' => 'ACTIVE',
             'startDate' => $request->startDate,
             'endDate' => $request->endDate,
@@ -84,7 +85,8 @@ class TaskController extends Controller
     public function updateRow(Request $request, $projectId, $taskId)
     {
         $request->validate([
-            'owner' => 'nullable|exists:users,_id',
+            'owners' => 'nullable|array',
+            'owners.*' => 'exists:users,_id',
             'startDate' => 'nullable|date',
             'endDate' => 'nullable|date|after:startDate'
         ]);
@@ -94,7 +96,7 @@ class TaskController extends Controller
             ->firstOrFail();
 
         $updates = array_filter($request->only([
-            'owner',
+            'owners',
             'startDate',
             'endDate'
         ]), function ($value) {
@@ -103,7 +105,7 @@ class TaskController extends Controller
 
         $task->update($updates);
 
-        $task->load('user');
+        $task->load('users');
 
         return response()->json([
             'status' => 'success',
@@ -116,11 +118,15 @@ class TaskController extends Controller
     {
         $userId = auth()->user()->_id;
 
-        $tasks = Task::with(['project', 'taskList'])
-            ->where('owner', $userId)
+        $tasks = Task::with(['project', 'taskList', 'users'])
+            ->where(function ($query) use ($userId) {
+                $query->whereRaw(['owners' => ['$regex' => $userId]]);
+            })
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($task) {
+                $owners = is_string($task->owners) ? json_decode($task->owners, true) : $task->owners;
+
                 return [
                     'id' => $task->_id,
                     'taskId' => $task->taskId,
@@ -129,14 +135,15 @@ class TaskController extends Controller
                     'progress' => $task->progress,
                     'startDate' => $task->startDate,
                     'endDate' => $task->endDate,
+                    'owners' => $owners ?? [],
                     'project' => [
-                        'id' => $task->project->_id,
-                        'projectId' => $task->project->projectId,
-                        'name' => $task->project->name
+                        'id' => $task->project?->_id,
+                        'projectId' => $task->project?->projectId,
+                        'name' => $task->project?->name
                     ],
                     'taskList' => [
-                        'id' => $task->taskList->_id,
-                        'name' => $task->taskList->name
+                        'id' => $task->taskList?->_id,
+                        'name' => $task->taskList?->name
                     ]
                 ];
             });
@@ -157,7 +164,8 @@ class TaskController extends Controller
         $request->validate([
             'name' => 'string|max:255',
             'progress' => 'boolean',
-            'owner' => 'exists:users,_id',
+            'owners' => 'array',
+            'owners.*' => 'exists:users,_id',
             'status' => 'in:ACTIVE,COMPLETED,CANCELLED',
             'startDate' => 'date',
             'endDate' => 'date|after:startDate',
