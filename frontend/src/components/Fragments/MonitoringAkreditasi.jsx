@@ -24,9 +24,9 @@ const MonitoringAkreditasi = () => {
     return item ? item.count : 0
   }
   return (
-    <div className="w-full max-w-[1600px] mx-auto mt-16">
-      <div className="ml-32 mt-10 bg-white border border-gray-300 rounded-lg shadow bg-white border-gray p-6 w-full flex justify-between">
-        <div className="ml-5 flex gap-8 items-center">
+    <div className="w-full mx-auto mt-16">
+      <div className="mt-10 bg-white border border-gray rounded-lg shadow border-gray p-6 w-full flex justify-between">
+        <div className="w-full flex ml-8 gap-8 items-center">
           <Card title="Akreditasi Unggul" value={getPeringkatValue("Unggul")} />
           <Card
             title="Akreditasi Baik Sekali"
@@ -34,7 +34,7 @@ const MonitoringAkreditasi = () => {
           />
           <Card title="Akreditasi Baik" value={getPeringkatValue("Baik")} />
         </div>
-        <div className="flex flex-col justify-center items-center gap-4 mr-8">
+        <div className="flex flex-col justify-center items-center gap-4 mr-2">
           <CardProgress
             currentStatus={2}
             totalStatus={4}
@@ -56,7 +56,7 @@ const MonitoringAkreditasi = () => {
         </div>
       </div>
 
-      <div className="ml-32 mt-2 w-full rounded-lg">
+      <div className="mt-2 w-full rounded-lg">
         <ProgressAkreditasiTable />
       </div>
     </div>

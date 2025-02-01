@@ -13,7 +13,8 @@ class Task extends Model
         'taskId',
         'taskListId',
         'projectId',
-        'name',
+        'sub',
+        'no',
         'progress',
         'owners',
         'status',
@@ -26,7 +27,9 @@ class Task extends Model
         'progress' => 'boolean',
         'startDate' => 'datetime',
         'endDate' => 'datetime',
-        'owners' => 'array'
+        'owners' => 'array',
+        'sub' => 'string',
+        'no' => 'integer'
     ];
 
     public function tasklist()
@@ -38,6 +41,7 @@ class Task extends Model
     {
         return $this->belongsTo(Project::class, 'projectId', '_id');
     }
+
     public function users()
     {
         return $this->belongsToMany(User::class, null, 'owners', '_id');

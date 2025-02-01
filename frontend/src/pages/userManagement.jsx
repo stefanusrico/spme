@@ -41,8 +41,8 @@ const UserManagement = ({
   }
 
   return (
-    <div className="flex min-h-screen bg-graybackground">
-      <div className="fixed justify w-[75%] ml-72 pt-20">
+    <div className="flex min-h-screen bg-white">
+      <div className="justify w-full pt-20">
         <div className="h-[calc(100vh-5rem)] overflow-y-auto hide-scrollbar">
           {" "}
           {/* Tambahkan scroll Y */}
@@ -84,7 +84,7 @@ const UserManagement = ({
               </div>
             </div>
             <Button
-              className="bg-primary mb-5"
+              className="bg-base mb-5"
               aria-label="Add"
               onClick={handleAdd}
             >

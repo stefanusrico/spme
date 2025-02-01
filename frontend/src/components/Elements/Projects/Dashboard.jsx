@@ -99,8 +99,9 @@ const DashboardProject = ({ projectDetails }) => {
     if (!projectDetails?.tasks?.ACTIVE) return []
 
     return projectDetails.tasks.ACTIVE.filter((task) => {
-      const endDate = new Date(task.endDate)
-      return endDate.toDateString() === today.toDateString()
+      const startDate = new Date(task.startDate)
+      startDate.setHours(0, 0, 0, 0)
+      return startDate.toDateString() === today.toDateString()
     }).slice(0, 5)
   }
 
@@ -109,6 +110,7 @@ const DashboardProject = ({ projectDetails }) => {
 
     return projectDetails.tasks.ACTIVE.filter((task) => {
       const startDate = new Date(task.startDate)
+      startDate.setHours(0, 0, 0, 0)
       return startDate > today
     }).slice(0, 5)
   }

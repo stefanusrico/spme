@@ -103,7 +103,7 @@ const Members = () => {
 
   if (loading) {
     return (
-      <div className="w-full max-w-[1600px] mx-auto">
+      <div className="w-full mx-auto">
         <div className="mt-2 w-full">
           <div className="bg-white rounded-xl shadow-lg p-6 w-full">
             <div className="min-h-[200px] flex items-center justify-center">
@@ -116,7 +116,7 @@ const Members = () => {
   }
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto">
+    <div className="w-full mx-auto">
       <div className="mt-2 w-full">
         <div className="flex justify-end mb-4">
           <button

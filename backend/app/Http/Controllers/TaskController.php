@@ -6,12 +6,15 @@ use App\Models\TaskList;
 use App\Models\Task;
 use App\Models\Project;
 use Illuminate\Http\Request;
+use App\Models\User;
+use App\Notifications\TaskAssignedNotification;
+use App\Http\Controllers\NotificationController;
+use Carbon\Carbon;
 
 class TaskController extends Controller
 {
     private function generateTaskId($projectId)
     {
-
         $lastTask = Task::where('projectId', $projectId)
             ->orderBy('created_at', 'desc')
             ->first();
@@ -26,13 +29,21 @@ class TaskController extends Controller
         return 'TSK-' . str_pad($number, 3, '0', STR_PAD_LEFT);
     }
 
+    private function generateTaskName($no, $sub)
+    {
+        return "Butir {$no} - {$sub}";
+    }
 
     public function index($projectId, $taskListId)
     {
         $tasks = Task::where('projectId', $projectId)
             ->where('taskListId', $taskListId)
             ->orderBy('order', 'asc')
-            ->get();
+            ->get()
+            ->map(function ($task) {
+                $task['name'] = $this->generateTaskName($task->no, $task->sub);
+                return $task;
+            });
 
         return response()->json([
             'status' => 'success',
@@ -43,7 +54,8 @@ class TaskController extends Controller
     public function store(Request $request, $projectId, $taskListId)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'no' => 'required|integer',
+            'sub' => 'required|string|max:255',
             'owners' => 'nullable|array',
             'owners.*' => 'exists:users,_id',
             'startDate' => 'required|date',
@@ -66,7 +78,8 @@ class TaskController extends Controller
             'taskId' => $this->generateTaskId($project->_id),
             'projectId' => $project->_id,
             'taskListId' => $taskList->_id,
-            'name' => $request->name,
+            'no' => $request->no,
+            'sub' => $request->sub,
             'progress' => false,
             'owners' => $request->owners,
             'status' => 'ACTIVE',
@@ -75,11 +88,82 @@ class TaskController extends Controller
             'order' => $order
         ]);
 
+        $task['name'] = $this->generateTaskName($task->no, $task->sub);
+
         return response()->json([
             'status' => 'success',
             'message' => 'Task created successfully',
             'data' => $task
         ], 201);
+    }
+
+    public function storeFromLed(Request $request, $projectId)
+    {
+        try {
+            $project = Project::where('_id', $projectId)->firstOrFail();
+
+            $allData = [];
+            $sheets = config('google.sheets.spreadsheets.sheets');
+
+            foreach ($sheets as $key => $gid) {
+                $jsonPath = storage_path("app/public/led_{$key}.json");
+                if (file_exists($jsonPath)) {
+                    $ledData = json_decode(file_get_contents($jsonPath), true);
+                    $allData = array_merge($allData, $ledData);
+                }
+            }
+
+            $groupedData = collect($allData)->groupBy('c');
+
+            foreach ($groupedData as $c => $tasks) {
+                $taskList = TaskList::where('projectId', $project->_id)
+                    ->where('c', $c)
+                    ->first();
+
+                if ($taskList) {
+                    $maxOrder = Task::where('taskListId', $taskList->_id)
+                        ->max('order') ?? 0;
+                    $order = $maxOrder + 1;
+
+                    $uniqueTasks = $tasks->unique(function ($item) {
+                        return $item['no'] . $item['sub'];
+                    });
+
+                    foreach ($uniqueTasks as $taskData) {
+                        Task::create([
+                            'taskId' => $this->generateTaskId($project->_id),
+                            'projectId' => $project->_id,
+                            'taskListId' => $taskList->_id,
+                            'no' => $taskData['no'],
+                            'sub' => $taskData['sub'],
+                            'progress' => false,
+                            'status' => 'ACTIVE',
+                            'order' => $order++
+                        ]);
+                    }
+                }
+            }
+
+            $tasks = Task::where('projectId', $project->_id)
+                ->orderBy('order', 'asc')
+                ->get()
+                ->map(function ($task) {
+                    $task['name'] = $this->generateTaskName($task->no, $task->sub);
+                    return $task;
+                });
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Tasks created successfully from LED data',
+                'data' => $tasks
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function updateRow(Request $request, $projectId, $taskId)
@@ -95,6 +179,11 @@ class TaskController extends Controller
             ->where('projectId', $projectId)
             ->firstOrFail();
 
+        $project = Project::where('_id', $projectId)->firstOrFail();
+        $currentUser = auth()->user();
+
+        $existingOwners = $task->owners ?? [];
+
         $updates = array_filter($request->only([
             'owners',
             'startDate',
@@ -104,8 +193,44 @@ class TaskController extends Controller
         });
 
         $task->update($updates);
-
         $task->load('users');
+        $task['name'] = $this->generateTaskName($task->no, $task->sub);
+
+        if (isset($updates['owners'])) {
+            $newOwners = $updates['owners'];
+            $addedOwners = array_diff($newOwners, $existingOwners);
+
+            foreach ($addedOwners as $ownerId) {
+                $user = User::find($ownerId);
+                if ($user) {
+                    try {
+                        $user->notify(new TaskAssignedNotification($task, $project, $currentUser));
+
+                        $notificationController = new NotificationController();
+                        $phone = $user->phone_number ?? null;
+
+                        if ($phone) {
+                            $message = "Hi *{$user->name}*, You've been assigned to a task:\n\n"
+                                . "📝 Task: *Butir {$task->no} - {$task->sub}*\n"
+                                . "📂 Project: *{$project->name}*\n"
+                                . "👤 Assigned by: *{$currentUser->name}*\n"
+                                . "📅 Due Date: *" . Carbon::parse($task->endDate)->format('d M Y') . "*\n"
+                                . "🔗 *Access your task here:*\n"
+                                . config('app.url') . "/projects/{$project->_id}\n\n"
+                                . "💡 Click the link above to start.";
+
+                            $notificationController->sendWhatsAppNotification($phone, $message);
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('Error sending task assignment notification:', [
+                            'error' => $e->getMessage(),
+                            'user_id' => $user->_id,
+                            'task_id' => $task->_id
+                        ]);
+                    }
+                }
+            }
+        }
 
         return response()->json([
             'status' => 'success',
@@ -118,7 +243,7 @@ class TaskController extends Controller
     {
         $userId = auth()->user()->_id;
 
-        $tasks = Task::with(['project', 'taskList', 'users'])
+        $tasks = Task::with(['project', 'tasklist', 'users'])
             ->where(function ($query) use ($userId) {
                 $query->whereRaw(['owners' => ['$regex' => $userId]]);
             })
@@ -126,11 +251,14 @@ class TaskController extends Controller
             ->get()
             ->map(function ($task) {
                 $owners = is_string($task->owners) ? json_decode($task->owners, true) : $task->owners;
+                $taskName = $this->generateTaskName($task->no, $task->sub);
 
                 return [
                     'id' => $task->_id,
                     'taskId' => $task->taskId,
-                    'name' => $task->name,
+                    'no' => $task->no,
+                    'sub' => $task->sub,
+                    'name' => $taskName,
                     'status' => $task->status,
                     'progress' => $task->progress,
                     'startDate' => $task->startDate,
@@ -142,8 +270,8 @@ class TaskController extends Controller
                         'name' => $task->project?->name
                     ],
                     'taskList' => [
-                        'id' => $task->taskList?->_id,
-                        'name' => $task->taskList?->name
+                        'id' => $task->tasklist?->_id,
+                        'name' => $task->tasklist?->name
                     ]
                 ];
             });
@@ -156,13 +284,14 @@ class TaskController extends Controller
 
     public function update(Request $request, $projectId, $taskListId, $taskId)
     {
-        $task = Task::where('-id', $taskId)
+        $task = Task::where('_id', $taskId)
             ->where('projectId', $projectId)
             ->where('taskListId', $taskListId)
             ->firstOrFail();
 
         $request->validate([
-            'name' => 'string|max:255',
+            'no' => 'integer',
+            'sub' => 'string|max:255',
             'progress' => 'boolean',
             'owners' => 'array',
             'owners.*' => 'exists:users,_id',
@@ -173,14 +302,17 @@ class TaskController extends Controller
         ]);
 
         $task->update($request->only([
-            'name',
+            'no',
+            'sub',
             'progress',
-            'owner',
+            'owners',
             'status',
             'startDate',
             'endDate',
             'order'
         ]));
+
+        $task['name'] = $this->generateTaskName($task->no, $task->sub);
 
         return response()->json([
             'status' => 'success',

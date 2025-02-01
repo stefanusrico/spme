@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import DataTable from "datatables.net-dt"
 import "datatables.net-bs5/css/dataTables.bootstrap5.min.css"
 import "datatables.net-bs5"
@@ -6,22 +6,11 @@ import axiosInstance from "../../../utils/axiosConfig"
 import $ from "jquery"
 import "../../../styles/ProdiTable.css"
 
-const ProdiTable = () => {
+const ProdiTable = ({ isCollapsed = "false" }) => {
   const tableRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [prodiData, setProdiData] = useState([])
-  const [departments, setDepartments] = useState([])
-  const [selectedDepartment, setSelectedDepartment] = useState("All")
   const dataTableInstance = useRef(null)
-
-  const fetchDepartments = async () => {
-    try {
-      const response = await axiosInstance.get("/jurusan")
-      setDepartments(response.data)
-    } catch (error) {
-      console.error("Error fetching departments:", error)
-    }
-  }
 
   const fetchProdi = async () => {
     try {
@@ -35,9 +24,7 @@ const ProdiTable = () => {
   }
 
   useEffect(() => {
-    fetchDepartments()
     fetchProdi()
-
     return () => {
       if (dataTableInstance.current) {
         dataTableInstance.current.destroy()
@@ -46,84 +33,95 @@ const ProdiTable = () => {
   }, [])
 
   useEffect(() => {
+    if (dataTableInstance.current) {
+      setTimeout(() => {
+        dataTableInstance.current.columns.adjust()
+      }, 300)
+    }
+  }, [isCollapsed])
+
+  useEffect(() => {
+    console.log("Collapsed status:", isCollapsed)
+  }, [isCollapsed])
+
+  useEffect(() => {
     if (!loading && tableRef.current) {
       if (dataTableInstance.current) {
         dataTableInstance.current.destroy()
       }
 
-      let filteredData = prodiData
-      if (selectedDepartment !== "All") {
-        filteredData = prodiData.filter(
-          (item) => item.jurusanId === selectedDepartment
-        )
-      }
-
       dataTableInstance.current = new DataTable(tableRef.current, {
-        data: filteredData,
+        data: prodiData,
         columns: [
           {
             data: "name",
             title: "PROGRAM STUDI",
-            className: "font-semibold",
-            orderable: false, // tambahkan ini untuk mematikan sorting
+            orderable: false,
+            width: "30%",
           },
           {
             data: "nomorSK",
             title: "NOMOR SK",
             orderable: false,
+            width: "20%",
           },
           {
             data: "tahunSK",
             title: "TAHUN SK",
             orderable: false,
+            width: "10%",
           },
           {
             data: "peringkat",
             title: "PERINGKAT",
             orderable: false,
-            render: (data) => {
-              return `<span class="text-sm font-semibold text-blue bg-blue_badge rounded-lg px-2 py-1">
-          ${data}
-        </span>`
-            },
+            width: "15%",
+            render: (data) =>
+              `<span class="text-sm font-semibold text-blue bg-blue_badge rounded-lg px-2 py-1">${data}</span>`,
           },
           {
             data: "tanggalKedaluwarsa",
             title: "TANGGAL KEDALUWARSA",
             orderable: false,
+            width: "25%",
           },
         ],
         pageLength: 10,
-        ordering: false, // matikan ordering/sorting secara global
-        dom: '<"top"f>rt<"bottom d-flex justify-content-end"p><"clear">', // ubah dom structure
+        ordering: false,
+        paging: true,
+        info: false,
+        searching: false,
+        responsive: false,
+        dom: '<"wrapper"t<"bottom"p>>',
+        pagingType: "simple_numbers",
         language: {
-          search: "Search prodi:",
           paginate: {
             next: "→",
             previous: "←",
+            numbers: "",
           },
         },
-        responsive: true,
-        createdRow: function (row) {
-          $(row).addClass("hover:bg-gray-50")
-        },
+      })
+
+      $(tableRef.current).on("page.dt", function () {
+        setTimeout(() => {
+          window.scrollTo(0, tableRef.current.offsetTop)
+        }, 0)
       })
     }
-  }, [loading, selectedDepartment, prodiData])
-
-  const handleDepartmentChange = (e) => {
-    setSelectedDepartment(e.target.value)
-  }
+  }, [loading, prodiData])
 
   if (loading) {
     return (
-      <div className="w-full max-w-[1600px] mx-auto mt-32">
-        <div className="ml-32 mt-2 w-full">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-            <div className="min-h-[200px] flex items-center justify-center">
-              <div className="bg-white shadow-md rounded-lg p-6 flex items-center justify-center">
-                Loading table...
-              </div>
+      <div
+        className={`w-full mx-auto mt-32 ${
+          isCollapsed ? "max-w-[1920px] pl-16" : "max-w-[1600px] pl-64"
+        } transition-all duration-300`}
+      >
+        <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+          <div className="min-h-[200px] flex items-center justify-center">
+            <div className="bg-white shadow-md rounded-lg p-6">
+              Loading table...
             </div>
           </div>
         </div>
@@ -132,30 +130,16 @@ const ProdiTable = () => {
   }
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto mt-32">
-      <div className="ml-32 mt-2 w-full">
+    <div
+      className={`w-full mx-auto mt-32 ${
+        isCollapsed ?? false ? "max-w-[1920px] pl-16" : "max-w-[1800px] pl-64"
+      } transition-all duration-300`}
+    >
+      <div className="mt-2 w-full">
         <h1 className="text-2xl font-bold mb-6">Data Program Studi</h1>
-        <div className="flex justify-end mb-4">
-          <select
-            onChange={handleDepartmentChange}
-            value={selectedDepartment}
-            className="px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="All">Semua Jurusan</option>
-            {departments.map((department) => (
-              <option key={department.id} value={department.id}>
-                {department.name}
-              </option>
-            ))}
-          </select>
-        </div>
         <div className="bg-white rounded-xl shadow-lg p-6 w-full">
           <div className="overflow-x-auto">
-            <table
-              ref={tableRef}
-              className="w-full relative stripe hover"
-              style={{ width: "100%" }}
-            />
+            <table ref={tableRef} className="w-full relative stripe hover" />
           </div>
         </div>
       </div>

@@ -11,12 +11,24 @@ use App\Http\Controllers\{
     TaskController,
     TaskListController,
     UserController,
-    NotificationController
+    NotificationController,
+    DataController,
+    ScraperController
 };
 use App\Http\Middleware\JwtMiddleware;
 
+Route::get('/led/{sheet}', [DataController::class, 'getLembarIsianLed']);
+Route::get('/stortasklist/{projectId}', [TaskListController::class, 'storeFromLed']);
+Route::post('/projects/{projectId}/tasks/led', [TaskController::class, 'storeFromLed']);
+Route::post('/removemember/{projectId}', [ProjectController::class, 'removeMember']);
+
+Route::get('/scrape/{perguruan_tinggi}/{strata}', [ScraperController::class, 'scrape']);
+Route::post('/jurusan', [JurusanController::class, 'store']);
+
+
 Route::post('login', [AuthController::class, 'login']);
 Route::post('refresh', [AuthController::class, 'refresh']);
+Route::post('/sendmsg/{phone}/{message}', [NotificationController::class, 'sendWhatsAppNotification']);
 
 Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
@@ -34,7 +46,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
 
     Route::controller(JurusanController::class)->group(function () {
         Route::get('jurusan', 'index');
-        Route::post('jurusan', 'store');
+
         Route::get('jurusan/{id}', 'show');
         Route::put('jurusan/{id}', 'update');
         Route::delete('jurusan/{id}', 'destroy');

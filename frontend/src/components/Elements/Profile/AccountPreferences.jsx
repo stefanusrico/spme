@@ -169,8 +169,8 @@ const AccountPreferences = ({ title = "Account Preferences", headingIcon }) => {
         theme="light"
         style={{ marginTop: "65px" }}
       />
-      <div className="w-96 h-screen pt-20 transition-transform bg-graybackground border-gray">
-        <div className="fixed mt-8 h-[800px] w-[1250px] px-7 pb-4 overflow-y-auto bg-white shadow-lg rounded-lg ml-[-620px]">
+      <div className="w-full flex h-screen pt-20 transition-transform bg-white border-gray">
+        <div className="w-full mt-8 px-7 pb-4 overflow-y-auto bg-white shadow-xl rounded-lg">
           <div className="mt-5 flex items-center space-x-3">
             {headingIcon && <FontAwesomeIcon icon={headingIcon} />}
             <h2 className="text-3xl font-semibold">{title}</h2>

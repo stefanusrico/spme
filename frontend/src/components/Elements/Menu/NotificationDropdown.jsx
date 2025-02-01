@@ -1,129 +1,186 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import axiosInstance from "../../../utils/axiosConfig"
+import moment from "moment"
+import { useNavigate } from "react-router-dom"
 
 const NotificationDropdown = () => {
   const [isOpen, setIsOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const navigate = useNavigate()
 
-  const toggleDropdown = () => {
-    setIsOpen(!isOpen)
+  useEffect(() => {
+    fetchNotifications()
+  }, [])
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await axiosInstance.get("/notifications")
+      const sortedNotifications = response.data.data.notifications
+        .sort(
+          (a, b) =>
+            moment(b.created_at).valueOf() - moment(a.created_at).valueOf()
+        )
+        .slice(0, 5)
+
+      setNotifications(sortedNotifications)
+      setUnreadCount(response.data.data.unread_count)
+    } catch (error) {
+      console.error("Error fetching notifications:", error)
+    }
   }
 
-  const notifications = [
-    {
-      id: 1,
-      avatar:
-        "https://flowbite.s3.amazonaws.com/blocks/marketing-ui/avatars/bonnie-green.png",
-      avatarBadge: "bg-primary-700",
-      avatarBadgeIcon: (
-        <svg
-          className="w-2 h-2 text-white"
-          aria-hidden="true"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="currentColor"
-          viewBox="0 0 18 18"
-        >
-          <path d="M15.977.783A1 1 0 0 0 15 0H3a1 1 0 0 0-.977.783L.2 9h4.239a2.99 2.99 0 0 1 2.742 1.8 1.977 1.977 0 0 0 3.638 0A2.99 2.99 0 0 1 13.561 9H17.8L15.977.783ZM6 2h6a1 1 0 1 1 0 2H6a1 1 0 0 1 0-2Zm7 5H5a1 1 0 0 1 0-2h8a1 1 0 1 1 0 2Z" />
-          <path d="M1 18h16a1 1 0 0 0 1-1v-6h-4.439a.99.99 0 0 0-.908.6 3.978 3.978 0 0 1-7.306 0 .99.99 0 0 0-.908-.6H0v6a1 1 0 0 0 1 1Z" />
-        </svg>
-      ),
-      name: "Bonnie Green",
-      message:
-        'New message from Bonnie Green: "Hey, what\'s up? All set for the presentation?"',
-      time: "a few moments ago",
-    },
-    {
-      id: 2,
-      avatar:
-        "https://flowbite.s3.amazonaws.com/blocks/marketing-ui/avatars/jese-leos.png",
-      avatarBadge: "bg-gray-900",
-      avatarBadgeIcon: (
-        <svg
-          className="w-2 h-2 text-white"
-          aria-hidden="true"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="currentColor"
-          viewBox="0 0 20 18"
-        >
-          <path d="M6.5 9a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM8 10H5a5.006 5.006 0 0 0-5 5v2a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-2a5.006 5.006 0 0 0-5-5Zm11-3h-2V5a1 1 0 0 0-2 0v2h-2a1 1 0 1 0 0 2h2v2a1 1 0 0 0 2 0V9h2a1 1 0 1 0 0-2Z" />
-        </svg>
-      ),
-      name: "Jese leos",
-      message: "Jese leos and 5 others started following you.",
-      time: "10 minutes ago",
-    },
-    {
-      id: 3,
-      avatar:
-        "https://flowbite.s3.amazonaws.com/blocks/marketing-ui/avatars/joseph-mcfall.png",
-      avatarBadge: "bg-red-600",
-      avatarBadgeIcon: (
-        <svg
-          className="w-2 h-2 text-white"
-          aria-hidden="true"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="currentColor"
-          viewBox="0 0 20 18"
-        >
-          <path d="M17.947 2.053a5.209 5.209 0 0 0-3.793-1.53A6.414 6.414 0 0 0 10 2.311 6.482 6.482 0 0 0 5.824.5a5.2 5.2 0 0 0-3.8 1.521c-1.915 1.916-2.315 5.392.625 8.333l7 7a.5.5 0 0 0 .708 0l7-7a6.6 6.6 0 0 0 2.123-4.508 5.179 5.179 0 0 0-1.533-3.793Z" />
-        </svg>
-      ),
-      name: "Joseph Mcfall",
-      message:
-        "Joseph Mcfall and 141 others love your story. See it and view more stories.",
-      time: "44 minutes ago",
-    },
-    {
-      id: 4,
-      avatar:
-        "https://flowbite.s3.amazonaws.com/blocks/marketing-ui/avatars/roberta-casas.png",
-      avatarBadge: "bg-green-400",
-      avatarBadgeIcon: (
-        <svg
-          className="w-2 h-2 text-white"
-          aria-hidden="true"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="currentColor"
-          viewBox="0 0 20 18"
-        >
-          <path d="M18 0H2a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2v4a1 1 0 0 0 1.707.707L10.414 13H18a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2Zm-5 4h2a1 1 0 1 1 0 2h-2a1 1 0 1 1 0-2ZM5 4h5a1 1 0 1 1 0 2H5a1 1 0 0 1 0-2Zm2 5H5a1 1 0 0 1 0-2h2a1 1 0 0 1 0 2Zm9 0h-6a1 1 0 0 1 0-2h6a1 1 0 1 1 0 2Z" />
-        </svg>
-      ),
-      name: "Leslie Livingston",
-      message:
-        "Leslie Livingston mentioned you in a comment: @bonnie.green what do you say?",
-      time: "1 hour ago",
-    },
-    {
-      id: 5,
-      avatar:
-        "https://flowbite.s3.amazonaws.com/blocks/marketing-ui/avatars/robert-brown.png",
-      avatarBadge: "bg-purple-500",
-      avatarBadgeIcon: (
-        <svg
-          className="w-2 h-2 text-white"
-          aria-hidden="true"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="currentColor"
-          viewBox="0 0 20 14"
-        >
-          <path d="M11 0H2a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2Zm8.585 1.189a.994.994 0 0 0-.9-.138l-2.965.983a1 1 0 0 0-.685.949v8a1 1 0 0 0 .675.946l2.965 1.02a1.013 1.013 0 0 0 1.032-.242A1 1 0 0 0 20 12V2a1 1 0 0 0-.415-.811Z" />
-        </svg>
-      ),
-      name: "Robert Brown",
-      message:
-        "Robert Brown posted a new video: Glassmorphism - learn how to implement the new design trend.",
-      time: "3 hours ago",
-    },
-  ]
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      await axiosInstance.post(`notifications/${notificationId}/read`)
+      fetchNotifications()
+    } catch (error) {
+      console.error("Error marking notification as read:", error)
+    }
+  }
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await axiosInstance.post("notifications/mark-all-read")
+      fetchNotifications()
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error)
+    }
+  }
+
+  const handleAcceptProjectInvitation = (projectId) => {
+    navigate(`/projects/${projectId}`)
+  }
+
+  const renderNotificationContent = (notification) => {
+    const { data } = notification
+    const isUnread = !notification.read_at
+
+    const baseClasses = `flex py-3 px-4 border-b hover:bg-graybackground cursor-pointer ${
+      isUnread ? "bg-blue_badge" : "bg-white"
+    }`
+
+    switch (data.type) {
+      case "project_invitation":
+        return (
+          <div
+            className={baseClasses}
+            onClick={() => {
+              if (isUnread) handleMarkAsRead(notification.id)
+            }}
+          >
+            <div className="flex-shrink-0">
+              <img
+                className="w-11 h-11 rounded-full"
+                src={data.added_by.profile_picture || "/default-avatar.png"}
+                alt={`${data.added_by.name}'s avatar`}
+              />
+            </div>
+            <div className="pl-3 w-full">
+              <div
+                className={`font-normal text-sm mb-1.5 ${
+                  isUnread ? "text-base" : "text-graytxt"
+                }`}
+              >
+                {data.message}
+              </div>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleAcceptProjectInvitation(data.project._id)
+                  }}
+                  className="text-xs font-medium text-blue hover:text-base"
+                >
+                  View Project
+                </button>
+                <div className="text-xs text-graytxt">
+                  {moment(notification.created_at).fromNow()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+
+      case "task_assignment":
+        return (
+          <div
+            className={baseClasses}
+            onClick={() => {
+              if (isUnread) handleMarkAsRead(notification.id)
+            }}
+          >
+            <div className="flex-shrink-0">
+              <img
+                className="w-11 h-11 rounded-full"
+                src={data.assigned_by.profile_picture || "/default-avatar.png"}
+                alt={`${data.assigned_by.name}'s avatar`}
+              />
+            </div>
+            <div className="pl-3 w-full">
+              <div
+                className={`font-normal text-sm mb-1.5 ${
+                  isUnread ? "text-base" : "text-graytxt"
+                }`}
+              >
+                {data.message}
+              </div>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleAcceptProjectInvitation(data.project._id)
+                  }}
+                  className="text-xs font-medium text-blue hover:text-base"
+                >
+                  View Task
+                </button>
+                <div className="text-xs text-graytxt">
+                  {moment(notification.created_at).fromNow()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+
+      default:
+        return (
+          <div
+            className={baseClasses}
+            onClick={() => {
+              if (isUnread) handleMarkAsRead(notification.id)
+            }}
+          >
+            <div className="pl-3 w-full">
+              <div
+                className={`font-normal text-sm mb-1.5 ${
+                  isUnread ? "text-base" : "text-graytxt"
+                }`}
+              >
+                {data.message}
+              </div>
+              <div className="flex justify-end">
+                <div className="text-xs text-graytxt">
+                  {moment(notification.created_at).fromNow()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+    }
+  }
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={toggleDropdown}
+        onClick={() => setIsOpen(!isOpen)}
         className="p-2 mr-1 text-gray-500 rounded-lg hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-primary focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600"
       >
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red"></span>
+        )}
         <span className="sr-only">View notifications</span>
-        {/* Bell icon */}
         <svg
           className="w-5 h-5"
           aria-hidden="true"
@@ -141,59 +198,55 @@ const NotificationDropdown = () => {
             Notifications
           </div>
 
-          <div>
-            {notifications.map((notification) => (
-              <a
-                key={notification.id}
-                href="#"
-                className="flex py-3 px-4 border-b hover:bg-gray-100 dark:hover:bg-gray-600 dark:border-gray-600"
-              >
-                <div className="flex-shrink-0 relative">
-                  <img
-                    className="w-11 h-11 rounded-full"
-                    src={notification.avatar}
-                    alt={`${notification.name} avatar`}
-                  />
-                  <div
-                    className={`flex absolute justify-center items-center ml-6 -mt-5 w-5 h-5 rounded-full border border-white ${notification.avatarBadge} dark:border-gray-700`}
-                  >
-                    {notification.avatarBadgeIcon}
-                  </div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-600">
+            {notifications.length > 0 ? (
+              notifications.map((notification) => (
+                <div key={notification.id}>
+                  {renderNotificationContent(notification)}
                 </div>
-                <div className="pl-3 w-full">
-                  <div className="text-gray-500 font-normal text-sm mb-1.5 dark:text-gray-400">
-                    {notification.message}
-                  </div>
-                  <div className="text-xs font-medium text-primary-700 dark:text-primary-400">
-                    {notification.time}
-                  </div>
-                </div>
-              </a>
-            ))}
+              ))
+            ) : (
+              <div className="py-4 px-4 text-center text-gray-500 dark:text-gray-400">
+                No notifications
+              </div>
+            )}
           </div>
 
-          <a
-            href="#"
-            className="block py-2 text-base font-medium text-center text-gray-900 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:hover:underline"
-          >
-            <div className="inline-flex items-center">
-              <svg
-                aria-hidden="true"
-                className="mr-2 w-5 h-5"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
+          <div className="flex flex-col divide-y divide-gray-100">
+            {notifications.length > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="block py-2 text-base font-normal text-center text-gray-900 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:hover:underline"
               >
-                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
-                <path
-                  fillRule="evenodd"
-                  d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                  clipRule="evenodd"
-                ></path>
-              </svg>
-              View all
-            </div>
-          </a>
+                <div className="inline-flex items-center">
+                  <svg
+                    className="mr-2 w-5 h-5"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                    <path
+                      fillRule="evenodd"
+                      d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Mark all as read
+                </div>
+              </button>
+            )}
+            <button
+              onClick={() => {
+                navigate("/notifications")
+                setIsOpen(false)
+              }}
+              className="block py-2 text-base font-normal text-center text-gray-900 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:hover:underline"
+            >
+              View all notifications
+            </button>
+          </div>
         </div>
       )}
     </div>

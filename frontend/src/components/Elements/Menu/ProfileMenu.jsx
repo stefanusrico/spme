@@ -54,10 +54,10 @@ const ProfileMenu = ({ items, className = "", title = "", onItemClick }) => {
   return (
     <aside
       id="profile-sidebar"
-      className={`w-96 h-screen pt-20 transition-transform bg-graybackground border-gray ${className}`}
+      className={`w-80 flex pt-20 transition-transform bg-white border-gray ${className}`}
       aria-label="Sidebar"
     >
-      <div className="mt-8 h-[800px] w-80 px-7 pb-4 overflow-y-auto bg-white shadow-lg radius rounded-lg">
+      <div className="mt-8 w-80 px-7 pb-4 overflow-y-auto bg-white shadow-xl radius rounded-lg">
         <h2 className="text-3xl font-semibold mt-5 ml-2">{title}</h2>
         <ul className="mt-2 space-y-1 font-medium">{renderItems(items)}</ul>
       </div>

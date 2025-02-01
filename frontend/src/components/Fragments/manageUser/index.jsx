@@ -126,7 +126,18 @@ const ManageUser = ({ title = "User Management" }) => {
     },
   ]
 
-  if (loading) return <div>loading....</div>
+  if (loading)
+    return (
+      <div className="w-full">
+        <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+          <div className="min-h-[200px] flex items-center justify-center">
+            <div className="bg-white shadow-md rounded-lg p-6 flex items-center justify-center">
+              Loading users...
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   if (error) return <div>{error}</div>
 
   return (

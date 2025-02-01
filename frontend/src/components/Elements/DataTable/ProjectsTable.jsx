@@ -8,7 +8,7 @@ import "datatables.net-bs5"
 import axiosInstance from "../../../utils/axiosConfig"
 import "../../../styles/ProjectTable.css"
 
-const ProjectsTable = () => {
+const ProjectsTable = ({ isCollapsed }) => {
   const tableRef = useRef(null)
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -27,6 +27,7 @@ const ProjectsTable = () => {
       [name]: value,
     }))
   }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -50,11 +51,19 @@ const ProjectsTable = () => {
 
     const table = $(tableRef.current).DataTable({
       data: projects,
+      responsive: true,
+      autoWidth: false,
+      scrollX: false,
       columns: [
-        { data: "0", title: "ID" },
+        {
+          data: "0",
+          title: "ID",
+          width: "8%",
+        },
         {
           data: "1",
           title: "PROJECT NAME",
+          width: "20%",
           render: (data, type, row) => {
             if (type === "display") {
               return `
@@ -70,10 +79,16 @@ const ProjectsTable = () => {
             return data
           },
         },
-        { data: "5", title: "%" },
+        {
+          data: "5",
+          title: "%",
+          width: "8%",
+          className: "text-center",
+        },
         {
           data: "3",
           title: "OWNER",
+          width: "15%",
           render: (data, type) => {
             if (type === "display") {
               return `
@@ -93,6 +108,7 @@ const ProjectsTable = () => {
         {
           data: "4",
           title: "STATUS",
+          width: "12%",
           render: (data, type) => {
             if (type === "display") {
               const className =
@@ -111,6 +127,7 @@ const ProjectsTable = () => {
         {
           data: "2",
           title: "TASK",
+          width: "15%",
           render: (data, type, row) => {
             if (type === "display") {
               const containerId = `progress-cell-${row[8]}`
@@ -127,12 +144,21 @@ const ProjectsTable = () => {
             return data
           },
         },
-        { data: "6", title: "START DATE" },
-        { data: "7", title: "END DATE" },
+        {
+          data: "6",
+          title: "START DATE",
+          width: "12%",
+          className: "text-center",
+        },
+        {
+          data: "7",
+          title: "END DATE",
+          width: "12%",
+          className: "text-center",
+        },
       ],
       paging: false,
       searching: true,
-      responsive: true,
       dom: '<"top"f>rt<"clear">',
       ordering: false,
       info: false,
@@ -141,6 +167,23 @@ const ProjectsTable = () => {
       },
       createdRow: function (row) {
         $(row).addClass("hover:bg-gray-50 group relative")
+      },
+      drawCallback: function () {
+        this.api().columns.adjust()
+      },
+
+      initComplete: () => {
+        $(".dataTables_filter input").addClass(
+          "w-64 p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        )
+
+        $(".dataTables_paginate").addClass(
+          "mt-4 flex items-center justify-end gap-2"
+        )
+        $(".paginate_button").addClass("px-3 py-1 rounded-lg hover:bg-gray-100")
+        $(".paginate_button.current").addClass(
+          "bg-blue-50 text-blue-600 font-medium"
+        )
       },
     })
 
@@ -214,42 +257,16 @@ const ProjectsTable = () => {
     }
   }, [projects])
 
-  if (loading)
-    return (
-      <div className="w-full max-w-[1600px] mx-auto mt-32">
-        <div className="ml-32 mt-2 w-full">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-            <div className="min-h-[200px] flex items-center justify-center">
-              <div className="bg-white shadow-md rounded-lg p-6 flex items-center justify-center">
-                Loading projects...
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+  useEffect(() => {
+    if (tableInstance) {
+      setTimeout(() => {
+        tableInstance.columns.adjust()
+      }, 300)
+    }
+  }, [isCollapsed, tableInstance])
 
-  return (
+  const Modal = () => (
     <>
-      <div className="w-full max-w-[1600px] mx-auto mt-32">
-        <div className="ml-32 mt-2 w-full">
-          <h1 className="text-2xl font-bold mb-6">Project Members</h1>
-          <div className="flex justify-end mb-4">
-            <button
-              className="bg-base hover:bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
-              onClick={() => setShowModal(true)}
-            >
-              Add project
-            </button>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-            <div className="overflow-x-auto">
-              <table ref={tableRef} className="w-full relative stripe hover" />
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div
         className={`fixed inset-y-0 right-0 w-96 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
           showModal ? "translate-x-0" : "translate-x-full"
@@ -354,13 +371,94 @@ const ProjectsTable = () => {
         </div>
       </div>
 
-      {/* Overlay */}
       {showModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50"
           onClick={() => setShowModal(false)}
         ></div>
       )}
+    </>
+  )
+
+  if (loading) {
+    return (
+      <div
+        className={`transition-all duration-300 ${
+          isCollapsed ? "pl-4" : "pl-8"
+        } pr-4 mx-auto mt-16 sm:mt-24 lg:mt-32`}
+      >
+        <div
+          className={`transition-all duration-300 mx-auto ${
+            isCollapsed ? "w-[1800px]" : "w-[1600px]"
+          }`}
+        >
+          <div className="w-full">
+            <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+              <div className="min-h-[200px] flex items-center justify-center">
+                <div className="bg-white shadow-md rounded-lg p-6 flex items-center justify-center">
+                  Loading projects...
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (projects.length === 0) {
+    return (
+      <>
+        <div className="w-full max-w-[1600px] mx-auto mt-32">
+          <div className="w-full">
+            <h1 className="text-2xl font-bold mb-6">Project Members</h1>
+            <div className="flex justify-end mb-4">
+              <button
+                className="bg-base hover:bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
+                onClick={() => setShowModal(true)}
+              >
+                Add project
+              </button>
+            </div>
+            <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+              <div className="min-h-[200px] flex flex-col items-center justify-center text-gray-500">
+                <p className="text-lg mb-4">No projects found</p>
+                <p className="text-sm">
+                  Click &quot;Add project&quot; to create your first project
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <Modal />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div className="pr-4 mx-auto mt-24">
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 sm:mb-6">
+          Projects
+        </h1>
+        <div className="flex justify-end mb-4">
+          <button
+            className="bg-base hover:bg-base-dark text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
+            onClick={() => setShowModal(true)}
+          >
+            Add project
+          </button>
+        </div>
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 w-full">
+          <div className="overflow-x-auto">
+            <table
+              ref={tableRef}
+              className="w-full relative stripe hover min-w-[800px]"
+            />
+          </div>
+        </div>
+      </div>
+      <Modal />
     </>
   )
 }

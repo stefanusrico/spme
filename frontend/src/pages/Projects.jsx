@@ -1,4 +1,3 @@
-// Projects.jsx
 import { useParams } from "react-router-dom"
 import { useState, useEffect } from "react"
 import DashboardProject from "../components/Elements/Projects/Dashboard"
@@ -103,7 +102,7 @@ const Projects = () => {
 
   return (
     <div className="bg-gray-50 p-6 mt-12">
-      <div className="ml-64 max-w-screen-2xl mx-auto">
+      <div className="mx-auto">
         <div className="mb-6">
           <div className="flex gap-5 mb-2">
             <h2 className="text-xl font-semibold text-graytxt">

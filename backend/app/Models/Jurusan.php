@@ -13,10 +13,8 @@ class Jurusan extends Model
         'name',
     ];
 
-
     public function prodi()
     {
         return $this->hasMany(Prodi::class);
     }
-
 }

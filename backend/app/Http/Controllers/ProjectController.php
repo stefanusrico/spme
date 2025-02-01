@@ -97,8 +97,7 @@ class ProjectController extends Controller
     public function getProjectDetails($projectId)
     {
         try {
-            // Mengambil data proyek
-            $project = Project::where('id', $projectId)
+            $project = Project::where('_id', $projectId)
                 ->with([
                     'tasks' => function ($query) {
                         $query->with('users');
@@ -106,23 +105,24 @@ class ProjectController extends Controller
                 ])
                 ->firstOrFail();
 
-            // Mengelompokkan tasks berdasarkan status
             $groupedTasks = $project->tasks->groupBy('status');
 
-            // Menyiapkan response data
             $tasksByStatus = [
                 'ACTIVE' => [],
                 'COMPLETED' => [],
                 'CANCELLED' => []
             ];
 
-            // Mengisi data tasks berdasarkan status
             foreach ($groupedTasks as $status => $tasks) {
                 $tasksByStatus[$status] = $tasks->map(function ($task) {
+                    $taskName = "Butir {$task->no} - {$task->sub}";
+
                     return [
                         'id' => $task->_id,
                         'taskId' => $task->taskId,
-                        'name' => $task->name,
+                        'no' => $task->no,
+                        'sub' => $task->sub,
+                        'name' => $taskName,
                         'progress' => $task->progress,
                         'owners' => $task->users->map(function ($user) {
                             return [
@@ -166,32 +166,24 @@ class ProjectController extends Controller
     public function getProjectTaskLists($projectId)
     {
         try {
-            $project = Project::where('id', $projectId)->first();
-
-            if (!$project) {
-                $project = Project::find($projectId);
-
-                if (!$project) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Project not found'
-                    ], 404);
-                }
-            }
+            $project = Project::where('_id', $projectId)->firstOrFail();  // Perbaikan query
 
             $taskLists = TaskList::where('projectId', $project->_id)
                 ->with([
                     'tasks' => function ($query) {
                         $query->orderBy('order', 'asc')
-                            ->with('users'); // Make sure this matches the relationship name
+                            ->with('users');
                     }
                 ])
                 ->orderBy('order', 'asc')
                 ->get()
                 ->map(function ($taskList) {
+                    $listName = "Kriteria {$taskList->c}";  // Generate nama tasklist
+    
                     return [
                         'id' => $taskList->_id,
-                        'name' => $taskList->name,
+                        'c' => $taskList->c,
+                        'name' => $listName,
                         'order' => $taskList->order,
                         'tasks' => $taskList->tasks->map(function ($task) {
                             $startDate = new Carbon($task->startDate);
@@ -217,10 +209,14 @@ class ProjectController extends Controller
                                 return null;
                             })->filter();
 
+                            $taskName = "Butir {$task->no} - {$task->sub}";
+
                             return [
                                 'id' => $task->_id,
                                 'taskId' => $task->taskId,
-                                'name' => $task->name,
+                                'no' => $task->no,
+                                'sub' => $task->sub,
+                                'name' => $taskName,
                                 'status' => $task->status,
                                 'progress' => $task->progress,
                                 'startDate' => $startDate->format('Y-m-d'),
@@ -281,7 +277,6 @@ class ProjectController extends Controller
                 'added_by' => $addedBy->name
             ]);
 
-            // Check if user is already a member
             $isMember = collect($project->members)
                 ->where('userId', $user->_id)
                 ->first();
@@ -293,14 +288,12 @@ class ProjectController extends Controller
                 ], 400);
             }
 
-            // Add member to project
             $project->push('members', [
                 'userId' => $user->_id,
                 'role' => $request->role,
                 'joinedAt' => now()
             ]);
 
-            // Update user's projects array
             $existingProjects = $user->projects ?? [];
             $updatedProjects = array_merge($existingProjects, [
                 [
@@ -311,12 +304,30 @@ class ProjectController extends Controller
             $user->projects = $updatedProjects;
             $user->save();
 
-            // Send notification with debug log
             try {
                 $user->notify(new ProjectMemberAddedNotification($project, $addedBy));
-                \Log::info('Notification sent successfully');
+
+                $notificationController = new NotificationController();
+
+                $phone = $user->phone_number ?? null;
+
+                if ($phone) {
+                    $projectUrl = config('app.url') . '/projects/' . $project->_id;
+                    $message = "Hi *{$user->name}*, You've been added to\n\n"
+                        . "📂 Project: *{$project->name}*\n"
+                        . "👤 Added by: *{$addedBy->name}*\n"
+                        . "📅 Date: *" . now()->format('d M Y') . "*\n"
+                        . "📅 End Date: *" . Carbon::parse($project->endDate)->format('d M Y') . "*\n"
+                        . "🔗 *Access your project here:*\n"
+                        . $projectUrl . "\n\n"
+                        . "💡 Click the link above to start.";
+
+                    $notificationController->sendWhatsAppNotification($phone, $message);
+                }
+
+                \Log::info('Notifications sent successfully');
             } catch (\Exception $e) {
-                \Log::error('Error sending notification:', [
+                \Log::error('Error sending notifications:', [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ]);
@@ -324,7 +335,7 @@ class ProjectController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Member added successfully and notification sent',
+                'message' => 'Member added successfully and notifications sent',
                 'data' => $project
             ]);
 
@@ -400,7 +411,7 @@ class ProjectController extends Controller
             'userId' => 'required|exists:users,_id'
         ]);
 
-        $project = Project::where('projectId', $projectId)->firstOrFail();
+        $project = Project::where('_id', $projectId)->firstOrFail();
 
         $member = collect($project->members)
             ->where('userId', $request->userId)

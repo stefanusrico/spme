@@ -7,11 +7,16 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "guzzlehttp/guzzle": "^7.9",
+        "google/apiclient": "*",
+        "guzzlehttp/guzzle": "*",
         "laravel/framework": "^11.31",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
         "mongodb/laravel-mongodb": "^5.1",
+        "php-webdriver/webdriver": "^1.15",
+        "silvanix/wablas": "^1.0",
+        "symfony/css-selector": "^7.2",
+        "symfony/dom-crawler": "^7.2",
         "tymon/jwt-auth": "^2.1"
     },
     "require-dev": {

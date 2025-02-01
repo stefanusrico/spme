@@ -1,14 +1,8 @@
-// Tasks.jsx
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+/* eslint-disable react/prop-types */
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { format } from "date-fns"
 import { ChevronDown } from "lucide-react"
 import { createRoot } from "react-dom/client"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Calendar } from "@/components/ui/calendar"
@@ -260,16 +254,19 @@ const Tasks = ({ projectId }) => {
       {
         data: "taskId",
         title: "TASK ID",
+        width: "7%",
         render: (data, type, row) => (row.isEmpty ? "" : data),
       },
       {
         data: "name",
         title: "TASK NAME",
+        width: "10%",
         render: (data, type, row) => (row.isEmpty ? "" : data),
       },
       {
         data: "owners",
         title: "OWNER",
+        width: "20%",
         className: "min-w-[200px]",
         render: (data, type, row) => {
           if (row.isEmpty) return ""
@@ -295,6 +292,7 @@ const Tasks = ({ projectId }) => {
       {
         data: "status",
         title: "STATUS",
+        width: "10%",
         render: (data, type, row) => {
           if (row.isEmpty) return ""
           const status = getTaskStatus(data)
@@ -306,6 +304,7 @@ const Tasks = ({ projectId }) => {
       {
         data: "progress",
         title: "PROGRESS",
+        width: "10%",
         render: (data, type, row) => {
           if (row.isEmpty) return ""
           return `<div class="flex items-center">
@@ -321,6 +320,7 @@ const Tasks = ({ projectId }) => {
       {
         data: "startDate",
         title: "START DATE",
+        width: "10%",
         render: (data, type, row) => {
           if (row.isEmpty) return ""
           const containerId = `start-date-cell-${row.id}`
@@ -345,6 +345,7 @@ const Tasks = ({ projectId }) => {
       {
         data: "endDate",
         title: "END DATE",
+        width: "10%",
         render: (data, type, row) => {
           if (row.isEmpty) return ""
           const containerId = `end-date-cell-${row.id}`
@@ -368,6 +369,8 @@ const Tasks = ({ projectId }) => {
       },
       {
         data: "duration",
+        title: "DURATION",
+        width: "10%",
         render: (data, type, row) => (row.isEmpty ? "" : `${data} days`),
       },
     ],
@@ -382,7 +385,7 @@ const Tasks = ({ projectId }) => {
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-[1600px] mx-auto">
+      <div className="w-full mx-auto">
         <div className="mt-2 w-full">
           <div className="bg-white rounded-xl shadow-lg p-6 w-full">
             <div className="min-h-[200px] flex items-center justify-center">
@@ -395,10 +398,10 @@ const Tasks = ({ projectId }) => {
   }
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto">
+    <div className="w-full mx-auto">
       <div className="mt-2 w-full">
         <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-hidden">
             <TaskTable
               key={`table-${projectId}`}
               data={tableData}

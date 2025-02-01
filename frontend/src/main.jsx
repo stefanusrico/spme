@@ -83,6 +83,7 @@ const router = createBrowserRouter([
       </UserProvider>
     ),
     children: [
+      { path: "/prodi", element: <ProdiTable /> },
       {
         path: "/user-management",
         element: <Navigate to="/user-management/1" replace />,
@@ -103,7 +104,6 @@ const router = createBrowserRouter([
     children: [
       { path: "/projects", element: <ProjectsTable /> },
       { path: "/projects/:projectId", element: <Projects /> },
-      { path: "/prodi", element: <ProdiTable /> },
     ],
   },
 ])

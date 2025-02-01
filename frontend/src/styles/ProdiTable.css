@@ -1,6 +1,7 @@
 .dataTables_paginate {
   float: right !important;
   margin-top: 1rem !important;
+  background-color: transparent;
 }
 
 .dataTables_filter {

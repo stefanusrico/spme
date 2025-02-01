@@ -11,7 +11,7 @@ class TaskList extends Model
 
     protected $fillable = [
         'projectId',
-        'name',
+        'c',
         'order'
     ];
 
