@@ -21,6 +21,8 @@ import ProjectsTable from "./components/Elements/DataTable/ProjectsTable"
 import DashboardKaprodi from "./pages/DashboardKaprodi"
 import ProdiTable from "./components/Elements/DataTable/ProdiTable"
 import Projects from "./pages/Projects"
+import Jadwal from "./pages/Jadwal"
+import JsonGenerator from "./pages/JsonGenerator"
 import "datatables.net-dt/css/dataTables.dataTables.css"
 import "datatables.net-bs5/css/dataTables.bootstrap5.css"
 import "datatables.net-rowgroup-bs5/css/rowGroup.bootstrap5.css"
@@ -84,6 +86,8 @@ const router = createBrowserRouter([
     ),
     children: [
       { path: "/prodi", element: <ProdiTable /> },
+      { path: "/jadwal", element: <Jadwal /> },
+      { path: "/json/generate", element: <JsonGenerator /> },
       {
         path: "/user-management",
         element: <Navigate to="/user-management/1" replace />,
