@@ -13,7 +13,9 @@ use App\Http\Controllers\{
     UserController,
     NotificationController,
     DataController,
-    ScraperController
+    ScraperController,
+    LamController,
+    JadwalLamController
 };
 use App\Http\Middleware\JwtMiddleware;
 
@@ -25,10 +27,30 @@ Route::post('/removemember/{projectId}', [ProjectController::class, 'removeMembe
 Route::get('/scrape/{perguruan_tinggi}/{strata}', [ScraperController::class, 'scrape']);
 Route::post('/jurusan', [JurusanController::class, 'store']);
 
-
 Route::post('login', [AuthController::class, 'login']);
 Route::post('refresh', [AuthController::class, 'refresh']);
 Route::post('/sendmsg/{phone}/{message}', [NotificationController::class, 'sendWhatsAppNotification']);
+
+Route::controller(LamController::class)->group(function () {
+    Route::get('lam', 'index');
+    Route::post('lam', 'store');
+    Route::get('lam/{id}', 'show');
+    Route::put('lam/{id}', 'update');
+    Route::delete('lam/{id}', 'destroy');
+});
+
+Route::controller(JadwalLamController::class)->group(function () {
+    Route::get('jadwal', 'index');
+    Route::post('jadwal', 'store');
+    Route::get('jadwal/{id}', 'show');
+    Route::put('jadwal/{id}', 'update');
+    Route::delete('jadwal/{id}', 'destroy');
+    Route::get('jadwal/year/{year}', 'getByYear');
+    Route::get('jadwal/name/{name}', 'getByName');
+    Route::get('jadwal/year/{year}/name/{name}', 'getByYearAndName');
+});
+
+
 
 Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);

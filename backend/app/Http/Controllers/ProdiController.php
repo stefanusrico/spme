@@ -8,9 +8,10 @@ use Illuminate\Support\Facades\Cache;
 
 class ProdiController extends Controller
 {
+
     public function index()
     {
-        return response()->json(Prodi::all());
+        return response()->json(Prodi::with('jadwalLam')->get());
     }
 
     public function show($id)

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Jurusan;
@@ -9,12 +8,13 @@ class JurusanController extends Controller
 {
     public function index()
     {
-        $jurusans = Jurusan::all();
+        $jurusans = Jurusan::with(['lam', 'prodis'])->get();
         return response()->json($jurusans);
     }
+
     public function show($id)
     {
-        $jurusan = Jurusan::with('prodi')->find($id);
+        $jurusan = Jurusan::with(['lam', 'prodis'])->find($id);
 
         if (!$jurusan) {
             return response()->json(['message' => 'Jurusan not found'], 404);
@@ -27,13 +27,12 @@ class JurusanController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'lamId' => 'nullable|exists:lam,_id'
         ]);
 
-        $jurusan = Jurusan::create([
-            'name' => $request->name,
-        ]);
+        $jurusan = Jurusan::create($request->only(['name', 'lamId']));
 
-        return response()->json($jurusan, 201);
+        return response()->json($jurusan->load('lam'), 201);
     }
 
     public function update(Request $request, $id)
@@ -44,7 +43,12 @@ class JurusanController extends Controller
             return response()->json(['message' => 'Jurusan not found'], 404);
         }
 
-        $jurusan->update($request->only('name'));
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'lamId' => 'required|exists:lam,_id'
+        ]);
+
+        $jurusan->update($request->only(['name', 'lamId']));
 
         return response()->json($jurusan);
     }

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Prodi;
 use App\Models\Jurusan;
+use App\Models\Lam;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\Chrome\ChromeOptions;
 use Facebook\WebDriver\Remote\DesiredCapabilities;
 use Facebook\WebDriver\WebDriverBy;
+use Illuminate\Support\Carbon;
 
 class ScraperController extends Controller
 {
@@ -66,29 +68,40 @@ class ScraperController extends Controller
                 sleep(2);
             } while (true);
 
+
+            $jurusans = Jurusan::all()->keyBy('name');
             foreach ($tableData as $row) {
-                $prodiName = $row[2] . ' ' . $row[1];
-                $tempProdi = new Prodi(['name' => $prodiName]);
-                $jurusanName = $tempProdi->getJurusanKeyword();
-                $jurusanId = null;
-                if ($jurusanName) {
-                    $jurusan = Jurusan::firstOrCreate(['name' => $jurusanName]);
-                    $jurusanId = $jurusan->_id;
+                try {
+                    $prodiName = $row[2] . ' ' . $row[1];
+                    $jurusanId = null;
+
+                    $mapping = (new Prodi)->getJurusanKeyword($prodiName);
+                    if ($mapping && isset($jurusans[$mapping])) {
+                        $jurusanId = $jurusans[$mapping]->_id;
+                    }
+
+                    $prodi = Prodi::updateOrCreate(
+                        [
+                            'name' => $prodiName,
+                            'nomorSK' => $row[4]
+                        ],
+                        [
+                            'jurusanId' => $jurusanId,
+                            'tahunSK' => (int) $row[5],
+                            'peringkat' => $row[6],
+                            'tanggalKedaluwarsa' => Carbon::create($row[7])->setTime(7, 0, 0),
+                        ]
+                    );
+
+                    \Log::info("Processed Prodi: {$prodi->_id}");
+
+                } catch (\Exception $e) {
+                    \Log::error("Error processing prodi {$prodiName}: {$e->getMessage()}");
+                    continue;
                 }
-                Prodi::updateOrCreate(
-                    [
-                        'name' => $prodiName,
-                        'nomorSK' => $row[4]
-                    ],
-                    [
-                        'jurusanId' => $jurusanId,
-                        'tahunSK' => (int) $row[5],
-                        'peringkat' => $row[6],
-                        'tanggalKedaluwarsa' => $row[7],
-                        'tanggalAkhirSubmit' => null
-                    ]
-                );
             }
+
+            \Log::info("Total records processed: " . count($tableData));
 
             return response()->json([
                 'message' => 'Data updated successfully',

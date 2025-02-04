@@ -411,7 +411,7 @@ const ProjectsTable = ({ isCollapsed }) => {
       <>
         <div className="w-full max-w-[1600px] mx-auto mt-32">
           <div className="w-full">
-            <h1 className="text-2xl font-bold mb-6">Project Members</h1>
+            <h1 className="text-2xl font-bold mb-6">Projects</h1>
             <div className="flex justify-end mb-4">
               <button
                 className="bg-base hover:bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
@@ -437,10 +437,8 @@ const ProjectsTable = ({ isCollapsed }) => {
 
   return (
     <>
-      <div className="pr-4 mx-auto mt-24">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 sm:mb-6">
-          Projects
-        </h1>
+      <div className="pr-4 mx-auto mt-32  ">
+        <h1 className="text-3xl font-bold mb-4 sm:mb-6">Projects</h1>
         <div className="flex justify-end mb-4">
           <button
             className="bg-base hover:bg-base-dark text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"

@@ -6,7 +6,7 @@ import axiosInstance from "../../../utils/axiosConfig"
 import $ from "jquery"
 import "../../../styles/ProdiTable.css"
 
-const ProdiTable = ({ isCollapsed = "false" }) => {
+const ProdiTable = ({ isCollapsed }) => {
   const tableRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [prodiData, setProdiData] = useState([])
@@ -57,13 +57,13 @@ const ProdiTable = ({ isCollapsed = "false" }) => {
             data: "name",
             title: "PROGRAM STUDI",
             orderable: false,
-            width: "30%",
+            width: "20%",
           },
           {
             data: "nomorSK",
             title: "NOMOR SK",
             orderable: false,
-            width: "20%",
+            width: "16%",
           },
           {
             data: "tahunSK",
@@ -75,7 +75,7 @@ const ProdiTable = ({ isCollapsed = "false" }) => {
             data: "peringkat",
             title: "PERINGKAT",
             orderable: false,
-            width: "15%",
+            width: "10%",
             render: (data) =>
               `<span class="text-sm font-semibold text-blue bg-blue_badge rounded-lg px-2 py-1">${data}</span>`,
           },
@@ -83,7 +83,46 @@ const ProdiTable = ({ isCollapsed = "false" }) => {
             data: "tanggalKedaluwarsa",
             title: "TANGGAL KEDALUWARSA",
             orderable: false,
-            width: "25%",
+            width: "15%",
+            render: (data) =>
+              new Date(data)
+                .toLocaleDateString("id-ID", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                })
+                .split("/")
+                .join("-"),
+          },
+          {
+            data: "tanggalAkhirSubmit",
+            title: "TANGGAL AKHIR SUBMIT",
+            orderable: false,
+            width: "15%",
+            render: (data) =>
+              new Date(data)
+                .toLocaleDateString("id-ID", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                })
+                .split("/")
+                .join("-"),
+          },
+          {
+            data: "tanggalPengumuman",
+            title: "TANGGAL PENGUMUMAN",
+            orderable: false,
+            width: "20%",
+            render: (data) =>
+              new Date(data)
+                .toLocaleDateString("id-ID", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                })
+                .split("/")
+                .join("-"),
           },
         ],
         pageLength: 10,
@@ -92,6 +131,7 @@ const ProdiTable = ({ isCollapsed = "false" }) => {
         info: false,
         searching: false,
         responsive: false,
+        scrollX: true,
         dom: '<"wrapper"t<"bottom"p>>',
         pagingType: "simple_numbers",
         language: {
@@ -113,16 +153,10 @@ const ProdiTable = ({ isCollapsed = "false" }) => {
 
   if (loading) {
     return (
-      <div
-        className={`w-full mx-auto mt-32 ${
-          isCollapsed ? "max-w-[1920px] pl-16" : "max-w-[1600px] pl-64"
-        } transition-all duration-300`}
-      >
-        <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-          <div className="min-h-[200px] flex items-center justify-center">
-            <div className="bg-white shadow-md rounded-lg p-6">
-              Loading table...
-            </div>
+      <div className="bg-white rounded-xl shadow-lg p-6 w-full mt-32">
+        <div className="min-h-[200px] flex items-center justify-center">
+          <div className="bg-white shadow-md rounded-lg p-6">
+            Loading table...
           </div>
         </div>
       </div>
@@ -130,17 +164,11 @@ const ProdiTable = ({ isCollapsed = "false" }) => {
   }
 
   return (
-    <div
-      className={`w-full mx-auto mt-32 ${
-        isCollapsed ?? false ? "max-w-[1920px] pl-16" : "max-w-[1800px] pl-64"
-      } transition-all duration-300`}
-    >
-      <div className="mt-2 w-full">
-        <h1 className="text-2xl font-bold mb-6">Data Program Studi</h1>
-        <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-          <div className="overflow-x-auto">
-            <table ref={tableRef} className="w-full relative stripe hover" />
-          </div>
+    <div className="mt-32 w-full">
+      <h1 className="text-2xl font-bold mb-6">Data Program Studi</h1>
+      <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+        <div className="overflow-x-auto">
+          <table ref={tableRef} className="w-full relative stripe hover" />
         </div>
       </div>
     </div>
