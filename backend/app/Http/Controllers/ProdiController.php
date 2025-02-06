@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Prodi;
+use App\Models\Jurusan;
+use App\Models\Lam;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -11,7 +13,11 @@ class ProdiController extends Controller
 
     public function index()
     {
-        return response()->json(Prodi::with('jadwalLam')->get());
+        return response()->json(
+            Prodi::with('lam')
+                ->orderBy('jadwal.tanggalSubmit', 'asc')
+                ->get()
+        );
     }
 
     public function show($id)
@@ -25,20 +31,34 @@ class ProdiController extends Controller
         try {
             $request->validate([
                 'name' => 'required|string|max:255',
-                'nomorSK' => 'required|string|max:255',
-                'tahunSK' => 'required|integer',
-                'peringkat' => 'required|string|max:15',
-                'tanggalKedaluwarsa' => 'required|date',
-                'tanggalAkhirSubmit' => 'nullable|date'
+                'jurusanId' => 'required',
+                'akreditasi' => 'required|array',
+                'akreditasi.nomorSK' => 'required|string',
+                'akreditasi.tahun' => 'required|integer',
+                'akreditasi.peringkat' => 'required|string',
+                'akreditasi.tanggalKedaluwarsa' => 'required|date',
+                'akreditasi.lembagaAkreditasi' => 'required|string'
             ]);
 
-            return response()->json(Prodi::create($request->validated()), 201);
+            $jurusan = Jurusan::find($request->jurusanId);
+            if (!$jurusan) {
+                throw new \Exception('Invalid jurusanId');
+            }
+
+            $lam = Lam::where('name', $request->input('akreditasi.lembagaAkreditasi'))->first();
+            if (!$lam) {
+                throw new \Exception('Invalid lembagaAkreditasi');
+            }
+
+            $prodi = Prodi::create($request->all());
+            return response()->json($prodi, 201);
 
         } catch (\Exception $e) {
+            \Log::error("Error in store: " . $e->getMessage());
             return response()->json([
-                'error' => $e instanceof ValidationException ? 'Validation Error' : 'Server Error',
-                'message' => $e instanceof ValidationException ? $e->errors() : $e->getMessage()
-            ], $e instanceof ValidationException ? 422 : 500);
+                'error' => 'Server Error',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
@@ -74,7 +94,7 @@ class ProdiController extends Controller
     {
         try {
             $peringkatCount = Cache::remember('peringkat_count', 60, function () {
-                return array_values(Prodi::all()->groupBy('peringkat')
+                return array_values(Prodi::all()->groupBy('akreditasi.peringkat')
                     ->map(function ($group, $peringkat) {
                         return [
                             'peringkat' => $peringkat,
@@ -84,7 +104,6 @@ class ProdiController extends Controller
             });
 
             return response()->json($peringkatCount);
-
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Server Error',

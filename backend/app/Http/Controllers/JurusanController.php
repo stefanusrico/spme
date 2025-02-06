@@ -8,7 +8,7 @@ class JurusanController extends Controller
 {
     public function index()
     {
-        $jurusans = Jurusan::with(['lam', 'prodis'])->get();
+        $jurusans = Jurusan::with('prodis')->get();
         return response()->json($jurusans);
     }
 
@@ -26,13 +26,11 @@ class JurusanController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'lamId' => 'nullable|exists:lam,_id'
+            'name' => 'required|string|max:255'
         ]);
 
-        $jurusan = Jurusan::create($request->only(['name', 'lamId']));
-
-        return response()->json($jurusan->load('lam'), 201);
+        $jurusan = Jurusan::create($request->only(['name']));
+        return response()->json($jurusan, 201);
     }
 
     public function update(Request $request, $id)

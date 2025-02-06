@@ -19,15 +19,14 @@ class JadwalLamController extends Controller
     {
         $request->validate([
             'lamId' => 'required|exists:lam,_id',
-            'hasBatch' => 'required|boolean',
             'tahun' => 'required|integer',
-            'batch' => 'required|integer',
-            'tanggalSubmit' => 'required|date',
-            'tanggalPengumuman' => 'required|date|after:tanggalSubmit'
+            'batch' => 'required|integer|between:1,3',
+            'jadwal' => 'required|array',
+            'jadwal.tanggalSubmit' => 'required|date',
+            'jadwal.tanggalPengumuman' => 'required|date|after:jadwal.tanggalSubmit'
         ]);
 
         $jadwalLam = JadwalLam::create($request->all());
-
         return response()->json($jadwalLam, 201);
     }
 
@@ -67,18 +66,23 @@ class JadwalLamController extends Controller
 
             $request->validate([
                 'tanggalSubmit' => 'required|date',
-                'tanggalPengumuman' => 'required|date|after:tanggalSubmit'
+                'tanggalPengumuman' => [
+                    'required',
+                    'date',
+                    'after:tanggalSubmit'
+                ]
             ]);
 
             $tanggalSubmit = new \MongoDB\BSON\UTCDateTime(strtotime($request->tanggalSubmit) * 1000);
             $tanggalPengumuman = new \MongoDB\BSON\UTCDateTime(strtotime($request->tanggalPengumuman) * 1000);
 
-            $jadwalLam->tanggalSubmit = $tanggalSubmit;
-            $jadwalLam->tanggalPengumuman = $tanggalPengumuman;
+            $jadwalLam->jadwal = [
+                'tanggalSubmit' => $tanggalSubmit,
+                'tanggalPengumuman' => $tanggalPengumuman
+            ];
 
             if ($jadwalLam->save()) {
                 $updatedJadwal = $jadwalLam->fresh();
-
                 return response()->json([
                     'message' => 'Jadwal berhasil diperbarui',
                     'data' => $updatedJadwal
@@ -145,16 +149,16 @@ class JadwalLamController extends Controller
         $lamWithBatch = Lam::where('hasBatch', true)->get();
         $lamWithoutBatch = Lam::where('hasBatch', false)->get();
 
-
         foreach ($lamWithBatch as $lam) {
             for ($batch = 1; $batch <= 3; $batch++) {
                 JadwalLam::create([
                     'lamId' => $lam->_id,
-                    'hasBatch' => true,
                     'tahun' => $year,
                     'batch' => $batch,
-                    'tanggalSubmit' => $this->getBatchSubmitDate($year, $batch),
-                    'tanggalPengumuman' => $this->getBatchAnnouncementDate($year, $batch)
+                    'jadwal' => [
+                        'tanggalSubmit' => $this->getBatchSubmitDate($year, $batch),
+                        'tanggalPengumuman' => $this->getBatchAnnouncementDate($year, $batch)
+                    ]
                 ]);
             }
         }
@@ -162,10 +166,12 @@ class JadwalLamController extends Controller
         foreach ($lamWithoutBatch as $lam) {
             JadwalLam::create([
                 'lamId' => $lam->_id,
-                'hasBatch' => false,
                 'tahun' => $year,
-                'tanggalSubmit' => Carbon::create($year, 1, 1, 7, 0, 0),
-                'tanggalPengumuman' => Carbon::create($year, 3, 1, 7, 0, 0)
+                'batch' => null,
+                'jadwal' => [
+                    'tanggalSubmit' => Carbon::create($year, 1, 1, 7, 0, 0),
+                    'tanggalPengumuman' => Carbon::create($year, 3, 1, 7, 0, 0)
+                ]
             ]);
         }
 

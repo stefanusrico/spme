@@ -8,41 +8,44 @@ class Prodi extends Model
 {
     protected $connection = 'mongodb';
     protected $collection = 'prodis';
+
     protected $fillable = [
         'name',
         'jurusanId',
-        'nomorSK',
-        'tahunSK',
-        'peringkat',
-        'tanggalKedaluwarsa',
-        'jadwalLamId'
+        'lamId',
+        'akreditasi',
+        'jadwal'
     ];
 
     protected $casts = [
-        'tahunSK' => 'integer',
-        'tanggalKedaluwarsa' => 'datetime'
-    ];
-
-    protected $appends = [
-        'tanggalAkhirSubmit',
-        'tanggalPengumuman'
+        'akreditasi.tahun' => 'integer',
+        'akreditasi.tanggalKedaluwarsa' => 'datetime',
+        'jadwal.tanggalSubmit' => 'datetime',
+        'jadwal.tanggalPengumuman' => 'datetime'
     ];
 
     protected $indexes = [
-        ['key' => ['jurusanId' => 1]],
-        ['key' => ['jadwalLamId' => 1]],
         ['key' => ['name' => 1]],
-        ['key' => ['nomorSK' => 1]]
+        ['key' => ['jurusanId' => 1]],
+        ['key' => ['lamId' => 1]],
+        ['key' => ['akreditasi.nomorSK' => 1]],
+        ['key' => ['akreditasi.lembagaAkreditasi' => 1]],
+        ['key' => ['jadwal.jadwalLamId' => 1]]
     ];
 
-    public function getTanggalAkhirSubmitAttribute()
+    public function jurusan()
     {
-        return $this->jadwalLam?->tanggalSubmit;
+        return $this->belongsTo(Jurusan::class, 'jurusanId', '_id');
     }
 
-    public function getTanggalPengumumanAttribute()
+    public function lam()
     {
-        return $this->jadwalLam?->tanggalPengumuman;
+        return $this->belongsTo(Lam::class, 'lamId', '_id');
+    }
+
+    public function jadwalLam()
+    {
+        return $this->belongsTo(JadwalLam::class, 'jadwal.jadwalLamId', '_id');
     }
 
     public function getJurusanKeyword($name = null)
@@ -103,85 +106,82 @@ class Prodi extends Model
         return null;
     }
 
-    public function jurusan()
-    {
-        return $this->belongsTo(Jurusan::class, 'jurusanId', '_id');
-    }
-
-    public function jadwalLam()
-    {
-        return $this->belongsTo(JadwalLam::class, 'jadwalLamId', '_id');
-    }
-
     public function assignJadwalLam()
     {
         \Log::info("Starting assignJadwalLam for " . $this->name);
 
-        if ($this->jadwalLamId && $this->tanggalAkhirSubmit && $this->tanggalPengumuman) {
+        // Check if jadwal already exists and is complete
+        if (
+            isset($this->jadwal['jadwalLamId']) &&
+            isset($this->jadwal['tanggalSubmit']) &&
+            isset($this->jadwal['tanggalPengumuman'])
+        ) {
             \Log::info("Skip: already has complete schedule");
             return;
         }
 
-        if (!$this->tanggalKedaluwarsa) {
+        // Check for tanggalKedaluwarsa
+        if (!isset($this->akreditasi['tanggalKedaluwarsa'])) {
             \Log::info("No tanggalKedaluwarsa");
             return;
         }
 
-        // 1. Dapatkan keyword jurusan dari nama prodi
-        $jurusanKeyword = $this->getJurusanKeyword();
-        \Log::info("JurusanKeyword: " . $jurusanKeyword);
-        if (!$jurusanKeyword) {
-            \Log::info("No jurusanKeyword found");
+        // Get LAM directly from lamId
+        $lam = Lam::find($this->lamId);
+        if (!$lam) {
+            \Log::info("No LAM found with ID: " . $this->lamId);
             return;
         }
+        \Log::info("Found LAM: " . $lam->name);
 
-        // 2. Dapatkan jurusan berdasarkan keyword 
-        $jurusan = Jurusan::where('name', $jurusanKeyword)->first();
-        \Log::info("Jurusan found: " . ($jurusan ? $jurusan->name : 'null'));
-        if (!$jurusan) {
-            \Log::info("No jurusan found");
-            return;
-        }
-
-        // 3. Dapatkan LAM dari jurusan
-        if (!$jurusan->lam) {
-            \Log::info("No LAM found for jurusan");
-            return;
-        }
-        \Log::info("Found LAM: " . $jurusan->lam->name);
-
-        // 4. Proses pencarian jadwal LAM
-        $tanggalKedaluwarsa = Carbon::parse($this->tanggalKedaluwarsa);
+        // Process LAM schedule search
+        $tanggalKedaluwarsa = Carbon::parse($this->akreditasi['tanggalKedaluwarsa']);
         \Log::info("Looking for schedule for year: " . $tanggalKedaluwarsa->year);
 
-        $firstSchedule = JadwalLam::where('lamId', $jurusan->lam->_id)
+        $firstSchedule = JadwalLam::where('lamId', $this->lamId)
             ->where('tahun', $tanggalKedaluwarsa->year)
             ->first();
-
         \Log::info("First schedule found: " . ($firstSchedule ? 'yes' : 'no'));
+
         if (!$firstSchedule) {
             \Log::info("No schedule found for year");
             return;
         }
-
         \Log::info("Has batch: " . ($firstSchedule->hasBatch ? 'yes' : 'no'));
 
-        $jadwal = $this->findAppropriateSchedule($jurusan->lam, $tanggalKedaluwarsa);
-
+        $jadwal = $this->findAppropriateSchedule($lam, $tanggalKedaluwarsa);
         if ($jadwal) {
             \Log::info("Found schedule:", [
                 'jadwalLamId' => $jadwal->_id,
-                'tanggalAkhirSubmit' => $jadwal->tanggalSubmit,
-                'tanggalPengumuman' => $jadwal->tanggalPengumuman
+                'tanggalSubmit' => $jadwal->jadwal['tanggalSubmit'],
+                'tanggalPengumuman' => $jadwal->jadwal['tanggalPengumuman']
             ]);
 
-            $this->jadwalLamId = $jadwal->_id;
-            $this->tanggalAkhirSubmit = $jadwal->tanggalSubmit;
-            $this->tanggalPengumuman = $jadwal->tanggalPengumuman;
+            $this->jadwal = [
+                'jadwalLamId' => $jadwal->_id,
+                'tanggalSubmit' => $jadwal->jadwal['tanggalSubmit'],
+                'tanggalPengumuman' => $jadwal->jadwal['tanggalPengumuman']
+            ];
             $this->save();
         } else {
             \Log::info("No appropriate schedule found");
         }
+    }
+
+    private function setLamId()
+    {
+        if (!isset($this->akreditasi['lembagaAkreditasi'])) {
+            $this->lamId = null;
+            return;
+        }
+
+        $lamName = $this->akreditasi['lembagaAkreditasi'];
+        if ($lamName === 'A.5') {
+            $lamName = 'LAMEMBA';
+        }
+
+        $lam = Lam::where('name', $lamName)->first();
+        $this->lamId = $lam ? $lam->_id : null;
     }
 
     private function findAppropriateSchedule($lam, $tanggalKedaluwarsa)
@@ -189,31 +189,30 @@ class Prodi extends Model
         $baseQuery = JadwalLam::where('lamId', $lam->_id);
 
         if ($lam->hasBatch) {
-            // Logic untuk LAM dengan batch
-            // Cari jadwal yang tanggal pengumumannya sebelum kedaluwarsa
-            $jadwal = $baseQuery->where('tanggalPengumuman', '<', $tanggalKedaluwarsa)
-                ->orderBy('tanggalPengumuman', 'desc')
+            // Logic for LAM with batch
+            $jadwal = $baseQuery
+                ->where('jadwal.tanggalPengumuman', '<=', $tanggalKedaluwarsa)
+                ->orderBy('jadwal.tanggalPengumuman', 'desc')
                 ->first();
 
             if (!$jadwal) {
-                // Jika tidak ada, cari jadwal terdekat setelahnya
-                $jadwal = $baseQuery->where('tanggalPengumuman', '>=', $tanggalKedaluwarsa)
-                    ->orderBy('tanggalPengumuman', 'asc')
+                $jadwal = $baseQuery
+                    ->where('jadwal.tanggalPengumuman', '>', $tanggalKedaluwarsa)
+                    ->orderBy('jadwal.tanggalPengumuman', 'asc')
                     ->first();
             }
-
             return $jadwal;
         } else {
-            // Logic untuk LAM tanpa batch
-            $jadwal = $baseQuery->where('tahun', $tanggalKedaluwarsa->year)
+            // Logic for LAM without batch
+            $jadwal = $baseQuery
+                ->where('tahun', $tanggalKedaluwarsa->year)
                 ->first();
 
             if (!$jadwal) {
-                // Cek tahun berikutnya
-                $jadwal = $baseQuery->where('tahun', $tanggalKedaluwarsa->year + 1)
+                $jadwal = $baseQuery
+                    ->where('tahun', $tanggalKedaluwarsa->year + 1)
                     ->first();
             }
-
             return $jadwal;
         }
     }
@@ -223,11 +222,20 @@ class Prodi extends Model
         parent::boot();
 
         static::creating(function ($prodi) {
-            $prodi->assignJadwalLam();
+            $prodi->setLamId();
+            if (isset($prodi->akreditasi['lembagaAkreditasi'])) {
+                $prodi->assignJadwalLam();
+            }
         });
 
         static::updating(function ($prodi) {
-            if ($prodi->isDirty('tanggalKedaluwarsa')) {
+            if ($prodi->isDirty('akreditasi.lembagaAkreditasi')) {
+                $prodi->setLamId();
+            }
+            if (
+                $prodi->isDirty('akreditasi.tanggalKedaluwarsa') ||
+                $prodi->isDirty('akreditasi.lembagaAkreditasi')
+            ) {
                 $prodi->assignJadwalLam();
             }
         });

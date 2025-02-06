@@ -10,23 +10,16 @@ class JadwalLam extends Model
 
   protected $fillable = [
     'lamId',
-    'hasBatch',
     'tahun',
     'batch',
-    'tanggalSubmit',
-    'tanggalPengumuman'
+    'jadwal'
   ];
 
   protected $casts = [
-    'tanggalSubmit' => 'datetime',
-    'tanggalPengumuman' => 'datetime',
-    'hasBatch' => 'boolean'
-  ];
-
-  protected $indexes = [
-    ['key' => ['lamId' => 1]],
-    ['key' => ['tahun' => 1]],
-    ['key' => ['tanggalPengumuman' => 1]]
+    'tahun' => 'integer',
+    'batch' => 'integer',
+    'jadwal.tanggalSubmit' => 'datetime',
+    'jadwal.tanggalPengumuman' => 'datetime'
   ];
 
   public function lam()
@@ -36,6 +29,19 @@ class JadwalLam extends Model
 
   public function prodis()
   {
-    return $this->hasMany(Prodi::class, 'jadwalLamId', '_id');
+    return $this->hasMany(Prodi::class, 'jadwal.jadwalLamId', '_id');
+  }
+
+  protected static function boot()
+  {
+    parent::boot();
+
+    static::creating(function ($jadwalLam) {
+      if ($jadwalLam->lam && $jadwalLam->lam->hasBatch) {
+        if (!in_array($jadwalLam->batch, [1, 2, 3])) {
+          throw new \Exception('Batch harus bernilai 1, 2, atau 3');
+        }
+      }
+    });
   }
 }

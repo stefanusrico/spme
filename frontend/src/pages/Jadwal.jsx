@@ -76,8 +76,8 @@ const Jadwal = () => {
 
       const updatePromises = schedules.map((schedule) => {
         const updateData = {
-          tanggalSubmit: new Date(schedule.tanggalSubmit).toISOString(),
-          tanggalPengumuman: new Date(schedule.tanggalPengumuman).toISOString(),
+          tanggalSubmit: schedule.jadwal.tanggalSubmit,
+          tanggalPengumuman: schedule.jadwal.tanggalPengumuman,
         }
         return axiosInstance.put(`/jadwal/${schedule.id}`, updateData)
       })
@@ -85,7 +85,7 @@ const Jadwal = () => {
       await Promise.all(updatePromises)
 
       toast.success("Jadwal berhasil diperbarui")
-      await fetchLamData() 
+      await fetchLamData()
     } catch (error) {
       console.error("Error details:", error.response?.data || error)
       if (error.response?.data?.message) {
@@ -99,7 +99,7 @@ const Jadwal = () => {
   }
 
   const handleDateChange = (date, jadwalId, field) => {
-    if (!date) return 
+    if (!date) return
 
     setLamData((prevData) => {
       return prevData.map((lam) => {
@@ -109,20 +109,25 @@ const Jadwal = () => {
             jadwals: lam.jadwals.map((jadwal) => {
               if (jadwal.id === jadwalId) {
                 if (field === "tanggalSubmit") {
-                  const currentPengumuman = new Date(jadwal.tanggalPengumuman)
+                  const currentPengumuman = new Date(
+                    jadwal.jadwal.tanggalPengumuman
+                  )
                   if (currentPengumuman <= date) {
                     const newAnnouncementDate = new Date(date)
                     newAnnouncementDate.setDate(date.getDate() + 1)
                     return {
                       ...jadwal,
-                      tanggalSubmit: date.toISOString(),
-                      tanggalPengumuman: newAnnouncementDate.toISOString(),
+                      jadwal: {
+                        ...jadwal.jadwal,
+                        tanggalSubmit: date.toISOString(),
+                        tanggalPengumuman: newAnnouncementDate.toISOString(),
+                      },
                     }
                   }
                 }
 
                 if (field === "tanggalPengumuman") {
-                  const currentSubmit = new Date(jadwal.tanggalSubmit)
+                  const currentSubmit = new Date(jadwal.jadwal.tanggalSubmit)
                   if (date <= currentSubmit) {
                     toast.error(
                       "Tanggal pengumuman harus setelah tanggal submit"
@@ -133,7 +138,10 @@ const Jadwal = () => {
 
                 return {
                   ...jadwal,
-                  [field]: date.toISOString(),
+                  jadwal: {
+                    ...jadwal.jadwal,
+                    [field]: date.toISOString(),
+                  },
                 }
               }
               return jadwal
@@ -144,6 +152,7 @@ const Jadwal = () => {
       })
     })
   }
+  
 
   if (loading) {
     return (
@@ -236,7 +245,7 @@ const Jadwal = () => {
                           <CalendarIcon className="mr-3 h-5 w-5" />
                           <span>
                             {format(
-                              new Date(jadwal.tanggalSubmit),
+                              new Date(jadwal.jadwal.tanggalSubmit), // Perubahan di sini
                               "dd MMMM yyyy"
                             )}
                           </span>
@@ -247,13 +256,13 @@ const Jadwal = () => {
                           className="rounded-lg"
                           mode="single"
                           selected={
-                            jadwal.tanggalSubmit
-                              ? new Date(jadwal.tanggalSubmit)
+                            jadwal.jadwal.tanggalSubmit // Perubahan di sini
+                              ? new Date(jadwal.jadwal.tanggalSubmit)
                               : undefined
                           }
-                          defaultMonth={new Date(parseInt(selectedYear), 0)} // Set bulan pertama sesuai tahun yang dipilih
-                          fromDate={new Date(parseInt(selectedYear), 0, 1)} // Tanggal awal tahun yang dipilih
-                          toDate={new Date(parseInt(selectedYear), 11, 31)} // Tanggal akhir tahun yang dipilih
+                          defaultMonth={new Date(parseInt(selectedYear), 0)}
+                          fromDate={new Date(parseInt(selectedYear), 0, 1)}
+                          toDate={new Date(parseInt(selectedYear), 11, 31)}
                           onSelect={(date) =>
                             date &&
                             handleDateChange(date, jadwal.id, "tanggalSubmit")
@@ -276,7 +285,7 @@ const Jadwal = () => {
                         <CalendarIcon className="mr-3 h-5 w-5" />
                         <span>
                           {format(
-                            new Date(jadwal.tanggalPengumuman),
+                            new Date(jadwal.jadwal.tanggalPengumuman), // Perubahan di sini
                             "dd MMMM yyyy"
                           )}
                         </span>
@@ -287,8 +296,8 @@ const Jadwal = () => {
                         className="rounded-lg"
                         mode="single"
                         selected={
-                          jadwal.tanggalPengumuman
-                            ? new Date(jadwal.tanggalPengumuman)
+                          jadwal.jadwal.tanggalPengumuman // Perubahan di sini
+                            ? new Date(jadwal.jadwal.tanggalPengumuman)
                             : undefined
                         }
                         defaultMonth={new Date(parseInt(selectedYear), 0)}

@@ -5,6 +5,7 @@ import "datatables.net-bs5"
 import axiosInstance from "../../../utils/axiosConfig"
 import $ from "jquery"
 import "../../../styles/ProdiTable.css"
+import { differenceInMonths } from "date-fns"
 
 const ProdiTable = ({ isCollapsed }) => {
   const tableRef = useRef(null)
@@ -21,6 +22,23 @@ const ProdiTable = ({ isCollapsed }) => {
       console.error("Error fetching prodi:", error)
       setLoading(false)
     }
+  }
+
+  const getSubmitDateStatus = (submitDate) => {
+    if (!submitDate) return "normal"
+
+    const today = new Date()
+    const submitDateTime = new Date(submitDate)
+    const monthDiff = differenceInMonths(submitDateTime, today)
+
+    if (monthDiff < 0) {
+      return "past"
+    } else if (monthDiff <= 6) {
+      return "urgent"
+    } else if (monthDiff <= 36) {
+      return "warning"
+    }
+    return "normal"
   }
 
   useEffect(() => {
@@ -57,22 +75,23 @@ const ProdiTable = ({ isCollapsed }) => {
             data: "name",
             title: "PROGRAM STUDI",
             orderable: false,
-            width: "20%",
+            width: "30%",
           },
           {
-            data: "nomorSK",
+            data: "akreditasi.nomorSK",
             title: "NOMOR SK",
             orderable: false,
-            width: "16%",
+            width: "25%",
+            render: (data) => `<span class="text-sm">${data || ""}</span>`,
           },
           {
-            data: "tahunSK",
+            data: "akreditasi.tahun",
             title: "TAHUN SK",
             orderable: false,
             width: "10%",
           },
           {
-            data: "peringkat",
+            data: "akreditasi.peringkat",
             title: "PERINGKAT",
             orderable: false,
             width: "10%",
@@ -80,9 +99,9 @@ const ProdiTable = ({ isCollapsed }) => {
               `<span class="text-sm font-semibold text-blue bg-blue_badge rounded-lg px-2 py-1">${data}</span>`,
           },
           {
-            data: "tanggalKedaluwarsa",
+            data: "akreditasi.tanggalKedaluwarsa",
             title: "TANGGAL KEDALUWARSA",
-            orderable: false,
+            orderable: true,
             width: "15%",
             render: (data) =>
               new Date(data)
@@ -95,25 +114,37 @@ const ProdiTable = ({ isCollapsed }) => {
                 .join("-"),
           },
           {
-            data: "tanggalAkhirSubmit",
+            data: "jadwal.tanggalSubmit",
             title: "TANGGAL AKHIR SUBMIT",
-            orderable: false,
+            orderable: true,
             width: "15%",
-            render: (data) =>
-              new Date(data)
+            render: (data) => {
+              const status = getSubmitDateStatus(data)
+              const formattedDate = new Date(data)
                 .toLocaleDateString("id-ID", {
                   year: "numeric",
                   month: "2-digit",
                   day: "2-digit",
                 })
                 .split("/")
-                .join("-"),
+                .join("-")
+
+              return `<span class="text-sm px-2 py-1  ${
+                status === "urgent"
+                  ? "bg-blue_badge text-black rounded"
+                  : status === "warning"
+                  ? "bg-orange_badge text-black rounded"
+                  : status === "past"
+                  ? "bg-red_badge text-black rounded"
+                  : ""
+              }">${formattedDate}</span>`
+            },
           },
           {
-            data: "tanggalPengumuman",
+            data: "jadwal.tanggalPengumuman",
             title: "TANGGAL PENGUMUMAN",
             orderable: false,
-            width: "20%",
+            width: "15%",
             render: (data) =>
               new Date(data)
                 .toLocaleDateString("id-ID", {
@@ -123,10 +154,17 @@ const ProdiTable = ({ isCollapsed }) => {
                 })
                 .split("/")
                 .join("-"),
+          },
+          {
+            data: "lam.name",
+            title: "LEMBAGA AKREDITASI",
+            orderable: false,
+            width: "30%",
           },
         ],
         pageLength: 10,
-        ordering: false,
+        order: [],
+        ordering: true,
         paging: true,
         info: false,
         searching: false,
@@ -166,7 +204,7 @@ const ProdiTable = ({ isCollapsed }) => {
   return (
     <div className="mt-32 w-full">
       <h1 className="text-2xl font-bold mb-6">Data Program Studi</h1>
-      <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+      <div className="bg-white rounded-xl shadow-lg p-4 w-full">
         <div className="overflow-x-auto">
           <table ref={tableRef} className="w-full relative stripe hover" />
         </div>

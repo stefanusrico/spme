@@ -1,37 +1,29 @@
 <?php
-
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Http\Controllers\ScraperController;
 
-class ScrapeBanPT extends Command
+class ScrapeBanpt extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'scrape:banpt';
+    protected $description = 'Scrape data from BAN-PT website';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Untuk scrape data banpt setiap dua minggu';
-
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
-        $scraper = new ScraperController();
+        try {
+            $scraper = new ScraperController();
+            $this->info('Starting D-III scraping...');
+            $result = $scraper->scrape('Politeknik Negeri Bandung', 'D-III');
+            $this->info('D-III scraping completed.');
+            $this->info('Starting D-IV scraping...');
+            $result = $scraper->scrape('Politeknik Negeri Bandung', 'D-IV');
+            $this->info('D-IV scraping completed.');
 
-        $this->info('Starting D-III scraping...');
-        $scraper->scrape('Politeknik Negeri Bandung', 'D-III');
-
-        $this->info('Starting D-IV scraping...');
-        $scraper->scrape('Politeknik Negeri Bandung', 'D-IV');
+        } catch (\Exception $e) {
+            $this->error('Scraping failed: ' . $e->getMessage());
+            \Log::error('Scraping command failed: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+        }
     }
 }

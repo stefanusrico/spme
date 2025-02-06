@@ -17,6 +17,21 @@
   border-radius: inherit !important;
 }
 
+.date-status-urgent {
+  background-color: #fee2e2 !important;
+  border-color: #dc2626 !important;
+}
+
+.date-status-warning {
+  background-color: #fef3c7 !important;
+  border-color: #d97706 !important;
+}
+
+.date-status-past {
+  background-color: #f3f4f6 !important;
+  border-color: #6b7280 !important;
+}
+
 html,
 body {
   overflow-x: hidden;
