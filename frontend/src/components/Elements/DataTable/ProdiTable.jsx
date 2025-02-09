@@ -114,7 +114,7 @@ const ProdiTable = ({ isCollapsed }) => {
                 .join("-"),
           },
           {
-            data: "jadwal.tanggalSubmit",
+            data: "tanggalSubmit",
             title: "TANGGAL AKHIR SUBMIT",
             orderable: true,
             width: "15%",
@@ -141,9 +141,9 @@ const ProdiTable = ({ isCollapsed }) => {
             },
           },
           {
-            data: "jadwal.tanggalPengumuman",
+            data: "tanggalPengumuman",
             title: "TANGGAL PENGUMUMAN",
-            orderable: false,
+            orderable: true,
             width: "15%",
             render: (data) =>
               new Date(data)

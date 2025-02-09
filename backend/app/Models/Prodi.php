@@ -13,24 +13,26 @@ class Prodi extends Model
         'name',
         'jurusanId',
         'lamId',
-        'akreditasi',
-        'jadwal'
+        'jadwalLamId',
+        'tanggalSubmit',
+        'tanggalPengumuman',
+        'akreditasi'
     ];
 
     protected $casts = [
         'akreditasi.tahun' => 'integer',
         'akreditasi.tanggalKedaluwarsa' => 'datetime',
-        'jadwal.tanggalSubmit' => 'datetime',
-        'jadwal.tanggalPengumuman' => 'datetime'
+        'tanggalSubmit' => 'datetime',
+        'tanggalPengumuman' => 'datetime'
     ];
 
     protected $indexes = [
         ['key' => ['name' => 1]],
         ['key' => ['jurusanId' => 1]],
         ['key' => ['lamId' => 1]],
+        ['key' => ['jadwalLamId' => 1]],
         ['key' => ['akreditasi.nomorSK' => 1]],
-        ['key' => ['akreditasi.lembagaAkreditasi' => 1]],
-        ['key' => ['jadwal.jadwalLamId' => 1]]
+        ['key' => ['akreditasi.lembagaAkreditasi' => 1]]
     ];
 
     public function jurusan()
@@ -45,7 +47,7 @@ class Prodi extends Model
 
     public function jadwalLam()
     {
-        return $this->belongsTo(JadwalLam::class, 'jadwal.jadwalLamId', '_id');
+        return $this->belongsTo(JadwalLam::class, 'jadwalLamId', '_id');
     }
 
     public function getJurusanKeyword($name = null)
@@ -110,23 +112,20 @@ class Prodi extends Model
     {
         \Log::info("Starting assignJadwalLam for " . $this->name);
 
-        // Check if jadwal already exists and is complete
         if (
-            isset($this->jadwal['jadwalLamId']) &&
-            isset($this->jadwal['tanggalSubmit']) &&
-            isset($this->jadwal['tanggalPengumuman'])
+            isset($this->jadwalLamId) &&
+            isset($this->tanggalSubmit) &&
+            isset($this->tanggalPengumuman)
         ) {
             \Log::info("Skip: already has complete schedule");
             return;
         }
 
-        // Check for tanggalKedaluwarsa
         if (!isset($this->akreditasi['tanggalKedaluwarsa'])) {
             \Log::info("No tanggalKedaluwarsa");
             return;
         }
 
-        // Get LAM directly from lamId
         $lam = Lam::find($this->lamId);
         if (!$lam) {
             \Log::info("No LAM found with ID: " . $this->lamId);
@@ -134,7 +133,6 @@ class Prodi extends Model
         }
         \Log::info("Found LAM: " . $lam->name);
 
-        // Process LAM schedule search
         $tanggalKedaluwarsa = Carbon::parse($this->akreditasi['tanggalKedaluwarsa']);
         \Log::info("Looking for schedule for year: " . $tanggalKedaluwarsa->year);
 
@@ -153,15 +151,13 @@ class Prodi extends Model
         if ($jadwal) {
             \Log::info("Found schedule:", [
                 'jadwalLamId' => $jadwal->_id,
-                'tanggalSubmit' => $jadwal->jadwal['tanggalSubmit'],
-                'tanggalPengumuman' => $jadwal->jadwal['tanggalPengumuman']
+                'tanggalSubmit' => $jadwal->tanggalSubmit,
+                'tanggalPengumuman' => $jadwal->tanggalPengumuman
             ]);
 
-            $this->jadwal = [
-                'jadwalLamId' => $jadwal->_id,
-                'tanggalSubmit' => $jadwal->jadwal['tanggalSubmit'],
-                'tanggalPengumuman' => $jadwal->jadwal['tanggalPengumuman']
-            ];
+            $this->jadwalLamId = $jadwal->_id;
+            $this->tanggalSubmit = $jadwal->tanggalSubmit;
+            $this->tanggalPengumuman = $jadwal->tanggalPengumuman;
             $this->save();
         } else {
             \Log::info("No appropriate schedule found");
@@ -189,21 +185,19 @@ class Prodi extends Model
         $baseQuery = JadwalLam::where('lamId', $lam->_id);
 
         if ($lam->hasBatch) {
-            // Logic for LAM with batch
             $jadwal = $baseQuery
-                ->where('jadwal.tanggalPengumuman', '<=', $tanggalKedaluwarsa)
-                ->orderBy('jadwal.tanggalPengumuman', 'desc')
+                ->where('tanggalPengumuman', '<=', $tanggalKedaluwarsa)
+                ->orderBy('tanggalPengumuman', 'desc')
                 ->first();
 
             if (!$jadwal) {
                 $jadwal = $baseQuery
-                    ->where('jadwal.tanggalPengumuman', '>', $tanggalKedaluwarsa)
-                    ->orderBy('jadwal.tanggalPengumuman', 'asc')
+                    ->where('tanggalPengumuman', '>', $tanggalKedaluwarsa)
+                    ->orderBy('tanggalPengumuman', 'asc')
                     ->first();
             }
             return $jadwal;
         } else {
-            // Logic for LAM without batch
             $jadwal = $baseQuery
                 ->where('tahun', $tanggalKedaluwarsa->year)
                 ->first();

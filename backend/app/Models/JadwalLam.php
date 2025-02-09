@@ -12,14 +12,15 @@ class JadwalLam extends Model
     'lamId',
     'tahun',
     'batch',
-    'jadwal'
+    'tanggalSubmit',
+    'tanggalPengumuman'
   ];
 
   protected $casts = [
     'tahun' => 'integer',
     'batch' => 'integer',
-    'jadwal.tanggalSubmit' => 'datetime',
-    'jadwal.tanggalPengumuman' => 'datetime'
+    'tanggalSubmit' => 'datetime',
+    'tanggalPengumuman' => 'datetime'
   ];
 
   public function lam()
@@ -29,7 +30,7 @@ class JadwalLam extends Model
 
   public function prodis()
   {
-    return $this->hasMany(Prodi::class, 'jadwal.jadwalLamId', '_id');
+    return $this->hasMany(Prodi::class, 'jadwalLamId', '_id');
   }
 
   protected static function boot()

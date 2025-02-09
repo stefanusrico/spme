@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Lam;
@@ -21,9 +20,8 @@ class JadwalLamController extends Controller
             'lamId' => 'required|exists:lam,_id',
             'tahun' => 'required|integer',
             'batch' => 'required|integer|between:1,3',
-            'jadwal' => 'required|array',
-            'jadwal.tanggalSubmit' => 'required|date',
-            'jadwal.tanggalPengumuman' => 'required|date|after:jadwal.tanggalSubmit'
+            'tanggalSubmit' => 'required|date',
+            'tanggalPengumuman' => 'required|date|after:tanggalSubmit'
         ]);
 
         $jadwalLam = JadwalLam::create($request->all());
@@ -73,13 +71,8 @@ class JadwalLamController extends Controller
                 ]
             ]);
 
-            $tanggalSubmit = new \MongoDB\BSON\UTCDateTime(strtotime($request->tanggalSubmit) * 1000);
-            $tanggalPengumuman = new \MongoDB\BSON\UTCDateTime(strtotime($request->tanggalPengumuman) * 1000);
-
-            $jadwalLam->jadwal = [
-                'tanggalSubmit' => $tanggalSubmit,
-                'tanggalPengumuman' => $tanggalPengumuman
-            ];
+            $jadwalLam->tanggalSubmit = new \MongoDB\BSON\UTCDateTime(strtotime($request->tanggalSubmit) * 1000);
+            $jadwalLam->tanggalPengumuman = new \MongoDB\BSON\UTCDateTime(strtotime($request->tanggalPengumuman) * 1000);
 
             if ($jadwalLam->save()) {
                 $updatedJadwal = $jadwalLam->fresh();
@@ -117,6 +110,35 @@ class JadwalLamController extends Controller
         return response()->json(['message' => 'Jadwal LAM berhasil dihapus']);
     }
 
+    public function generateYearlySchedule($year)
+    {
+        $lamWithBatch = Lam::where('hasBatch', true)->get();
+        $lamWithoutBatch = Lam::where('hasBatch', false)->get();
+
+        foreach ($lamWithBatch as $lam) {
+            for ($batch = 1; $batch <= 3; $batch++) {
+                JadwalLam::create([
+                    'lamId' => $lam->_id,
+                    'tahun' => $year,
+                    'batch' => $batch,
+                    'tanggalSubmit' => $this->getBatchSubmitDate($year, $batch),
+                    'tanggalPengumuman' => $this->getBatchAnnouncementDate($year, $batch)
+                ]);
+            }
+        }
+
+        foreach ($lamWithoutBatch as $lam) {
+            JadwalLam::create([
+                'lamId' => $lam->_id,
+                'tahun' => $year,
+                'batch' => null,
+                'tanggalSubmit' => Carbon::create($year, 1, 1, 7, 0, 0),
+                'tanggalPengumuman' => Carbon::create($year, 3, 1, 7, 0, 0)
+            ]);
+        }
+
+        return response()->json(['message' => "Jadwal tahun $year berhasil dibuat"]);
+    }
 
     private function getBatchSubmitDate($year, $batch)
     {
@@ -140,41 +162,5 @@ class JadwalLamController extends Controller
 
         $batchDate = $dates[$batch] ?? ['month' => 3, 'day' => 1];
         return Carbon::create($year, $batchDate['month'], $batchDate['day'], 7, 0, 0);
-    }
-
-
-
-    public function generateYearlySchedule($year)
-    {
-        $lamWithBatch = Lam::where('hasBatch', true)->get();
-        $lamWithoutBatch = Lam::where('hasBatch', false)->get();
-
-        foreach ($lamWithBatch as $lam) {
-            for ($batch = 1; $batch <= 3; $batch++) {
-                JadwalLam::create([
-                    'lamId' => $lam->_id,
-                    'tahun' => $year,
-                    'batch' => $batch,
-                    'jadwal' => [
-                        'tanggalSubmit' => $this->getBatchSubmitDate($year, $batch),
-                        'tanggalPengumuman' => $this->getBatchAnnouncementDate($year, $batch)
-                    ]
-                ]);
-            }
-        }
-
-        foreach ($lamWithoutBatch as $lam) {
-            JadwalLam::create([
-                'lamId' => $lam->_id,
-                'tahun' => $year,
-                'batch' => null,
-                'jadwal' => [
-                    'tanggalSubmit' => Carbon::create($year, 1, 1, 7, 0, 0),
-                    'tanggalPengumuman' => Carbon::create($year, 3, 1, 7, 0, 0)
-                ]
-            ]);
-        }
-
-        return response()->json(['message' => "Jadwal tahun $year berhasil dibuat"]);
     }
 }

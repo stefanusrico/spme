@@ -10,12 +10,11 @@ use Illuminate\Support\Facades\Cache;
 
 class ProdiController extends Controller
 {
-
     public function index()
     {
         return response()->json(
             Prodi::with('lam')
-                ->orderBy('jadwal.tanggalSubmit', 'asc')
+                ->orderBy('tanggalSubmit', 'asc')
                 ->get()
         );
     }
@@ -65,16 +64,16 @@ class ProdiController extends Controller
     public function update(Request $request, $id)
     {
         $prodi = Prodi::find($id);
-        if (!$prodi)
+        if (!$prodi) {
             return response()->json(['message' => 'Prodi not found'], 404);
+        }
 
         $prodi->update($request->only([
             'name',
-            'nomorSK',
-            'tahunSK',
-            'peringkat',
-            'tanggalKedaluwarsa',
-            'tanggalAkhirSubmit'
+            'akreditasi',
+            'jadwalLamId',
+            'tanggalSubmit',
+            'tanggalPengumuman'
         ]));
 
         return response()->json($prodi);
@@ -83,8 +82,9 @@ class ProdiController extends Controller
     public function destroy($id)
     {
         $prodi = Prodi::find($id);
-        if (!$prodi)
+        if (!$prodi) {
             return response()->json(['message' => 'Prodi not found'], 404);
+        }
 
         $prodi->delete();
         return response()->json(['message' => 'Prodi deleted successfully']);

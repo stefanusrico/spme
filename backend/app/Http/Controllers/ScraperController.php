@@ -215,6 +215,7 @@ class ScraperController extends Controller
                         'akreditasi.nomorSK' => $row[4]
                     ],
                     [
+                        'name' => $prodiName,
                         'jurusanId' => $jurusanId,
                         'akreditasi' => [
                             'nomorSK' => $row[4],
