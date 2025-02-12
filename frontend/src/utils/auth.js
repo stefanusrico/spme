@@ -49,3 +49,5 @@ export const hasRole = (allowedRoles) => {
   const userRole = getUserRole()
   return userRole && allowedRoles.includes(userRole)
 }
+
+//auth

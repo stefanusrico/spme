@@ -23,6 +23,7 @@ import ProdiTable from "./components/Elements/DataTable/ProdiTable"
 import Projects from "./pages/Projects"
 import Jadwal from "./pages/Jadwal"
 import JsonGenerator from "./pages/JsonGenerator"
+import Section1 from "./components/Fragments/Sections/Section1"
 import "datatables.net-dt/css/dataTables.dataTables.css"
 import "datatables.net-bs5/css/dataTables.bootstrap5.css"
 import "datatables.net-rowgroup-bs5/css/rowGroup.bootstrap5.css"
@@ -97,6 +98,7 @@ const router = createBrowserRouter([
       { path: "/user-management/role/:id/edit", element: <EditRole /> },
       { path: "/user-management/user/add", element: <AddUser /> },
       { path: "/user-management/role/add", element: <AddPermission /> },
+      { path: "section", element: <Section1 /> },
     ],
   },
   {
@@ -117,3 +119,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <RouterProvider router={router} />
   </React.StrictMode>
 )
+
+
+//auth
