@@ -12,10 +12,11 @@ export const handleLogin = async (e, rememberMe, setError, navigate) => {
 
   try {
     const response = await axiosInstance.post("/login", { email, password })
-    const { token, role } = response.data
+    const { token, role, access } = response.data
 
     localStorage.setItem("token", token)
     localStorage.setItem("email", email)
+    localStorage.setItem("access", JSON.stringify(access))
 
     if (rememberMe) {
       localStorage.setItem("rememberMe", true)
@@ -68,6 +69,7 @@ export const handleLogout = async () => {
 const cleanupStorage = () => {
   localStorage.removeItem("email")
   localStorage.removeItem("token")
+  localStorage.removeItem("access")
   localStorage.removeItem("rememberMe")
 }
 

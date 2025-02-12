@@ -2,8 +2,9 @@ import React, { useMemo, useState } from "react"
 import Sidebar from "./components/Elements/Menu/SidebarExpanded"
 import Navbar from "./components/Elements/Menu/Navbar"
 import {
-  sidebarAdmin,
-  sidebarKaprodi,
+  // sidebarAdmin,
+  // sidebarKaprodi,
+  menus
 } from "./components/Elements/Menu/sidebar"
 import { useUser } from "./context/userContext"
 
@@ -11,14 +12,14 @@ const MainLayout = ({ children }) => {
   const { userData } = useUser()
   const [isCollapsed, setIsCollapsed] = useState(false)
 
-  const sidebarItems = useMemo(() => {
-    if (userData?.role === "Admin") {
-      return sidebarAdmin
-    } else if (userData?.role === "Ketua Program Studi") {
-      return sidebarKaprodi
-    }
-    return []
-  }, [userData?.role])
+  // const sidebarItems = useMemo(() => {
+  //   if (userData?.role === "Admin") {
+  //     return sidebarAdmin
+  //   } else if (userData?.role === "Ketua Program Studi") {
+  //     return sidebarKaprodi
+  //   }
+  //   return []
+  // }, [userData?.role])
 
   const childrenWithProps = React.Children.map(children, (child) =>
     React.cloneElement(child, { isCollapsed })
@@ -27,7 +28,7 @@ const MainLayout = ({ children }) => {
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar
-        items={sidebarItems}
+        items={menus}
         onCollapse={(collapsed) => setIsCollapsed(collapsed)}
         className="z-20"
       />

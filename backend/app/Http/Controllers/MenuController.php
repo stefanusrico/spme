@@ -2,32 +2,66 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Role;
+use App\Models\Menu;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
-class RoleController extends Controller
+class MenuController extends Controller
 {
     /**
-     * Menampilkan daftar semua role.
+     * Menampilkan daftar semua menu.
      *
      * @return \Illuminate\Http\Response
      */
     public function index()
     {
         try {
-            $roles = Role::all(); 
+            $menus = Menu::all(); 
+
+            $menuTree = $this->buildMenuTree($menus);
+
             return response()->json([
                 'status' => 'success',
-                'data' => $roles
+                'data' => $menuTree
             ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to fetch roles'], 500);
+            return response()->json(['error' => 'Failed to fetch menus'], 500);
         }
     }
 
     /**
-     * Menyimpan role baru.
+     * Membuat tree dari koleksi menu
+     */
+    private function buildMenuTree($menus, $parentId = null)
+    {
+        $tree = [];
+
+        foreach ($menus as $menu) {
+            if ($menu->parent_id == $parentId) {
+                $children = $this->buildMenuTree($menus, $menu->id);
+
+                $menuData = [
+                    'name' => $menu->name,
+                    'order' => $menu->order,
+                    'icon' => $menu->icon,
+                    'children' => $children,
+                    'id' => $menu->id
+                ];
+
+                // Jika menu tidak memiliki anak, tambahkan properti `url`
+                if (empty($children)) {
+                    $menuData['url'] = $menu->url;
+                }
+
+                $tree[] = $menuData;
+            }
+        }
+
+        return $tree;
+    }
+
+    /**
+     * Menyimpan menu baru.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -35,13 +69,14 @@ class RoleController extends Controller
     public function store(Request $request)
     {
         try {
-            
             $validatedData = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
-                'access' => 'nullable|array',
-                'access.*' => 'string', 
+                'order' => 'required|integer', 
+                'parent_id' => 'nullable|string|max:255',
+                'url' => 'required|string|max:255',
+                'icon' => 'required|string|max:255',
             ]);
-    
+
             if ($validatedData->fails()) {
                 return response()->json([
                     'status' => 'error',
@@ -49,68 +84,60 @@ class RoleController extends Controller
                 ], 400);
             }
 
-            try {
-                $role = Role::create([
-                    'name' => $request->name,
-                    'access' => $validatedData['access'] ?? []
-                ]);
+            $menu = Menu::create([
+                'name' => $request->name,
+                'order' => $request->order,
+                'parent_id' => $request->parent_id,
+                'url' => $request->url,
+                'icon' => $request->icon,
+            ]);
 
-                return response()->json([
-                    'status' => 'success',
-                    'data' => $role
-                ], 200);
-            } catch (\Throwable $th) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Gagal membuat role: ' . $e->getMessage()
-                ], 500);
-            }
-
-            return response()->json($role, 201);
+            return response()->json([
+                'status' => 'success',
+                'data' => $menu
+            ], 201);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
     /**
-     * Menampilkan role berdasarkan ID.
+     * Menampilkan menu berdasarkan ID.
      *
-     * @param  \App\Models\Role  $role
+     * @param  \App\Models\Menu  $menu
      * @return \Illuminate\Http\Response
      */
     public function show($id)
     {
         try {
-            $role = Role::findOrFail($id);
+            $menu = Menu::findOrFail($id);
 
             return response()->json([
                 'status' => 'success',
-                'data' => $role
+                'data' => $menu
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Role tidak ditemukan'
+                'message' => 'menu tidak ditemukan'
             ], 404);
         }
     }
 
     /**
-     * Mengupdate data role berdasarkan ID.
+     * Mengupdate data menu berdasarkan ID.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Role  $role
+     * @param  \App\Models\Menu  $menu
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, $id)
     {
         try {
-            $role = Role::findOrFail($id);
+            $menu = Menu::findOrFail($id);
 
             $validatedData = Validator::make($request->all(), [
-                'name' => 'required|string|max:255',
-                'access' => 'nullable|array',
-                'access.*' => 'string', 
+                'name' => 'required|string|max:255'
             ]);
 
             if ($validatedData->fails()) {
@@ -120,42 +147,41 @@ class RoleController extends Controller
                 ], 400);
             }
 
-            $role->fill($request->only([
+            $menu->fill($request->only([
                 'name',
-                'access'
             ]));
 
-            $role->save();
+            $menu->save();
             
-            $role->refresh();
+            $menu->refresh();
 
             return response()->json([
                 'status' => 'success',
-                'data' => $role
+                'data' => $menu
             ]);
         } catch (\Throwable $th) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to update role: ' . $e->getMessage()
+                'message' => 'Failed to update menu: ' . $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Menghapus role berdasarkan ID.
+     * Menghapus menu berdasarkan ID.
      *
-     * @param  \App\Models\Role  $role
+     * @param  \App\Models\Menu  $menu
      * @return \Illuminate\Http\Response
      */
     public function destroy($id)
     {
         try {
-            $role = Role::findOrFail($id);
-            $role->delete();
+            $menu = Menu::findOrFail($id);
+            $menu->delete();
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Role berhasil dihapus'
+                'message' => 'menu berhasil dihapus'
             ]);
         } catch (\Exception $e) {
             return response()->json([

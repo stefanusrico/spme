@@ -15,7 +15,8 @@ use App\Http\Controllers\{
     DataController,
     ScraperController,
     LamController,
-    JadwalLamController
+    JadwalLamController,
+    MenuController
 };
 use App\Http\Middleware\JwtMiddleware;
 
@@ -105,6 +106,14 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('roles/{id}', 'show');
             Route::put('roles/{id}', 'update');
             Route::delete('roles/{id}', 'destroy');
+        });
+
+        Route::controller(MenuController::class)->group(function () {
+            Route::get('/menus', 'index');
+            Route::post('/menus', 'store');
+            Route::get('menus/{id}', 'show');
+            Route::put('menus/{id}', 'update');
+            Route::delete('menus/{id}', 'destroy');
         });
 
         Route::prefix('notifications')->group(function () {
