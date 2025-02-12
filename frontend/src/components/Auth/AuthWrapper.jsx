@@ -20,3 +20,5 @@ const AuthWrapper = ({ isProtected = false }) => {
 }
 
 export default AuthWrapper
+
+//auth
