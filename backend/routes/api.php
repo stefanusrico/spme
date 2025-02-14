@@ -16,7 +16,9 @@ use App\Http\Controllers\{
     ScraperController,
     LamController,
     JadwalLamController,
-    MenuController
+    MenuController,
+    rumusController,
+    SectionController
 };
 use App\Http\Middleware\JwtMiddleware;
 
@@ -124,4 +126,101 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::post('/send', [NotificationController::class, 'sendNotification']);
         });
     });
+
+    Route::prefix('rumus')->group(function () {
+        Route::get('/', [RumusController::class, 'index']);      // GET - Menampilkan semua data
+        Route::post('/', [RumusController::class, 'store']);     // POST - Menyimpan data baru
+        Route::get('/{id}', [RumusController::class, 'show']);   // GET - Menampilkan data berdasarkan ID
+        Route::put('/{id}', [RumusController::class, 'update']); // PUT - Memperbarui data
+        Route::delete('/{id}', [RumusController::class, 'destroy']); // DELETE - Menghapus data
+    });
+});
+
+Route::prefix('section')->group(function () {
+    Route::post('1/{prodiId}', [SectionController::class, 'store']);
+    Route::get('1/{prodiId}', [SectionController::class, 'index']);
+
+    Route::post('2/{prodiId}', [SectionController::class, 'storeSection2']);
+    Route::get('2/{prodiId}', [SectionController::class, 'getSection2']);
+
+    Route::post('3a/{prodiId}', [SectionController::class, 'storeSection3']);
+    Route::get('3a/{prodiId}', [SectionController::class, 'getSection3']);
+    // ... (dan seterusnya untuk 3a2, 3a3, ..., 3b42)
+
+    // Route untuk section 4, 5a, 5b, 5c, 6a, 6b, 7, 8
+    Route::post('4/{prodiId}', [SectionController::class, 'storeSection4']);
+    Route::get('4/{prodiId}', [SectionController::class, 'getSection4']);
+
+    Route::post('5a/{prodiId}', [SectionController::class, 'storeSection5']);
+    Route::get('5a/{prodiId}', [SectionController::class, 'getSection5']);
+
+    Route::post('5b/{prodiId}', [SectionController::class, 'storeSection5']);
+    Route::get('5b/{prodiId}', [SectionController::class, 'getSection5']);
+
+    Route::post('5c/{prodiId}', [SectionController::class, 'storeSection5']);
+    Route::get('5c/{prodiId}', [SectionController::class, 'getSection5']);
+
+    Route::post('6a/{prodiId}', [SectionController::class, 'storeSection6']);
+    Route::get('6a/{prodiId}', [SectionController::class, 'getSection6']);
+
+    Route::post('6b/{prodiId}', [SectionController::class, 'storeSection6']);
+    Route::get('6b/{prodiId}', [SectionController::class, 'getSection6']);
+
+    Route::post('7/{prodiId}', [SectionController::class, 'storeSection7']);
+    Route::get('7/{prodiId}', [SectionController::class, 'getSection7']);
+
+    Route::post('8/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8/{prodiId}', [SectionController::class, 'getSection8']);
+
+    // Route untuk section 8b1, 8b2, 8c1-8c4, 8d1-8d4, 8e1, 8e2, 8f1-8f5
+    Route::post('8b1/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8b1/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8b2/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8b2/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8c1/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8c1/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8c2/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8c2/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8c3/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8c3/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8c4/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8c4/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8d1/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8d1/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8d2/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8d2/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8d3/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8d3/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8d4/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8d4/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8e1/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8e1/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8e2/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8e2/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8f1/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8f1/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8f2/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8f2/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8f3/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8f3/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8f4/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8f4/{prodiId}', [SectionController::class, 'getSection8']);
+
+    Route::post('8f5/{prodiId}', [SectionController::class, 'storeSection8']);
+    Route::get('8f5/{prodiId}', [SectionController::class, 'getSection8']);
 });
