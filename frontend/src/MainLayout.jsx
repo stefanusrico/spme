@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react"
 import Navbar from "./components/Elements/Menu/Navbar"
 import {
-  // sidebarAdmin,
-  // sidebarKaprodi,
+  // // sidebarAdmin,
+  // // sidebarKaprodi,
+  menus
   menus
 } from "./components/Elements/Menu/sidebar"
 import { useUser } from "./context/userContext"
@@ -27,13 +28,8 @@ const MainLayout = ({ children }) => {
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
-<<<<<<< HEAD
-      <Sidebar
-        items={menus}
-=======
       <AppSidebar
         items={sidebarItems}
->>>>>>> da7b33b (update: mainlayout)
         onCollapse={(collapsed) => setIsCollapsed(collapsed)}
         className="z-20"
       />
