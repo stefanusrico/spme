@@ -3,7 +3,7 @@ import PropTypes from "prop-types"
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { isAuthenticated } from "../../utils/auth"
 import Loader from "../../pages/loader"
-import MainLayout from "../../MainLayout"
+import Layout from "../../Layout"
 import { useUser } from "../../context/userContext"
 
 const RoleBasedRoute = memo(
@@ -66,7 +66,7 @@ const RoleBasedRoute = memo(
       return <Outlet />
     }
 
-    return <MainLayout>{renderContent()}</MainLayout>
+    return <Layout>{renderContent()}</Layout>
   }
 )
 

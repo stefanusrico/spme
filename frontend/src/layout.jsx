@@ -53,7 +53,7 @@ function MainLayout({ children }) {
   return (
     <SidebarInset>
       <div className="flex flex-col h-full">
-        <header className="fixed z-50 flex h-16 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-gray shadow-sm bg-background">
+        <header className="fixed z-50 w-full flex h-16 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-gray shadow-sm bg-background">
           <div className="flex items-center gap-2 px-4">
             <SidebarTrigger
               className="text-[hsl(var(--foreground))]"

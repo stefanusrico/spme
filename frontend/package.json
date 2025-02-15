@@ -55,13 +55,8 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
-<<<<<<< HEAD
     "xlsx": "^0.18.5",
     "xslx": "^1.0.0"
-=======
-    "xlsx": "^0.18.5",
-    "xslx": "^1.0.0"
->>>>>>> da7b33b (update: mainlayout)
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
