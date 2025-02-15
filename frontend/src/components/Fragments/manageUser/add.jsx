@@ -130,10 +130,10 @@ const AddUser = ({ title = "Add User" }) => {
   }
 
   return (
-    <div className="flex min-h-screen bg-graybackground">
-      <div className="fixed justify w-[75%] ml-72 pt-20">
-        <h2 className="text-3xl font-semibold mt-5 ml-2">{title}</h2>
-        <div className="h-[80vh] my-10 pb-20 overflow-y-auto bg-white shadow-lg radius rounded-lg">
+    <div className="flex w-full">
+      <div className="w-full">
+        <h2 className="text-3xl font-semibold mt-5">{title}</h2>
+        <div className="h-[80vh] mt-5 overflow-y-auto bg-white shadow-lg radius rounded-lg">
           <div className=" items-center flex-grow">
             <div className="mt-8 ml-8 flex items-center space-x-8">
               <img

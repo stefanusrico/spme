@@ -1,32 +1,31 @@
+import "datatables.net-bs5/css/dataTables.bootstrap5.css"
+import "datatables.net-dt/css/dataTables.dataTables.css"
+import "datatables.net-rowgroup-bs5/css/rowGroup.bootstrap5.css"
 import React from "react"
 import ReactDOM from "react-dom/client"
-import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom"
-import LoginPage from "./pages/login"
-import RegisterPage from "./pages/register"
-import ErrorPage from "./pages/404"
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom"
+import { handleLogout } from "./components/Auth/auth.action"
 import AuthWrapper from "./components/Auth/AuthWrapper"
 import RoleBasedRoute from "./components/Auth/RoleBasedRoute"
-import DashboardAdmin from "./pages/DashboardAdmin"
-import App from "./App"
-import UserManagement from "./pages/userManagement"
-import EditUser from "./components/Fragments/manageUser/edit"
+import ProdiTable from "./components/Elements/DataTable/ProdiTable"
+import ProjectsTable from "./components/Elements/DataTable/ProjectsTable"
+import AddPermission from "./components/Fragments/managePermission/add"
 import EditRole from "./components/Fragments/managePermission/edit"
 import AddUser from "./components/Fragments/manageUser/add"
-import AddPermission from "./components/Fragments/managePermission/add"
-import { isTokenExpired } from "./utils/axiosConfig"
-import { handleLogout } from "./components/Auth/auth.action"
-import ProfileManagement from "./pages/ProfileManagement"
+import EditUser from "./components/Fragments/manageUser/edit"
+import Section1 from "./components/Fragments/Sections/Section1"
 import { UserProvider } from "./context/userContext"
-import ProjectsTable from "./components/Elements/DataTable/ProjectsTable"
-import DashboardKaprodi from "./pages/DashboardKaprodi"
-import ProdiTable from "./components/Elements/DataTable/ProdiTable"
-import Projects from "./pages/Projects"
+import ErrorPage from "./pages/404"
+import Account from "./pages/account"
+import DashboardAdmin from "./pages/DashboardAdmin"
 import Jadwal from "./pages/Jadwal"
 import JsonGenerator from "./pages/JsonGenerator"
-import Section1 from "./components/Fragments/Sections/Section1"
-import "datatables.net-dt/css/dataTables.dataTables.css"
-import "datatables.net-bs5/css/dataTables.bootstrap5.css"
-import "datatables.net-rowgroup-bs5/css/rowGroup.bootstrap5.css"
+import LoginPage from "./pages/login"
+import Notifications from "./pages/Notifications"
+import Projects from "./pages/Projects"
+import RegisterPage from "./pages/register"
+import UserManagement from "./pages/userManagement"
+import { isTokenExpired } from "./utils/axiosConfig"
 
 const CHECK_INTERVAL = 1000
 
@@ -72,12 +71,16 @@ const router = createBrowserRouter([
         <RoleBasedRoute
           allowedRoles={["Admin", "Ketua Program Studi"]}
           sharedComponents={{
-            profile: ProfileManagement,
+            account: Account,
+            notifications: Notifications,
           }}
         />
       </UserProvider>
     ),
-    children: [{ path: "/user/profile", element: null }],
+    children: [
+      { path: "/account", element: null },
+      { path: "/notifications", element: null },
+    ],
   },
   {
     element: (
@@ -89,11 +92,12 @@ const router = createBrowserRouter([
       { path: "/prodi", element: <ProdiTable /> },
       { path: "/jadwal", element: <Jadwal /> },
       { path: "/json/generate", element: <JsonGenerator /> },
+      { path: "/user-management/users", element: <UserManagement /> },
+      { path: "/user-management/permissions", element: <UserManagement /> },
       {
-        path: "/user-management",
-        element: <Navigate to="/user-management/1" replace />,
+        path: "/user-management/*",
+        element: <Navigate to="/user-management/users" replace />,
       },
-      { path: "/user-management/:modeParams", element: <UserManagement /> },
       { path: "/user-management/user/:id/edit", element: <EditUser /> },
       { path: "/user-management/role/:id/edit", element: <EditRole /> },
       { path: "/user-management/user/add", element: <AddUser /> },
@@ -119,6 +123,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <RouterProvider router={router} />
   </React.StrictMode>
 )
-
 
 //auth

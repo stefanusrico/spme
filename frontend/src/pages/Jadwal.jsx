@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react"
-import axiosInstance from "../utils/axiosConfig"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import { Label } from "@/components/ui/label"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -11,18 +14,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { CalendarIcon } from "lucide-react"
-import { ToastContainer, toast } from "react-toastify"
+import { useEffect, useState } from "react"
+import axiosInstance from "../utils/axiosConfig"
 
 const Jadwal = () => {
+  const { toast } = useToast()
   const [selectedLam, setSelectedLam] = useState(null)
   const [selectedYear, setSelectedYear] = useState("2024")
   const [lamData, setLamData] = useState([])
@@ -45,7 +45,11 @@ const Jadwal = () => {
       setLamData(response.data)
     } catch (error) {
       console.error("Error fetching LAM data:", error)
-      toast.error("Failed to fetch LAM data")
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch LAM data",
+      })
     } finally {
       setLoading(false)
     }
@@ -84,14 +88,25 @@ const Jadwal = () => {
 
       await Promise.all(updatePromises)
 
-      toast.success("Jadwal berhasil diperbarui")
+      toast({
+        title: "Success",
+        description: "Jadwal berhasil diperbarui",
+      })
       await fetchLamData()
     } catch (error) {
       console.error("Error details:", error.response?.data || error)
       if (error.response?.data?.message) {
-        toast.error(error.response.data.message)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.response.data.message,
+        })
       } else {
-        toast.error("Gagal memperbarui jadwal")
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Gagal memperbarui jadwal",
+        })
       }
     } finally {
       setUpdating(false)
@@ -124,9 +139,12 @@ const Jadwal = () => {
                 if (field === "tanggalPengumuman") {
                   const currentSubmit = new Date(jadwal.tanggalSubmit)
                   if (date <= currentSubmit) {
-                    toast.error(
-                      "Tanggal pengumuman harus setelah tanggal submit"
-                    )
+                    toast({
+                      variant: "destructive",
+                      title: "Error",
+                      description:
+                        "Tanggal pengumuman harus setelah tanggal submit",
+                    })
                     return jadwal
                   }
                 }
@@ -156,117 +174,64 @@ const Jadwal = () => {
   const currentLam = lamData.find((lam) => lam.id === selectedLam)
 
   return (
-    <>
-      <ToastContainer
-        position="top-right"
-        className="mt-16"
-        autoClose={1000}
-        hideProgressBar={false}
-        closeOnClick
-        pauseOnHover
-      />
-      <div className="pr-4 mx-auto mt-32">
-        <h1 className="text-3xl font-bold mb-4 sm:mb-6">Manage Jadwal LAM</h1>
+    <div className="w-full">
+      <h1 className="text-3xl font-bold mb-4 sm:mb-6">Manage Jadwal LAM</h1>
 
-        <div className="bg-white rounded-xl shadow-lg p-12 w-full">
-          <div className="flex justify-between mb-8">
-            <Tabs
-              defaultValue={lamData[0]?.name.toLowerCase().replace(/\s+/g, "")}
-              onValueChange={(value) => {
-                const selectedLamData = lamData.find(
-                  (lam) => lam.name.toLowerCase().replace(/\s+/g, "") === value
-                )
-                if (selectedLamData) {
-                  setSelectedLam(selectedLamData.id)
-                }
-              }}
-            >
-              <TabsList className="h-12 text-lg">
-                {lamData.map((lam) => (
-                  <TabsTrigger
-                    key={lam.id}
-                    className="px-8"
-                    value={lam.name.toLowerCase().replace(/\s+/g, "")}
+      <div className="bg-white rounded-xl shadow-lg p-12 w-full">
+        <div className="flex justify-between mb-8">
+          <Tabs
+            defaultValue={lamData[0]?.name.toLowerCase().replace(/\s+/g, "")}
+            onValueChange={(value) => {
+              const selectedLamData = lamData.find(
+                (lam) => lam.name.toLowerCase().replace(/\s+/g, "") === value
+              )
+              if (selectedLamData) {
+                setSelectedLam(selectedLamData.id)
+              }
+            }}
+          >
+            <TabsList className="h-12 text-lg">
+              {lamData.map((lam) => (
+                <TabsTrigger
+                  key={lam.id}
+                  className="px-8"
+                  value={lam.name.toLowerCase().replace(/\s+/g, "")}
+                >
+                  {lam.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
+          <Select onValueChange={setSelectedYear} defaultValue="2024">
+            <SelectTrigger className="w-[200px] h-12 text-lg">
+              <SelectValue placeholder="Tahun" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {Array.from({ length: 12 }, (_, i) => i + 2024).map((year) => (
+                  <SelectItem
+                    key={year}
+                    className="text-lg"
+                    value={year.toString()}
                   >
-                    {lam.name}
-                  </TabsTrigger>
+                    {year}
+                  </SelectItem>
                 ))}
-              </TabsList>
-            </Tabs>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
 
-            <Select onValueChange={setSelectedYear} defaultValue="2024">
-              <SelectTrigger className="w-[200px] h-12 text-lg">
-                <SelectValue placeholder="Tahun" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {Array.from({ length: 12 }, (_, i) => i + 2024).map(
-                    (year) => (
-                      <SelectItem
-                        key={year}
-                        className="text-lg"
-                        value={year.toString()}
-                      >
-                        {year}
-                      </SelectItem>
-                    )
+        <div className="space-y-12">
+          {getCurrentLamSchedules().map((jadwal) => (
+            <div key={jadwal.id} className="grid grid-cols-2 gap-12">
+              <div>
+                <Label className="text-xl mb-4 block">Tanggal Submit</Label>
+                <div className="flex gap-6 items-center">
+                  {currentLam?.hasBatch && (
+                    <Label className="w-24 text-lg">Batch {jadwal.batch}</Label>
                   )}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-12">
-            {getCurrentLamSchedules().map((jadwal) => (
-              <div key={jadwal.id} className="grid grid-cols-2 gap-12">
-                <div>
-                  <Label className="text-xl mb-4 block">Tanggal Submit</Label>
-                  <div className="flex gap-6 items-center">
-                    {currentLam?.hasBatch && (
-                      <Label className="w-24 text-lg">
-                        Batch {jadwal.batch}
-                      </Label>
-                    )}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full h-12 text-lg justify-start"
-                        >
-                          <CalendarIcon className="mr-3 h-5 w-5" />
-                          <span>
-                            {format(
-                              new Date(jadwal.tanggalSubmit),
-                              "dd MMMM yyyy"
-                            )}
-                          </span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          className="rounded-lg"
-                          mode="single"
-                          selected={
-                            jadwal.tanggalSubmit
-                              ? new Date(jadwal.tanggalSubmit)
-                              : undefined
-                          }
-                          defaultMonth={new Date(parseInt(selectedYear), 0)}
-                          fromDate={new Date(parseInt(selectedYear), 0, 1)}
-                          toDate={new Date(parseInt(selectedYear), 11, 31)}
-                          onSelect={(date) =>
-                            date &&
-                            handleDateChange(date, jadwal.id, "tanggalSubmit")
-                          }
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xl mb-4 block">
-                    Tanggal Pengumuman
-                  </Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -276,7 +241,7 @@ const Jadwal = () => {
                         <CalendarIcon className="mr-3 h-5 w-5" />
                         <span>
                           {format(
-                            new Date(jadwal.tanggalPengumuman),
+                            new Date(jadwal.tanggalSubmit),
                             "dd MMMM yyyy"
                           )}
                         </span>
@@ -287,8 +252,8 @@ const Jadwal = () => {
                         className="rounded-lg"
                         mode="single"
                         selected={
-                          jadwal.tanggalPengumuman
-                            ? new Date(jadwal.tanggalPengumuman)
+                          jadwal.tanggalSubmit
+                            ? new Date(jadwal.tanggalSubmit)
                             : undefined
                         }
                         defaultMonth={new Date(parseInt(selectedYear), 0)}
@@ -296,28 +261,65 @@ const Jadwal = () => {
                         toDate={new Date(parseInt(selectedYear), 11, 31)}
                         onSelect={(date) =>
                           date &&
-                          handleDateChange(date, jadwal.id, "tanggalPengumuman")
+                          handleDateChange(date, jadwal.id, "tanggalSubmit")
                         }
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
               </div>
-            ))}
-          </div>
+              <div>
+                <Label className="text-xl mb-4 block">Tanggal Pengumuman</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full h-12 text-lg justify-start"
+                    >
+                      <CalendarIcon className="mr-3 h-5 w-5" />
+                      <span>
+                        {format(
+                          new Date(jadwal.tanggalPengumuman),
+                          "dd MMMM yyyy"
+                        )}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      className="rounded-lg"
+                      mode="single"
+                      selected={
+                        jadwal.tanggalPengumuman
+                          ? new Date(jadwal.tanggalPengumuman)
+                          : undefined
+                      }
+                      defaultMonth={new Date(parseInt(selectedYear), 0)}
+                      fromDate={new Date(parseInt(selectedYear), 0, 1)}
+                      toDate={new Date(parseInt(selectedYear), 11, 31)}
+                      onSelect={(date) =>
+                        date &&
+                        handleDateChange(date, jadwal.id, "tanggalPengumuman")
+                      }
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          ))}
+        </div>
 
-          <div className="flex justify-end mt-12">
-            <Button
-              className="bg-base px-8 h-12 text-lg"
-              onClick={handleUpdateSchedules}
-              disabled={updating}
-            >
-              {updating ? "Updating..." : "Update"}
-            </Button>
-          </div>
+        <div className="flex justify-end mt-12">
+          <Button
+            className="bg-base px-8 h-12 text-lg"
+            onClick={handleUpdateSchedules}
+            disabled={updating}
+          >
+            {updating ? "Updating..." : "Update"}
+          </Button>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 

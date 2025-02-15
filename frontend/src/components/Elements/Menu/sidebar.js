@@ -1,28 +1,23 @@
-import {
-  faHome,
-  faCogs,
-  faLock,
-  faCircleUser,
-} from "@fortawesome/free-solid-svg-icons"
+import { Home, Settings, UserCircle, Lock } from "lucide-react"
 
 export const sidebarAdmin = [
-  { label: "Dashboard", href: "/dashboard", icon: faHome },
-  { label: "Syarat", href: "/syarat", icon: faCogs },
+  { label: "Dashboard", href: "/dashboard", icon: Home },
+  { label: "Syarat", href: "/syarat", icon: Settings },
   {
     label: "User Management",
     href: "/user-management",
-    icon: faCogs,
+    icon: Settings,
   },
 ]
 
 export const sidebarKaprodi = [
-  { label: "Dashboard", href: "/dashboard", icon: faHome },
-  { label: "Projects", href: "/projects", icon: faCogs },
+  { label: "Dashboard", href: "/dashboard", icon: Home },
+  { label: "Projects", href: "/projects", icon: Settings },
 ]
 
 export const profileMenuItems = [
-  { label: "Account preferences", key: "preferences", icon: faCircleUser },
-  { label: "Sign in & security", key: "security", icon: faLock },
+  { label: "Account preferences", key: "preferences", icon: UserCircle },
+  { label: "Sign in & security", key: "security", icon: Lock },
 ]
 
 export const getSidebarMenus = () => {

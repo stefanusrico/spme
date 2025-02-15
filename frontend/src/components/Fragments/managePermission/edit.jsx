@@ -4,8 +4,13 @@ import InputForm from "../../Elements/Input/index"
 import Button from "../../Elements/Button/index"
 import Label from "../../Elements/Input/Label"
 import Navbar from "../../../components/Elements/Menu/Navbar"
+<<<<<<< HEAD
 import Sidebar from "../../../components/Elements/Menu/SidebarExpanded"
 import { sidebarAdmin, menus } from "../../Elements/Menu/sidebar"
+=======
+import Sidebar from "../../Elements/Menu/AppSidebar"
+import { sidebarAdmin } from "../../Elements/Menu/sidebar"
+>>>>>>> da7b33b (update: mainlayout)
 import axiosInstance from "../../../utils/axiosConfig"
 
 const EditRole = ({ title = "Edit Role" }) => {
@@ -134,11 +139,18 @@ const EditRole = ({ title = "Edit Role" }) => {
   
 
   return (
+<<<<<<< HEAD
     <div className="h-[80vh] pt-20 w-full pb-4 overflow-y-auto bg-white shadow-lg radius rounded-lg">
     {/* <div className="flex min-h-screen bg-graybackground"> */}
       {/* <div className="fixed justify w-[75%] ml-72 pt-20"> */}
         <h2 className="text-3xl font-semibold mt-5 ml-2">{title}</h2>
         <div className="h-[80vh] my-10 pb-4 overflow-y-auto bg-white shadow-lg radius rounded-lg">
+=======
+    <div className="flex w-full">
+      <div className="w-full">
+        <h2 className="text-3xl font-semibold mt-5">{title}</h2>
+        <div className="h-[80vh] mt-5 overflow-y-auto bg-white shadow-lg radius rounded-lg">
+>>>>>>> da7b33b (update: mainlayout)
           <div className=" items-center flex-grow">
             {/* <div className="flex space-x-16"> */}
               <div className="mt-10 ml-8 flex flex-col">

@@ -382,22 +382,12 @@ const ProjectsTable = ({ isCollapsed }) => {
 
   if (loading) {
     return (
-      <div
-        className={`transition-all duration-300 ${
-          isCollapsed ? "pl-4" : "pl-8"
-        } pr-4 mx-auto mt-16 sm:mt-24 lg:mt-32`}
-      >
-        <div
-          className={`transition-all duration-300 mx-auto ${
-            isCollapsed ? "w-[1800px]" : "w-[1600px]"
-          }`}
-        >
-          <div className="w-full">
-            <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-              <div className="min-h-[200px] flex items-center justify-center">
-                <div className="bg-white shadow-md rounded-lg p-6 flex items-center justify-center">
-                  Loading projects...
-                </div>
+      <div className="w-full mx-auto mt-32">
+        <div className="w-full">
+          <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+            <div className="min-h-[200px] flex items-center justify-center">
+              <div className="bg-white shadow-md rounded-lg p-6 flex items-center justify-center">
+                Loading projects...
               </div>
             </div>
           </div>
@@ -409,7 +399,7 @@ const ProjectsTable = ({ isCollapsed }) => {
   if (projects.length === 0) {
     return (
       <>
-        <div className="w-full max-w-[1600px] mx-auto mt-32">
+        <div className="w-full mx-auto">
           <div className="w-full">
             <h1 className="text-2xl font-bold mb-6">Projects</h1>
             <div className="flex justify-end mb-4">
@@ -437,22 +427,19 @@ const ProjectsTable = ({ isCollapsed }) => {
 
   return (
     <>
-      <div className="pr-4 mx-auto mt-32  ">
-        <h1 className="text-3xl font-bold mb-4 sm:mb-6">Projects</h1>
-        <div className="flex justify-end mb-4">
+      <div className="p-3 w-full">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Projects</h1>
           <button
-            className="bg-base hover:bg-base-dark text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
+            className="bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
             onClick={() => setShowModal(true)}
           >
             Add project
           </button>
         </div>
-        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 w-full">
-          <div className="overflow-x-auto">
-            <table
-              ref={tableRef}
-              className="w-full relative stripe hover min-w-[800px]"
-            />
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 h-[calc(100vh-180px)]">
+          <div className="overflow-x-auto h-full">
+            <table ref={tableRef} className="w-full relative stripe hover" />
           </div>
         </div>
       </div>

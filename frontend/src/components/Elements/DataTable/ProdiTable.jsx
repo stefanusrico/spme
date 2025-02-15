@@ -202,7 +202,7 @@ const ProdiTable = ({ isCollapsed }) => {
   }
 
   return (
-    <div className="mt-32 w-full">
+    <div className="w-full">
       <h1 className="text-2xl font-bold mb-6">Data Program Studi</h1>
       <div className="bg-white rounded-xl shadow-lg p-4 w-full">
         <div className="overflow-x-auto">

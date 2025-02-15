@@ -101,7 +101,7 @@ const Projects = () => {
   }
 
   return (
-    <div className="bg-gray-50 p-6 mt-12">
+    <div className="bg-gray-50 p-2">
       <div className="mx-auto">
         <div className="mb-6">
           <div className="flex gap-5 mb-2">

@@ -31,12 +31,12 @@
   background-color: #f3f4f6 !important;
   border-color: #6b7280 !important;
 }
-
+/* 
 html,
 body {
   overflow-x: hidden;
   overflow-y: hidden;
-}
+} */
 
 ::-webkit-scrollbar {
   width: 0;

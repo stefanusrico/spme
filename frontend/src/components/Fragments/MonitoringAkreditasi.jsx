@@ -24,7 +24,7 @@ const MonitoringAkreditasi = () => {
     return item ? item.count : 0
   }
   return (
-    <div className="w-full mx-auto mt-16">
+    <div className="w-full mx-auto">
       <div className="mt-10 bg-white border border-gray rounded-lg shadow border-gray p-6 w-full flex justify-between">
         <div className="w-full flex ml-8 gap-8 items-center">
           <Card title="Akreditasi Unggul" value={getPeringkatValue("Unggul")} />
