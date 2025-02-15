@@ -1,7 +1,8 @@
+// userContext.js
 import { createContext, useState, useContext, useEffect } from "react"
 import { fetchUserData } from "../components/Elements/Profile/profile.action"
 
-const UserContext = createContext()
+const UserContext = createContext(null)
 
 export const UserProvider = ({ children }) => {
   const [userData, setUserData] = useState(null)
@@ -10,13 +11,19 @@ export const UserProvider = ({ children }) => {
   const [error, setError] = useState(null)
 
   const loadUserData = async () => {
-    if (!localStorage.getItem("token")) return
+    if (!localStorage.getItem("token")) {
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 
     try {
       const data = await fetchUserData()
       if (data) {
+        localStorage.setItem("role", data.role)
+
         setUserData({
           name: data.name || "Unknown",
           username: data.username || "",
@@ -32,31 +39,10 @@ export const UserProvider = ({ children }) => {
       setUserData(null)
       if (error?.response?.status === 401) {
         localStorage.removeItem("token")
+        localStorage.removeItem("role")
       }
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const updateUserData = async () => {
-    setIsUpdating(true)
-    try {
-      const data = await fetchUserData()
-      if (data) {
-        setUserData({
-          name: data.name || "Unknown",
-          username: data.username || "",
-          email: data.email || "No email",
-          role: data.role || "User",
-          phone_number: data.phone_number || "",
-          profile_picture: data.profile_picture || "",
-          jurusan: data.jurusan || "",
-        })
-      }
-    } catch (error) {
-      setError(error)
-    } finally {
-      setIsUpdating(false)
     }
   }
 
@@ -64,28 +50,27 @@ export const UserProvider = ({ children }) => {
     loadUserData()
   }, [])
 
+  const contextValue = {
+    userData,
+    isLoading,
+    isUpdating,
+    error,
+    loadUserData,
+    updateUserData: loadUserData,
+    clearUserData: () => {
+      setUserData(null)
+      setError(null)
+    },
+  }
+
   return (
-    <UserContext.Provider
-      value={{
-        userData,
-        isLoading,
-        isUpdating,
-        error,
-        updateUserData,
-        clearUserData: () => {
-          setUserData(null)
-          setError(null)
-        },
-      }}
-    >
-      {children}
-    </UserContext.Provider>
+    <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>
   )
 }
 
 export const useUser = () => {
   const context = useContext(UserContext)
-  if (!context) {
+  if (context === null) {
     throw new Error("useUser must be used within a UserProvider")
   }
   return context

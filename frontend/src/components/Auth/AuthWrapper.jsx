@@ -2,10 +2,10 @@ import { Navigate, Outlet } from "react-router-dom"
 
 const AuthWrapper = ({ isProtected = false }) => {
   const token = localStorage.getItem("token")
+  const role = localStorage.getItem("role")
 
   if (!isProtected) {
     if (token) {
-      const role = localStorage.getItem("role")
       const dashboardPath = role === "Admin" ? "/dashboard" : "/dashboard"
       return <Navigate to={dashboardPath} replace />
     }

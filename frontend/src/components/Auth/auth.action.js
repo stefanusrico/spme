@@ -1,6 +1,12 @@
 import axiosInstance from "../../utils/axiosConfig"
 
-export const handleLogin = async (e, rememberMe, setError, navigate) => {
+export const handleLogin = async (
+  e,
+  rememberMe,
+  setError,
+  navigate,
+  loadUserData
+) => {
   e.preventDefault()
   const email = e.target.email.value
   const password = e.target.password.value
@@ -16,6 +22,7 @@ export const handleLogin = async (e, rememberMe, setError, navigate) => {
 
     localStorage.setItem("token", token)
     localStorage.setItem("email", email)
+    localStorage.setItem("role", role)
     localStorage.setItem("access", JSON.stringify(access))
 
     if (rememberMe) {
@@ -23,7 +30,7 @@ export const handleLogin = async (e, rememberMe, setError, navigate) => {
     } else {
       localStorage.removeItem("rememberMe")
     }
-
+    await loadUserData()
     navigate("/dashboard")
   } catch (error) {
     console.error("Login failed:", error)
@@ -71,6 +78,7 @@ const cleanupStorage = () => {
   localStorage.removeItem("token")
   localStorage.removeItem("access")
   localStorage.removeItem("rememberMe")
+  localStorage.removeItem("role")
 }
 
 const redirectToLogin = () => {

@@ -1,20 +1,41 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Button from "../Elements/Button"
 import InputForm from "../Elements/Input"
 import { handleLogin } from "../Auth/auth.action"
 import { useNavigate } from "react-router-dom"
+import { useUser } from "../../context/userContext"
 
 const FormLogin = () => {
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState("")
   const navigate = useNavigate()
+  const userContext = useUser()
 
-  const handleLoginSubmit = (e) => {
-    handleLogin(e, rememberMe, setError, navigate)
+  const onSubmit = async (e) => {
+    e.preventDefault()
+
+    try {
+      if (!userContext || !userContext.loadUserData) {
+        console.error("User context not properly initialized:", userContext)
+        setError("System error: User context not properly initialized")
+        return
+      }
+
+      await handleLogin(
+        e,
+        rememberMe,
+        setError,
+        navigate,
+        userContext.loadUserData
+      )
+    } catch (err) {
+      console.error("Login error:", err)
+      setError(err.message || "An error occurred during login")
+    }
   }
 
   return (
-    <form onSubmit={handleLoginSubmit}>
+    <form onSubmit={onSubmit}>
       {error && <p className="text-red-500 mb-2">{error}</p>}
 
       <InputForm
@@ -57,3 +78,5 @@ const FormLogin = () => {
 }
 
 export default FormLogin
+
+//auth

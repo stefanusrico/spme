@@ -13,20 +13,21 @@ const RoleBasedRoute = memo(
     const location = useLocation()
     const navigate = useNavigate()
 
+    const immediateRole = localStorage.getItem("role")
+
     useEffect(() => {
       if (!isLoading && userData && authenticated) {
         const userRole = userData.role || userData.roles?.[0]
         const hasAllowedRole = allowedRoles.includes(userRole)
 
         if (!hasAllowedRole) {
-          const defaultPath =
-            userRole === "Admin" ? "/dashboard" : "/unauthorized"
+          const defaultPath = userRole === "Admin" ? "/dashboard" : "/dashboard"
           navigate(defaultPath, { replace: true })
         }
       }
     }, [userData, isLoading, authenticated, allowedRoles, navigate])
 
-    if (isLoading) return <Loader />
+    if (isLoading && !immediateRole) return <Loader />
 
     if (!authenticated) {
       return (
