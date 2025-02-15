@@ -79,41 +79,10 @@ class NotificationController extends Controller
         ]);
     }
 
-    public function sendNotification(Request $request)
-    {
-        try {
-            $user = auth()->user();
-
-            DatabaseNotification::create([
-                'type' => 'App\Notifications\TestNotification',
-                'notifiable_type' => User::class,
-                'notifiable_id' => $user->_id,
-                'data' => [
-                    'title' => 'Test Notification',
-                    'message' => 'This is a test notification',
-                    'type' => 'test'
-                ],
-                'read_at' => null
-            ]);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Test notification created successfully'
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Error creating test notification: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Error creating notification: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
     public function sendWhatsAppNotification($phone, $message)
     {
-        $token = "VnG5GhT9085GixQNhJrQPUdALp9XyOmfQO2bQxvPuCqSoEwKDmhKCDDm1Tjo43tP";
-        $secret = "aRZ92cyL";
+        $token = "ZkK0zVOscvjh06bDeGopbr7QFgqeRWGFCf2DUFJfUJZ3qvsrqUqGdEJ";
+        $secret = "eOFiyzW2";
 
         $curl = curl_init();
 
