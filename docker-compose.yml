@@ -1,0 +1,49 @@
+version: "3"
+services:
+  # Frontend React
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - PORT=3000
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    command: npm run dev
+
+  # Backend Laravel
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/var/www/html
+      - /var/www/html/vendor
+      - /var/www/html/node_modules
+    environment:
+      - DB_CONNECTION=mongodb
+      - DB_PORT=27017
+      - MONGODB_URI="mongodb+srv://stefanusrico70:bobgaming@spme.minqz.mongodb.net"
+      - MONGODB_DATABASE="SPME"
+      - PHP_CLI_SERVER_WORKERS=4
+      - CHOKIDAR_USEPOLLING=true
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  # Nginx
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - frontend
+      - backend

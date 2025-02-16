@@ -5,7 +5,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
-import { useSidebarMenu } from "@/hooks/useSidebarMenu"
+import { useSidebarMenu } from "./hooks/useSideBarMenu"
 import {
   Breadcrumb,
   BreadcrumbItem,

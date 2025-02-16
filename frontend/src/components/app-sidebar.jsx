@@ -1,6 +1,6 @@
 import { Sidebar, SidebarContent, SidebarFooter } from "@/components/ui/sidebar"
 import { useUser } from "@/context/userContext"
-import { useSidebarMenu } from "@/hooks/useSidebarMenu"
+import { useSidebarMenu } from "../hooks/useSideBarMenu"
 import { sidebarItems, userMenuItems } from "@/config/sidebarItems"
 import { NavMain } from "./nav-main"
 import { NavUser } from "./nav-user"

@@ -2,16 +2,44 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: ["jwt-decode"],
+    include: ["jwt-decode", "mathjs"],
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "~": path.resolve(__dirname, "node_modules"),
     },
+  },
+  build: {
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["mathjs", "jwt-decode"],
+        },
+      },
+    },
+  },
+  server: {
+    watch: {
+      usePolling: true,
+    },
+    host: true,
+    port: 3000,
+    strictPort: true,
+    hmr: {
+      protocol: "ws",
+      host: "localhost",
+      port: 3000,
+    },
+  },
+  preview: {
+    watch: {
+      usePolling: true,
+    },
+    port: 3000,
   },
 })

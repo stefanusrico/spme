@@ -1,7 +1,6 @@
 import { useState } from "react"
 import { PanelLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
-
 import {
   Sidebar,
   SidebarContent,
@@ -79,7 +78,6 @@ const AppSidebar = ({ items, className = "" }) => {
 
       <Sidebar className={className}>
         <SidebarHeader className="pb-4"></SidebarHeader>
-
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupLabel>Navigation</SidebarGroupLabel>

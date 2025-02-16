@@ -3,7 +3,7 @@ import PropTypes from "prop-types"
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { isAuthenticated } from "../../utils/auth"
 import Loader from "../../pages/loader"
-import Layout from "../../Layout"
+import Layout from "../../layout"
 import { useUser } from "../../context/userContext"
 
 const RoleBasedRoute = memo(

@@ -3,6 +3,7 @@ import { jwtDecode } from "jwt-decode"
 
 const axiosInstance = axios.create({
   baseURL: "http://localhost:8000/api/",
+  withCredentials: true
 })
 
 export const isTokenExpired = (token) => {
