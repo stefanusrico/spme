@@ -27,9 +27,13 @@ export function NavMain({ items }) {
       </SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
-          <SidebarMenuItem key={item.title}>
-            {item.subItems ? (
-              <Collapsible defaultOpen className="group/collapsible w-full">
+          <SidebarMenuItem key={`menu-item-${item.id}`}>
+            {item.subItems && item.subItems.length > 0 ? (
+              <Collapsible
+                key={`collapsible-${item.id}`}
+                defaultOpen
+                className="group/collapsible w-full"
+              >
                 <CollapsibleTrigger asChild>
                   <SidebarMenuButton className="w-full hover:bg-[#1E293B] text-zinc-200 justify-between">
                     <div className="flex items-center">
@@ -42,12 +46,15 @@ export function NavMain({ items }) {
                 <CollapsibleContent>
                   <SidebarMenuSub>
                     {item.subItems.map((subItem) => (
-                      <SidebarMenuSubItem key={subItem.title}>
+                      <SidebarMenuSubItem key={`sub-item-${subItem.id}`}>
                         <SidebarMenuButton
                           asChild
                           className="pl-9 hover:bg-[#1E293B] text-zinc-200"
                         >
                           <a href={subItem.url}>
+                            {subItem.icon && (
+                              <subItem.icon className="w-4 h-4 mr-2" />
+                            )}
                             <span>{subItem.title}</span>
                           </a>
                         </SidebarMenuButton>
@@ -58,6 +65,7 @@ export function NavMain({ items }) {
               </Collapsible>
             ) : (
               <SidebarMenuButton
+                key={`button-${item.id}`}
                 asChild
                 className="w-full hover:bg-[#1E293B] text-zinc-200"
               >

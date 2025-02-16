@@ -1,11 +1,11 @@
+import { useState, useEffect } from "react"
 import { Sidebar, SidebarContent, SidebarFooter } from "@/components/ui/sidebar"
 import { useUser } from "@/context/userContext"
 import { useSidebarMenu } from "../hooks/useSideBarMenu"
-import { sidebarItems, userMenuItems } from "@/config/sidebarItems"
+import { userMenuItems } from "@/config/sidebarItems"
 import { NavMain } from "./nav-main"
 import { NavUser } from "./nav-user"
 import { NavProjects } from "./nav-projects"
-import { useState, useEffect } from "react";
 import {
   Home,
   Inbox,
@@ -31,17 +31,37 @@ const getIcon = (iconName) => {
     bell: Bell,
     logout: LogOut,
     user: User,
-  };
+  }
 
-  return icons[iconName.toLowerCase()] || Home; 
-};
+  return icons[iconName.toLowerCase()] || Home
+}
 
-const mapMenus = (menu) => ({
-  title: menu.name,
-  url: menu.url,
-  icon: getIcon(menu.icon),
-  subItems: menu.children ? menu.children.map(mapMenus) : [],
-});
+const processMenus = (menus) => {
+  if (!Array.isArray(menus)) {
+    console.error("Menus is not an array:", menus)
+    return []
+  }
+
+  const menuMap = new Map()
+
+  menus.forEach((menu, index) => {
+    const menuId = menu.id || `menu-${index + 1}`
+
+    menuMap.set(menuId, {
+      id: menuId,
+      title: menu.name,
+      url: menu.url,
+      icon: getIcon(menu.icon),
+      order: menu.order || 0,
+      parentId: menu.parent_id,
+      subItems: menu.children || [],
+    })
+  })
+
+  const allMenus = Array.from(menuMap.values())
+  const sortByOrder = (a, b) => (a.order || 0) - (b.order || 0)
+  return allMenus.sort(sortByOrder)
+}
 
 export function AppSidebar() {
   const { userData } = useUser()
@@ -53,12 +73,17 @@ export function AppSidebar() {
     handleLogoutSubmit,
   } = useSidebarMenu()
 
-  const [sidebarMenus, setSidebarMenus] = useState([]);
+  const [sidebarMenus, setSidebarMenus] = useState([])
 
   useEffect(() => {
-    const storedMenus = JSON.parse(localStorage.getItem("access")) || [];
-    setSidebarMenus(storedMenus.map(mapMenus));
-  }, []);
+    try {
+      const storedMenus = JSON.parse(localStorage.getItem("access")) || []
+      const processedMenus = processMenus(storedMenus)
+      setSidebarMenus(processedMenus)
+    } catch (error) {
+      setSidebarMenus([])
+    }
+  }, [])
 
   return (
     <div className="dark">
