@@ -16,7 +16,7 @@ class RoleController extends Controller
     public function index()
     {
         try {
-            $roles = Role::all(); 
+            $roles = Role::all();
             return response()->json([
                 'status' => 'success',
                 'data' => $roles
@@ -35,40 +35,34 @@ class RoleController extends Controller
     public function store(Request $request)
     {
         try {
-            
-            $validatedData = Validator::make($request->all(), [
+            $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'access' => 'nullable|array',
-                'access.*' => 'string', 
+                'access.*' => 'string',
             ]);
-    
-            if ($validatedData->fails()) {
+
+            if ($validator->fails()) {
                 return response()->json([
                     'status' => 'error',
-                    'errors' => $validatedData->errors()
+                    'errors' => $validator->errors()
                 ], 400);
             }
 
-            try {
-                $role = Role::create([
-                    'name' => $request->name,
-                    'access' => $validatedData['access'] ?? []
-                ]);
+            $role = Role::create([
+                'name' => $request->name,
+                'access' => $request->input('access', [])
+            ]);
 
-                return response()->json([
-                    'status' => 'success',
-                    'data' => $role
-                ], 200);
-            } catch (\Throwable $th) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Gagal membuat role: ' . $e->getMessage()
-                ], 500);
-            }
+            return response()->json([
+                'status' => 'success',
+                'data' => $role
+            ], 201);
 
-            return response()->json($role, 201);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to create role: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -110,7 +104,7 @@ class RoleController extends Controller
             $validatedData = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'access' => 'nullable|array',
-                'access.*' => 'string', 
+                'access.*' => 'string',
             ]);
 
             if ($validatedData->fails()) {
@@ -126,7 +120,7 @@ class RoleController extends Controller
             ]));
 
             $role->save();
-            
+
             $role->refresh();
 
             return response()->json([

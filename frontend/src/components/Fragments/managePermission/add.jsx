@@ -19,20 +19,15 @@ const AddPermission = ({ title = "Add Role" }) => {
         return
       }
 
-      const data = {
+      const response = await axiosInstance.post("/roles", {
         name: role.name,
-      }
-      try {
-        console.log("gagal1")
-        const response = await axiosInstance.post(`/roles`, { name: role.name })
-        console.log("gagal2")
-        console.log("berhasil", response)
-        navigate("/user-management/2")
-      } catch (error) {
-        console.log("gagal")
-      }
+        access: [],
+      })
+
+      console.log("Success:", response)
+      navigate("/user-management/permissions")
     } catch (error) {
-      console.error("Handle update error:", error)
+      console.error("Error creating role:", error)
     } finally {
       setIsLoading(false)
     }
