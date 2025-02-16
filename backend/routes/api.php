@@ -17,7 +17,7 @@ use App\Http\Controllers\{
     LamController,
     JadwalLamController,
     MenuController,
-    rumusController,
+    RumusController,
     SectionController
 };
 use App\Http\Middleware\JwtMiddleware;
@@ -125,14 +125,15 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::post('/{id}/accept-project', [NotificationController::class, 'markProjectInviteAsAccepted']);
             Route::post('/send', [NotificationController::class, 'sendNotification']);
         });
-    });
 
-    Route::prefix('rumus')->group(function () {
-        Route::get('/', [RumusController::class, 'index']);      // GET - Menampilkan semua data
-        Route::post('/', [RumusController::class, 'store']);     // POST - Menyimpan data baru
-        Route::get('/{id}', [RumusController::class, 'show']);   // GET - Menampilkan data berdasarkan ID
-        Route::put('/{id}', [RumusController::class, 'update']); // PUT - Memperbarui data
-        Route::delete('/{id}', [RumusController::class, 'destroy']); // DELETE - Menghapus data
+        Route::prefix('rumus')->group(function () {
+            Route::get('/', [RumusController::class, 'index']);                   // GET - Menampilkan semua data
+            Route::post('/', [RumusController::class, 'store']);                  // POST - Menyimpan data baru
+            Route::get('/{id}', [RumusController::class, 'show']);                // GET - Menampilkan data berdasarkan ID
+            Route::put('/{id}', [RumusController::class, 'update']);              // PUT - Memperbarui data
+            Route::delete('/{id}', [RumusController::class, 'destroy']);           // DELETE - Menghapus data
+            Route::get('/{nomor}/{sub}', [RumusController::class, 'showByNomorAndSub']);
+        });
     });
 });
 
