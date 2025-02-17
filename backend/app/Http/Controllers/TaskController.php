@@ -239,6 +239,39 @@ class TaskController extends Controller
         ]);
     }
 
+    public function updateOwners(Request $request, $no, $sub)
+    {
+        $request->validate([
+            'owners' => 'nullable|array',
+            'owners.*' => 'exists:users,_id',
+            'startDate' => 'nullable|date',
+            'endDate' => 'nullable|date|after:startDate'
+        ]);
+
+        $task = Task::where('no', $no)
+            ->where('sub', $sub)
+            ->firstOrFail();
+
+        $updates = $request->only(['startDate', 'endDate']);
+
+        // Jika owners dikirim, gabungkan dengan owners yang sudah ada
+        if ($request->has('owners')) {
+            $existingOwners = $task->owners ?? []; // Ambil owners lama
+            $newOwners = array_unique(array_merge($existingOwners, $request->owners)); // Gabungkan
+            $updates['owners'] = $newOwners;
+        }
+
+        $task->update($updates);
+
+        $task->load('users');
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Task updated successfully',
+            'data' => $task
+        ]);
+    }
+
     public function myTasks()
     {
         $userId = auth()->user()->_id;
@@ -247,7 +280,7 @@ class TaskController extends Controller
             ->where(function ($query) use ($userId) {
                 $query->whereRaw(['owners' => ['$regex' => $userId]]);
             })
-            ->orderBy('created_at', 'desc')
+            ->orderBy('no', 'asc')
             ->get()
             ->map(function ($task) {
                 $owners = is_string($task->owners) ? json_decode($task->owners, true) : $task->owners;
@@ -263,6 +296,8 @@ class TaskController extends Controller
                     'progress' => $task->progress,
                     'startDate' => $task->startDate,
                     'endDate' => $task->endDate,
+                    'no' => $task->no,
+                    'sub' => $task->sub,
                     'owners' => $owners ?? [],
                     'project' => [
                         'id' => $task->project?->_id,
