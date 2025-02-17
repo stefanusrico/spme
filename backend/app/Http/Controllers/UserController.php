@@ -32,6 +32,7 @@ class UserController extends Controller
             'profile_picture' => 'nullable|string|max:255',
             'phone_number' => 'required|unique:users,phone_number|string',
             'jurusan' => 'required|string',
+            'prodi' => 'required|string',
             'projects' => 'nullable|array',
         ]);
 
@@ -152,6 +153,8 @@ class UserController extends Controller
                 'username' => 'sometimes|string|unique:users,username,' . $id,
                 'profile_picture' => 'sometimes|nullable|string',
                 'role' => 'sometimes|string',
+                'jurusan' => 'required|string',
+                'prodi' => 'required|string',
             ]);
 
             if ($validator->fails()) {
@@ -167,7 +170,9 @@ class UserController extends Controller
                 'phone_number',
                 'username',
                 'profile_picture',
-                'role'
+                'role',
+                'prodi',
+                'jurusan'
             ]));
 
             $user->save();

@@ -18,8 +18,12 @@ const AddUser = ({ title = "Add User" }) => {
     verifPass: "",
     phone_number: "",
     profile_picture: "",
+    jurusan: "",
+    prodi: ""
   })
   const [roles, setRoles] = useState([])
+  const [jurusan, setJurusan] = useState([])
+  const [prodi, setProdi] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
 
@@ -29,8 +33,10 @@ const AddUser = ({ title = "Add User" }) => {
     const fetchData = async () => {
       try {
         const rolesResponse = await axiosInstance.get("/roles")
-        console.log("data roles : ", rolesResponse.data.data)
+        const jurusanResponse = await axiosInstance.get("/jurusan")
+
         setRoles(rolesResponse.data.data)
+        setJurusan(jurusanResponse.data)
         console.log("tes", roles)
         console.log("tes2", user)
       } catch (error) {
@@ -39,6 +45,22 @@ const AddUser = ({ title = "Add User" }) => {
     }
     fetchData()
   }, [])
+
+  const fetchProdi = async (id) => {
+    try{
+      const prodiResponse = await axiosInstance.get(`/prodi/${id}`)
+      setProdi(prodiResponse.data)
+    }catch{
+      console.error("Error fetching data:", error)
+    }
+  }
+
+  const handleJurusanChange = (id, name) => {    
+    setUser({ ...user, jurusan: name, prodi: "" }) 
+    fetchProdi(id); 
+    console.log(user);
+    
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0]
@@ -71,7 +93,9 @@ const AddUser = ({ title = "Add User" }) => {
         !user.username ||
         !user.role ||
         !user.password ||
-        !user.verifPass
+        !user.verifPass||
+        !user.jurusan ||
+        !user.prodi
       ) {
         alert("Nama, email, role, password dan username harus diisi")
         return
@@ -203,7 +227,7 @@ const AddUser = ({ title = "Add User" }) => {
                   value={user.role}
                   onChange={(e) => setUser({ ...user, role: e.target.value })}
                   disabled={isLoading}
-                  placeholder="Select Role"
+                  placeholder="Pilih Role"
                   error={error.role}
                 ></Dropdown>
 
@@ -247,6 +271,43 @@ const AddUser = ({ title = "Add User" }) => {
                   disabled={isLoading}
                   required
                 />
+
+                <Dropdown
+                  label="Jurusan"
+                  name="jurusan"
+                  options={jurusan.map((jurusan) => ({
+                    id: jurusan.id,
+                    value: jurusan.id,
+                    label: jurusan.name,
+                  }))}
+                  value={user.jurusan}
+                  onChange={(e) => {
+                    const selectedJurusan = jurusan.find((j) => j.id === e.target.value); 
+                    handleJurusanChange(e.target.value, selectedJurusan?.name || '');
+                  }}
+                  disabled={isLoading}
+                  className="mb-6 "
+                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
+                  placeholder={user.jurusan? user.jurusan : "Pilih Jurusan"}
+                  error={error.jurusan}
+                ></Dropdown>
+
+                <Dropdown
+                  label="Program Studi"
+                  name="prodi"
+                  options={prodi.map((prodi) => ({
+                    id: prodi.id,
+                    value: prodi.name,
+                    label: prodi.name,
+                  }))}
+                  value={user.prodi}
+                  onChange={(e) => setUser({ ...user, prodi: e.target.value })}
+                  disabled={isLoading || !user.jurusan}
+                  className="mb-6 "
+                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
+                  placeholder="Pilih Program Studi"
+                  error={error.prodi}
+                ></Dropdown>
 
                 <InputForm
                   label="Password"

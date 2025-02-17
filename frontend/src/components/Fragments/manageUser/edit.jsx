@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom"
 import InputForm from "../../Elements/Input/index"
 import Label from "../../Elements/Input/Label"
 import Button from "../../Elements/Button/index"
+import Dropdown from "../../Elements/Dropdown"
 import { uploadFile } from "../../Elements/Profile/profile.action"
 import axiosInstance from "../../../utils/axiosConfig"
 
@@ -16,8 +17,12 @@ const EditUser = ({ title = "Edit User" }) => {
     username: "",
     phone_number: "",
     profile_picture: "",
+    jurusan: "",
+    prodi: ""
   })
   const [roles, setRoles] = useState([])
+  const [jurusan, setJurusan] = useState([])
+  const [prodi, setProdi] = useState([])
   const [errors, setErrors] = useState({})
   const [isLoading, setIsLoading] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
@@ -29,8 +34,11 @@ const EditUser = ({ title = "Edit User" }) => {
       try {
         const userResponse = await axiosInstance.get(`/users/${id}`)
         const rolesResponse = await axiosInstance.get("/roles")
+        const jurusanResponse = await axiosInstance.get("/jurusan")
+
         setUser(userResponse.data.data)
         setRoles(rolesResponse.data.data)
+        setJurusan(jurusanResponse.data)
         setPreviewImage(userResponse.data.data.profile_picture)
 
         console.log("tes", userResponse)
@@ -42,6 +50,22 @@ const EditUser = ({ title = "Edit User" }) => {
     }
     fetchData()
   }, [id])
+
+  const fetchProdi = async (id) => {
+    try{
+      const prodiResponse = await axiosInstance.get(`/prodi/${id}`)
+      setProdi(prodiResponse.data)
+    }catch{
+      console.error("Error fetching data:", error)
+    }
+  }
+
+  const handleJurusanChange = (id, name) => {    
+    setUser({ ...user, jurusan: name, prodi: "" }) 
+    fetchProdi(id); 
+    console.log(user);
+    
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0]
@@ -68,7 +92,7 @@ const EditUser = ({ title = "Edit User" }) => {
     try {
       setIsLoading(true)
       console.log("cek sebelum update : ", user)
-      if (!user.name || !user.email || !user.username || !user.role) {
+      if (!user.name || !user.email || !user.username || !user.role || !user.jurusan || !user.prodi) {
         alert("Nama, email, role, dan username harus diisi")
         return
       }
@@ -183,26 +207,36 @@ const EditUser = ({ title = "Edit User" }) => {
                   required
                 />
 
-                <div className="mb-6">
-                  <Label htmlFor={name}>Role</Label>
-                  <select
-                    name="role"
-                    value={user.role || ""}
-                    onChange={(e) => setUser({ ...user, role: e.target.value })}
-                    disabled={isLoading}
-                    className="w-80 p-2 rounded-md text-sm bg-gray focus:outline-none focus:ring focus:ring-gray-400 p-3"
-                  >
-                    <option value="">Select Role</option>
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.name}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.role && (
-                    <span className="text-red-500 text-xs">{errors.role}</span>
-                  )}
-                </div>
+                <Dropdown
+                  label="Role"
+                  name="role"
+                  options={roles.map((role) => ({
+                    id: role.id,
+                    value: role.name,
+                    label: role.name,
+                  }))}
+                  value={user.role}
+                  onChange={(e) => setUser({ ...user, role: e.target.value })}
+                  disabled={isLoading}
+                  className="mb-6 "
+                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
+                  placeholder={user.role? user.role : "Pilih Role"}
+                  // error={error.role}
+                ></Dropdown>
+
+                <InputForm
+                  label="Username"
+                  type="text"
+                  placeholder="Mon"
+                  name="username"
+                  classname="w-80"
+                  value={user.username}
+                  onChange={(e) =>
+                    setUser({ ...user, username: e.target.value })
+                  }
+                  disabled={isLoading}
+                  required
+                />
 
                 <InputForm
                   label="Phone_number"
@@ -231,19 +265,42 @@ const EditUser = ({ title = "Edit User" }) => {
                   required
                 />
 
-                <InputForm
-                  label="Username"
-                  type="text"
-                  placeholder="Mon"
-                  name="username"
-                  classname="w-80"
-                  value={user.username}
-                  onChange={(e) =>
-                    setUser({ ...user, username: e.target.value })
-                  }
+                <Dropdown
+                  label="Jurusan"
+                  name="jurusan"
+                  options={jurusan.map((jurusan) => ({
+                    id: jurusan.id,
+                    value: jurusan.id,
+                    label: jurusan.name,
+                  }))}
+                  value={user.jurusan}
+                  onChange={(e) => {
+                    const selectedJurusan = jurusan.find((j) => j.id === e.target.value); 
+                    handleJurusanChange(e.target.value, selectedJurusan?.name || '');
+                  }}
                   disabled={isLoading}
-                  required
-                />
+                  className="mb-6 "
+                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
+                  placeholder={user.jurusan? user.jurusan : "Pilih Jurusan"}
+                  // error={error?.jurusan}
+                ></Dropdown>
+
+                <Dropdown
+                  label="Program Studi"
+                  name="prodi"
+                  options={prodi.map((prodi) => ({
+                    id: prodi.id,
+                    value: prodi.name,
+                    label: prodi.name,
+                  }))}
+                  value={user.prodi}
+                  onChange={(e) => setUser({ ...user, prodi: e.target.value })}
+                  disabled={isLoading || !user.jurusan}
+                  className="mb-6 "
+                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
+                  placeholder="Pilih Program Studi"
+                  // error={error?.prodi}
+                ></Dropdown>
               </div>
             </div>
             <div className="mt-10 ml-8 flex space-x-96">

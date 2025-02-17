@@ -21,7 +21,7 @@ class ProdiController extends Controller
 
     public function show($id)
     {
-        $prodi = Prodi::find($id);
+        $prodi = $prodi = Prodi::where('jurusanId', '=', $id)->get();
         return $prodi ? response()->json($prodi) : response()->json(['message' => 'Prodi not found'], 404);
     }
 

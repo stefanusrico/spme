@@ -34,6 +34,7 @@ class User extends Model implements JWTSubject, AuthenticatableContract
         'role',
         'phone_number',
         'jurusan',
+        'prodi',
         'projects',
     ];
 
