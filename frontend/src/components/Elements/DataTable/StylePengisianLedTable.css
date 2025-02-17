@@ -1,0 +1,9 @@
+.center-stack {
+    display: flex;
+    justify-content: center; /* Pusatkan secara horizontal */
+    align-items: center;    /* Pusatkan secara vertikal */
+}
+
+.pagination-items {
+    font-size: 0.75rem !important; /* Ukuran font lebih kecil */
+}

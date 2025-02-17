@@ -79,6 +79,7 @@ const cleanupStorage = () => {
   localStorage.removeItem("access")
   localStorage.removeItem("rememberMe")
   localStorage.removeItem("role")
+  localStorage.removeItem("user")
 }
 
 const redirectToLogin = () => {

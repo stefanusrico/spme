@@ -25,6 +25,7 @@ import Notifications from "./pages/Notifications"
 import Projects from "./pages/Projects"
 import RegisterPage from "./pages/register"
 import UserManagement from "./pages/userManagement"
+import PengisianMatrikLed from "./pages/PengisianMatriksLed"
 import { isTokenExpired } from "./utils/axiosConfig"
 
 const CHECK_INTERVAL = 1000
@@ -103,6 +104,7 @@ const router = createBrowserRouter([
       { path: "/user-management/user/add", element: <AddUser /> },
       { path: "/user-management/role/add", element: <AddPermission /> },
       { path: "section", element: <Section1 /> },
+      { path: "/pengisian-matriks-led/:no?/:sub?", element: <PengisianMatrikLed /> },
     ],
   },
   {
