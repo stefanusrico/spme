@@ -10,16 +10,18 @@ const Dropdown = ({
   placeholder = "Select an option",
   error = "",
   className = "",
+  classNameLabel,
+  sizeSelect = "w-80"
 }) => {
   return (
-    <div className={`mb-6 ${className}`}>
-      {label && <label htmlFor={name} className="block text-sm font-medium text-gray-700">{label}</label>}
+    <div className={`${className}`}>
+      {label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-2 ml-2">{label}</label>}
       <select
         name={name}
         value={value || ""}
         onChange={onChange}
         disabled={disabled}
-        className="w-80 p-2 rounded-md text-sm bg-gray focus:outline-none focus:ring focus:ring-gray-400 p-3"
+        className={`${sizeSelect} p-2 rounded-md text-sm bg-gray focus:outline-none focus:ring focus:ring-gray-400 p-3`}
       >
         <option value="">{placeholder}</option>
         {options.map((option) => (
