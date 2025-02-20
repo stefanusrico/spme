@@ -75,6 +75,8 @@ class GoogleDriveController extends Controller
         return response()->json([
             'message' => 'File berhasil diunggah ke Google Drive',
             'file_id' => $uploadedFile->id,
+            'file_name' => $uploadedFile->name,
+            'file_url' => $uploadedFile->url,
             'folder_id' => $noSubId,
         ]);
     }
@@ -96,7 +98,7 @@ class GoogleDriveController extends Controller
         $noSubId = $this->getOrCreateFolder($noSub, $subFolderId, $service);
 
         // Query untuk mendapatkan file dalam folder
-        $query = sprintf("'%s' in parents and trashed=false", $noSubId);
+        $query = sprintf("'%s' in parents and trashed=false and name != 'Folder Sampah'", $noSubId);
         $files = $service->files->listFiles(['q' => $query, 'fields' => 'files(id, name, webViewLink)'])->getFiles();
 
         if (empty($files)) {
@@ -132,10 +134,20 @@ class GoogleDriveController extends Controller
         // Ambil folder ID
         $subFolderId = $this->getOrCreateFolder($subFolderName, $parentFolderId, $service);
         $noSubId = $this->getOrCreateFolder($noSub, $subFolderId, $service);
+        $trashId = $this->getOrCreateFolder("Folder Sampah", $noSubId, $service);
 
         try {
-            $service->files->delete($fileId);
-            return response()->json(['message' => "File di folder '$subFolderName/$noSub' berhasil dihapus"]);
+            $file = $service->files->get($fileId, ['fields' => 'parents']);
+            $previousParents = join(',', $file->getParents());
+
+            // Pindahkan file ke Folder Sampah
+            $service->files->update($fileId, new DriveFile(), [
+                'addParents' => $trashId,
+                'removeParents' => $previousParents,
+                'fields' => 'id, parents'
+            ]);
+
+            return response()->json(['message' => "File di folder '$subFolderName/$noSub' berhasil dipindahkan ke folder sampah"]);
         } catch (Exception $e) {
             return response()->json(['error' => 'Gagal menghapus file', 'details' => $e->getMessage()], 500);
         }

@@ -29,6 +29,7 @@ const PengisianMatrikLed = () => {
     const [userProdi, setUserProdi] = useState("")
     const [showMasukan, setShowMasukan] = useState(true);
     const [showNilai, setShowNilai] = useState(true);
+    const [numDesc, setNumDesc] = useState(true)
     const [version, setVersion] = useState([])
     const [versionSelected, setVersionSelected] = useState("")
     const [viewAllVersion, setViewAllVersion] = useState(false)
@@ -60,12 +61,17 @@ const PengisianMatrikLed = () => {
         try {
             const responseTask = await axiosInstance.get(`/tasks`)
             console.log("user task :", responseTask.data.data)
-            console.log(no, sub)
+            // console.log(no, sub)
             setTask(responseTask.data.data)
-            console.log(responseTask.data.data);
-            if (!no || !sub && responseTask.data.data) {
+            const dataRespon = responseTask.data.data
+            console.log("respon :", dataRespon.length);
+            console.log("no sub :", no, sub)
+            if ((no && sub) || dataRespon.length > 0) {
                 console.log("checking...", responseTask.data.data);
                 checkAndRedirect(responseTask.data.data)
+            } else {
+                console.log("tidak ada no dan sub")
+                setNumDesc(false)
             }
         } catch (error) {
             console.error("Gagal fetch task", error);
@@ -96,11 +102,13 @@ const PengisianMatrikLed = () => {
     }
 
     const checkAndRedirect = (userTasks) => {
-        if (!no || !sub && userTasks.length > 0) {
+        if ((no && sub) || userTasks.length > 0) {
             const firstTask = userTasks[0];
             navigate(`/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`, {
                 replace: true, // Supaya tidak menambah entry baru di history browser
             });
+        } else {
+            setNumDesc(false)
         }
     };
 
@@ -564,231 +572,240 @@ const PengisianMatrikLed = () => {
                     <ColorRangeDropdown isLoading={isLoading} dataColors={updateColor} />
                     
                 </div>
-                <div className="h-[80vh] my-10 pb-20 overflow-y-auto bg-white shadow-lg radius rounded-lg">
-                    {isLoading ? (
-                        <div className="flex items-center justify-center h-full">
-                            <p className="text-normal font-semibold">Loading...</p>
-                        </div>
-                    ) : (
-                        <>
-                            <div className='mt-[30px] mx-[30px] mb-[0px]'>
-                                <ScrollableTabs
-                                    no={no}
-                                    sub={sub}
-                                    tabsData={task} 
-                                    allDataNoSub={json}
-                                    updateUserTask={updateUserTask}
-                                    onClick={changeNoSub}   
-                                    selectedProdi={selectedProdi.name}
-                                    dataColor={colors}
-                                    // dataScore={score}
-                                    allDataMatriks={json}
-                                />
-                                <table className='text-center w-full text-sm'>
-                                    <tbody>
-                                        <tr className='border border-black black-600 text-center w-full'>
-                                            <td className="align-middle text-center w-full" colSpan="3">
-                                                <h4>Guidance</h4>
-                                                <div>
-                                                    {selectedData?.Details?.filter(detail => detail.Type === "G").map((detail, index) => (
-                                                        <div key={index}>
-                                                            <p>{detail.Reference ? detail.Reference : "-"}</p>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className='border border-black black-600 w-[33%]'>
-                                                <h4>Indikator</h4>
-                                                <div>
-                                                    {selectedData?.Details?.filter(detail => detail.Type === "I").map((detail, index) => (
-                                                        <div key={index}>
-                                                            <p>{detail.Reference ? detail.Reference : "-"}</p>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                            <td className='border border-black black-600 w-[33%]'>
-                                                <h4>Deskripsi</h4>
-                                                <div>
-                                                    {selectedData?.Details?.some(detail => detail.Type === "D") ? (
-                                                        selectedData.Details.filter(detail => detail.Type === "D").map((detail, index) => (
+                {numDesc ? (
+                    <div className="h-[80vh] my-10 pb-20 overflow-y-auto bg-white shadow-lg radius rounded-lg">
+                        {isLoading ? (
+                            <div className="flex items-center justify-center h-full">
+                                <p className="text-normal font-semibold">Loading...</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className='mt-[30px] mx-[30px] mb-[0px]'>
+                                    <ScrollableTabs
+                                        no={no}
+                                        sub={sub}
+                                        tabsData={task} 
+                                        allDataNoSub={json}
+                                        updateUserTask={updateUserTask}
+                                        onClick={changeNoSub}   
+                                        selectedProdi={selectedProdi.name}
+                                        dataColor={colors}
+                                        // dataScore={score}
+                                        allDataMatriks={json}
+                                    />
+                                    <table className='text-center w-full text-sm'>
+                                        <tbody>
+                                            <tr className='border border-black black-600 text-center w-full'>
+                                                <td className="align-middle text-center w-full" colSpan="3">
+                                                    <h4>Guidance</h4>
+                                                    <div>
+                                                        {selectedData?.Details?.filter(detail => detail.Type === "G").map((detail, index) => (
                                                             <div key={index}>
                                                                 <p>{detail.Reference ? detail.Reference : "-"}</p>
                                                             </div>
-                                                        ))
-                                                    ) : (
-                                                        <p>-</p>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className='border border-black black-600'>
-                                                <h4>Elemen</h4>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td className='border border-black black-600 w-[33%]'>
+                                                    <h4>Indikator</h4>
+                                                    <div>
+                                                        {selectedData?.Details?.filter(detail => detail.Type === "I").map((detail, index) => (
+                                                            <div key={index}>
+                                                                <p>{detail.Reference ? detail.Reference : "-"}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                                <td className='border border-black black-600 w-[33%]'>
+                                                    <h4>Deskripsi</h4>
+                                                    <div>
+                                                        {selectedData?.Details?.some(detail => detail.Type === "D") ? (
+                                                            selectedData.Details.filter(detail => detail.Type === "D").map((detail, index) => (
+                                                                <div key={index}>
+                                                                    <p>{detail.Reference ? detail.Reference : "-"}</p>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <p>-</p>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className='border border-black black-600'>
+                                                    <h4>Elemen</h4>
+                                                    <div>
+                                                        {selectedData?.Details?.filter(detail => detail.Type === "E").map((detail, index) => (
+                                                            <div key={index}>
+                                                                <p>{detail.Reference ? detail.Reference : "-"}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <br />
+                                {selectedProdi.name && (
+                                    selectedDataReference.Details.length > 0 ? (
+                                        <div className='mt-[0px] mx-[30px] mb-[0px] bg-gray p-3 rounded-md'>
+                                            <div className='flex justify-between mt-4'>
+                                                <h1>Referensi : {selectedProdi.name}</h1>
                                                 <div>
-                                                    {selectedData?.Details?.filter(detail => detail.Type === "E").map((detail, index) => (
-                                                        <div key={index}>
-                                                            <p>{detail.Reference ? detail.Reference : "-"}</p>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <br />
-                            {selectedProdi.name && (
-                                selectedDataReference.Details.length > 0 ? (
-                                    <div className='mt-[0px] mx-[30px] mb-[0px] bg-gray p-3 rounded-md'>
-                                        <div className='flex justify-between mt-4'>
-                                            <h1>Referensi : {selectedProdi.name}</h1>
-                                            <div>
-                                                <Button
-                                                    className="bg-primary w-10 mr-2 hover:bg-white hover:text-primary "
-                                                    aria-label="Update"
-                                                    onClick={() => hideReference()}
-                                                    disabled={isLoading}
-                                                >
-                                                    {openReference ? "-" : "+"}
-                                                </Button>
-                                                <Button
-                                                    className="bg-red w-10 hover:bg-white hover:text-primary "
-                                                    aria-label="Update"
-                                                    onClick={() => closeReference()}
-                                                    disabled={isLoading}
-                                                >
-                                                    x
-                                                </Button>
-                                            </div>
-                                            
-                                        </div>
-                                        {openReference ? (
-                                            <PengisianLedTable
-                                                selectedData={selectedDataReference}
-                                                showNilai={showNilai}
-                                                showMasukan={showMasukan}
-                                                toggleNilaiVisibility={toggleNilaiVisibility}
-                                                toggleMasukanVisibility={toggleMasukanVisibility}
-                                                handleInputChange={handleInputChange}
-                                                handleClickButton={handleClickButton}
-                                                type="readOnly"
-                                            />
-                                        ) : (
-                                            <div className='mt-[0px] mx-[30px] mb-[0px] bg-gray p-3 rounded-md'>
-                                                Tabel reference disembunyikan
-                                            </div>
-                                        )}
-                                        
-                                    </div>
-                                    
-                                ) : (
-                                    <div className='mt-[0px] mx-[30px] mb-[0px] bg-gray p-3 rounded-md'>tidak ada data</div>
-                                )
-                            )}
-                            <br />
-                            <div className='mt-[0px] mx-[30px] mb-[0px]'>
-                                <PengisianLedTable
-                                    selectedData={selectedData}
-                                    showNilai={showNilai}
-                                    showMasukan={showMasukan}
-                                    toggleNilaiVisibility={toggleNilaiVisibility}
-                                    toggleMasukanVisibility={toggleMasukanVisibility}
-                                    handleInputChange={handleInputChange}
-                                    handleClickButton={handleClickButton}
-                                    type="editable"
-                                />
-                            </div>
-                            {openVersion ? (
-                                version.length > 0 ? 
-                                    ( isLoadingVersion ? (
-                                        <div>loading ...</div>
-                                    ) : (
-                                        <div>
-                                            <div className='flex justify-between mx-[30px] mt-[30px]'>
-                                                <div>
-                                                    {viewAllVersion ? (
-                                                        <><h1 className="text-xl font-bold">Daftar Pembaruan</h1></>
-                                                    ) : (
-                                                        <>
-                                                            <h1 className="text-xl font-bold">Commit : {version[parseInt(versionSelected)].commit}</h1>
-                                                            <h3>Diperbarui pada {new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric"}).format(new Date(version[parseInt(versionSelected)].created_at))}, oleh {version[parseInt(versionSelected)].user_name}</h3>
-                                                        </>
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <button
-                                                        className={`h-10 px-1 text-sm rounded-md bg-primary text-white opacity-50 `}
-                                                        onClick={() => handleViewAllVersion()}
-                                                        disabled={isLoadingVersion}
+                                                    <Button
+                                                        className="bg-primary w-10 mr-2 hover:bg-white hover:text-primary "
+                                                        aria-label="Update"
+                                                        onClick={() => hideReference()}
+                                                        disabled={isLoading}
                                                     >
-                                                        Tampilkan {viewAllVersion ? "Tabel Isian" : "Daftar Pembaruan"}
-                                                    </button>
+                                                        {openReference ? "-" : "+"}
+                                                    </Button>
+                                                    <Button
+                                                        className="bg-red w-10 hover:bg-white hover:text-primary "
+                                                        aria-label="Update"
+                                                        onClick={() => closeReference()}
+                                                        disabled={isLoading}
+                                                    >
+                                                        x
+                                                    </Button>
                                                 </div>
+                                                
                                             </div>
-                                            {viewAllVersion ? (
-                                                <VerticalLinearStepper
-                                                    dataSteps={version}
-                                                    paramActiveStep={versionSelected}
-                                                    onStepChange={handleVersionChange}
+                                            {openReference ? (
+                                                <PengisianLedTable
+                                                    selectedData={selectedDataReference}
+                                                    showNilai={showNilai}
+                                                    showMasukan={showMasukan}
+                                                    toggleNilaiVisibility={toggleNilaiVisibility}
+                                                    toggleMasukanVisibility={toggleMasukanVisibility}
+                                                    handleInputChange={handleInputChange}
+                                                    handleClickButton={handleClickButton}
+                                                    type="readOnly"
                                                 />
                                             ) : (
                                                 <div className='mt-[0px] mx-[30px] mb-[0px] bg-gray p-3 rounded-md'>
-                                                    <PengisianLedTable
-                                                        selectedData={selectedDataVersion}
-                                                        showNilai={showNilai}
-                                                        showMasukan={showMasukan}
-                                                        toggleNilaiVisibility={toggleNilaiVisibility}
-                                                        toggleMasukanVisibility={toggleMasukanVisibility}
-                                                        handleInputChange={handleInputChange}
-                                                        handleClickButton={handleClickButton}
-                                                        type="readOnly"
-                                                    />
+                                                    Tabel reference disembunyikan
                                                 </div>
                                             )}
+                                            
+                                        </div>
+                                        
+                                    ) : (
+                                        <div className='mt-[0px] mx-[30px] mb-[0px] bg-gray p-3 rounded-md flex justify-center items-center text-center'>
+                                            tidak ada data
                                         </div>
                                     )
+                                )}
+                                <br />
+                                <div className='mt-[0px] mx-[30px] mb-[0px]'>
+                                    <PengisianLedTable
+                                        selectedData={selectedData}
+                                        showNilai={showNilai}
+                                        showMasukan={showMasukan}
+                                        toggleNilaiVisibility={toggleNilaiVisibility}
+                                        toggleMasukanVisibility={toggleMasukanVisibility}
+                                        handleInputChange={handleInputChange}
+                                        handleClickButton={handleClickButton}
+                                        type="editable"
+                                    />
+                                </div>
+                                {openVersion ? (
+                                    version.length > 0 ? 
+                                        ( isLoadingVersion ? (
+                                            <div>loading ...</div>
+                                        ) : (
+                                            <div>
+                                                <div className='flex justify-between mx-[30px] mt-[30px]'>
+                                                    <div>
+                                                        {viewAllVersion ? (
+                                                            <><h1 className="text-xl font-bold">Daftar Pembaruan</h1></>
+                                                        ) : (
+                                                            <>
+                                                                <h1 className="text-xl font-bold">Commit : {version[parseInt(versionSelected)].commit}</h1>
+                                                                <h3>Diperbarui pada {new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric"}).format(new Date(version[parseInt(versionSelected)].created_at))}, oleh {version[parseInt(versionSelected)].user_name}</h3>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <button
+                                                            className={`h-10 px-1 text-sm rounded-md bg-primary text-white opacity-50 `}
+                                                            onClick={() => handleViewAllVersion()}
+                                                            disabled={isLoadingVersion}
+                                                        >
+                                                            Tampilkan {viewAllVersion ? "Tabel Isian" : "Daftar Pembaruan"}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                {viewAllVersion ? (
+                                                    <VerticalLinearStepper
+                                                        dataSteps={version}
+                                                        paramActiveStep={versionSelected}
+                                                        onStepChange={handleVersionChange}
+                                                    />
+                                                ) : (
+                                                    <div className='mt-[0px] mx-[30px] mb-[0px] bg-gray p-3 rounded-md'>
+                                                        <PengisianLedTable
+                                                            selectedData={selectedDataVersion}
+                                                            showNilai={showNilai}
+                                                            showMasukan={showMasukan}
+                                                            toggleNilaiVisibility={toggleNilaiVisibility}
+                                                            toggleMasukanVisibility={toggleMasukanVisibility}
+                                                            handleInputChange={handleInputChange}
+                                                            handleClickButton={handleClickButton}
+                                                            type="readOnly"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    ) : (
+                                        <div>Tidak ada perubahan sebelumnya</div>
+                                    )
                                 ) : (
-                                    <div>Tidak ada perubahan sebelumnya</div>
-                                )
-                            ) : (
-                                <div></div>
-                            )}
-                        </>
-                    )}
-                    
-                    <div className='m-[30px] flex justify-between items-center'>
-                        <Button
-                            className="bg-primary w-40 hover:bg-white hover:text-primary"
-                            aria-label="Update"
-                            // onClick={() =>navigate(`/versi/${no}/${selectedData.Sub}`)}
-                            onClick={() => handleClickVersion()}
-                            disabled={isLoading || isLoadingVersion}
-                        >
-                           {isLoadingVersion ? " ..." : "Version"}
-                        </Button>
-                        <ToastContainer/>
-                        <div className=' rounded-md'>
+                                    <div></div>
+                                )}
+                            </>
+                        )}
+                        
+                        <div className='m-[30px] flex justify-between items-center'>
                             <Button
-                                className="bg-primary w-40 mr-2"
+                                className="bg-primary w-40 hover:bg-white hover:text-primary"
                                 aria-label="Update"
-                                disabled={true}
+                                // onClick={() =>navigate(`/versi/${no}/${selectedData.Sub}`)}
+                                onClick={() => handleClickVersion()}
+                                disabled={isLoading || isLoadingVersion}
                             >
-                               Score : { isLoading ? "..." : score  } 
+                            {isLoadingVersion ? " ..." : "Version"}
                             </Button>
-                            <Button
-                                className="bg-primary w-40 hover:bg-white hover:text-primary "
-                                aria-label="Update"
-                                onClick={handleShowToast}
-                                disabled={isLoading}
-                            >
-                                Commit
-                            </Button>
+                            <ToastContainer/>
+                            <div className=' rounded-md'>
+                                <Button
+                                    className="bg-primary w-40 mr-2"
+                                    aria-label="Update"
+                                    disabled={true}
+                                >
+                                Score : { isLoading ? "..." : score  } 
+                                </Button>
+                                <Button
+                                    className="bg-primary w-40 hover:bg-white hover:text-primary "
+                                    aria-label="Update"
+                                    onClick={handleShowToast}
+                                    disabled={isLoading}
+                                >
+                                    Commit
+                                </Button>
+                            </div>
+                            
                         </div>
                         
                     </div>
-                    
-                </div>
+                ) : (
+                    <div className="h-[80vh] my-10 pb-20 overflow-y-auto bg-white shadow-lg radius rounded-lg flex justify-center items-center text-center">
+                        Tidak ada task untuk anda😊
+                    </div>
+                )}
+                
             {/* </div> */}
         </div>
     )
