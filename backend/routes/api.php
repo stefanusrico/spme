@@ -18,11 +18,11 @@ use App\Http\Controllers\{
     JadwalLamController,
     MenuController,
     RumusController,
-    SectionController,
-    JsonController,
-    VersionController,
-    ColorController,
-    GoogleDriveController
+    SectionController, 
+    JsonController, 
+    VersionController, 
+    ColorController, 
+    GoogleDriveController 
 };
 use App\Http\Middleware\JwtMiddleware;
 
@@ -72,7 +72,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('projects/{projectId}/tasklists/{taskListId}/tasks', [TaskController::class, 'store']);
     Route::patch('projects/{projectId}/tasks/{taskId}/assign', [TaskController::class, 'updateRow']);
     Route::get('tasks', [TaskController::class, 'myTasks']);
-    Route::patch('tasks/updateOwner/{no}/{sub}', [TaskController::class, 'updateOwners']);
+    Route::patch('tasks/updateOwner/{no}/{sub}', [TaskController::class, 'updateOwners']); 
 
     Route::controller(JurusanController::class)->group(function () {
         Route::get('jurusan', 'index');
@@ -91,7 +91,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::get('count', 'countByPeringkat');
     });
 
-    Route::middleware(['role:Admin|admin|Ketua Program Studi'])->group(function () {
+    Route::middleware(['role:Admin|admin|Ketua Program Studi'])->group(function () { 
         Route::get('test-mongo', [AuthController::class, 'testMongoConnection']);
         Route::post('upload', [UserController::class, 'uploadFile']);
         Route::post('project', [ProjectController::class, 'store']);
@@ -140,29 +140,29 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/{nomor}/{sub}', [RumusController::class, 'showByNomorAndSub']);
         });
 
-        Route::controller(JsonController::class)->group(function () {
-            Route::post('/save-json', 'saveJson');
-            Route::get('/read-json/{fileName}', 'readJson');
-        });
+        Route::controller(JsonController::class)->group(function () { 
+            Route::post('/save-json', 'saveJson'); 
+            Route::get('/read-json/{fileName}', 'readJson'); 
+        }); 
 
-        Route::controller(GoogleDriveController::class)->group(function () {
-            Route::post('/upload-to-drive', 'uploadFile');
-            Route::get('/get-files', 'getFiles');
-            Route::delete('/delete-files', 'deleteFile');
-        });
+        Route::controller(GoogleDriveController::class)->group(function () { 
+            Route::post('/upload-to-drive', 'uploadFile'); 
+            Route::get('/get-files', 'getFiles'); 
+            Route::delete('/delete-files', 'delete File'); 
+        }); 
 
-        Route::controller(VersionController::class)->group(function () {
-            Route::post('/versions/getVersion', 'get');
-            Route::post('/versions', 'store');
-        });
+        Route::controller(VersionController::class)->group(function () { 
+            Route::post('/versions/getVersion', 'get'); 
+            Route::post('/versions', 'store'); 
+        }); 
 
-        Route::controller(ColorController::class)->group(function () {
-            Route::get('colors', 'index');
-            Route::post('colors', 'store');
-            Route::get('colors/{id}', 'show');
-            Route::put('colors/{id}', 'update');
-            Route::delete('colors/{id}', 'destroy');
-        });
+        Route::controller(ColorController::class)->group(function () { 
+            Route::get('colors', 'index'); 
+            Route::post('colors', 'store'); 
+            Route::get('colors/{id}', 'show'); 
+            Route::put('colors/{id}', 'update'); 
+            Route::delete('colors/{id}', 'destroy'); 
+        }); 
     });
 });
 
