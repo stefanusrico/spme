@@ -1,28 +1,44 @@
-import { useEffect, useRef, useState } from "react"
-import DataTable from "datatables.net-dt"
-import "datatables.net-bs5/css/dataTables.bootstrap5.min.css"
-import "datatables.net-bs5"
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
+import { differenceInMonths, format } from "date-fns"
+import { useEffect, useMemo, useState } from "react"
 import axiosInstance from "../../../utils/axiosConfig"
-import $ from "jquery"
-import "../../../styles/ProdiTable.css"
-import { differenceInMonths } from "date-fns"
 
-const ProdiTable = ({ isCollapsed }) => {
-  const tableRef = useRef(null)
-  const [loading, setLoading] = useState(true)
+const LoadingBar = () => (
+  <div className="relative h-1 bg-gray-100 overflow-hidden">
+    <div className="absolute top-0 h-1 bg-blue loading-bar w-full"></div>
+  </div>
+)
+
+const LoadingRow = ({ columnLength }) => {
+  const skeletonData = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+  return (
+    <>
+      {skeletonData.map((_, index) => (
+        <tr key={index} className="animate-pulse">
+          {Array.from({ length: columnLength }).map((__, colIndex) => (
+            <td key={colIndex} className="px-4 py-2">
+              <div className="h-8 bg-gray rounded" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
+}
+
+const ProdiTable = () => {
   const [prodiData, setProdiData] = useState([])
-  const dataTableInstance = useRef(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const fetchProdi = async () => {
-    try {
-      const response = await axiosInstance.get("/prodi")
-      setProdiData(response.data)
-      setLoading(false)
-    } catch (error) {
-      console.error("Error fetching prodi:", error)
-      setLoading(false)
-    }
-  }
+  const columnHelper = createColumnHelper()
 
   const getSubmitDateStatus = (submitDate) => {
     if (!submitDate) return "normal"
@@ -31,183 +47,224 @@ const ProdiTable = ({ isCollapsed }) => {
     const submitDateTime = new Date(submitDate)
     const monthDiff = differenceInMonths(submitDateTime, today)
 
-    if (monthDiff < 0) {
-      return "past"
-    } else if (monthDiff <= 6) {
-      return "urgent"
-    } else if (monthDiff <= 36) {
-      return "warning"
-    }
+    if (monthDiff < 0) return "past"
+    if (monthDiff <= 6) return "urgent"
+    if (monthDiff <= 36) return "warning"
     return "normal"
+  }
+
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("name", {
+        header: "PROGRAM STUDI",
+        cell: (info) => info.getValue(),
+        size: 400,
+      }),
+      columnHelper.accessor("akreditasi.nomorSK", {
+        header: <div className="text-center">NOMOR SK</div>,
+        cell: (info) => info.getValue() || "",
+        size: 600,
+      }),
+      columnHelper.accessor("akreditasi.tahun", {
+        header: <div className="text-center">TAHUN SK</div>,
+        cell: (info) => (
+          <span className="block text-center w-full">{info.getValue()}</span>
+        ),
+        size: 500,
+      }),
+      columnHelper.accessor("akreditasi.peringkat", {
+        header: "PERINGKAT",
+        cell: (info) => (
+          <span className="text-sm flex w-24 text-center justify-center font-semibold text-blue bg-blue_badge rounded-lg px-2 py-1">
+            {info.getValue()}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("akreditasi.tanggalKedaluwarsa", {
+        header: "TANGGAL KEDALUWARSA",
+        cell: (info) => format(new Date(info.getValue()), "dd-MM-yyyy"),
+      }),
+      columnHelper.accessor("tanggalSubmit", {
+        header: "TANGGAL AKHIR SUBMIT",
+        cell: (info) => {
+          const submitDate = info.getValue()
+          const status = getSubmitDateStatus(submitDate)
+          const formattedDate = format(new Date(submitDate), "dd-MM-yyyy")
+
+          const statusClasses = {
+            urgent: "bg-blue_badge text-black rounded",
+            warning: "bg-orange_badge text-black rounded",
+            past: "bg-red_badge text-black rounded",
+          }
+
+          return (
+            <span
+              className={`text-sm px-2 py-1 ${statusClasses[status] || ""}`}
+            >
+              {formattedDate}
+            </span>
+          )
+        },
+        size: 300,
+      }),
+      columnHelper.accessor("tanggalPengumuman", {
+        header: "TANGGAL PENGUMUMAN",
+        cell: (info) => format(new Date(info.getValue()), "dd-MM-yyyy"),
+      }),
+      columnHelper.accessor("lam.name", {
+        header: "LEMBAGA AKREDITASI",
+        cell: (info) => info.getValue(),
+      }),
+    ],
+    []
+  )
+
+  const table = useReactTable({
+    data: prodiData,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  })
+
+  const fetchProdi = async () => {
+    try {
+      const response = await axiosInstance.get("/prodi")
+      setProdiData(response.data)
+      setLoading(false)
+    } catch (error) {
+      console.error("Error fetching prodi:", error)
+      setError("Failed to load data")
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     fetchProdi()
-    return () => {
-      if (dataTableInstance.current) {
-        dataTableInstance.current.destroy()
-      }
-    }
   }, [])
-
-  useEffect(() => {
-    if (dataTableInstance.current) {
-      setTimeout(() => {
-        dataTableInstance.current.columns.adjust()
-      }, 300)
-    }
-  }, [isCollapsed])
-
-  useEffect(() => {
-    console.log("Collapsed status:", isCollapsed)
-  }, [isCollapsed])
-
-  useEffect(() => {
-    if (!loading && tableRef.current) {
-      if (dataTableInstance.current) {
-        dataTableInstance.current.destroy()
-      }
-
-      dataTableInstance.current = new DataTable(tableRef.current, {
-        data: prodiData,
-        columns: [
-          {
-            data: "name",
-            title: "PROGRAM STUDI",
-            orderable: false,
-            width: "30%",
-          },
-          {
-            data: "akreditasi.nomorSK",
-            title: "NOMOR SK",
-            orderable: false,
-            width: "25%",
-            render: (data) => `<span class="text-sm">${data || ""}</span>`,
-          },
-          {
-            data: "akreditasi.tahun",
-            title: "TAHUN SK",
-            orderable: false,
-            width: "10%",
-          },
-          {
-            data: "akreditasi.peringkat",
-            title: "PERINGKAT",
-            orderable: false,
-            width: "10%",
-            render: (data) =>
-              `<span class="text-sm font-semibold text-blue bg-blue_badge rounded-lg px-2 py-1">${data}</span>`,
-          },
-          {
-            data: "akreditasi.tanggalKedaluwarsa",
-            title: "TANGGAL KEDALUWARSA",
-            orderable: true,
-            width: "15%",
-            render: (data) =>
-              new Date(data)
-                .toLocaleDateString("id-ID", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                })
-                .split("/")
-                .join("-"),
-          },
-          {
-            data: "tanggalSubmit",
-            title: "TANGGAL AKHIR SUBMIT",
-            orderable: true,
-            width: "15%",
-            render: (data) => {
-              const status = getSubmitDateStatus(data)
-              const formattedDate = new Date(data)
-                .toLocaleDateString("id-ID", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                })
-                .split("/")
-                .join("-")
-
-              return `<span class="text-sm px-2 py-1  ${
-                status === "urgent"
-                  ? "bg-blue_badge text-black rounded"
-                  : status === "warning"
-                  ? "bg-orange_badge text-black rounded"
-                  : status === "past"
-                  ? "bg-red_badge text-black rounded"
-                  : ""
-              }">${formattedDate}</span>`
-            },
-          },
-          {
-            data: "tanggalPengumuman",
-            title: "TANGGAL PENGUMUMAN",
-            orderable: true,
-            width: "15%",
-            render: (data) =>
-              new Date(data)
-                .toLocaleDateString("id-ID", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                })
-                .split("/")
-                .join("-"),
-          },
-          {
-            data: "lam.name",
-            title: "LEMBAGA AKREDITASI",
-            orderable: false,
-            width: "30%",
-          },
-        ],
-        pageLength: 10,
-        order: [],
-        ordering: true,
-        paging: true,
-        info: false,
-        searching: false,
-        responsive: false,
-        scrollX: true,
-        dom: '<"wrapper"t<"bottom"p>>',
-        pagingType: "simple_numbers",
-        language: {
-          paginate: {
-            next: "→",
-            previous: "←",
-            numbers: "",
-          },
-        },
-      })
-
-      $(tableRef.current).on("page.dt", function () {
-        setTimeout(() => {
-          window.scrollTo(0, tableRef.current.offsetTop)
-        }, 0)
-      })
-    }
-  }, [loading, prodiData])
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl shadow-lg p-6 w-full mt-32">
-        <div className="min-h-[200px] flex items-center justify-center">
-          <div className="bg-white shadow-md rounded-lg p-6">
-            Loading table...
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="w-full">
       <h1 className="text-2xl font-bold mb-6">Data Program Studi</h1>
-      <div className="bg-white rounded-xl shadow-lg p-4 w-full">
+
+      <div className="bg-white rounded-xl shadow-lg p-4 w-full relative">
+        {loading && <LoadingBar />}
+
         <div className="overflow-x-auto">
-          <table ref={tableRef} className="w-full relative stripe hover" />
+          <table className="w-full min-w-[1000px] border-collapse">
+            <thead>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header, index) => (
+                    <th
+                      key={header.id}
+                      style={{ width: header.getSize() }}
+                      className={`px-6 py-3 text-left text-sm font-bold text-black uppercase tracking-wider bg-gray ${
+                        index === 0 ? "rounded-l-lg" : ""
+                      } ${
+                        index === headerGroup.headers.length - 1
+                          ? "rounded-r-lg"
+                          : ""
+                      }`}
+                    >
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext()
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {loading ? (
+                <LoadingRow columnLength={columns.length} />
+              ) : error ? (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="text-center text-red-600 py-4"
+                  >
+                    {error}
+                  </td>
+                </tr>
+              ) : prodiData.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="text-center text-gray-500 py-4"
+                  >
+                    No data found
+                  </td>
+                </tr>
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                        className="px-4 py-2"
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
+
+        {!loading && prodiData.length > 0 && (
+          <div className="flex items-center justify-between mt-4 px-4">
+            <div className="text-sm text-gray-600">
+              Halaman {table.getState().pagination.pageIndex + 1} dari{" "}
+              {table.getPageCount()}
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+                className="p-2 bg-gray-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+
+              {table.getPageOptions().map((pageNumber) => (
+                <button
+                  key={pageNumber}
+                  onClick={() => table.setPageIndex(pageNumber)}
+                  className={`px-3 py-1 rounded-md ${
+                    table.getState().pagination.pageIndex === pageNumber
+                      ? "bg-blue text-white"
+                      : "bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  {pageNumber + 1}
+                </button>
+              ))}
+
+              <button
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+                className="p-2 bg-gray-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

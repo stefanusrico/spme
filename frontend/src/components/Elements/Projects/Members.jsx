@@ -1,55 +1,75 @@
-import { useEffect, useRef, useState, useCallback } from "react"
-import $ from "jquery"
-import "datatables.net-bs5/css/dataTables.bootstrap5.min.css"
-import "datatables.net-bs5"
+import { useState, useEffect, useMemo } from "react"
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+  createColumnHelper,
+} from "@tanstack/react-table"
+import { format } from "date-fns"
 import axiosInstance from "../../../utils/axiosConfig"
 import { useParams } from "react-router-dom"
 import AddMemberModal from "../Modals/AddMember"
 
+const LoadingBar = () => (
+  <div className="relative mt-2 h-1 bg-gray overflow-hidden">
+    <div className="absolute top-0 h-1 bg-blue loading-bar"></div>
+  </div>
+)
+
+const LoadingRow = ({ columnLength }) => {
+  const skeletonData = [1, 2, 3]
+
+  return (
+    <>
+      {skeletonData.map((_, index) => (
+        <tr key={index} className="animate-pulse">
+          {Array.from({ length: columnLength }).map((__, colIndex) => (
+            <td key={colIndex} className="px-4 py-2">
+              <div className="h-8 bg-gray rounded" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
+}
+
 const Members = () => {
   const { projectId } = useParams()
-  const tableRef = useRef(null)
-  const dataTableRef = useRef(null)
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showModal, setShowModal] = useState(false)
 
-  const initializeDataTable = useCallback(() => {
-    if (!tableRef.current || !members.length) return
+  const columnHelper = createColumnHelper()
 
-    if (dataTableRef.current) {
-      dataTableRef.current.destroy()
-    }
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("name", {
+        header: "Name",
+        cell: (info) => info.getValue(),
+      }),
+      columnHelper.accessor("email", {
+        header: "Email",
+        cell: (info) => info.getValue(),
+      }),
+      columnHelper.accessor("role", {
+        header: "Role",
+        cell: (info) => info.getValue(),
+      }),
+      columnHelper.accessor("joinedAt", {
+        header: "Joined At",
+        cell: (info) => format(new Date(info.getValue()), "PP"),
+      }),
+    ],
+    []
+  )
 
-    dataTableRef.current = $(tableRef.current).DataTable({
-      data: members,
-      columns: [
-        {
-          data: "name",
-          title: "Name",
-        },
-        {
-          data: "email",
-          title: "Email",
-        },
-        {
-          data: "role",
-          title: "Role",
-        },
-        {
-          data: "joinedAt",
-          title: "Joined At",
-          render: (data) => new Date(data).toLocaleDateString(),
-        },
-      ],
-      searching: false,
-      ordering: false,
-      paging: false,
-      lengthChange: false,
-      info: false,
-    })
-  }, [members])
+  const table = useReactTable({
+    data: members,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  })
 
   const fetchMembers = async () => {
     try {
@@ -88,32 +108,7 @@ const Members = () => {
     if (projectId) {
       fetchMembers()
     }
-    return () => {
-      if (dataTableRef.current) {
-        dataTableRef.current.destroy()
-      }
-    }
   }, [projectId])
-
-  useEffect(() => {
-    if (members.length > 0 && tableRef.current) {
-      initializeDataTable()
-    }
-  }, [members, initializeDataTable])
-
-  if (loading) {
-    return (
-      <div className="w-full mx-auto">
-        <div className="mt-2 w-full">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-            <div className="min-h-[200px] flex items-center justify-center">
-              Loading members...
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="w-full mx-auto">
@@ -127,33 +122,72 @@ const Members = () => {
           </button>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-          {error ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-600">{error}</p>
-            </div>
-          ) : members.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">
-              No members found in this project.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table
-                ref={tableRef}
-                className="display table table-striped table-bordered dataTable no-footer w-full"
-              >
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Joined At</th>
+        <div className="bg-white rounded-xl shadow-lg p-6 w-full relative">
+          <div className="overflow-x-auto overflow-y-hidden">
+            <table className="w-full min-w-[600px]">
+              <thead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <th
+                        key={header.id}
+                        className="px-4 py-2 text-left font-semibold"
+                      >
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                      </th>
+                    ))}
                   </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          )}
+                ))}
+              </thead>
+              {loading && (
+                <div className="absolute left-0 right-0 h-1 bg-gray-100 overflow-hidden w-full">
+                  <div className="absolute top-0 h-1 bg-blue loading-bar w-full"></div>
+                </div>
+              )}
+              <tbody>
+                {loading ? (
+                  <LoadingRow columnLength={columns.length} />
+                ) : error ? (
+                  <tr>
+                    <td
+                      colSpan={columns.length}
+                      className="text-center text-red-600 py-4"
+                    >
+                      {error}
+                    </td>
+                  </tr>
+                ) : members.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={columns.length}
+                      className="text-center text-gray-500 py-4"
+                    >
+                      No members found in this project.
+                    </td>
+                  </tr>
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className="px-4 py-2">
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <AddMemberModal

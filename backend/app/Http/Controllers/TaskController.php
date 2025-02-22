@@ -82,7 +82,7 @@ class TaskController extends Controller
             'sub' => $request->sub,
             'progress' => false,
             'owners' => $request->owners,
-            'status' => 'ACTIVE',
+            'status' => 'UNASSIGNED',
             'startDate' => $request->startDate,
             'endDate' => $request->endDate,
             'order' => $order
@@ -137,7 +137,7 @@ class TaskController extends Controller
                             'no' => $taskData['no'],
                             'sub' => $taskData['sub'],
                             'progress' => false,
-                            'status' => 'ACTIVE',
+                            'status' => 'UNASSIGNED',
                             'order' => $order++
                         ]);
                     }
@@ -191,6 +191,10 @@ class TaskController extends Controller
         ]), function ($value) {
             return $value !== null;
         });
+
+        if (isset($updates['owners']) && !empty($updates['owners'])) {
+            $updates['status'] = 'ACTIVE';
+        }
 
         $task->update($updates);
         $task->load('users');
@@ -330,7 +334,7 @@ class TaskController extends Controller
             'progress' => 'boolean',
             'owners' => 'array',
             'owners.*' => 'exists:users,_id',
-            'status' => 'in:ACTIVE,COMPLETED,CANCELLED',
+            'status' => 'in:ACTIVE,COMPLETED,UNASSIGNED',
             'startDate' => 'date',
             'endDate' => 'date|after:startDate',
             'order' => 'integer'

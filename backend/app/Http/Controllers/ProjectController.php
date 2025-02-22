@@ -110,7 +110,7 @@ class ProjectController extends Controller
             $tasksByStatus = [
                 'ACTIVE' => [],
                 'COMPLETED' => [],
-                'CANCELLED' => []
+                'UNASSIGNED' => []
             ];
 
             foreach ($groupedTasks as $status => $tasks) {
@@ -386,7 +386,7 @@ class ProjectController extends Controller
         $request->validate([
             'name' => 'string|max:255',
             'description' => 'string',
-            'status' => 'in:ACTIVE,ARCHIVED,COMPLETED',
+            'status' => 'in:ACTIVE',
             'startDate' => 'date',
             'endDate' => 'date|after:startDate'
         ]);

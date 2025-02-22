@@ -104,7 +104,10 @@ const router = createBrowserRouter([
       { path: "/user-management/user/add", element: <AddUser /> },
       { path: "/user-management/role/add", element: <AddPermission /> },
       { path: "section", element: <Section1 /> },
-      { path: "/pengisian-matriks-led/:no?/:sub?", element: <PengisianMatrikLed /> },
+      {
+        path: "/pengisian-matriks-led/:no?/:sub?",
+        element: <PengisianMatrikLed />,
+      },
     ],
   },
   {
@@ -116,6 +119,10 @@ const router = createBrowserRouter([
     children: [
       { path: "/projects", element: <ProjectsTable /> },
       { path: "/projects/:projectId", element: <Projects /> },
+      // {
+      //   path: "/pengisian-matriks-led/:no?/:sub?",
+      //   element: <PengisianMatrikLed />,
+      // },
     ],
   },
 ])

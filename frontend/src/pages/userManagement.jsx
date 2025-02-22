@@ -43,12 +43,22 @@ const UserManagement = ({
     return mode === "users" ? title[0] : title[1]
   }
 
+  const getSubtitle = () => {
+    return mode === "users"
+      ? "Manage your users and their roles"
+      : "Manage roles and their permissions"
+  }
+
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex bg-white">
       <div className="w-full">
-        <div className="h-[calc(100vh-5rem)] overflow-y-auto hide-scrollbar">
-          <h2 className="text-3xl font-semibold ml-2">{getTitle()}</h2>
-          <div className="cursor-pointer mt-8 flex justify-between px-7 items-center w-full">
+        <div className="h-[calc(100vh-4rem)] overflow-y-auto hide-scrollbar p-4">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-2xl font-bold text-gray-800">{getTitle()}</h2>
+            <p className="text-gray-500">{getSubtitle()}</p>
+          </div>
+
+          <div className="cursor-pointer mt-4 flex justify-between px-6 items-center w-full">
             <div className="flex gap-5 items-center">
               <div
                 onClick={() => handleMode("users")}

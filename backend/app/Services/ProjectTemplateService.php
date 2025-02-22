@@ -116,7 +116,7 @@ class ProjectTemplateService
               'no' => $taskData['no'],
               'sub' => $taskData['sub'],
               'progress' => false,
-              'status' => 'ACTIVE',
+              'status' => 'UNASSIGNED',
               'order' => $order++
             ]);
           }

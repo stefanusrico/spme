@@ -1,38 +1,111 @@
-/* eslint-disable react/prop-types */
-import { useState, useEffect, useMemo, useCallback } from "react"
-import { format } from "date-fns"
-import { ChevronDown } from "lucide-react"
-import { createRoot } from "react-dom/client"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import TaskTable from "./TaskTable"
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
+import { format } from "date-fns"
+import { ChevronDown } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import axiosInstance from "../../../utils/axiosConfig"
 
+const LoadingBar = () => (
+  <div className="relative mt-2 h-1 bg-gray overflow-hidden">
+    <div className="absolute top-0 h-1 bg-blue loading-bar"></div>
+  </div>
+)
+
+const LoadingRow = ({ columnLength }) => {
+  const skeletonData = [
+    {
+      taskId: "TSK-001",
+      name: "Loading task...",
+      owners: [],
+      status: "ACTIVE",
+      progress: 0,
+      startDate: new Date(),
+      endDate: new Date(),
+      duration: "0",
+      taskList: "Loading...",
+    },
+    {
+      taskId: "TSK-002",
+      name: "Please wait...",
+      owners: [],
+      status: "ACTIVE",
+      progress: 0,
+      startDate: new Date(),
+      endDate: new Date(),
+      duration: "0",
+      taskList: "Loading...",
+    },
+    {
+      taskId: "TSK-003",
+      name: "Fetching data...",
+      owners: [],
+      status: "ACTIVE",
+      progress: 0,
+      startDate: new Date(),
+      endDate: new Date(),
+      duration: "0",
+      taskList: "Loading...",
+    },
+  ]
+
+  return (
+    <>
+      {skeletonData.map((_, index) => (
+        <tr key={index} className="animate-pulse">
+          {Array.from({ length: columnLength }).map((__, colIndex) => (
+            <td key={colIndex} className="px-4 py-2">
+              <div className="h-8 bg-gray rounded" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
+}
+
 const OwnerCell = ({ owners, projectMembers, task, onUpdate }) => {
-  console.log("OwnerCell rendered with:", { owners, projectMembers, task })
+  if (!projectMembers || projectMembers.length === 0) {
+    return (
+      <div className="flex w-full items-center gap-2 py-1">
+        <Avatar className="h-8 w-8">
+          <AvatarImage src="/default-avatar.png" alt="Loading..." />
+          <AvatarFallback>...</AvatarFallback>
+        </Avatar>
+        <span>Loading members...</span>
+      </div>
+    )
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="w-full outline-none">
-        <div className="flex w-full items-center gap-2 cursor-pointer hover:bg-gray-50 py-1">
+        <div className="flex w-full items-center gap-3 cursor-pointer rounded-full hover:bg-gray py-1">
           {owners && owners.length > 0 ? (
-            <div className="flex -space-x-2">
-              {owners.slice(0, 2).map((owner) => (
+            <div className="flex -space-x-3">
+              {owners.slice(0, 3).map((owner) => (
                 <Avatar
                   key={owner.id}
-                  className="h-6 w-6 border-2 border-white"
+                  className="h-8 w-8 border-2 border-white"
                 >
                   <AvatarImage
                     src={
@@ -50,19 +123,19 @@ const OwnerCell = ({ owners, projectMembers, task, onUpdate }) => {
                   </AvatarFallback>
                 </Avatar>
               ))}
-              {owners.length > 2 && (
-                <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-xs">
-                  +{owners.length - 2}
+              {owners.length > 3 && (
+                <div className="h-8 w-8 flex items-center justify-center text-xs">
+                  +{owners.length - 3}
                 </div>
               )}
             </div>
           ) : (
-            <Avatar className="h-6 w-6">
+            <Avatar className="h-8 w-8">
               <AvatarImage src="/default-avatar.png" alt="Unassigned" />
               <AvatarFallback>UN</AvatarFallback>
             </Avatar>
           )}
-          <span className="flex-1 text-left">
+          <span className="flex-1 text-left text-sm">
             {owners && owners.length > 0
               ? owners.map((owner) => owner.name).join(", ")
               : "Unassigned"}
@@ -70,7 +143,7 @@ const OwnerCell = ({ owners, projectMembers, task, onUpdate }) => {
           <ChevronDown className="h-4 w-4 opacity-50" />
         </div>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
+      <DropdownMenuContent className="w-64">
         {projectMembers.map((member) => (
           <DropdownMenuItem
             key={member.userId}
@@ -79,15 +152,14 @@ const OwnerCell = ({ owners, projectMembers, task, onUpdate }) => {
               const newOwners = currentOwners.includes(member.userId)
                 ? currentOwners.filter((id) => id !== member.userId)
                 : [...currentOwners, member.userId]
-              console.log("Updating owners:", { currentOwners, newOwners })
               onUpdate(task.id, { owners: newOwners })
             }}
             className={cn(
-              "cursor-pointer",
-              owners?.some((o) => o.id === member.userId) && "bg-gray-100"
+              "cursor-pointer flex items-center gap-2 px-2 py-1",
+              owners?.some((o) => o.id === member.userId) && "bg-gray"
             )}
           >
-            <Avatar className="h-6 w-6 mr-2">
+            <Avatar className="h-8 w-8">
               <AvatarImage
                 src={
                   member.profile_picture
@@ -103,7 +175,7 @@ const OwnerCell = ({ owners, projectMembers, task, onUpdate }) => {
                   .join("")}
               </AvatarFallback>
             </Avatar>
-            <span>{member.name}</span>
+            <span className="text-sm">{member.name}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -121,7 +193,7 @@ const DateCell = ({ date, onUpdate, taskId, field }) => {
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
-          className="w-full justify-start text-left font-normal"
+          className="w-full justify-center text-center font-normal"
         >
           {format(new Date(date), "PPP")}
         </Button>
@@ -149,14 +221,14 @@ const DateCell = ({ date, onUpdate, taskId, field }) => {
 const Tasks = ({ projectId }) => {
   const [taskLists, setTaskLists] = useState([])
   const [projectMembers, setProjectMembers] = useState([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  const columnHelper = createColumnHelper()
 
   const getTaskStatus = useCallback((status) => {
     switch (status) {
       case "ACTIVE":
         return "IN PROGRESS"
-      case "COMPLETED":
-        return "CLOSED"
       default:
         return status
     }
@@ -164,41 +236,48 @@ const Tasks = ({ projectId }) => {
 
   const getStatusStyle = useCallback((status) => {
     const styles = {
-      OPEN: "bg-green_badge text-green",
       "IN PROGRESS": "bg-orange_badge text-orange",
-      CLOSED: "bg-red_badge text-red",
-      DEFAULT: "bg-red-100 text-red-800",
+      COMPLETED: "bg-green_badge text-green",
+      DEFAULT: "bg-red_badge text-red",
     }
     return styles[status] || styles.DEFAULT
   }, [])
 
-  const fetchTaskLists = useCallback(async () => {
-    if (!projectId) return
-
+  const fetchTaskLists = async () => {
+    setLoading(true)
     try {
-      setIsLoading(true)
-      const response = await axiosInstance.get(`/projects/${projectId}/lists`)
-      if (response.data.status === "success") {
-        setTaskLists(response.data.data.taskLists)
+      const [tasksResponse, membersResponse] = await Promise.all([
+        axiosInstance.get(`/projects/${projectId}/lists`),
+        axiosInstance.get(`/projects/${projectId}/members`),
+      ])
+
+      if (tasksResponse.data.status === "success") {
+        const formattedData = tasksResponse.data.data.taskLists.flatMap(
+          (list) => [
+            {
+              id: `group-${list.c}`,
+              isGroupHeader: true,
+              criteria: list.name,
+            },
+            ...list.tasks.map((task) => ({
+              ...task,
+              criteria: list.name,
+            })),
+          ]
+        )
+
+        setTaskLists(formattedData)
+      }
+
+      if (membersResponse.data.status === "success") {
+        setProjectMembers(membersResponse.data.data.members)
       }
     } catch (error) {
-      console.error("Error fetching task lists:", error)
+      console.error("Error fetching data:", error)
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
-  }, [projectId])
-
-  const fetchProjectMembers = useCallback(async () => {
-    try {
-      const response = await axiosInstance.get(`/projects/${projectId}/members`)
-      console.log("Project members response:", response.data)
-      if (response.data.status === "success") {
-        setProjectMembers(response.data.data.members)
-      }
-    } catch (error) {
-      console.error("Error fetching project members:", error)
-    }
-  }, [projectId])
+  }
 
   const handleUpdateRow = async (taskId, updates) => {
     try {
@@ -208,206 +287,255 @@ const Tasks = ({ projectId }) => {
       )
 
       if (response.data.status === "success") {
-        await fetchTaskLists()
+        fetchTaskLists()
       }
     } catch (error) {
       console.error("Error updating task:", error)
     }
   }
 
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor(
+        (row) => {
+          if (row.isGroupHeader) return row.criteria
+          return row.taskId
+        },
+        {
+          id: "taskId",
+          header: "TASK ID",
+          size: 100,
+          cell: ({ row, getValue }) => {
+            if (row.original.isGroupHeader) {
+              return getValue()
+            }
+            return getValue()
+          },
+        }
+      ),
+      columnHelper.accessor("name", {
+        header: "TASK NAME",
+        size: 200,
+        cell: ({ row, getValue }) => {
+          if (row.original.isGroupHeader) return null
+          return getValue()
+        },
+      }),
+      columnHelper.accessor("owners", {
+        header: () => <div className="text-center">OWNER</div>,
+        size: 200,
+        cell: ({ row }) => {
+          if (row.original.isGroupHeader) return null
+          return (
+            <OwnerCell
+              owners={row.original.owners}
+              projectMembers={projectMembers}
+              task={row.original}
+              onUpdate={handleUpdateRow}
+            />
+          )
+        },
+      }),
+      columnHelper.accessor("status", {
+        header: () => <div className="text-center">STATUS</div>,
+        size: 120,
+        cell: ({ row, getValue }) => {
+          if (row.original.isGroupHeader) return null
+          const status = getTaskStatus(getValue())
+          return (
+            <div className="flex justify-center">
+              <span
+                className={`text-sm text-center font-semibold rounded-lg px-2 py-1 ${getStatusStyle(
+                  status
+                )}`}
+              >
+                {status}
+              </span>
+            </div>
+          )
+        },
+      }),
+      columnHelper.accessor("progress", {
+        header: () => <div className="text-center">PROGRESS</div>,
+        size: 150,
+        cell: ({ row, getValue }) => {
+          if (row.original.isGroupHeader) return null
+          return (
+            <div className="flex items-center justify-center text-center">
+              <div className="w-full max-w-[100px] bg-gray rounded-full h-2.5">
+                <div
+                  className="bg-blue h-2.5 rounded-full"
+                  style={{ width: `${getValue() || 0}%` }}
+                />
+              </div>
+              <span className="ml-2 text-sm text-centertext-gray-600">
+                {getValue() || 0}%
+              </span>
+            </div>
+          )
+        },
+      }),
+      columnHelper.accessor("startDate", {
+        header: () => <div className="text-center">START DATE</div>,
+        size: 150,
+        cell: ({ row, getValue }) => {
+          if (row.original.isGroupHeader) return null
+          return (
+            <div className="flex justify-center items-center">
+              <DateCell
+                date={getValue()}
+                taskId={row.original.id}
+                field="startDate"
+                onUpdate={handleUpdateRow}
+              />
+            </div>
+          )
+        },
+      }),
+      columnHelper.accessor("endDate", {
+        header: () => <div className="text-center">END DATE</div>,
+        size: 150,
+        cell: ({ row, getValue }) => {
+          if (row.original.isGroupHeader) return null
+          return (
+            <div className="flex justify-center items-center">
+              <DateCell
+                date={getValue()}
+                taskId={row.original.id}
+                field="endDate"
+                onUpdate={handleUpdateRow}
+              />
+            </div>
+          )
+        },
+      }),
+      columnHelper.accessor("duration", {
+        header: () => <div className="text-center">DURATION</div>,
+        size: 100,
+        cell: ({ row, getValue }) => {
+          if (row.original.isGroupHeader) return null
+          return (
+            <div className="mx-auto w-full flex justify-center">
+              {getValue()} days
+            </div>
+          )
+        },
+      }),
+    ],
+    [projectMembers, getTaskStatus, getStatusStyle]
+  )
+
+  const table = useReactTable({
+    data: taskLists,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  })
+
   useEffect(() => {
     if (projectId) {
       fetchTaskLists()
-      fetchProjectMembers()
     }
-  }, [projectId, fetchTaskLists, fetchProjectMembers])
-
-  useEffect(() => {
-    console.log("Project members updated:", projectMembers)
-  }, [projectMembers])
-
-  const tableData = useMemo(() => {
-    const data = []
-    taskLists.forEach((list) => {
-      if (list.tasks && list.tasks.length > 0) {
-        list.tasks.forEach((task) => {
-          data.push({
-            ...task,
-            taskList: list.name,
-            formattedStartDate: format(new Date(task.startDate), "PP"),
-            formattedEndDate: format(new Date(task.endDate), "PP"),
-          })
-        })
-      } else {
-        data.push({
-          id: `empty-${list.id}`,
-          taskList: list.name,
-          isEmpty: true,
-        })
-      }
-    })
-    return data
-  }, [taskLists])
-
-  const columns = useMemo(
-    () => [
-      {
-        data: "taskId",
-        title: "TASK ID",
-        width: "7%",
-        render: (data, type, row) => (row.isEmpty ? "" : data),
-      },
-      {
-        data: "name",
-        title: "TASK NAME",
-        width: "10%",
-        render: (data, type, row) => (row.isEmpty ? "" : data),
-      },
-      {
-        data: "owners",
-        title: "OWNER",
-        width: "20%",
-        className: "min-w-[200px]",
-        render: (data, type, row) => {
-          if (row.isEmpty) return ""
-          const containerId = `owner-cell-${row.id}`
-          setTimeout(() => {
-            const container = document.getElementById(containerId)
-            if (container && !container.hasAttribute("data-initialized")) {
-              const root = createRoot(container)
-              root.render(
-                <OwnerCell
-                  owners={row.owners}
-                  projectMembers={projectMembers}
-                  task={row}
-                  onUpdate={handleUpdateRow}
-                />
-              )
-              container.setAttribute("data-initialized", "true")
-            }
-          }, 0)
-          return `<div id="${containerId}"></div>`
-        },
-      },
-      {
-        data: "status",
-        title: "STATUS",
-        width: "10%",
-        render: (data, type, row) => {
-          if (row.isEmpty) return ""
-          const status = getTaskStatus(data)
-          return `<span class="px-2 py-1 rounded text-sm font-semibold ${getStatusStyle(
-            status
-          )}">${status}</span>`
-        },
-      },
-      {
-        data: "progress",
-        title: "PROGRESS",
-        width: "10%",
-        render: (data, type, row) => {
-          if (row.isEmpty) return ""
-          return `<div class="flex items-center">
-         <div class="w-full bg-gray-200 rounded-full h-2.5">
-           <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${
-             data ? 100 : 0
-           }%"></div>
-         </div>
-         <span class="ml-2 text-sm text-gray-600">${data ? "100" : "0"}%</span>
-       </div>`
-        },
-      },
-      {
-        data: "startDate",
-        title: "START DATE",
-        width: "10%",
-        render: (data, type, row) => {
-          if (row.isEmpty) return ""
-          const containerId = `start-date-cell-${row.id}`
-          setTimeout(() => {
-            const container = document.getElementById(containerId)
-            if (container && !container.hasAttribute("data-initialized")) {
-              const root = createRoot(container)
-              root.render(
-                <DateCell
-                  date={data}
-                  taskId={row.id}
-                  field="startDate"
-                  onUpdate={handleUpdateRow}
-                />
-              )
-              container.setAttribute("data-initialized", "true")
-            }
-          }, 0)
-          return `<div id="${containerId}"></div>`
-        },
-      },
-      {
-        data: "endDate",
-        title: "END DATE",
-        width: "10%",
-        render: (data, type, row) => {
-          if (row.isEmpty) return ""
-          const containerId = `end-date-cell-${row.id}`
-          setTimeout(() => {
-            const container = document.getElementById(containerId)
-            if (container && !container.hasAttribute("data-initialized")) {
-              const root = createRoot(container)
-              root.render(
-                <DateCell
-                  date={data}
-                  taskId={row.id}
-                  field="endDate"
-                  onUpdate={handleUpdateRow}
-                />
-              )
-              container.setAttribute("data-initialized", "true")
-            }
-          }, 0)
-          return `<div id="${containerId}"></div>`
-        },
-      },
-      {
-        data: "duration",
-        title: "DURATION",
-        width: "10%",
-        render: (data, type, row) => (row.isEmpty ? "" : `${data} days`),
-      },
-    ],
-    [projectMembers, getTaskStatus, getStatusStyle, handleUpdateRow]
-  )
-
-  const rowGroup = {
-    dataSrc: "taskList",
-    startRender: (rows, group) =>
-      `<div class="font-medium bg-gray-50 p-2">${group}</div>`,
-  }
-
-  if (isLoading) {
-    return (
-      <div className="w-full mx-auto">
-        <div className="mt-2 w-full">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-            <div className="min-h-[200px] flex items-center justify-center">
-              Loading tasks...
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  }, [projectId])
 
   return (
     <div className="w-full mx-auto">
       <div className="mt-2 w-full">
         <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-          <div className="overflow-x-auto overflow-y-hidden">
-            <TaskTable
-              key={`table-${projectId}`}
-              data={tableData}
-              columns={columns}
-              rowGroup={rowGroup}
-            />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px]">
+              <thead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header, index) => (
+                      <th
+                        key={header.id}
+                        className={`px-6 py-3 text-left text-normal font-bold text-black uppercase tracking-wider bg-gray ${
+                          index === 0 ? "rounded-l-lg" : ""
+                        } ${
+                          index === headerGroup.headers.length - 1
+                            ? "rounded-r-lg"
+                            : ""
+                        }`}
+                      >
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              {loading && (
+                <thead>
+                  <tr>
+                    <td colSpan={columns.length} className="p-0">
+                      <LoadingBar />
+                    </td>
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {loading ? (
+                  <LoadingRow columnLength={columns.length} />
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className={`transition-colors ${
+                        row.original.isGroupHeader
+                          ? "bg-gray font-semibold"
+                          : ""
+                      }`}
+                    >
+                      {row.getVisibleCells().map((cell) => {
+                        if (row.original.isGroupHeader) {
+                          if (cell.column.id === "taskId") {
+                            return (
+                              <td
+                                key={cell.id}
+                                colSpan={columns.length}
+                                className="font-bold text-black bg-gray px-4 py-2 text-left rounded-lg"
+                              >
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )}
+                              </td>
+                            )
+                          }
+                          return null
+                        }
+
+                        return (
+                          <td
+                            key={cell.id}
+                            className={`px-4 py-2 ${
+                              [
+                                "status",
+                                "progress",
+                                "startDate",
+                                "endDate",
+                                "duration",
+                                "owners",
+                              ].includes(cell.column.id)
+                                ? "text-center"
+                                : ""
+                            }`}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
