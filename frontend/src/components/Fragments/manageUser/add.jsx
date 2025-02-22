@@ -26,6 +26,12 @@ const AddUser = ({ title = "Add User" }) => {
   const [isLoading, setIsLoading] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
 
+  const [error, setError] = useState({
+    role: "",
+    jurusan: "",
+    prodi: "",
+  })
+
   const fileInputRef = useRef(null)
 
   useEffect(() => {
@@ -227,7 +233,7 @@ const AddUser = ({ title = "Add User" }) => {
                   disabled={isLoading}
                   placeholder="Pilih Role"
                   error={error.role}
-                ></Dropdown>
+                />
 
                 <InputForm
                   label="Username"
@@ -289,11 +295,9 @@ const AddUser = ({ title = "Add User" }) => {
                     )
                   }}
                   disabled={isLoading}
-                  className="mb-6 "
-                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
                   placeholder={user.jurusan ? user.jurusan : "Pilih Jurusan"}
                   error={error.jurusan}
-                ></Dropdown>
+                />
 
                 <Dropdown
                   label="Program Studi"
@@ -306,11 +310,9 @@ const AddUser = ({ title = "Add User" }) => {
                   value={user.prodi}
                   onChange={(e) => setUser({ ...user, prodi: e.target.value })}
                   disabled={isLoading || !user.jurusan}
-                  className="mb-6 "
-                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
                   placeholder="Pilih Program Studi"
                   error={error.prodi}
-                ></Dropdown>
+                />
 
                 <InputForm
                   label="Password"
