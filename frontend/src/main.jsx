@@ -1,6 +1,3 @@
-import "datatables.net-bs5/css/dataTables.bootstrap5.css"
-import "datatables.net-dt/css/dataTables.dataTables.css"
-import "datatables.net-rowgroup-bs5/css/rowGroup.bootstrap5.css"
 import React from "react"
 import ReactDOM from "react-dom/client"
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom"

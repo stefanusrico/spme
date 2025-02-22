@@ -4,7 +4,6 @@ import InputForm from "../../Elements/Input/index"
 import Button from "../../Elements/Button/index"
 import Dropdown from "../../Elements/Dropdown"
 import { uploadFile } from "../../Elements/Profile/profile.action"
-import { error } from "jquery"
 import axiosInstance from "../../../utils/axiosConfig"
 
 const AddUser = ({ title = "Add User" }) => {
@@ -19,7 +18,7 @@ const AddUser = ({ title = "Add User" }) => {
     phone_number: "",
     profile_picture: "",
     jurusan: "",
-    prodi: ""
+    prodi: "",
   })
   const [roles, setRoles] = useState([])
   const [jurusan, setJurusan] = useState([])
@@ -47,20 +46,19 @@ const AddUser = ({ title = "Add User" }) => {
   }, [])
 
   const fetchProdi = async (id) => {
-    try{
+    try {
       const prodiResponse = await axiosInstance.get(`/prodi/${id}`)
       setProdi(prodiResponse.data)
-    }catch{
+    } catch {
       console.error("Error fetching data:", error)
     }
   }
 
-  const handleJurusanChange = (id, name) => {    
-    setUser({ ...user, jurusan: name, prodi: "" }) 
-    fetchProdi(id); 
-    console.log(user);
-    
-  };
+  const handleJurusanChange = (id, name) => {
+    setUser({ ...user, jurusan: name, prodi: "" })
+    fetchProdi(id)
+    console.log(user)
+  }
 
   const handleImageChange = (e) => {
     const file = e.target.files[0]
@@ -93,7 +91,7 @@ const AddUser = ({ title = "Add User" }) => {
         !user.username ||
         !user.role ||
         !user.password ||
-        !user.verifPass||
+        !user.verifPass ||
         !user.jurusan ||
         !user.prodi
       ) {
@@ -282,13 +280,18 @@ const AddUser = ({ title = "Add User" }) => {
                   }))}
                   value={user.jurusan}
                   onChange={(e) => {
-                    const selectedJurusan = jurusan.find((j) => j.id === e.target.value); 
-                    handleJurusanChange(e.target.value, selectedJurusan?.name || '');
+                    const selectedJurusan = jurusan.find(
+                      (j) => j.id === e.target.value
+                    )
+                    handleJurusanChange(
+                      e.target.value,
+                      selectedJurusan?.name || ""
+                    )
                   }}
                   disabled={isLoading}
                   className="mb-6 "
                   // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
-                  placeholder={user.jurusan? user.jurusan : "Pilih Jurusan"}
+                  placeholder={user.jurusan ? user.jurusan : "Pilih Jurusan"}
                   error={error.jurusan}
                 ></Dropdown>
 
