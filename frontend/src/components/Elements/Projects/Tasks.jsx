@@ -23,6 +23,7 @@ import {
 import { format } from "date-fns"
 import { ChevronDown } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import axiosInstance from "../../../utils/axiosConfig"
 
 const LoadingBar = () => (
@@ -223,6 +224,7 @@ const Tasks = ({ projectId }) => {
   const [projectMembers, setProjectMembers] = useState([])
   const [loading, setLoading] = useState(true)
 
+  const navigate = useNavigate()
   const columnHelper = createColumnHelper()
 
   const getTaskStatus = useCallback((status) => {
@@ -421,8 +423,29 @@ const Tasks = ({ projectId }) => {
           )
         },
       }),
+      columnHelper.accessor("actions", {
+        header: () => <div className="text-center">ACTIONS</div>,
+        size: 100,
+        cell: ({ row }) => {
+          if (row.original.isGroupHeader) return null
+          return (
+            <div className="flex justify-center">
+              <button
+                onClick={() =>
+                  navigate(
+                    `/pengisian-matriks-led/${row.original.no}/${row.original.sub}`
+                  )
+                }
+                className="px-3 py-1.5 text-sm font-medium text-white bg-blue rounded hover:bg-blue-700 rounded-lg"
+              >
+                View Task
+              </button>
+            </div>
+          )
+        },
+      }),
     ],
-    [projectMembers, getTaskStatus, getStatusStyle]
+    [projectMembers, getTaskStatus, getStatusStyle, navigate]
   )
 
   const table = useReactTable({

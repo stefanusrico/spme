@@ -46,19 +46,19 @@ const Members = () => {
   const columns = useMemo(
     () => [
       columnHelper.accessor("name", {
-        header: "Name",
+        header: "NAME",
         cell: (info) => info.getValue(),
       }),
       columnHelper.accessor("email", {
-        header: "Email",
+        header: "EMAIl",
         cell: (info) => info.getValue(),
       }),
       columnHelper.accessor("role", {
-        header: "Role",
+        header: "ROLE",
         cell: (info) => info.getValue(),
       }),
       columnHelper.accessor("joinedAt", {
-        header: "Joined At",
+        header: "JOINED AT",
         cell: (info) => format(new Date(info.getValue()), "PP"),
       }),
     ],
@@ -128,10 +128,16 @@ const Members = () => {
               <thead>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
+                    {headerGroup.headers.map((header, index) => (
                       <th
                         key={header.id}
-                        className="px-4 py-2 text-left font-semibold"
+                        className={`px-4 py-2 text-left text-normal font-bold text-black uppercase tracking-wider bg-gray ${
+                          index === 0 ? "rounded-l-lg" : ""
+                        } ${
+                          index === headerGroup.headers.length - 1
+                            ? "rounded-r-lg"
+                            : ""
+                        }`}
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -143,7 +149,7 @@ const Members = () => {
                 ))}
               </thead>
               {loading && (
-                <div className="absolute left-0 right-0 h-1 bg-gray-100 overflow-hidden w-full">
+                <div className="absolute left-0 right-0 h-1 bg-gray overflow-hidden w-full">
                   <div className="absolute top-0 h-1 bg-blue loading-bar w-full"></div>
                 </div>
               )}

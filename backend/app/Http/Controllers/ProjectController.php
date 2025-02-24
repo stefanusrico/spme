@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskList;
-
+use App\Models\Prodi;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -18,13 +18,28 @@ class ProjectController extends Controller
 {
     public function index()
     {
-        $projects = Project::with(['tasklists', 'tasks'])
-            ->orderBy('createdAt', 'desc')  // Diubah dari metadata.createdAt
-            ->paginate(10);
+        $projects = Project::with('prodi')->get();
+
+        $projectsWithOwner = $projects->map(function ($project) {
+            $owner = collect($project->members)
+                ->where('role', 'owner')
+                ->first();
+
+            $ownerUser = null;
+            if ($owner) {
+                $ownerUser = User::find($owner['userId']);
+            }
+
+            return array_merge($project->toArray(), [
+                'ownerName' => $ownerUser ? $ownerUser->name : 'Unknown',
+                'prodiName' => $project->prodi ? $project->prodi->name : 'Unknown',
+                'ownerJurusan' => $ownerUser ? $ownerUser->jurusan : 'Unknown'
+            ]);
+        });
 
         return response()->json([
             'status' => 'success',
-            'data' => $projects
+            'data' => $projectsWithOwner
         ]);
     }
 
@@ -36,6 +51,36 @@ class ProjectController extends Controller
             'endDate' => 'required|date|after:startDate',
         ]);
 
+        $user = auth()->user();
+        if (!$user->prodi) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User must be associated with a Prodi'
+            ], 400);
+        }
+
+        $prodi = Prodi::where('name', $user->prodi)->first();
+        if (!$prodi) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Prodi not found'
+            ], 400);
+        }
+
+
+        if (!Project::canCreateNewProject($prodi->_id)) {
+            $existingProject = Project::where('prodiId', $prodi->_id)
+                ->where('status', 'ACTIVE')
+                ->where('endDate', '>', now())
+                ->first();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Prodi already has an active project that will end on ' .
+                    Carbon::parse($existingProject->endDate)->format('d M Y'),
+            ], 400);
+        }
+
         $lastProject = Project::orderBy('created_at', 'desc')->first();
         $projectId = $lastProject
             ? 'PRJ-' . str_pad((intval(substr($lastProject->projectId, 4)) + 1), 3, '0', STR_PAD_LEFT)
@@ -44,21 +89,21 @@ class ProjectController extends Controller
         $project = Project::create([
             'projectId' => $projectId,
             'name' => $request->name,
-            'progress' => false,
+            'progress' => 0,
             'status' => 'ACTIVE',
             'startDate' => $request->startDate,
             'endDate' => $request->endDate,
-            'createdBy' => auth()->user()->_id,
+            'createdBy' => $user->_id,
+            'prodiId' => $prodi->_id,
             'members' => [
                 [
-                    'userId' => auth()->user()->_id,
+                    'userId' => $user->_id,
                     'role' => 'owner',
                     'joinedAt' => now()
                 ]
             ]
         ]);
 
-        $user = User::find(auth()->user()->_id);
         $existingProjects = $user->projects ?? [];
         $updatedProjects = array_merge($existingProjects, [
             [
@@ -99,6 +144,7 @@ class ProjectController extends Controller
         try {
             $project = Project::where('_id', $projectId)
                 ->with([
+                    'prodi',
                     'tasks' => function ($query) {
                         $query->with('users');
                     }
@@ -149,6 +195,8 @@ class ProjectController extends Controller
                 'data' => [
                     'projectId' => $project->projectId,
                     'projectName' => $project->name,
+                    'prodiName' => $project->prodi ? $project->prodi->name : 'Unknown',
+                    'prodiId' => $project->prodiId,
                     'createdAt' => $project->created_at,
                     'statistics' => $statistics,
                     'tasks' => $tasksByStatus
@@ -156,6 +204,12 @@ class ProjectController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('Project details error:', [
+                'error' => $e->getMessage(),
+                'projectId' => $projectId,
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Error retrieving project details: ' . $e->getMessage()
@@ -390,6 +444,20 @@ class ProjectController extends Controller
             'startDate' => 'date',
             'endDate' => 'date|after:startDate'
         ]);
+
+        if ($request->endDate && $request->endDate !== $project->endDate) {
+            $otherActiveProject = Project::where('prodiId', $project->prodiId)
+                ->where('_id', '!=', $project->_id)
+                ->where('endDate', '>', now())
+                ->exists();
+
+            if ($otherActiveProject) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot update end date: Prodi already has another active project'
+                ], 400);
+            }
+        }
 
         $project->update([
             'name' => $request->name ?? $project->name,

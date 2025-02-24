@@ -115,7 +115,7 @@ class ProjectTemplateService
               'taskListId' => $taskList->_id,
               'no' => $taskData['no'],
               'sub' => $taskData['sub'],
-              'progress' => false,
+              'progress' => 0,
               'status' => 'UNASSIGNED',
               'order' => $order++
             ]);

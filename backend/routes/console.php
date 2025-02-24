@@ -10,6 +10,8 @@ Artisan::command('inspire', function () {
 
 Schedule::command('scrape:banpt')->cron('0 0 1,15 * *'); //jalan tiap tanggal 1 dan 15
 
+Schedule::command('projects:update-status')->everyMinute();
+
 Artisan::command('logs:clear', function () {
 
     foreach (glob(storage_path('logs/*.log')) as $file) {

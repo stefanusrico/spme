@@ -68,6 +68,16 @@ class User extends Model implements JWTSubject, AuthenticatableContract
         $this->attributes['password'] = Hash::make($value);
     }
 
+    public function createdProjects()
+    {
+        return $this->hasMany(Project::class, 'createdBy', '_id');
+    }
+
+    public function memberProjects()
+    {
+        return Project::where('members', $this->_id);
+    }
+
     /**
      * Find a user by their email.
      *

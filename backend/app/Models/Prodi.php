@@ -50,6 +50,17 @@ class Prodi extends Model
         return $this->belongsTo(JadwalLam::class, 'jadwalLamId', '_id');
     }
 
+    public function activeProject()
+    {
+        return $this->hasOne(Project::class, 'prodiId', '_id')
+            ->where('endDate', '>', now());
+    }
+
+    public function projects()
+    {
+        return $this->hasMany(Project::class, 'prodiId', '_id');
+    }
+
     public function getJurusanKeyword($name = null)
     {
         $prodiName = $name ?? $this->name;

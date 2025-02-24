@@ -9,6 +9,8 @@ import { useEffect, useMemo, useState } from "react"
 import axiosInstance from "../../../utils/axiosConfig"
 import ProgressBar from "../Chart/ProgressBar"
 import AddProjectModal from "../Modals/AddProjectModal"
+import { ToastContainer, toast } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
 
 const LoadingBar = () => (
   <div className="relative h-1 bg-gray-100 overflow-hidden">
@@ -172,9 +174,25 @@ const ProjectsTable = ({ isCollapsed }) => {
         setFormData({ name: "", startDate: "", endDate: "" })
         setShowModal(false)
         fetchProjects()
+        toast.success("Project created successfully!", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        })
       }
     } catch (err) {
       console.error("Error creating project:", err)
+      toast.error(err.response?.data?.message || "Failed to create project", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      })
     }
   }
 
@@ -219,6 +237,14 @@ const ProjectsTable = ({ isCollapsed }) => {
       }
     } catch (err) {
       console.error("Error fetching projects:", err)
+      toast.error("Failed to fetch projects", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      })
     } finally {
       setLoading(false)
     }
@@ -270,7 +296,7 @@ const ProjectsTable = ({ isCollapsed }) => {
                 <div className="absolute top-0 h-1 bg-blue loading-bar w-full"></div>
               </div>
             )}
-            <tbody>
+            <tbody className="mt-4">
               {loading ? (
                 <LoadingRow colSpan={columns.length} />
               ) : (
@@ -304,6 +330,18 @@ const ProjectsTable = ({ isCollapsed }) => {
         formData={formData}
         onInputChange={handleInputChange}
         onSubmit={handleSubmit}
+      />
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
       />
     </div>
   )

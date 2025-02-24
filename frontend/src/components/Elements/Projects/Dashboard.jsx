@@ -43,9 +43,15 @@ const TaskItem = ({ task, date, owner }) => {
 
 const TaskStatusChart = ({ statistics }) => {
   const data = [
-    { name: "In Progress", value: statistics.activeTasks, color: "#00D8FF" },
-    { name: "Open", value: statistics.openTasks || 0, color: "#4ADE80" },
-    { name: "Closed", value: statistics.completedTasks, color: "#EF4444" },
+    { name: "Active", value: statistics.activeTasks, color: "#00D8FF" },
+    { name: "Completed", value: statistics.completedTasks, color: "#4ADE80" },
+    {
+      name: "Unassigned",
+      value:
+        statistics.totalTasks -
+        (statistics.activeTasks + statistics.completedTasks),
+      color: "#EF4444",
+    },
   ]
 
   return (
@@ -87,9 +93,10 @@ const DashboardProject = ({ projectDetails }) => {
   today.setHours(0, 0, 0, 0)
 
   const getOverdueTasks = () => {
-    if (!projectDetails?.tasks?.ACTIVE) return []
+    if (!projectDetails?.tasks?.UNASSIGNED) return []
 
-    return projectDetails.tasks.ACTIVE.filter((task) => {
+    return projectDetails.tasks.UNASSIGNED.filter((task) => {
+      if (!task.endDate) return false
       const endDate = new Date(task.endDate)
       return endDate < today
     }).slice(0, 5)
@@ -99,6 +106,7 @@ const DashboardProject = ({ projectDetails }) => {
     if (!projectDetails?.tasks?.ACTIVE) return []
 
     return projectDetails.tasks.ACTIVE.filter((task) => {
+      if (!task.startDate) return false
       const startDate = new Date(task.startDate)
       startDate.setHours(0, 0, 0, 0)
       return startDate.toDateString() === today.toDateString()
@@ -106,9 +114,10 @@ const DashboardProject = ({ projectDetails }) => {
   }
 
   const getUpcomingTasks = () => {
-    if (!projectDetails?.tasks?.ACTIVE) return []
+    if (!projectDetails?.tasks?.UNASSIGNED) return []
 
-    return projectDetails.tasks.ACTIVE.filter((task) => {
+    return projectDetails.tasks.UNASSIGNED.filter((task) => {
+      if (!task.startDate) return false
       const startDate = new Date(task.startDate)
       startDate.setHours(0, 0, 0, 0)
       return startDate > today
@@ -124,11 +133,10 @@ const DashboardProject = ({ projectDetails }) => {
         )}
       </div>
 
-      {/* Overdue Work Items */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium mb-4">Overdue work items</h3>
+        <h3 className="text-lg font-medium mb-4">Unassigned Tasks</h3>
         <div className="space-y-2">
-          {getOverdueTasks().map((task) => (
+          {projectDetails?.tasks?.UNASSIGNED?.slice(0, 5).map((task) => (
             <TaskItem
               key={task.id}
               task={task.name}
@@ -136,39 +144,40 @@ const DashboardProject = ({ projectDetails }) => {
               owner={task.owners?.[0]}
             />
           ))}
-          {getOverdueTasks().length === 0 && (
-            <p className="text-gray-500 text-sm">No overdue tasks</p>
+          {(!projectDetails?.tasks?.UNASSIGNED ||
+            projectDetails.tasks.UNASSIGNED.length === 0) && (
+            <p className="text-gray-500 text-sm">No unassigned tasks</p>
           )}
         </div>
       </div>
 
-      {/* Today's Work Items */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium mb-4">Today's work items</h3>
+        <h3 className="text-lg font-medium mb-4">Active Tasks</h3>
         <div className="space-y-2">
-          {getTodaysTasks().map((task) => (
+          {projectDetails?.tasks?.ACTIVE?.slice(0, 5).map((task) => (
             <TaskItem key={task.id} task={task.name} owner={task.owners?.[0]} />
           ))}
-          {getTodaysTasks().length === 0 && (
-            <p className="text-gray-500 text-sm">No tasks for today</p>
+          {(!projectDetails?.tasks?.ACTIVE ||
+            projectDetails.tasks.ACTIVE.length === 0) && (
+            <p className="text-gray-500 text-sm">No active tasks</p>
           )}
         </div>
       </div>
 
-      {/* Upcoming Work Items */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium mb-4">Upcoming work items</h3>
+        <h3 className="text-lg font-medium mb-4">Completed Tasks</h3>
         <div className="space-y-2">
-          {getUpcomingTasks().map((task) => (
+          {projectDetails?.tasks?.COMPLETED?.slice(0, 5).map((task) => (
             <TaskItem
               key={task.id}
               task={task.name}
-              date={task.startDate}
+              date={task.endDate}
               owner={task.owners?.[0]}
             />
           ))}
-          {getUpcomingTasks().length === 0 && (
-            <p className="text-gray-500 text-sm">No upcoming tasks</p>
+          {(!projectDetails?.tasks?.COMPLETED ||
+            projectDetails.tasks.COMPLETED.length === 0) && (
+            <p className="text-gray-500 text-sm">No completed tasks</p>
           )}
         </div>
       </div>

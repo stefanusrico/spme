@@ -80,7 +80,7 @@ class TaskController extends Controller
             'taskListId' => $taskList->_id,
             'no' => $request->no,
             'sub' => $request->sub,
-            'progress' => false,
+            'progress' => 0,
             'owners' => $request->owners,
             'status' => 'UNASSIGNED',
             'startDate' => $request->startDate,
@@ -136,7 +136,7 @@ class TaskController extends Controller
                             'taskListId' => $taskList->_id,
                             'no' => $taskData['no'],
                             'sub' => $taskData['sub'],
-                            'progress' => false,
+                            'progress' => 0,
                             'status' => 'UNASSIGNED',
                             'order' => $order++
                         ]);
@@ -331,7 +331,7 @@ class TaskController extends Controller
         $request->validate([
             'no' => 'integer',
             'sub' => 'string|max:255',
-            'progress' => 'boolean',
+            'progress' => 'float',
             'owners' => 'array',
             'owners.*' => 'exists:users,_id',
             'status' => 'in:ACTIVE,COMPLETED,UNASSIGNED',

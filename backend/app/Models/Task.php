@@ -24,7 +24,7 @@ class Task extends Model
     ];
 
     protected $casts = [
-        'progress' => 'boolean',
+        'progress' => 'float',
         'startDate' => 'datetime',
         'endDate' => 'datetime',
         'owners' => 'array',
