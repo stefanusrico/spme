@@ -32,9 +32,10 @@ export const UserProvider = ({ children }) => {
           phone_number: data.phone_number || "",
           profile_picture: data.profile_picture || "",
           jurusan: data.jurusan || "",
+          prodi: data.prodi || "",
         })
 
-        localStorage.setItem("user",JSON.stringify(data))
+        localStorage.setItem("user", JSON.stringify(data))
       }
     } catch (error) {
       setError(error)

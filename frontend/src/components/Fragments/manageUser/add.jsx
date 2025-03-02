@@ -42,8 +42,6 @@ const AddUser = ({ title = "Add User" }) => {
 
         setRoles(rolesResponse.data.data)
         setJurusan(jurusanResponse.data)
-        console.log("tes", roles)
-        console.log("tes2", user)
       } catch (error) {
         console.error("Error fetching data:", error)
       }
@@ -51,26 +49,40 @@ const AddUser = ({ title = "Add User" }) => {
     fetchData()
   }, [])
 
+  useEffect(() => {
+    // Reset prodi when jurusan changes
+    setProdi([])
+    setUser((prev) => ({ ...prev, prodi: "" }))
+  }, [user.jurusan])
+
   const fetchProdi = async (id) => {
     try {
       const prodiResponse = await axiosInstance.get(`/prodi/${id}`)
       setProdi(prodiResponse.data)
-    } catch {
-      console.error("Error fetching data:", error)
+    } catch (error) {
+      console.error("Error fetching prodi:", error)
+      setProdi([])
     }
   }
 
   const handleJurusanChange = (id, name) => {
-    setUser({ ...user, jurusan: name, prodi: "" })
+    // Reset prodi when jurusan changes
+    setProdi([])
+
+    // Update user state with new jurusan and clear prodi
+    setUser((prev) => ({
+      ...prev,
+      jurusan: name,
+      prodi: "",
+    }))
+
+    // Fetch prodi for the selected jurusan
     fetchProdi(id)
-    console.log(user)
   }
 
   const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (file) {
-      console.log("masuk file", file)
-
       if (file.size > 5 * 1024 * 1024) {
         alert("Ukuran file terlalu besar (maksimal 5MB)")
         return
@@ -83,7 +95,6 @@ const AddUser = ({ title = "Add User" }) => {
 
       setPreviewImage(URL.createObjectURL(file))
       setUser({ ...user, profile_picture: file })
-      console.log("profile picture", user.profile_picture)
     }
   }
 
@@ -91,67 +102,109 @@ const AddUser = ({ title = "Add User" }) => {
     try {
       setIsLoading(true)
 
-      if (
-        !user.name ||
-        !user.email ||
-        !user.username ||
-        !user.role ||
-        !user.password ||
-        !user.verifPass ||
-        !user.jurusan ||
-        !user.prodi
-      ) {
-        alert("Nama, email, role, password dan username harus diisi")
+      // Reset error states
+      setError({
+        role: "",
+        jurusan: "",
+        prodi: "",
+      })
+
+      // Validation
+      const validationErrors = {
+        role: !user.role ? "Role harus dipilih" : "",
+        jurusan: !user.jurusan ? "Jurusan harus dipilih" : "",
+        prodi: !user.prodi ? "Program Studi harus dipilih" : "",
+      }
+
+      // Check all required fields
+      const requiredFields = [
+        "name",
+        "email",
+        "username",
+        "role",
+        "password",
+        "verifPass",
+        "jurusan",
+        "prodi",
+      ]
+
+      const missingFields = requiredFields.filter((field) => !user[field])
+
+      if (missingFields.length > 0) {
+        alert(`Harap lengkapi field berikut: ${missingFields.join(", ")}`)
+        setIsLoading(false)
         return
       }
 
+      // Additional validations
       if (user.password !== user.verifPass) {
-        alert("password yang dimasukan berbeda")
+        alert("Password yang dimasukkan berbeda")
+        setIsLoading(false)
+        return
+      }
+
+      // Set any validation errors
+      if (
+        validationErrors.role ||
+        validationErrors.jurusan ||
+        validationErrors.prodi
+      ) {
+        setError(validationErrors)
+        setIsLoading(false)
         return
       }
 
       let newProfilePicture = user.profile_picture
 
       if (user.profile_picture instanceof File) {
-        console.log("New file detected:", user.profile_picture)
-
         const uploadResponse = await uploadFile(
           user.profile_picture,
           "profile_pictures"
         )
-
-        console.log("Upload response received:", uploadResponse)
 
         if (uploadResponse.status === "success") {
           newProfilePicture =
             uploadResponse.file_path ||
             uploadResponse.path ||
             uploadResponse.url
-          console.log("New profile picture path:", newProfilePicture)
         } else {
           throw new Error("Gagal mengunggah foto profil")
         }
-      } else {
-        console.log("masuk sini")
       }
 
       const dataToStore = {
         ...user,
         profile_picture: newProfilePicture,
+        prodi: user.prodi, // Pastikan ini ada
       }
 
-      console.log("Final data to update:", dataToStore)
+      console.log(
+        "Data yang akan dikirim:",
+        JSON.stringify(dataToStore, null, 2)
+      )
 
       try {
-        console.log("gagal1")
         const response = await axiosInstance.post(`/users`, dataToStore)
-        console.log("berhasil", response)
+
+        // Log response lebih detail
+        console.log("Response dari backend:", {
+          data: response.data,
+          status: response.status,
+          headers: response.headers,
+        })
+
         navigate("/user-management/1")
       } catch (error) {
-        console.log("gagal")
+        console.error("Error creating user:", {
+          response: error.response?.data,
+          status: error.response?.status,
+          headers: error.response?.headers,
+        })
+        alert("Gagal membuat user. Silakan coba lagi.")
       }
     } catch (error) {
       console.error("Handle update error:", error)
+      alert("Terjadi kesalahan. Silakan coba lagi.")
     } finally {
       setIsLoading(false)
     }
@@ -302,15 +355,27 @@ const AddUser = ({ title = "Add User" }) => {
                 <Dropdown
                   label="Program Studi"
                   name="prodi"
-                  options={prodi.map((prodi) => ({
-                    id: prodi.id,
-                    value: prodi.name,
-                    label: prodi.name,
+                  options={prodi.map((prodiItem) => ({
+                    id: prodiItem.id,
+                    value: prodiItem.name,
+                    label: prodiItem.name,
                   }))}
                   value={user.prodi}
-                  onChange={(e) => setUser({ ...user, prodi: e.target.value })}
-                  disabled={isLoading || !user.jurusan}
-                  placeholder="Pilih Program Studi"
+                  onChange={(e) => {
+                    const selectedProdi = prodi.find(
+                      (p) => p.name === e.target.value
+                    )
+                    setUser({
+                      ...user,
+                      prodi: e.target.value,
+                    })
+                  }}
+                  disabled={isLoading || !user.jurusan || prodi.length === 0}
+                  placeholder={
+                    prodi.length === 0
+                      ? "Pilih Jurusan Dulu"
+                      : "Pilih Program Studi"
+                  }
                   error={error.prodi}
                 />
 

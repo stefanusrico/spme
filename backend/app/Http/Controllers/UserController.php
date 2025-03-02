@@ -62,6 +62,7 @@ class UserController extends Controller
                 'profile_picture' => $profilePicturePath,
                 'phone_number' => $request->phone_number,
                 'jurusan' => $request->jurusan,
+                'prodi' => $request->prodi,
                 'projects' => $request->projects ?? null,
             ]);
 

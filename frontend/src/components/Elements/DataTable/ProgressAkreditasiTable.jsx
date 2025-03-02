@@ -104,22 +104,22 @@ const ProgressAkreditasiTable = () => {
         <table id="default-table" ref={tableRef} className="w-full">
           <thead>
             <tr className="bg-gray-100">
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+              <th className="px-6 py-3 text-left text-sm font-semibold text-black">
                 Program Studi
               </th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+              <th className="px-6 py-3 text-left text-sm font-semibold text-black">
                 Start Date
               </th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+              <th className="px-6 py-3 text-left text-sm font-semibold text-black">
                 Completion Progress
               </th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+              <th className="px-6 py-3 text-left text-sm font-semibold text-black">
                 Submission Timestamp
               </th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+              <th className="px-6 py-3 text-left text-sm font-semibold text-black">
                 Submitted By
               </th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+              <th className="px-6 py-3 text-left text-sm font-semibold text-black">
                 Status
               </th>
             </tr>
@@ -127,10 +127,10 @@ const ProgressAkreditasiTable = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {projects.map((project) => (
               <tr key={project._id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm text-gray-900">
-                  {project.ownerProdi}
+                <td className="px-6 py-4 text-sm text-black">
+                  {project.prodiName}
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
+                <td className="px-6 py-4 text-sm text-black">
                   {formatTimestamp(project.startDate)}
                 </td>
                 <td className="px-6 py-4">
@@ -138,10 +138,10 @@ const ProgressAkreditasiTable = () => {
                     <ProgressBar progress={project.progress || 0} />
                   </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
+                <td className="px-6 py-4 text-sm text-black">
                   {formatTimestamp(project.updated_at)}
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
+                <td className="px-6 py-4 text-sm text-black">
                   {project.ownerName}
                 </td>
                 <td className="px-6 py-4">
