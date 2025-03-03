@@ -17,9 +17,16 @@ class RumusController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'nomor' => 'required|integer',
-            'sub' => 'required|string',
-            'rumus' => 'required|string',
+            'nomor' => 'required|string',
+            'sub' => 'nullable|string',
+            'formula_type' => 'required|string',
+            'reference_type' => 'nullable|string',
+            'reference_table' => 'nullable|string',
+            'conditions' => 'nullable|array',
+            'main_formula' => 'nullable|string',
+            'parameters' => 'nullable|array',
+            'description' => 'required|string',
+            'notes' => 'nullable|string',
         ]);
 
         $rumus = Rumus::create($request->all());
@@ -38,18 +45,46 @@ class RumusController extends Controller
         return response()->json($rumus);
     }
 
-    // Menampilkan data berdasarkan nomor dan sub
-    public function showByNomorAndSub($nomor, $sub)
+    // Menampilkan data berdasarkan nomor dan sub (opsional)
+    public function showByNomor($nomor, $sub = null)
     {
-        $rumus = Rumus::where('nomor', $nomor)
-            ->where('sub', $sub)
-            ->first();
+        $query = Rumus::where('nomor', $nomor);
 
-        if (!$rumus) {
+        if ($sub !== null) {
+            $query->where('sub', $sub);
+        }
+
+        $rumus = $query->get();
+
+        if ($rumus->isEmpty()) {
             return response()->json(['message' => 'Data tidak ditemukan'], 404);
         }
 
-        return response()->json($rumus);
+        // Jika sub ditentukan, biasanya hanya ada satu hasil
+        return response()->json($sub !== null ? $rumus->first() : $rumus);
+    }
+
+    // Menghitung skor berdasarkan rumus
+    public function calculate(Request $request, $nomor, $sub = null)
+    {
+        $rumus = Rumus::getByIndicator($nomor, $sub);
+
+        if (!$rumus) {
+            return response()->json(['message' => 'Rumus tidak ditemukan'], 404);
+        }
+
+        $values = $request->all();
+        $result = $rumus->calculateScore($values);
+
+        if ($result === null) {
+            return response()->json(['message' => 'Gagal menghitung skor. Periksa nilai input.'], 400);
+        }
+
+        return response()->json([
+            'rumus' => $rumus,
+            'input' => $values,
+            'result' => $result
+        ]);
     }
 
     // Memperbarui data
@@ -60,7 +95,20 @@ class RumusController extends Controller
             return response()->json(['message' => 'Data tidak ditemukan'], 404);
         }
 
-        $rumus->update($request->all());
+        $validated = $request->validate([
+            'nomor' => 'string',
+            'sub' => 'nullable|string',
+            'formula_type' => 'string',
+            'reference_type' => 'nullable|string',
+            'reference_table' => 'nullable|string',
+            'conditions' => 'nullable|array',
+            'main_formula' => 'nullable|string',
+            'parameters' => 'nullable|array',
+            'description' => 'string',
+            'notes' => 'nullable|string',
+        ]);
+
+        $rumus->update($validated);
 
         return response()->json($rumus);
     }
@@ -76,5 +124,29 @@ class RumusController extends Controller
         $rumus->delete();
 
         return response()->json(['message' => 'Data berhasil dihapus']);
+    }
+
+    // Mendapatkan rumus berdasarkan jenis referensi
+    public function getByReferenceType($referenceType)
+    {
+        $rumus = Rumus::where('reference_type', $referenceType)->get();
+
+        if ($rumus->isEmpty()) {
+            return response()->json(['message' => 'Data tidak ditemukan'], 404);
+        }
+
+        return response()->json($rumus);
+    }
+
+    // Mendapatkan rumus berdasarkan tabel referensi
+    public function getByReferenceTable($referenceTable)
+    {
+        $rumus = Rumus::where('reference_table', 'like', '%' . $referenceTable . '%')->get();
+
+        if ($rumus->isEmpty()) {
+            return response()->json(['message' => 'Data tidak ditemukan'], 404);
+        }
+
+        return response()->json($rumus);
     }
 }

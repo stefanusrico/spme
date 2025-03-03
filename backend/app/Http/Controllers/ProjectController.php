@@ -18,7 +18,7 @@ class ProjectController extends Controller
 {
     public function index()
     {
-        $projects = Project::with('prodi')->get();
+        $projects = Project::all();
 
         $projectsWithOwner = $projects->map(function ($project) {
             $owner = collect($project->members)

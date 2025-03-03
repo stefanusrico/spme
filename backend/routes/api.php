@@ -133,12 +133,15 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         });
 
         Route::prefix('rumus')->group(function () {
-            Route::get('/', [RumusController::class, 'index']);                   // GET - Menampilkan semua data
-            Route::post('/', [RumusController::class, 'store']);                  // POST - Menyimpan data baru
-            Route::get('/{id}', [RumusController::class, 'show']);                // GET - Menampilkan data berdasarkan ID
-            Route::put('/{id}', [RumusController::class, 'update']);              // PUT - Memperbarui data
-            Route::delete('/{id}', [RumusController::class, 'destroy']);           // DELETE - Menghapus data
-            Route::get('/{nomor}/{sub}', [RumusController::class, 'showByNomorAndSub']);
+            Route::get('/', [RumusController::class, 'index']);
+            Route::post('/', [RumusController::class, 'store']);
+            Route::get('/{id}', [RumusController::class, 'show']);
+            Route::put('/{id}', [RumusController::class, 'update']);
+            Route::delete('/{id}', [RumusController::class, 'destroy']);
+            Route::get('/reference-type/{referenceType}', [RumusController::class, 'getByReferenceType']);
+            Route::get('/reference-table/{referenceTable}', [RumusController::class, 'getByReferenceTable']);
+            Route::get('/nomor/{nomor}/{sub?}', [RumusController::class, 'showByNomor']);
+            Route::post('/calculate/{nomor}/{sub?}', [RumusController::class, 'calculate']);
         });
 
         Route::controller(JsonController::class)->group(function () {

@@ -1,71 +1,23 @@
-import React, { useState, useEffect, useCallback } from "react"
+import { UploadOutlined } from "@ant-design/icons"
 import {
-  Table,
   Button,
-  Upload,
-  message,
-  Tooltip,
   Checkbox,
-  Input,
   DatePicker,
+  Input,
+  message,
+  Table,
+  Tooltip,
+  Upload,
 } from "antd"
-import { ScissorOutlined, UploadOutlined } from "@ant-design/icons"
-import * as XLSX from "xlsx"
-import { evaluate } from "mathjs"
 import dayjs from "dayjs"
 import { debounce } from "lodash"
+import React, { useCallback, useEffect, useState } from "react"
+import * as XLSX from "xlsx"
+import { useUser } from "../../../context/userContext"
+import axiosInstance from "../../../utils/axiosConfig"
 
-// Custom Hooks
-const useUserData = () => {
-  const [id, setId] = useState(null)
-  const [prodi, setProdi] = useState(null)
-  const [loadingUser, setLoadingUser] = useState(true)
-  const [userError, setUserError] = useState(null)
-
-  useEffect(() => {
-    const fetchUserId = async () => {
-      setLoadingUser(true)
-      setUserError(null)
-      try {
-        const token = localStorage.getItem("token")
-        if (!token) {
-          setUserError("Token tidak ditemukan. Silakan login kembali.")
-          return
-        }
-        const response = await fetch("http://localhost:8000/api/user", {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        })
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`)
-        }
-        const userData = await response.json()
-        console.log(userData)
-        if (userData && userData.id && userData.jurusan) {
-          setId(userData.id)
-          setProdi(userData.jurusan)
-          console.log(userData.jurusan)
-        } else {
-          setUserError("Gagal mendapatkan ID user atau data prodi")
-        }
-      } catch (error) {
-        console.error("Error fetching user ID:", error)
-        setUserError("Terjadi kesalahan saat mengambil ID user.")
-      } finally {
-        setLoadingUser(false)
-      }
-    }
-    fetchUserId()
-  }, [])
-
-  return { id, prodi, loadingUser, userError }
-}
-
-const useFormulaData = (rumusId) => {
-  const [formula, setFormula] = useState("")
+const useFormulaData = (nomor, sub) => {
+  const [formula, setFormula] = useState(null)
   const [loadingFormula, setLoadingFormula] = useState(true)
   const [formulaError, setFormulaError] = useState(null)
 
@@ -74,27 +26,11 @@ const useFormulaData = (rumusId) => {
       setLoadingFormula(true)
       setFormulaError(null)
       try {
-        const token = localStorage.getItem("token")
-        if (!token) {
-          setFormulaError("Token tidak ditemukan. Silakan login kembali.")
-          return
-        }
-        const response = await fetch(
-          `http://localhost:8000/api/rumus/${rumusId}`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        )
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`)
-        }
-        const result = await response.json()
-        if (result && result.rumus) {
-          setFormula(result.rumus)
+        const response = await axiosInstance.get(`/rumus/nomor/${nomor}/${sub}`)
+        const result = response.data
+
+        if (result) {
+          setFormula(result)
         } else {
           setFormulaError("Gagal mengambil rumus dari backend.")
         }
@@ -105,13 +41,12 @@ const useFormulaData = (rumusId) => {
         setLoadingFormula(false)
       }
     }
-    fetchFormula(rumusId)
-  }, [rumusId])
+    fetchFormula()
+  }, [nomor, sub])
 
   return { formula, loadingFormula, formulaError }
 }
 
-// Table Components
 const DataTable = ({
   columns,
   dataSource,
@@ -127,9 +62,8 @@ const DataTable = ({
     size={size}
   />
 )
-
 const ProdiDataTable = ({ data, prodi, columns }) => {
-  const prodiColumns = columns.map((col) => ({ ...col, align: "center" })) // Align all prodi columns to center
+  const prodiColumns = columns.map((col) => ({ ...col, align: "center" }))
 
   return (
     <DataTable
@@ -163,7 +97,7 @@ const PolbanDataTable = ({ data, columns, handleCheckboxChange }) => {
   const polbanColumns = [
     ...columns.map((col) => ({ ...col, align: "center" })),
     polbanActionColumn,
-  ] // Align all polban columns to center and add action column
+  ]
 
   return (
     <DataTable
@@ -176,7 +110,6 @@ const PolbanDataTable = ({ data, columns, handleCheckboxChange }) => {
   )
 }
 
-// Score Display Component
 const ScoreDisplay = ({ score }) => {
   const scoreRounded = score !== null ? score.toFixed(2) : null
   const isGoodScore = scoreRounded > 3
@@ -203,30 +136,22 @@ const TataPamongSection = () => {
   const [polbanData, setPolbanData] = useState([])
   const [isUploaded, setIsUploaded] = useState(false)
   const [score, setScore] = useState(null)
-  const [formula, setFormula] = useState("")
   const [editingKey, setEditingKey] = useState(null)
 
-  const prodiId = "99999"
-  const a = 2,
-    b = 1,
-    c = 3
   const NDTPS = 87
-  const idRumus = "67ac99a45185102e280c5fa2"
+  const prodiId = "99999"
+  const nomorRumus = "10"
+  const subRumus = "A"
 
-  const { id: userId, prodi, loadingUser, userError } = useUserData()
-  const {
-    formula: fetchedFormula,
-    loadingFormula,
-    formulaError,
-  } = useFormulaData(idRumus)
+  const { userData, isLoading: loadingUser, error: userError } = useUser()
+  const { formula, loadingFormula, formulaError } = useFormulaData(
+    nomorRumus,
+    subRumus
+  )
+  console.log("userData: ", userData)
+  const prodi = userData?.prodi || ""
+  console.log("Prodi: ", prodi)
 
-  useEffect(() => {
-    if (fetchedFormula) {
-      setFormula(fetchedFormula)
-    }
-  }, [fetchedFormula])
-
-  // Excel Processing and Data Handling
   const processExcelData = useCallback(
     (workbook, prodi) => {
       const sheetName = workbook.SheetNames[0]
@@ -280,9 +205,9 @@ const TataPamongSection = () => {
             tanggalawal: "",
             tanggalakhir: "",
             buktikerjasama: row[requiredColumns.buktikerjasama] || "",
-            internasional: Boolean(row[requiredColumns.internasional]), // <-- Perbaikan 1: Konversi ke Boolean
-            nasional: Boolean(row[requiredColumns.nasional]), // <-- Perbaikan 1: Konversi ke Boolean
-            lokal: Boolean(row[requiredColumns.lokal]), // <-- Perbaikan 1: Konversi ke Boolean
+            internasional: Boolean(row[requiredColumns.internasional]),
+            nasional: Boolean(row[requiredColumns.nasional]),
+            lokal: Boolean(row[requiredColumns.lokal]),
             manfaat: row[requiredColumns.manfaat] || "",
             pendidikan: row[10] === true,
             penelitian: row[11] === true,
@@ -307,30 +232,101 @@ const TataPamongSection = () => {
   const calculateScore = useCallback(
     (dataToScore) => {
       if (formula) {
+        console.log("Formula yang diterima:", formula)
+
         const N1 = dataToScore.filter((item) => item.pendidikan).length
         const N2 = dataToScore.filter((item) => item.penelitian).length
         const N3 = dataToScore.filter((item) => item.pkm).length
+
+        console.log("Nilai input:", { N1, N2, N3, NDTPS })
+
         try {
-          const calculatedScore = evaluate(formula, {
-            N1,
-            N2,
-            N3,
-            a,
-            b,
-            c,
-            NDTPS,
-          })
+          const params = formula.parameters || {}
+          const a = params.a || 2
+          const b = params.b || 1
+          const c = params.c || 3
+
+          const formulaPart = formula.main_formula.split("=")[1].trim()
+          const mainFormulaString = formulaPart
+            .replace(/a/g, a)
+            .replace(/b/g, b)
+            .replace(/c/g, c)
+            .replace(/N1/g, N1)
+            .replace(/N2/g, N2)
+            .replace(/N3/g, N3)
+            .replace(/NDTPS/g, NDTPS)
+
+          console.log("Main Formula String:", mainFormulaString)
+
+          const RK = eval(mainFormulaString)
+          console.log("Nilai RK yang dihitung:", RK)
+
+          let calculatedScore = null
+
+          if (formula.conditions && formula.conditions.length > 0) {
+            for (const condition of formula.conditions) {
+              console.log("Memeriksa kondisi:", condition.condition)
+
+              let conditionString = condition.condition
+                .replace(/RK/g, RK)
+                .replace(/NDTPS/g, NDTPS)
+                .replace(/N1/g, N1)
+                .replace(/N2/g, N2)
+                .replace(/N3/g, N3)
+
+              console.log("Kondisi untuk dievaluasi:", conditionString)
+
+              let conditionMet = false
+              try {
+                conditionMet = eval(conditionString)
+              } catch (condErr) {
+                console.error("Error dalam evaluasi kondisi:", condErr)
+              }
+
+              if (conditionMet) {
+                console.log(
+                  "Kondisi terpenuhi, menggunakan formula:",
+                  condition.formula
+                )
+
+                let formulaString = condition.formula
+                  .replace(/RK/g, RK)
+                  .replace(/NDTPS/g, NDTPS)
+                  .replace(/N1/g, N1)
+                  .replace(/N2/g, N2)
+                  .replace(/N3/g, N3)
+
+                console.log("Formula untuk dievaluasi:", formulaString)
+
+                try {
+                  calculatedScore = eval(formulaString)
+                  console.log("Hasil perhitungan:", calculatedScore)
+                  break
+                } catch (evalErr) {
+                  console.error("Error dalam evaluasi formula:", evalErr)
+                }
+              }
+            }
+          }
+
+          if (calculatedScore === null) {
+            calculatedScore = RK >= 4 ? 4 : RK
+            console.log("Menggunakan nilai RK langsung:", calculatedScore)
+          }
+
           setScore(calculatedScore)
         } catch (err) {
+          console.error("Error dalam perhitungan:", err)
           message.error("Gagal menghitung hasil berdasarkan rumus.")
           setScore(null)
         }
       } else {
+        console.warn("Formula belum tersedia")
         message.warning("Rumus belum tersedia, silakan coba lagi.")
         setScore(null)
       }
     },
-    [formula, a, b, c, NDTPS]
+    [formula]
   )
 
   const handleUpload = (info) => {
@@ -344,7 +340,7 @@ const TataPamongSection = () => {
 
         setFilteredData(userProdiData)
         setPolbanData(unselectedPolbanData)
-        setData(processedData) // Store all processed data
+        setData(processedData)
         calculateScore(userProdiData)
 
         setIsUploaded(true)
@@ -389,7 +385,7 @@ const TataPamongSection = () => {
     )
     const combinedData = [...prodiItems, ...selectedPolbanItems]
 
-    setData(combinedData) // Update main data state
+    setData(combinedData)
     setFilteredData(combinedData)
     setPolbanData([])
     setShowPolbanTable(false)
@@ -412,8 +408,8 @@ const TataPamongSection = () => {
       )
       const userProdiData = newData.filter((item) => item.prodi === prodi)
       const combinedData = userProdiData.concat(selectedPolbanData)
-      setFilteredData(combinedData) // Perbarui filteredData
-      console.log("Filtered Data setelah perubahan:", combinedData) // Log combinedData yang sudah difilter
+      setFilteredData(combinedData)
+      console.log("Filtered Data setelah perubahan:", combinedData)
     },
     [data, setData, filteredData]
   )
@@ -421,14 +417,13 @@ const TataPamongSection = () => {
   const debouncedHandleDataChange = useCallback(
     debounce(handleDataChange, 300),
     [handleDataChange]
-  ) // 300ms delay
+  )
 
   const handleAddRow = useCallback(() => {
-    const newData = [...data] // Salin data state yang sudah ada
+    const newData = [...data]
     const newRow = {
-      // Buat objek data baris baru dengan nilai default kosong
-      key: Date.now(), // Gunakan timestamp sebagai key unik (bisa juga menggunakan library uuid)
-      prodi: prodi, // Set prodi sesuai dengan prodi user saat ini
+      key: Date.now(),
+      prodi: prodi,
       lembagamitra: "",
       internasional: null,
       nasional: null,
@@ -438,19 +433,18 @@ const TataPamongSection = () => {
       tanggalawal: null,
       tanggalakhir: null,
       buktikerjasama: "",
-      selected: false, // Default selected false untuk baris baru
+      selected: false,
     }
-    newData.push(newRow) // Tambahkan baris baru ke newData
-    setData(newData) // Update state data dengan baris baru
+    newData.push(newRow)
+    setData(newData)
 
-    // Update filteredData agar baris baru langsung muncul di tabel
     const selectedPolbanData = newData.filter(
       (item) => item.prodi === "Polban" && item.selected
     )
     const userProdiData = newData.filter((item) => item.prodi === prodi)
     const combinedData = userProdiData.concat(selectedPolbanData)
     setFilteredData(combinedData)
-    console.log("Baris baru ditambahkan:", newRow) // Log untuk debugging
+    console.log("Baris baru ditambahkan:", newRow)
   }, [data, setData, prodi, setFilteredData])
 
   const prodiDataTableColumns = [
@@ -504,12 +498,12 @@ const TataPamongSection = () => {
               <Checkbox
                 checked={Boolean(text)}
                 onChange={(e) => {
-                  console.log("Internasional Checkbox onChange TERPICU!") // Tambahkan console.log
-                  console.log("  e.target.checked:", e.target.checked) // Log nilai e.target.checked
+                  console.log("Internasional Checkbox onChange TERPICU!")
+                  console.log("  e.target.checked:", e.target.checked)
                   console.log(
                     "  Mengirim ke debouncedHandleDataChange:",
                     e.target.checked
-                  ) // Log nilai yang dikirim
+                  )
                   debouncedHandleDataChange(
                     record.key,
                     "internasional",
@@ -544,12 +538,12 @@ const TataPamongSection = () => {
               <Checkbox
                 checked={Boolean(text)}
                 onChange={(e) => {
-                  console.log("Nasional Checkbox onChange TERPICU!") // Tambahkan console.log
-                  console.log("  e.target.checked:", e.target.checked) // Log nilai e.target.checked
+                  console.log("Nasional Checkbox onChange TERPICU!")
+                  console.log("  e.target.checked:", e.target.checked)
                   console.log(
                     "  Mengirim ke debouncedHandleDataChange:",
                     e.target.checked
-                  ) // Log nilai yang dikirim
+                  )
                   debouncedHandleDataChange(
                     record.key,
                     "nasional",
@@ -584,12 +578,12 @@ const TataPamongSection = () => {
               <Checkbox
                 checked={Boolean(text)}
                 onChange={(e) => {
-                  console.log("Lokal Checkbox onChange TERPICU!") // Tambahkan console.log
-                  console.log("  e.target.checked:", e.target.checked) // Log nilai e.target.checked
+                  console.log("Lokal Checkbox onChange TERPICU!")
+                  console.log("  e.target.checked:", e.target.checked)
                   console.log(
                     "  Mengirim ke debouncedHandleDataChange:",
                     e.target.checked
-                  ) // Log nilai yang dikirim
+                  )
                   debouncedHandleDataChange(
                     record.key,
                     "lokal",
@@ -660,14 +654,12 @@ const TataPamongSection = () => {
             onBlur={() => setEditingKey(null)}
           />
         ) : (
-          // Kondisi DIHAPUS: Input selalu bisa di-trigger, bahkan saat kolom kosong
           <span
             onClick={() => setEditingKey(record.key)}
             style={{ cursor: "pointer" }}
           >
             {text || "Tuliskan Manfaat!"}
           </span>
-          // Placeholder "-" tetap ditampilkan jika text kosong
         )
       },
     },
@@ -679,29 +671,24 @@ const TataPamongSection = () => {
       render: (text, record) => {
         const isEditing = record.key === editingKey
         return isEditing ? (
-          <DatePicker // <-- Kembali ke onChange, HAPUS onBlur dan onOpenChange
+          <DatePicker
             defaultValue={text ? dayjs(text) : null}
             format="YYYY-MM-DD"
             onChange={(date, dateString) => {
-              // <-- Gunakan kembali onChange
               console.log(
                 "DatePicker Tanggal Awal onChange TERPICU! Nilai dateString:",
                 dateString
               )
-              debouncedHandleDataChange(record.key, "tanggalawal", dateString) // <-- Kembalikan debouncedHandleDataChange
+              debouncedHandleDataChange(record.key, "tanggalawal", dateString)
             }}
-            // onBlur={() => setEditingKey(null)} // <-- HAPUS onBlur sepenuhnya
-            // onOpenChange={() => { if (!open) { setEditingKey(null); } }} // <-- HAPUS onOpenChange sepenuhnya
           />
         ) : (
-          // Kondisi DIHAPUS: Input selalu bisa di-trigger, bahkan saat kolom kosong
           <span
             onClick={() => setEditingKey(record.key)}
             style={{ cursor: "pointer" }}
           >
             {text || "Pilih tanggal"}
           </span>
-          // Placeholder "-" tetap ditampilkan jika text kosong
         )
       },
     },
@@ -713,29 +700,24 @@ const TataPamongSection = () => {
       render: (text, record) => {
         const isEditing = record.key === editingKey
         return isEditing ? (
-          <DatePicker // <-- Kembali ke onChange, HAPUS onBlur dan onOpenChange
+          <DatePicker
             defaultValue={text ? dayjs(text) : null}
             format="YYYY-MM-DD"
             onChange={(date, dateString) => {
-              // <-- Gunakan kembali onChange
               console.log(
                 "DatePicker Tanggal Akhir onChange TERPICU! Nilai dateString:",
                 dateString
               )
-              debouncedHandleDataChange(record.key, "tanggalakhir", dateString) // <-- Kembalikan debouncedHandleDataChange
+              debouncedHandleDataChange(record.key, "tanggalakhir", dateString)
             }}
-            // onBlur={() => setEditingKey(null)} // <-- HAPUS onBlur sepenuhnya
-            // onOpenChange={() => { if (!open) { setEditingKey(null); } }} // <-- HAPUS onOpenChange sepenuhnya
           />
         ) : (
-          // Kondisi DIHAPUS: Input selalu bisa di-trigger, bahkan saat kolom kosong
           <span
             onClick={() => setEditingKey(record.key)}
             style={{ cursor: "pointer" }}
           >
             {text || "Pilih tanggal"}
           </span>
-          // Placeholder "-" tetap ditampilkan jika text kosong
         )
       },
     },
@@ -744,10 +726,9 @@ const TataPamongSection = () => {
       dataIndex: "buktikerjasama",
       key: "buktikerjasama",
       render: (text, record) => {
-        // Modifikasi fungsi render
         const isEditing = record.key === editingKey
         return isEditing ? (
-          <Input // Mode Edit: Tampilkan Input
+          <Input
             defaultValue={text}
             onChange={(e) =>
               debouncedHandleDataChange(
@@ -758,8 +739,7 @@ const TataPamongSection = () => {
             }
             onBlur={() => setEditingKey(null)}
           />
-        ) : // Mode Tampilan: Tampilkan Link atau "-"
-        text ? ( // Pastikan text tidak kosong atau null
+        ) : text ? (
           <a href={text} target="_blank" rel="noopener noreferrer">
             Link
           </a>
@@ -769,13 +749,13 @@ const TataPamongSection = () => {
             style={{ cursor: "pointer" }}
           >
             {text || "Masukkan Link"}
-          </span> // Atau tampilan lain jika tidak ada link, contoh: "-" atau "Tidak Ada"
+          </span>
         )
       },
     },
   ]
 
-  const polbanDataTableColumns = [...prodiDataTableColumns] // Re-use prodi columns, Polban table has same columns
+  const polbanDataTableColumns = [...prodiDataTableColumns]
 
   if (loadingUser || loadingFormula) return <div>Loading...</div>
   if (userError || formulaError)
@@ -785,6 +765,15 @@ const TataPamongSection = () => {
     <div>
       <h2>1. Tata Pamong, Tata Kelola, dan Kerjasama</h2>
       <h3>a. Kerjasama</h3>
+      {formula && (
+        <div style={{ marginBottom: "16px" }}>
+          <h4>Rumus:</h4>
+          <p>{formula.main_formula}</p>
+          <p>{formula.description}</p>
+          <p>NDTPS: {NDTPS}</p>
+          <p>Catatan: {formula.notes}</p>
+        </div>
+      )}
       <Upload
         beforeUpload={() => false}
         onChange={handleUpload}
