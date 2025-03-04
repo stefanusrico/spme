@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import InputForm from "../../Elements/Input/index"
-import Label from "../../Elements/Input/Label"
 import Button from "../../Elements/Button/index"
 import Dropdown from "../../Elements/Dropdown"
 import { uploadFile } from "../../Elements/Profile/profile.action"
@@ -17,8 +16,8 @@ const EditUser = ({ title = "Edit User" }) => {
     username: "",
     phone_number: "",
     profile_picture: "",
-    jurusan: "",
-    prodi: ""
+    jurusanId: "",
+    prodiId: "",
   })
   const [roles, setRoles] = useState([])
   const [jurusan, setJurusan] = useState([])
@@ -36,14 +35,23 @@ const EditUser = ({ title = "Edit User" }) => {
         const rolesResponse = await axiosInstance.get("/roles")
         const jurusanResponse = await axiosInstance.get("/jurusan")
 
-        setUser(userResponse.data.data)
+        const userData = userResponse.data.data
+
+        // Map old fields to new fields if necessary
+        setUser({
+          ...userData,
+          jurusanId: userData.jurusanId || userData.jurusan,
+          prodiId: userData.prodiId || userData.prodi,
+        })
+
         setRoles(rolesResponse.data.data)
         setJurusan(jurusanResponse.data)
-        setPreviewImage(userResponse.data.data.profile_picture)
+        setPreviewImage(userData.profile_picture)
 
-        console.log("tes", userResponse)
-        console.log("tes2", user)
-        console.log("path image : ", user.profile_picture)
+        // If jurusanId exists, fetch corresponding prodi
+        if (userData.jurusanId) {
+          fetchProdi(userData.jurusanId)
+        }
       } catch (error) {
         console.error("Error fetching data:", error)
       }
@@ -51,27 +59,28 @@ const EditUser = ({ title = "Edit User" }) => {
     fetchData()
   }, [id])
 
-  const fetchProdi = async (id) => {
-    try{
-      const prodiResponse = await axiosInstance.get(`/prodi/${id}`)
+  const fetchProdi = async (jurusanId) => {
+    try {
+      const prodiResponse = await axiosInstance.get(`/prodi/${jurusanId}`)
       setProdi(prodiResponse.data)
-    }catch{
-      console.error("Error fetching data:", error)
+    } catch (error) {
+      console.error("Error fetching prodi:", error)
+      setProdi([])
     }
   }
 
-  const handleJurusanChange = (id, name) => {    
-    setUser({ ...user, jurusan: name, prodi: "" }) 
-    fetchProdi(id); 
-    console.log(user);
-    
-  };
+  const handleJurusanChange = (jurusanId) => {
+    setUser((prev) => ({
+      ...prev,
+      jurusanId: jurusanId,
+      prodiId: "",
+    }))
+    fetchProdi(jurusanId)
+  }
 
   const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (file) {
-      console.log("masuk file", file)
-
       if (file.size > 5 * 1024 * 1024) {
         alert("Ukuran file terlalu besar (maksimal 5MB)")
         return
@@ -84,58 +93,63 @@ const EditUser = ({ title = "Edit User" }) => {
 
       setPreviewImage(URL.createObjectURL(file))
       setUser({ ...user, profile_picture: file })
-      console.log("profile picture", user.profile_picture)
     }
   }
 
   const handleChange = async () => {
     try {
       setIsLoading(true)
-      console.log("cek sebelum update : ", user)
-      if (!user.name || !user.email || !user.username || !user.role || !user.jurusan || !user.prodi) {
-        alert("Nama, email, role, dan username harus diisi")
+
+      // Validate required fields
+      if (
+        !user.name ||
+        !user.email ||
+        !user.username ||
+        !user.role ||
+        !user.jurusanId ||
+        !user.prodiId
+      ) {
+        alert("Semua field harus diisi")
         return
       }
 
       let newProfilePicture = user.profile_picture
 
+      // Upload profile picture if it's a new file
       if (user.profile_picture instanceof File) {
-        console.log("New file detected:", user.profile_picture)
-
         const uploadResponse = await uploadFile(
           user.profile_picture,
           "profile_pictures"
         )
-
-        console.log("Upload response received:", uploadResponse)
 
         if (uploadResponse.status === "success") {
           newProfilePicture =
             uploadResponse.file_path ||
             uploadResponse.path ||
             uploadResponse.url
-          console.log("New profile picture path:", newProfilePicture)
         } else {
           throw new Error("Gagal mengunggah foto profil")
         }
-      } else {
-        console.log("masuk sini")
       }
 
+      // Prepare data for update
       const dataToUpdate = {
-        ...user,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        phone_number: user.phone_number,
         profile_picture: newProfilePicture,
+        jurusanId: user.jurusanId,
+        prodiId: user.prodiId,
       }
-
-      console.log("Final data to update:", dataToUpdate)
 
       try {
-        console.log("gagal1")
         const response = await axiosInstance.put(`/users/${id}`, dataToUpdate)
-        console.log("berhasil", response)
         navigate("/user-management")
       } catch (error) {
-        console.log("gagal")
+        console.error("Update error:", error)
+        alert("Gagal memperbarui user")
       }
     } catch (error) {
       console.error("Handle update error:", error)
@@ -149,14 +163,13 @@ const EditUser = ({ title = "Edit User" }) => {
       <div className="w-full">
         <h2 className="text-3xl font-semibold mt-5">{title}</h2>
         <div className="h-[80vh] mt-5 overflow-y-auto bg-white shadow-lg radius rounded-lg">
-          <div className=" items-center flex-grow">
+          <div className="items-center flex-grow">
             <div className="mt-8 ml-8 flex items-center space-x-8">
               <img
                 src={
-                  previewImage ||
-                  (user.profile_picture
-                    ? `http://localhost:8000/storage/${user.profile_picture}`
-                    : "/default-avatar.png")
+                  previewImage
+                    ? `http://localhost:8000/storage/${previewImage}`
+                    : "/default-avatar.png"
                 }
                 alt="User Avatar"
                 className="inline-block h-[110px] w-[110px] rounded-full object-cover object-center"
@@ -218,11 +231,9 @@ const EditUser = ({ title = "Edit User" }) => {
                   value={user.role}
                   onChange={(e) => setUser({ ...user, role: e.target.value })}
                   disabled={isLoading}
-                  className="mb-6 "
-                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
-                  placeholder={user.role? user.role : "Pilih Role"}
-                  // error={error.role}
-                ></Dropdown>
+                  className="mb-6"
+                  placeholder={user.role || "Pilih Role"}
+                />
 
                 <InputForm
                   label="Username"
@@ -239,7 +250,7 @@ const EditUser = ({ title = "Edit User" }) => {
                 />
 
                 <InputForm
-                  label="Phone_number"
+                  label="Phone Number"
                   type="tel"
                   placeholder="08xxxxxxxxxx"
                   name="phone_number"
@@ -267,40 +278,41 @@ const EditUser = ({ title = "Edit User" }) => {
 
                 <Dropdown
                   label="Jurusan"
-                  name="jurusan"
-                  options={jurusan.map((jurusan) => ({
-                    id: jurusan.id,
-                    value: jurusan.id,
-                    label: jurusan.name,
+                  name="jurusanId"
+                  options={jurusan.map((j) => ({
+                    id: j.id,
+                    value: j.id,
+                    label: j.name,
                   }))}
-                  value={user.jurusan}
+                  value={user.jurusanId}
                   onChange={(e) => {
-                    const selectedJurusan = jurusan.find((j) => j.id === e.target.value); 
-                    handleJurusanChange(e.target.value, selectedJurusan?.name || '');
+                    handleJurusanChange(e.target.value)
                   }}
                   disabled={isLoading}
-                  className="mb-6 "
-                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
-                  placeholder={user.jurusan? user.jurusan : "Pilih Jurusan"}
-                  // error={error?.jurusan}
-                ></Dropdown>
+                  className="mb-6"
+                  placeholder={
+                    user.jurusanId ? "Jurusan Terpilih" : "Pilih Jurusan"
+                  }
+                />
 
                 <Dropdown
                   label="Program Studi"
-                  name="prodi"
-                  options={prodi.map((prodi) => ({
-                    id: prodi.id,
-                    value: prodi.name,
-                    label: prodi.name,
+                  name="prodiId"
+                  options={prodi.map((p) => ({
+                    id: p.id,
+                    value: p.id,
+                    label: p.name,
                   }))}
-                  value={user.prodi}
-                  onChange={(e) => setUser({ ...user, prodi: e.target.value })}
-                  disabled={isLoading || !user.jurusan}
-                  className="mb-6 "
-                  // classNameLabel="block text-sm font-medium text-gray-700 mb-2 ml-2"
-                  placeholder="Pilih Program Studi"
-                  // error={error?.prodi}
-                ></Dropdown>
+                  value={user.prodiId}
+                  onChange={(e) =>
+                    setUser({ ...user, prodiId: e.target.value })
+                  }
+                  disabled={isLoading || !user.jurusanId}
+                  className="mb-6"
+                  placeholder={
+                    user.prodiId ? "Prodi Terpilih" : "Pilih Program Studi"
+                  }
+                />
               </div>
             </div>
             <div className="mt-10 ml-8 flex space-x-96">

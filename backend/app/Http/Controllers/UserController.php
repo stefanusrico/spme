@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Jurusan;
+use App\Models\Prodi;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -13,7 +14,7 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::all();
+        $users = User::with(['jurusan', 'prodi'])->get();
         return response()->json([
             'status' => 'success',
             'data' => $users
@@ -28,11 +29,10 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'username' => 'nullable|string|unique:users,username',
             'role' => 'required|string',
-            // 'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
             'profile_picture' => 'nullable|string|max:255',
             'phone_number' => 'required|unique:users,phone_number|string',
-            'jurusan' => 'required|string',
-            'prodi' => 'required|string',
+            'jurusanId' => 'required|exists:jurusans,_id',
+            'prodiId' => 'required|exists:prodis,_id',
             'projects' => 'nullable|array',
         ]);
 
@@ -61,10 +61,13 @@ class UserController extends Controller
                 'role' => $request->role,
                 'profile_picture' => $profilePicturePath,
                 'phone_number' => $request->phone_number,
-                'jurusan' => $request->jurusan,
-                'prodi' => $request->prodi,
+                'jurusanId' => $request->jurusanId,
+                'prodiId' => $request->prodiId,
                 'projects' => $request->projects ?? null,
             ]);
+
+            // Reload with relationships
+            $user->load('jurusan', 'prodi');
 
             return response()->json([
                 'status' => 'success',
@@ -79,21 +82,16 @@ class UserController extends Controller
         }
     }
 
-
-    /**
-     * Get the authenticated user's data.
-     */
     public function getAuthenticatedUserData(Request $request)
     {
-        $user = Auth::user();
-
+        $user = Auth::user()->load('jurusan', 'prodi');
         return response()->json($user);
     }
 
     public function show($id)
     {
         try {
-            $user = User::findOrFail($id);
+            $user = User::with(['jurusan', 'prodi'])->findOrFail($id);
 
             if ($user->profile_picture) {
                 $user->profile_picture = asset('storage/' . $user->profile_picture);
@@ -111,37 +109,6 @@ class UserController extends Controller
         }
     }
 
-    public function uploadFile(Request $request)
-    {
-        try {
-            $validator = Validator::make($request->all(), [
-                'file' => 'required|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048',
-                'directory' => 'required|string'
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => 'error',
-                    'errors' => $validator->errors()
-                ], 400);
-            }
-
-            $filePath = $request->file('file')->store($request->directory, 'public');
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'File uploaded successfully',
-                'file_path' => $filePath
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to upload file: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-
     public function update(Request $request, $id)
     {
         try {
@@ -154,8 +121,8 @@ class UserController extends Controller
                 'username' => 'sometimes|string|unique:users,username,' . $id,
                 'profile_picture' => 'sometimes|nullable|string',
                 'role' => 'sometimes|string',
-                'jurusan' => 'required|string',
-                'prodi' => 'required|string',
+                'jurusanId' => 'sometimes|exists:jurusans,_id',
+                'prodiId' => 'sometimes|exists:prodis,_id',
             ]);
 
             if ($validator->fails()) {
@@ -172,13 +139,13 @@ class UserController extends Controller
                 'username',
                 'profile_picture',
                 'role',
-                'prodi',
-                'jurusan'
+                'prodiId',
+                'jurusanId'
             ]));
 
             $user->save();
 
-            $user->refresh();
+            $user->refresh()->load('jurusan', 'prodi');
 
             return response()->json([
                 'status' => 'success',

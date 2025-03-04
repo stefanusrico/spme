@@ -17,8 +17,8 @@ const AddUser = ({ title = "Add User" }) => {
     verifPass: "",
     phone_number: "",
     profile_picture: "",
-    jurusan: "",
-    prodi: "",
+    jurusanId: "",
+    prodiId: "",
   })
   const [roles, setRoles] = useState([])
   const [jurusan, setJurusan] = useState([])
@@ -28,8 +28,8 @@ const AddUser = ({ title = "Add User" }) => {
 
   const [error, setError] = useState({
     role: "",
-    jurusan: "",
-    prodi: "",
+    jurusanId: "",
+    prodiId: "",
   })
 
   const fileInputRef = useRef(null)
@@ -52,8 +52,8 @@ const AddUser = ({ title = "Add User" }) => {
   useEffect(() => {
     // Reset prodi when jurusan changes
     setProdi([])
-    setUser((prev) => ({ ...prev, prodi: "" }))
-  }, [user.jurusan])
+    setUser((prev) => ({ ...prev, prodiId: "" }))
+  }, [user.jurusanId])
 
   const fetchProdi = async (id) => {
     try {
@@ -65,15 +65,15 @@ const AddUser = ({ title = "Add User" }) => {
     }
   }
 
-  const handleJurusanChange = (id, name) => {
+  const handleJurusanChange = (id) => {
     // Reset prodi when jurusan changes
     setProdi([])
 
-    // Update user state with new jurusan and clear prodi
+    // Update user state with new jurusanId and clear prodiId
     setUser((prev) => ({
       ...prev,
-      jurusan: name,
-      prodi: "",
+      jurusanId: id,
+      prodiId: "",
     }))
 
     // Fetch prodi for the selected jurusan
@@ -105,15 +105,15 @@ const AddUser = ({ title = "Add User" }) => {
       // Reset error states
       setError({
         role: "",
-        jurusan: "",
-        prodi: "",
+        jurusanId: "",
+        prodiId: "",
       })
 
       // Validation
       const validationErrors = {
         role: !user.role ? "Role harus dipilih" : "",
-        jurusan: !user.jurusan ? "Jurusan harus dipilih" : "",
-        prodi: !user.prodi ? "Program Studi harus dipilih" : "",
+        jurusanId: !user.jurusanId ? "Jurusan harus dipilih" : "",
+        prodiId: !user.prodiId ? "Program Studi harus dipilih" : "",
       }
 
       // Check all required fields
@@ -124,8 +124,9 @@ const AddUser = ({ title = "Add User" }) => {
         "role",
         "password",
         "verifPass",
-        "jurusan",
-        "prodi",
+        "phone_number",
+        "jurusanId",
+        "prodiId",
       ]
 
       const missingFields = requiredFields.filter((field) => !user[field])
@@ -146,8 +147,8 @@ const AddUser = ({ title = "Add User" }) => {
       // Set any validation errors
       if (
         validationErrors.role ||
-        validationErrors.jurusan ||
-        validationErrors.prodi
+        validationErrors.jurusanId ||
+        validationErrors.prodiId
       ) {
         setError(validationErrors)
         setIsLoading(false)
@@ -175,8 +176,15 @@ const AddUser = ({ title = "Add User" }) => {
       const dataToStore = {
         ...user,
         profile_picture: newProfilePicture,
-        prodi: user.prodi, // Pastikan ini ada
+        // Remove unnecessary fields
+        phone_number: user.phone_number,
+        // Ensure correct field names match backend
+        jurusanId: user.jurusanId,
+        prodiId: user.prodiId,
       }
+
+      // Remove verifPass before sending
+      delete dataToStore.verifPass
 
       console.log(
         "Data yang akan dikirim:",
@@ -186,7 +194,6 @@ const AddUser = ({ title = "Add User" }) => {
       try {
         const response = await axiosInstance.post(`/users`, dataToStore)
 
-        // Log response lebih detail
         console.log("Response dari backend:", {
           data: response.data,
           status: response.status,
@@ -303,7 +310,7 @@ const AddUser = ({ title = "Add User" }) => {
                 />
 
                 <InputForm
-                  label="Phone_number"
+                  label="Phone Number"
                   type="tel"
                   placeholder="08xxxxxxxxxx"
                   name="phone_number"
@@ -331,52 +338,45 @@ const AddUser = ({ title = "Add User" }) => {
 
                 <Dropdown
                   label="Jurusan"
-                  name="jurusan"
-                  options={jurusan.map((jurusan) => ({
-                    id: jurusan.id,
-                    value: jurusan.id,
-                    label: jurusan.name,
+                  name="jurusanId"
+                  options={jurusan.map((j) => ({
+                    id: j.id,
+                    value: j.id,
+                    label: j.name,
                   }))}
-                  value={user.jurusan}
+                  value={user.jurusanId}
                   onChange={(e) => {
-                    const selectedJurusan = jurusan.find(
-                      (j) => j.id === e.target.value
-                    )
-                    handleJurusanChange(
-                      e.target.value,
-                      selectedJurusan?.name || ""
-                    )
+                    handleJurusanChange(e.target.value)
                   }}
                   disabled={isLoading}
-                  placeholder={user.jurusan ? user.jurusan : "Pilih Jurusan"}
-                  error={error.jurusan}
+                  placeholder={
+                    user.jurusanId ? "Jurusan Terpilih" : "Pilih Jurusan"
+                  }
+                  error={error.jurusanId}
                 />
 
                 <Dropdown
                   label="Program Studi"
-                  name="prodi"
-                  options={prodi.map((prodiItem) => ({
-                    id: prodiItem.id,
-                    value: prodiItem.name,
-                    label: prodiItem.name,
+                  name="prodiId"
+                  options={prodi.map((p) => ({
+                    id: p.id,
+                    value: p.id,
+                    label: p.name,
                   }))}
-                  value={user.prodi}
+                  value={user.prodiId}
                   onChange={(e) => {
-                    const selectedProdi = prodi.find(
-                      (p) => p.name === e.target.value
-                    )
                     setUser({
                       ...user,
-                      prodi: e.target.value,
+                      prodiId: e.target.value,
                     })
                   }}
-                  disabled={isLoading || !user.jurusan || prodi.length === 0}
+                  disabled={isLoading || !user.jurusanId || prodi.length === 0}
                   placeholder={
                     prodi.length === 0
                       ? "Pilih Jurusan Dulu"
                       : "Pilih Program Studi"
                   }
-                  error={error.prodi}
+                  error={error.prodiId}
                 />
 
                 <InputForm
@@ -394,7 +394,7 @@ const AddUser = ({ title = "Add User" }) => {
                 />
 
                 <InputForm
-                  label="VerifPass"
+                  label="Verify Password"
                   type="password"
                   placeholder="******"
                   name="verifPass"
@@ -419,11 +419,11 @@ const AddUser = ({ title = "Add User" }) => {
               </Button>
               <Button
                 className="bg-primary w-40 hover:bg-white hover:text-primary"
-                aria-label="Update"
+                aria-label="Add"
                 onClick={handleChange}
                 disabled={isLoading}
               >
-                {isLoading ? "Add..." : "Add"}
+                {isLoading ? "Adding..." : "Add"}
               </Button>
             </div>
           </div>
