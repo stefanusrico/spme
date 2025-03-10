@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from "react"
-import {
-  useReactTable,
-  getCoreRowModel,
-  flexRender,
-  createColumnHelper,
-} from "@tanstack/react-table"
-import { format } from "date-fns"
 import axiosInstance from "../../../utils/axiosConfig"
-import { useParams } from "react-router-dom"
-import AddMemberModal from "../Modals/AddMember"
+import { useUser } from "../../../context/userContext"
+import AddMemberModal from "../Modals/AddMemberModal"
+import RoleSelectModal from "../Modals/RoleSelectModal"
+import { format } from "date-fns"
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
 
 const LoadingBar = () => (
   <div className="relative mt-2 h-1 bg-gray overflow-hidden">
@@ -17,7 +19,32 @@ const LoadingBar = () => (
 )
 
 const LoadingRow = ({ columnLength }) => {
-  const skeletonData = [1, 2, 3]
+  const skeletonData = [
+    {
+      userId: "USR-001",
+      name: "Loading user...",
+      email: "loading@example.com",
+      role: "user",
+      joinedAt: new Date(),
+      profile_picture: null,
+    },
+    {
+      userId: "USR-002",
+      name: "Please wait...",
+      email: "wait@example.com",
+      role: "user",
+      joinedAt: new Date(),
+      profile_picture: null,
+    },
+    {
+      userId: "USR-003",
+      name: "Fetching data...",
+      email: "fetching@example.com",
+      role: "user",
+      joinedAt: new Date(),
+      profile_picture: null,
+    },
+  ]
 
   return (
     <>
@@ -34,104 +61,251 @@ const LoadingRow = ({ columnLength }) => {
   )
 }
 
-const Members = () => {
-  const { projectId } = useParams()
-  const [members, setMembers] = useState([])
-  const [loading, setLoading] = useState(true)
+const Members = ({ projectId, userRole, members = [], onMembersUpdate }) => {
+  const [showAddDrawer, setShowAddDrawer] = useState(false)
+  const [showRoleDrawer, setShowRoleDrawer] = useState(false)
+  const [selectedMember, setSelectedMember] = useState(null)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [showModal, setShowModal] = useState(false)
+  const [availableRoles, setAvailableRoles] = useState([])
+  const { userData } = useUser()
 
-  const columnHelper = createColumnHelper()
+  const canManageMembers =
+    userRole?.toLowerCase() === "owner" || userRole?.toLowerCase() === "admin"
 
-  const columns = useMemo(
-    () => [
-      columnHelper.accessor("name", {
-        header: "NAME",
-        cell: (info) => info.getValue(),
-      }),
-      columnHelper.accessor("email", {
-        header: "EMAIl",
-        cell: (info) => info.getValue(),
-      }),
-      columnHelper.accessor("role", {
-        header: "ROLE",
-        cell: (info) => info.getValue(),
-      }),
-      columnHelper.accessor("joinedAt", {
-        header: "JOINED AT",
-        cell: (info) => format(new Date(info.getValue()), "PP"),
-      }),
-    ],
-    []
-  )
+  const canManageAdmins = userRole === "owner"
 
-  const table = useReactTable({
-    data: members,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  })
-
-  const fetchMembers = async () => {
-    try {
-      const response = await axiosInstance.get(`/projects/${projectId}/members`)
-      if (response.data.status === "success") {
-        setMembers(response.data.data.members)
-      } else {
-        setError(response.data.message || "Failed to load project members")
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        setLoading(true)
+        const response = await axiosInstance.get("/projects/available-roles")
+        if (response.data.status === "success") {
+          setAvailableRoles(response.data.data.roles)
+        }
+      } catch (error) {
+        console.error("Error fetching roles:", error)
+        setAvailableRoles([
+          {
+            id: "admin",
+            name: "Admin",
+            description: "Can manage project members and tasks",
+          },
+          {
+            id: "user",
+            name: "User",
+            description: "Can work on assigned tasks",
+          },
+        ])
+      } finally {
+        setLoading(false)
       }
-    } catch (err) {
-      console.error("Error fetching members:", err.response || err)
-      setError(err.response?.data?.message || "Failed to load project members")
-    } finally {
-      setLoading(false)
     }
-  }
+
+    fetchRoles()
+  }, [])
 
   const handleAddMember = async (memberData) => {
     try {
+      setLoading(true)
+      setError(null)
+
       const response = await axiosInstance.post(
         `/projects/${projectId}/members`,
         memberData
       )
 
       if (response.data.status === "success") {
-        setShowModal(false)
-        await fetchMembers()
+        setShowAddDrawer(false)
+        if (onMembersUpdate) onMembersUpdate()
       }
     } catch (err) {
       console.error("Error adding member:", err)
       setError(err.response?.data?.message || "Failed to add member")
+    } finally {
+      setLoading(false)
     }
   }
 
-  useEffect(() => {
-    if (projectId) {
-      fetchMembers()
+  const handleUpdateRole = async (userId, newRole) => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await axiosInstance.put(
+        `/projects/${projectId}/member-role`,
+        {
+          userId,
+          role: newRole,
+        }
+      )
+
+      if (response.data.status === "success") {
+        setShowRoleDrawer(false)
+        setSelectedMember(null)
+        if (onMembersUpdate) onMembersUpdate()
+      }
+    } catch (err) {
+      console.error("Error updating role:", err)
+      setError(err.response?.data?.message || "Failed to update role")
+    } finally {
+      setLoading(false)
     }
-  }, [projectId])
+  }
+
+  const handleRemoveMember = async (userId) => {
+    if (!window.confirm("Are you sure you want to remove this member?")) {
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await axiosInstance.post(`/removemember/${projectId}`, {
+        userId,
+      })
+
+      if (response.data.status === "success") {
+        if (onMembersUpdate) onMembersUpdate()
+      }
+    } catch (err) {
+      console.error("Error removing member:", err)
+      setError(err.response?.data?.message || "Failed to remove member")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const isCurrentUser = (userId) => {
+    return userId === userData?._id
+  }
+
+  const columnHelper = createColumnHelper()
+
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("name", {
+        header: "Name",
+        size: 200,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+              {row.original.profile_picture ? (
+                <img
+                  src={`http://localhost:8000/storage/${row.original.profile_picture}`}
+                  alt={row.original.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{row.original.name.charAt(0)}</span>
+              )}
+            </div>
+            <span>{row.original.name}</span>
+            {isCurrentUser(row.original.userId) && (
+              <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
+                You
+              </span>
+            )}
+          </div>
+        ),
+      }),
+      columnHelper.accessor("email", {
+        header: "Email",
+        size: 200,
+      }),
+      columnHelper.accessor("role", {
+        header: "Role",
+        size: 150,
+        cell: ({ row }) => (
+          <span className="px-1 py-1 rounded-full">{row.original.role}</span>
+        ),
+      }),
+      columnHelper.accessor("joinedAt", {
+        header: "Joined At",
+        size: 150,
+        cell: ({ getValue }) => format(new Date(getValue()), "PPP"),
+      }),
+      ...(canManageMembers
+        ? [
+            columnHelper.accessor("actions", {
+              header: "Actions",
+              size: 150,
+              cell: ({ row }) => {
+                const member = row.original
+                return (
+                  <div className="flex gap-2">
+                    {/* Cannot edit owner role */}
+                    {member.role !== "owner" && (
+                      <>
+                        {/* Only owner can edit admin role */}
+                        {(member.role !== "admin" || canManageAdmins) &&
+                          !isCurrentUser(member.userId) && (
+                            <button
+                              onClick={() => {
+                                setSelectedMember(member)
+                                setShowRoleDrawer(true)
+                              }}
+                              className="px-2 py-1 text-sm bg-base text-white rounded-sm"
+                            >
+                              Change Role
+                            </button>
+                          )}
+
+                        {/* Cannot remove self, owner can remove admin, admin cannot remove admin */}
+                        {(member.role !== "admin" || canManageAdmins) &&
+                          !isCurrentUser(member.userId) && (
+                            <button
+                              onClick={() => handleRemoveMember(member.userId)}
+                              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-700"
+                            >
+                              Remove
+                            </button>
+                          )}
+                      </>
+                    )}
+                  </div>
+                )
+              },
+            }),
+          ]
+        : []),
+    ],
+    [canManageMembers, canManageAdmins, userData?._id]
+  )
+
+  const table = useReactTable({
+    data: members,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  })
 
   return (
     <div className="w-full mx-auto">
-      <div className="mt-2 w-full">
-        <div className="flex justify-end mb-4">
-          <button
-            className="bg-base hover:bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
-            onClick={() => setShowModal(true)}
-          >
-            Add member
-          </button>
-        </div>
+      <div className="mt-4 w-full">
+        {canManageMembers && (
+          <div className="flex justify-between mb-4">
+            <h2 className="text-xl font-semibold">Project Members</h2>
+            <button
+              className="bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
+              onClick={() => setShowAddDrawer(true)}
+            >
+              Add member
+            </button>
+          </div>
+        )}
 
-        <div className="bg-white rounded-xl shadow-lg p-6 w-full relative">
-          <div className="overflow-x-auto overflow-y-hidden">
-            <table className="w-full min-w-[600px]">
+        <div className="bg-white rounded-xl shadow-lg p-6 w-full mb-6">
+          <div className="overflow-x-auto">
+            <table className="w-full">
               <thead>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header, index) => (
                       <th
                         key={header.id}
-                        className={`px-4 py-2 text-left text-normal font-bold text-black uppercase tracking-wider bg-gray ${
+                        className={`px-4 py-2 text-left bg-gray ${
                           index === 0 ? "rounded-l-lg" : ""
                         } ${
                           index === headerGroup.headers.length - 1
@@ -149,37 +323,20 @@ const Members = () => {
                 ))}
               </thead>
               {loading && (
-                <div className="absolute left-0 right-0 h-1 bg-gray overflow-hidden w-full">
-                  <div className="absolute top-0 h-1 bg-blue loading-bar w-full"></div>
-                </div>
+                <thead>
+                  <tr>
+                    <td colSpan={columns.length} className="p-0">
+                      <LoadingBar />
+                    </td>
+                  </tr>
+                </thead>
               )}
               <tbody>
                 {loading ? (
                   <LoadingRow columnLength={columns.length} />
-                ) : error ? (
-                  <tr>
-                    <td
-                      colSpan={columns.length}
-                      className="text-center text-red-600 py-4"
-                    >
-                      {error}
-                    </td>
-                  </tr>
-                ) : members.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={columns.length}
-                      className="text-center text-gray-500 py-4"
-                    >
-                      No members found in this project.
-                    </td>
-                  </tr>
                 ) : (
                   table.getRowModel().rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
+                    <tr key={row.id} className="hover:bg-gray-50">
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id} className="px-4 py-2">
                           {flexRender(
@@ -196,10 +353,28 @@ const Members = () => {
           </div>
         </div>
 
+        {/* Add Member Drawer */}
         <AddMemberModal
-          isOpen={showModal}
-          onClose={() => setShowModal(false)}
+          isOpen={showAddDrawer}
+          onClose={() => setShowAddDrawer(false)}
           onAdd={handleAddMember}
+          availableRoles={availableRoles}
+          canAddAdmin={canManageAdmins}
+        />
+
+        {/* Role Select Drawer */}
+        <RoleSelectModal
+          isOpen={showRoleDrawer}
+          onClose={() => {
+            setShowRoleDrawer(false)
+            setSelectedMember(null)
+          }}
+          member={selectedMember}
+          availableRoles={availableRoles}
+          canManageAdmins={canManageAdmins}
+          onUpdateRole={handleUpdateRole}
+          loading={loading}
+          error={error}
         />
       </div>
     </div>

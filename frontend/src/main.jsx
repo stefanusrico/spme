@@ -71,6 +71,7 @@ const router = createBrowserRouter([
           sharedComponents={{
             account: Account,
             notifications: Notifications,
+            projects: Projects,
           }}
         />
       </UserProvider>
@@ -78,6 +79,7 @@ const router = createBrowserRouter([
     children: [
       { path: "/account", element: null },
       { path: "/notifications", element: null },
+      { path: "/projects/:projectId", element: <Projects /> },
     ],
   },
   {
@@ -115,7 +117,6 @@ const router = createBrowserRouter([
     ),
     children: [
       { path: "/projects", element: <ProjectsTable /> },
-      { path: "/projects/:projectId", element: <Projects /> },
       // {
       //   path: "/pengisian-matriks-led/:no?/:sub?",
       //   element: <PengisianMatrikLed />,

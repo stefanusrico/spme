@@ -21,7 +21,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { format } from "date-fns"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Lock } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import axiosInstance from "../../../utils/axiosConfig"
@@ -84,7 +84,7 @@ const LoadingRow = ({ columnLength }) => {
   )
 }
 
-const OwnerCell = ({ owners, projectMembers, task, onUpdate }) => {
+const OwnerCell = ({ owners, projectMembers, task, onUpdate, canEdit }) => {
   if (!projectMembers || projectMembers.length === 0) {
     return (
       <div className="flex w-full items-center gap-2 py-1">
@@ -93,6 +93,51 @@ const OwnerCell = ({ owners, projectMembers, task, onUpdate }) => {
           <AvatarFallback>...</AvatarFallback>
         </Avatar>
         <span>Loading members...</span>
+      </div>
+    )
+  }
+
+  // Read-only view for users without edit permissions
+  if (!canEdit) {
+    return (
+      <div className="flex w-full items-center gap-3 py-1">
+        {owners && owners.length > 0 ? (
+          <div className="flex -space-x-3">
+            {owners.slice(0, 3).map((owner) => (
+              <Avatar key={owner.id} className="h-8 w-8 border-2 border-white">
+                <AvatarImage
+                  src={
+                    owner?.profile_picture
+                      ? `http://localhost:8000/storage/${owner.profile_picture}`
+                      : "/default-avatar.png"
+                  }
+                  alt={owner?.name}
+                />
+                <AvatarFallback>
+                  {owner?.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
+                </AvatarFallback>
+              </Avatar>
+            ))}
+            {owners.length > 3 && (
+              <div className="h-8 w-8 flex items-center justify-center text-xs">
+                +{owners.length - 3}
+              </div>
+            )}
+          </div>
+        ) : (
+          <Avatar className="h-8 w-8">
+            <AvatarImage src="/default-avatar.png" alt="Unassigned" />
+            <AvatarFallback>UN</AvatarFallback>
+          </Avatar>
+        )}
+        <span className="flex-1 text-left text-sm">
+          {owners && owners.length > 0
+            ? owners.map((owner) => owner.name).join(", ")
+            : "Unassigned"}
+        </span>
       </div>
     )
   }
@@ -184,10 +229,15 @@ const OwnerCell = ({ owners, projectMembers, task, onUpdate }) => {
   )
 }
 
-const DateCell = ({ date, onUpdate, taskId, field }) => {
+const DateCell = ({ date, onUpdate, taskId, field, canEdit }) => {
   const [open, setOpen] = useState(false)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+
+  // Read-only view for users without edit permissions
+  if (!canEdit) {
+    return <div className="text-center">{format(new Date(date), "PPP")}</div>
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -219,13 +269,38 @@ const DateCell = ({ date, onUpdate, taskId, field }) => {
   )
 }
 
-const Tasks = ({ projectId }) => {
+const Tasks = ({ projectId, userRole }) => {
   const [taskLists, setTaskLists] = useState([])
   const [projectMembers, setProjectMembers] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Debug logging
+  console.log("Current userRole:", userRole)
+
   const navigate = useNavigate()
   const columnHelper = createColumnHelper()
+
+  const canEdit = useMemo(() => {
+    console.log(`Checking canEdit with userRole: ${userRole}`)
+
+    if (!userRole) {
+      console.log("userRole is undefined/null")
+      return false
+    }
+
+    const role = userRole.toLowerCase()
+    const hasEditPermission = role === "owner" || role === "admin"
+
+    console.log(
+      `Role lowercase: ${role}, hasEditPermission: ${hasEditPermission}`
+    )
+
+    return hasEditPermission
+  }, [userRole])
+
+  // FOR DEBUGGING ONLY - remove in production
+  // Force canEdit true to fix issue
+  // const canEdit = true;
 
   const getTaskStatus = useCallback((status) => {
     switch (status) {
@@ -282,6 +357,12 @@ const Tasks = ({ projectId }) => {
   }
 
   const handleUpdateRow = async (taskId, updates) => {
+    // Only allow updates if user has edit permissions
+    if (!canEdit) {
+      console.warn("User does not have permission to update tasks")
+      return
+    }
+
     try {
       const response = await axiosInstance.patch(
         `/projects/${projectId}/tasks/${taskId}/assign`,
@@ -324,7 +405,11 @@ const Tasks = ({ projectId }) => {
         },
       }),
       columnHelper.accessor("owners", {
-        header: () => <div className="text-center">OWNER</div>,
+        header: () => (
+          <div className="text-center flex items-center justify-center gap-1">
+            OWNER {!canEdit && <Lock size={14} className="text-gray-400" />}
+          </div>
+        ),
         size: 200,
         cell: ({ row }) => {
           if (row.original.isGroupHeader) return null
@@ -334,6 +419,7 @@ const Tasks = ({ projectId }) => {
               projectMembers={projectMembers}
               task={row.original}
               onUpdate={handleUpdateRow}
+              canEdit={canEdit}
             />
           )
         },
@@ -378,7 +464,12 @@ const Tasks = ({ projectId }) => {
         },
       }),
       columnHelper.accessor("startDate", {
-        header: () => <div className="text-center">START DATE</div>,
+        header: () => (
+          <div className="text-center flex items-center justify-center gap-1">
+            START DATE{" "}
+            {!canEdit && <Lock size={14} className="text-gray-400" />}
+          </div>
+        ),
         size: 150,
         cell: ({ row, getValue }) => {
           if (row.original.isGroupHeader) return null
@@ -389,13 +480,18 @@ const Tasks = ({ projectId }) => {
                 taskId={row.original.id}
                 field="startDate"
                 onUpdate={handleUpdateRow}
+                canEdit={canEdit}
               />
             </div>
           )
         },
       }),
       columnHelper.accessor("endDate", {
-        header: () => <div className="text-center">END DATE</div>,
+        header: () => (
+          <div className="text-center flex items-center justify-center gap-1">
+            END DATE {!canEdit && <Lock size={14} className="text-gray-400" />}
+          </div>
+        ),
         size: 150,
         cell: ({ row, getValue }) => {
           if (row.original.isGroupHeader) return null
@@ -406,6 +502,7 @@ const Tasks = ({ projectId }) => {
                 taskId={row.original.id}
                 field="endDate"
                 onUpdate={handleUpdateRow}
+                canEdit={canEdit}
               />
             </div>
           )
@@ -445,7 +542,7 @@ const Tasks = ({ projectId }) => {
         },
       }),
     ],
-    [projectMembers, getTaskStatus, getStatusStyle, navigate]
+    [projectMembers, getTaskStatus, getStatusStyle, navigate, canEdit]
   )
 
   const table = useReactTable({
@@ -464,6 +561,16 @@ const Tasks = ({ projectId }) => {
   return (
     <div className="w-full mx-auto">
       <div className="mt-2 w-full">
+        {!canEdit && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+            <Lock size={16} className="text-amber-500" />
+            <span className="text-amber-700">
+              You are in view-only mode. Only project owners and admins can
+              modify tasks.
+            </span>
+          </div>
+        )}
+
         <div className="bg-white rounded-xl shadow-lg p-6 w-full">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px]">

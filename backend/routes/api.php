@@ -21,10 +21,10 @@ use App\Http\Controllers\{
     SectionController,
     JsonController,
     VersionController,
-    ColorController, 
+    ColorController,
     MatriksController,
     StrataController,
-    SpreadsheetInfoController, 
+    SpreadsheetInfoController,
     GoogleDriveController
 };
 use App\Http\Middleware\JwtMiddleware;
@@ -32,7 +32,7 @@ use App\Http\Middleware\JwtMiddleware;
 Route::get('/led/{sheet}', [DataController::class, 'getLembarIsianLed']);
 Route::get('/stortasklist/{projectId}', [TaskListController::class, 'storeFromLed']);
 Route::post('/projects/{projectId}/tasks/led', [TaskController::class, 'storeFromLed']);
-Route::post('/removemember/{projectId}', [ProjectController::class, 'removeMember']);
+
 
 Route::get('/scrape/{perguruan_tinggi}/{strata}', [ScraperController::class, 'scrape']);
 Route::post('/jurusan', [JurusanController::class, 'store']);
@@ -65,22 +65,11 @@ Route::controller(JadwalLamController::class)->group(function () {
 Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
-
-    Route::get('projects/all', [ProjectController::class, 'index']);
-    Route::get('projects', [ProjectController::class, 'myProjects']);
-    Route::get('projects/{projectId}', [ProjectController::class, 'getProjectDetails']);
-    Route::get('projects/{projectId}/members', [ProjectController::class, 'getMembers']);
-    Route::get('projects/{projectId}/lists', [ProjectController::class, 'getProjectTaskLists']);
-    Route::get('projects/{projectId}/tasklists/{taskListId}/tasks', [ProjectController::class, 'index']);
-    Route::post('projects/{projectId}/tasklists', [TaskListController::class, 'store']);
-    Route::post('projects/{projectId}/tasklists/{taskListId}/tasks', [TaskController::class, 'store']);
-    Route::patch('projects/{projectId}/tasks/{taskId}/assign', [TaskController::class, 'updateRow']);
     Route::get('tasks', [TaskController::class, 'myTasks']);
     Route::patch('tasks/updateOwner/{no}/{sub}', [TaskController::class, 'updateOwners']);
 
     Route::controller(JurusanController::class)->group(function () {
         Route::get('jurusan', 'index');
-
         Route::get('jurusan/{id}', 'show');
         Route::put('jurusan/{id}', 'update');
         Route::delete('jurusan/{id}', 'destroy');
@@ -100,6 +89,21 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::post('upload', [UserController::class, 'uploadFile']);
         Route::post('project', [ProjectController::class, 'store']);
         Route::post('projects/{projectId}/members', [ProjectController::class, 'addMember']);
+        Route::get('projects/all', [ProjectController::class, 'index']);
+        Route::get('projects', [ProjectController::class, 'myProjects']);
+        Route::get('projects/{projectId}', [ProjectController::class, 'getProjectDetails']);
+        Route::get('projects/{projectId}/members', [ProjectController::class, 'getMembers']);
+        Route::get('projects/{projectId}/lists', [ProjectController::class, 'getProjectTaskLists']);
+        Route::get('projects/{projectId}/tasklists/{taskListId}/tasks', [ProjectController::class, 'index']);
+        Route::post('projects/{projectId}/tasklists', [TaskListController::class, 'store']);
+        Route::post('projects/{projectId}/tasklists/{taskListId}/tasks', [TaskController::class, 'store']);
+        Route::patch('projects/{projectId}/tasks/{taskId}/assign', [TaskController::class, 'updateRow']);
+        Route::post('/removemember/{projectId}', [ProjectController::class, 'removeMember']);
+        Route::put('projects/{projectId}/member-role', [ProjectController::class, 'updateMemberRole']);
+        Route::get('projects/available-roles', [ProjectController::class, 'getAvailableRoles']);
+        Route::get('projects/{projectId}/statistics', [ProjectController::class, 'getProjectStatistics']);
+        // Route::put('projects/{projectId}', [ProjectController::class, 'update']);
+        // Route::delete('projects/{projectId}', [ProjectController::class, 'destroy']);
 
         Route::controller(UserController::class)->group(function () {
             Route::get('users', 'index');
@@ -163,14 +167,14 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::post('/versions', 'store');
         });
 
-        Route::controller(MatriksController::class)->group(function () { 
-            Route::get('/matriks', 'index'); 
-            Route::post('/matriks', 'store'); 
-            Route::get('/matriks/{id}', 'show'); 
-            Route::get('/matriks/{no}/{sub}', 'showNoSub'); 
+        Route::controller(MatriksController::class)->group(function () {
+            Route::get('/matriks', 'index');
+            Route::post('/matriks', 'store');
+            Route::get('/matriks/{id}', 'show');
+            Route::get('/matriks/{no}/{sub}', 'showNoSub');
             Route::put('/matriks/{id}', 'update');
-            Route::delete('/matriks/{id}', 'destroy');  
-        }); 
+            Route::delete('/matriks/{id}', 'destroy');
+        });
 
         Route::controller(StrataController::class)->group(function () {
             Route::get('strata', 'index');

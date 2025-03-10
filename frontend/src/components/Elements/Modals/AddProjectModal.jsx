@@ -25,10 +25,19 @@ const AddProjectModal = ({
 
   return (
     <>
+      {/* Overlay - positioned first with high z-index */}
+      {showModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-[9999]"
+          onClick={onClose}
+        ></div>
+      )}
+
+      {/* Modal - higher z-index to appear above the overlay */}
       <div
         className={`fixed inset-y-0 right-0 w-96 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
           showModal ? "translate-x-0" : "translate-x-full"
-        } z-50`}
+        } z-[10000]`}
       >
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
@@ -76,7 +85,11 @@ const AddProjectModal = ({
                     <CalendarIcon className="ml-2 h-4 w-4" />
                   </button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent
+                  className="w-auto p-0 z-[11000]"
+                  align="start"
+                  side="bottom"
+                >
                   <Calendar
                     mode="single"
                     selected={
@@ -84,7 +97,11 @@ const AddProjectModal = ({
                         ? new Date(formData.startDate)
                         : undefined
                     }
-                    onSelect={(date) => handleDateSelect("startDate", date)}
+                    onSelect={(date) => {
+                      if (date) {
+                        handleDateSelect("startDate", date)
+                      }
+                    }}
                     disabled={(date) => date < new Date()}
                     initialFocus
                   />
@@ -112,13 +129,21 @@ const AddProjectModal = ({
                     <CalendarIcon className="ml-2 h-4 w-4" />
                   </button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent
+                  className="w-auto p-0 z-[11000]"
+                  align="start"
+                  side="bottom"
+                >
                   <Calendar
                     mode="single"
                     selected={
                       formData.endDate ? new Date(formData.endDate) : undefined
                     }
-                    onSelect={(date) => handleDateSelect("endDate", date)}
+                    onSelect={(date) => {
+                      if (date) {
+                        handleDateSelect("endDate", date)
+                      }
+                    }}
                     disabled={(date) =>
                       date < new Date() ||
                       (formData.startDate &&
@@ -148,13 +173,6 @@ const AddProjectModal = ({
           </form>
         </div>
       </div>
-
-      {showModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50"
-          onClick={onClose}
-        ></div>
-      )}
     </>
   )
 }
