@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Models\Prodi;
 use App\Models\Jurusan;
 use App\Models\Lam;
+use App\Models\Strata;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\Chrome\ChromeOptions;
 use Facebook\WebDriver\Remote\DesiredCapabilities;
@@ -14,11 +15,13 @@ use Illuminate\Support\Carbon;
 class ScraperController extends Controller
 {
     private $jurusans;
+    private $stratas;
     private $driver;
 
     public function __construct()
     {
         $this->jurusans = collect();
+        $this->stratas = collect();
     }
 
     public function scrape(string $perguruan_tinggi, string $strata)
@@ -143,8 +146,9 @@ class ScraperController extends Controller
         $processedCount = 0;
         $pageCount = 1;
 
-        \Log::info("Loading jurusans...");
+        \Log::info("Loading jurusans and stratas...");
         $this->loadJurusans();
+        $this->loadStratas(); // Tambahkan pemanggilan method untuk memuat data strata
 
         sleep(10);
 
@@ -187,15 +191,67 @@ class ScraperController extends Controller
         \Log::info('Jurusans loaded: ' . $this->jurusans->count());
     }
 
+    /**
+     * Memuat semua data Strata dari database
+     */
+    private function loadStratas()
+    {
+        $this->stratas = Strata::all();
+        \Log::info('Stratas loaded: ' . $this->stratas->count());
+    }
+
+    /**
+     * Mendapatkan strataId berdasarkan nama strata dari hasil scraping
+     */
+    private function getStrataId($strataName)
+    {
+        $strataName = strtoupper(trim($strataName));
+
+        $strataMapping = [
+            'D-III' => 'D-III',
+            'D3' => 'D-III',
+            'D-IV' => 'D-IV',
+            'D4' => 'D-IV',
+            'S1' => 'S1',
+            'SARJANA' => 'S1',
+            'S2' => 'S2',
+            'MAGISTER' => 'S2',
+            'S3' => 'S3',
+            'DOKTOR' => 'S3',
+            'Profesi' => 'Profesi',
+            'Spesialis' => 'Spesialis'
+        ];
+
+        if (array_key_exists($strataName, $strataMapping)) {
+            $strataName = $strataMapping[$strataName];
+        }
+
+        $strata = $this->stratas->first(function ($strata) use ($strataName) {
+            return $strata->name === $strataName;
+        });
+
+        if ($strata) {
+            \Log::info("Strata found: {$strataName} => {$strata->_id}");
+            return $strata->_id;
+        }
+
+        \Log::warning("Strata not found: {$strataName}");
+        return null;
+    }
+
     private function processBatch(array $rows)
     {
         foreach ($rows as $row) {
             try {
                 $prodiName = $row[2] . ' ' . $row[1];
+                $strata = $row[2];
                 \Log::info("Processing: {$prodiName}");
 
                 $jurusanId = $this->getJurusanId($prodiName);
                 \Log::info("Jurusan ID: {$jurusanId}");
+
+                $strataId = $this->getStrataId($strata);
+                \Log::info("Strata ID: {$strataId}");
 
                 $skParts = explode('/', $row[4]);
                 $lembagaAkreditasi = count($skParts) >= 4 ? $skParts[2] : null;
@@ -217,6 +273,7 @@ class ScraperController extends Controller
                     [
                         'name' => $prodiName,
                         'jurusanId' => $jurusanId,
+                        'strataId' => $strataId,
                         'akreditasi' => [
                             'nomorSK' => $row[4],
                             'tahun' => (int) $row[5],

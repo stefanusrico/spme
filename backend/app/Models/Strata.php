@@ -5,8 +5,8 @@ use MongoDB\Laravel\Eloquent\Model;
 
 class Strata extends Model
 {
-    protected $connection = 'mongodb'; 
-    protected $collection = 'strata'; 
+    protected $connection = 'mongodb';
+    protected $collection = 'strata';
 
     protected $fillable = [
         'name',

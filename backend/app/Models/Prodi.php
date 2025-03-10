@@ -14,6 +14,7 @@ class Prodi extends Model
         'jurusanId',
         'lamId',
         'jadwalLamId',
+        'strataId',
         'tanggalSubmit',
         'tanggalPengumuman',
         'akreditasi'
