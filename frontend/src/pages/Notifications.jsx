@@ -13,6 +13,7 @@ import moment from "moment"
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import axiosInstance from "../utils/axiosConfig"
+import { LoadingScreen } from "./LoadingSpinner"
 
 const NotificationItem = ({
   notification,
@@ -167,7 +168,8 @@ const NotificationDetail = ({ notification, onAcceptProject }) => {
   )
 }
 
-export default function NotificationsPanel() {
+// Changed from function declaration to arrow function
+const NotificationsPanel = () => {
   const [notifications, setNotifications] = useState([])
   const [selectedNotification, setSelectedNotification] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -200,12 +202,11 @@ export default function NotificationsPanel() {
 
     fetchNotifications(isMounted)
 
-    // Setup polling for new notifications
     const pollInterval = setInterval(() => {
       if (!document.hidden) {
         fetchNotifications(isMounted)
       }
-    }, 30000) // Poll every 30 seconds when tab is visible
+    }, 30000)
 
     return () => {
       isMounted = false
@@ -243,13 +244,8 @@ export default function NotificationsPanel() {
     return matchesSearch && matchesUnread
   })
 
-  // Don't show loading on subsequent data fetches
   if (loading && notifications.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full bg-zinc-900 text-zinc-100">
-        Loading...
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   return (
@@ -343,3 +339,5 @@ export default function NotificationsPanel() {
     </div>
   )
 }
+
+export default NotificationsPanel

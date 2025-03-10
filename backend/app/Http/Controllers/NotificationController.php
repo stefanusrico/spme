@@ -22,13 +22,42 @@ class NotificationController extends Controller
 
             $notificationsWithProjectId = $notifications->map(function ($notification) {
                 $notificationArray = $notification->toArray();
-                $projectId = $notificationArray['data']['project']['id'] ?? $notificationArray['data']['project_id'] ?? null;
 
-                if ($projectId) {
-                    $project = Project::where('projectId', $projectId)->first();
+                $projectMongoId = $notificationArray['data']['project']['_id'] ?? null;
+
+                $projectId = null;
+                if (!$projectMongoId) {
+                    $projectId = $notificationArray['data']['project']['id'] ?? $notificationArray['data']['project_id'] ?? null;
+                }
+
+                if ($projectMongoId || $projectId) {
+                    $projectQuery = Project::query();
+
+                    if ($projectMongoId) {
+                        $projectQuery->where('_id', $projectMongoId);
+                    } else {
+                        $projectQuery->where('projectId', $projectId);
+
+                        if (isset($notificationArray['data']['project']['name'])) {
+                            $projectQuery->where('name', $notificationArray['data']['project']['name']);
+                        }
+                    }
+
+                    $project = $projectQuery->first();
+
                     if ($project) {
                         $notificationArray['data']['project']['_id'] = $project->_id;
+
+                        $notificationArray['data']['project']['id'] = $project->projectId;
+                        $notificationArray['data']['project']['name'] = $project->name;
+
                         return (object) $notificationArray;
+                    } else {
+                        \Log::warning('Project not found for notification', [
+                            'project_id' => $projectId,
+                            'project_mongo_id' => $projectMongoId,
+                            'notification_id' => $notification->id
+                        ]);
                     }
                 }
 
@@ -45,6 +74,10 @@ class NotificationController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
+            \Log::error('Error getting notifications: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Error getting notifications: ' . $e->getMessage()
