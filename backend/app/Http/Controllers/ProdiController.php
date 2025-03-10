@@ -14,6 +14,7 @@ class ProdiController extends Controller
     {
         return response()->json(
             Prodi::with('lam')
+                ->with('strata')
                 ->orderBy('tanggalSubmit', 'asc')
                 ->get()
         );

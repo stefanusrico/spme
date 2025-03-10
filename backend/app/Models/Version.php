@@ -15,6 +15,8 @@ class Version extends Model
         'sub',
         'type',
         'seq',
+        'taskId', 
+        'prodiId',
         'reference',
         'isian_asesi',
         'data_pendukung',
@@ -26,4 +28,18 @@ class Version extends Model
         'details'
     ];
 
+    protected $casts = [
+        'taskId' => 'string', 
+        'prodiId' => 'string', 
+    ];
+
+    public function task()
+    {
+        return $this->belongsTo(Task::class, 'taskId', '_id');
+    }
+
+    public function prodi()
+    {
+        return $this->belongsTo(Prodi::class, 'prodiId', '_id');
+    }
 }

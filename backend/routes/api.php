@@ -21,7 +21,10 @@ use App\Http\Controllers\{
     SectionController,
     JsonController,
     VersionController,
-    ColorController,
+    ColorController, 
+    MatriksController,
+    StrataController,
+    SpreadsheetInfoController, 
     GoogleDriveController
 };
 use App\Http\Middleware\JwtMiddleware;
@@ -158,6 +161,31 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::controller(VersionController::class)->group(function () {
             Route::post('/versions/getVersion', 'get');
             Route::post('/versions', 'store');
+        });
+
+        Route::controller(MatriksController::class)->group(function () { 
+            Route::get('/matriks', 'index'); 
+            Route::post('/matriks', 'store'); 
+            Route::get('/matriks/{id}', 'show'); 
+            Route::get('/matriks/{no}/{sub}', 'showNoSub'); 
+            Route::put('/matriks/{id}', 'update');
+            Route::delete('/matriks/{id}', 'destroy');  
+        }); 
+
+        Route::controller(StrataController::class)->group(function () {
+            Route::get('strata', 'index');
+            Route::post('strata', 'store');
+            Route::get('strata/{id}', 'show');
+            Route::put('strata/{id}', 'update');
+            Route::delete('strata/{id}', 'destroy');
+        });
+
+        Route::controller(SpreadsheetInfoController::class)->group(function () {
+            Route::get('/spreadsheet-info', 'index');
+            Route::post('/spreadsheet-info', 'store');
+            Route::get('/spreadsheet-info/{id}', 'show');
+            Route::put('/spreadsheet-info/{id}', 'update');
+            Route::delete('/spreadsheet-info/{id}', 'destroy');
         });
 
         Route::controller(ColorController::class)->group(function () {

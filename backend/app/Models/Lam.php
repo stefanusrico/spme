@@ -26,4 +26,14 @@ class Lam extends Model
     {
         return $this->hasMany(JadwalLam::class, 'lamId', '_id');
     }
+
+    public function matriks()
+    {
+        return $this->hasMany(Matriks::class, 'lamId', '_id');
+    }
+
+    public function spreadsheetInfo()
+    {
+        return $this->hasMany(SpreadsheetInfo::class, 'lamId', '_id');
+    }
 }

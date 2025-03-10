@@ -40,6 +40,21 @@ class Prodi extends Model
         return $this->belongsTo(Jurusan::class, 'jurusanId', '_id');
     }
 
+    public function strata()
+    {
+        return $this->belongsTo(Strata::class, 'strataId', '_id');
+    }
+
+    public function versions()
+    {
+        return $this->hasMany(Version::class, 'prodiId', '_id');
+    }
+
+    public function users()
+    {
+        return $this->hasMany(User::class, 'prodiId', '_id');
+    }
+
     public function lam()
     {
         return $this->belongsTo(Lam::class, 'lamId', '_id');

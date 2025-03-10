@@ -46,4 +46,9 @@ class Task extends Model
     {
         return $this->belongsToMany(User::class, null, 'owners', '_id');
     }
+
+    public function versions()
+    {
+        return $this->hasMany(Version::class, 'taskId', '_id');
+    }
 }
