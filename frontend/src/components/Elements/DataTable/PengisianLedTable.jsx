@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Upload, Tooltip, Button } from "antd";
 import { UploadOutlined, SaveOutlined } from "@ant-design/icons";
 // import Button from "../Button";
@@ -12,16 +12,42 @@ import { FileLockIcon } from "lucide-react";
 import axiosIstance from '../../../utils/axiosConfig'
 import ClickableAndDeletableChips from "../Chip/clickableDeleteable";
 
-function PengisianLedTable({ selectedData, showNilai, showMasukan, toggleNilaiVisibility, toggleMasukanVisibility, handleInputChange, handleClickButton, type}) {
-    // State untuk pagination
+function PengisianLedTable({ selectedData, dataIsian, showNilai, showMasukan, prodi, handleSelectedFilesChange,toggleNilaiVisibility, toggleMasukanVisibility, handleInputChange, handleClickButton, type}) {
     const [currentPage, setCurrentPage] = useState(1);
     const [isUploaded, setIsUploaded] = useState(false);
     const [isLoadingCheck, setIsLoadingCheck] = useState(false)
+    const [uploadedFiles, setUploadedFiles] = useState([]);
+    const [selectedFiles, setSelectedFiles] = useState([]);
+    const [noSub, setNoSub] = useState("")
+    const [fileList, setFileList] = useState([]);
+    const [version, setVersion] = useState([])
+    const [selectedDataVersion, setSelectedDataVersion] = useState({
+        C: "",
+        "No." : "",
+        Sub: "",
+        Details: []
+    });
+
     const itemsPerPage = 1; 
 
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentData = selectedData.Details.filter(detail => detail.Type === "K").slice(indexOfFirstItem, indexOfLastItem);
+    // const currentData = selectedData.Details.filter(detail => detail.Type === "K").slice(indexOfFirstItem, indexOfLastItem);
+    const currentData = selectedData.Details
+    .filter(detail => detail.Type === "K")
+    .map(detail => {
+        // Cari data Isian Asesi dari dataIsian berdasarkan Seq
+        const dataIsianItem = dataIsian?.Details?.find(item => item.Seq === detail.Seq);
+
+        return {
+            ...detail,
+            "Isian Asesi": dataIsianItem ? dataIsianItem["Isian Asesi"] : detail["Isian Asesi"],
+            Nilai: dataIsianItem ? dataIsianItem["Nilai"] : detail["Nilai"],
+            Masukan: dataIsianItem ? dataIsianItem["Masukan"] : detail["Masukan"]
+        };
+    })
+    .slice(indexOfFirstItem, indexOfLastItem);
+
     
     const handlePageChange = (event, page) => {
         setCurrentPage(page);
@@ -37,38 +63,72 @@ function PengisianLedTable({ selectedData, showNilai, showMasukan, toggleNilaiVi
         }, 2000);
     };
 
-    const handleUpload = async ({ fileList }) => {
-        console.log("File yang diunggah:", selectedData['No.']);
-
-        const noSub = `${selectedData['No.']}${selectedData['Sub']}`;
-        const storedUser = localStorage.getItem('user');
-        const userData = JSON.parse(storedUser);
+    const handleFileChange = ({ fileList }) => {
+        console.log("File yang dipilih:", fileList);
+        console.log("current data length :", currentData)
+        handleSelectedFilesChange(fileList,currentData);
         
-        if (fileList.length === 0) return;
+        setSelectedFiles(prevFiles => {
+            console.log("masuk sini selected")
+            const existingFiles = new Set((prevFiles || []).map(file => file.name));
+            const uniqueFiles = fileList.filter(file => !existingFiles.has(file.name));
+            const updatedFiles = [...(prevFiles || []), ...uniqueFiles];
+
+            // handleSelectedFilesChange(updatedFiles);
+            return updatedFiles
+        });
     
-        const formData = new FormData();
-        fileList.forEach((file) => {
-          formData.append("file", file.originFileObj);
+        setUploadedFiles(prevFiles => {
+            console.log("masuk sini")
+            const existingFiles = new Set((prevFiles || []).map(file => file.name));
+            const uniqueFiles = fileList.filter(file => !existingFiles.has(file.name));
+            return [...(prevFiles || []), ...uniqueFiles];
         });
 
-        formData.append("subFolder", userData.prodi);
-        formData.append("noSub", noSub);
-    
+        setTimeout(() => setFileList([]), 100);
+    };
+
+    const handleClick = (fileUrl) => {
+        console.info('You clicked the Chip.');
+        window.open(fileUrl, "_blank");
+    };
+
+    const handleDelete = async ({fileId}) => {
         try {
-            const response = await axiosIstance.post("/upload-to-drive", 
-                formData,
-                {
-                    headers: {
-                        "Content-Type": "multipart/form-data",
-                    },
-                }
-            );
-            console.log("Upload sukses:", response.data);
-            setIsUploaded(true);
+            console.log('file id :', fileId)
+            console.log('file ', uploadedFiles)
+            const foundInSelectedFiles = selectedFiles.some(file => file.uid === fileId);
+            
+            if (foundInSelectedFiles) {
+                setSelectedFiles(prevFiles => prevFiles.filter(file => file.uid !== fileId));
+                setUploadedFiles(prevFiles => prevFiles.filter(file => file.uid !== fileId));
+                console.log('File dihapus dari state');
+            } else{
+                const response = await axiosIstance.delete('/delete-files', {
+                    data: { 
+                        fileId, 
+                        subFolder: prodi, 
+                        noSub 
+                    }
+                });
+    
+                console.log(response.data.message);
+                fetchUploadedFiles();
+            }
         } catch (error) {
-            console.error("Upload gagal:", error);
+            console.error('Gagal menghapus file:', error.response.data);
         }
-      };
+    };
+
+    useEffect(() => {
+        const noSub = `${selectedData['No.']}${selectedData['Sub']}`;
+        setNoSub(noSub)
+        console.log("data isian terbaru :", selectedData?.Details?.[1]?.['Data Pendukung'] ?? [])
+    }, [selectedData['No.'], selectedData['Sub']]);
+
+    useEffect(() => {
+        console.log("di table : ", selectedData)
+    }, []);
 
     return (
         <div>
@@ -119,7 +179,7 @@ function PengisianLedTable({ selectedData, showNilai, showMasukan, toggleNilaiVi
                 </thead>
                 <tbody className="h-[400px]">
                     {currentData.map((detail, index) => (
-                        <tr key={index}>
+                        <tr key={detail.Seq}>
                             <td className="border border-black black-600">{detail.Seq}</td>
                             <td className="border border-black black-600">{detail.Reference}</td>
                             <td className="border border-black black-600">
@@ -131,7 +191,15 @@ function PengisianLedTable({ selectedData, showNilai, showMasukan, toggleNilaiVi
                                 />
                             </td>
                             <td className="border border-black black-600">
-                                <Upload beforeUpload={() => false} onChange={handleUpload} showUploadList={false} accept=".xlsx, .xls, .png, .jpg" multiple={true} disabled={type === "readOnly" || isLoadingCheck}>
+                                <Upload 
+                                    fileList={fileList}
+                                    beforeUpload={() => false} 
+                                    onChange={handleFileChange} 
+                                    showUploadList={false} 
+                                    accept=".xlsx, .xls, .png, .jpg" 
+                                    multiple={true} 
+                                    disabled={type === "readOnly" || isLoadingCheck}
+                                >
                                     <Tooltip title="Unggah file sebagai data pendukung">
                                         <Button icon={<UploadOutlined />} style={{ marginBottom: "16px" }}>
                                             {isUploaded ? "File Diupload!" : "Upload"}
@@ -142,7 +210,9 @@ function PengisianLedTable({ selectedData, showNilai, showMasukan, toggleNilaiVi
                                     disabled={type === "readOnly" || isLoadingCheck}
                                     no={selectedData['No.']}
                                     sub={selectedData['Sub']}
-                                    // prodi={}
+                                    uploadedFiles={selectedData?.Details?.[currentPage - 1]?.['Data Pendukung'] ?? []}
+                                    handleClick={handleClick}
+                                    handleDelete={handleDelete}
                                 />
                             </td>
                             <td className="border border-black black-600">
