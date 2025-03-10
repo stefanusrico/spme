@@ -1,4 +1,3 @@
-// userContext.js
 import { createContext, useState, useContext, useEffect } from "react"
 import { fetchUserData } from "../components/Elements/Profile/profile.action"
 
@@ -25,6 +24,7 @@ export const UserProvider = ({ children }) => {
         localStorage.setItem("role", data.role)
 
         setUserData({
+          id: data.id || "",
           name: data.name || "Unknown",
           username: data.username || "",
           email: data.email || "No email",
