@@ -12,6 +12,10 @@ import AddProjectModal from "../Modals/AddProjectModal"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 
+const toastContainerStyle = {
+  zIndex: 20000,
+}
+
 const LoadingBar = () => (
   <div className="relative h-1 bg-gray-100 overflow-hidden">
     <div className="absolute top-0 h-1 bg-blue loading-bar"></div>
@@ -256,6 +260,21 @@ const ProjectsTable = ({ isCollapsed }) => {
 
   return (
     <div className="p-3 w-full">
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+        style={toastContainerStyle}
+        className="toast-container-custom"
+      />
+
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-3xl font-bold">Projects</h1>
         <button
@@ -324,24 +343,13 @@ const ProjectsTable = ({ isCollapsed }) => {
           </table>
         </div>
       </div>
+
       <AddProjectModal
         showModal={showModal}
         onClose={() => setShowModal(false)}
         formData={formData}
         onInputChange={handleInputChange}
         onSubmit={handleSubmit}
-      />
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
       />
     </div>
   )

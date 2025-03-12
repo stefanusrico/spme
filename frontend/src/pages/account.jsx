@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -16,14 +16,13 @@ const Account = () => {
   const fileInputRef = useRef(null)
   const [isLoading, setIsLoading] = useState(false)
   const { userData, updateUserData, isUpdating } = useUser()
-
   const [formData, setFormData] = useState({
-    name: userData.name || "",
-    username: userData.username || "",
-    email: userData.email || "",
-    role: userData.role || "",
-    phone_number: userData.phone_number || "",
-    profile_picture: userData.profile_picture || "",
+    name: "",
+    username: "",
+    email: "",
+    role: "",
+    phone_number: "",
+    profile_picture: "",
   })
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -31,6 +30,27 @@ const Account = () => {
     confirmPassword: "",
   })
   const [previewImage, setPreviewImage] = useState(null)
+
+  useEffect(() => {
+    if (userData) {
+      setFormData({
+        name: userData.name || "",
+        username: userData.username || "",
+        email: userData.email || "",
+        role: userData.role || "",
+        phone_number: userData.phone_number || "",
+        profile_picture: userData.profile_picture || "",
+      })
+    }
+  }, [userData])
+
+  if (!userData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue"></div>
+      </div>
+    )
+  }
 
   const hasChanges = () => {
     if (formData.profile_picture instanceof File) return true
@@ -150,7 +170,6 @@ const Account = () => {
         )
       }
 
-      // Handle password update if password fields are filled
       if (
         passwordData.currentPassword ||
         passwordData.newPassword ||
@@ -308,7 +327,9 @@ const Account = () => {
                 {formData.name || "User Name"}
               </h1>
               <p className="text-gray-500 dark:text-gray-400">
-                {formData.role.charAt(0).toUpperCase() + formData.role.slice(1)}
+                {formData.role &&
+                  formData.role.charAt(0).toUpperCase() +
+                    formData.role.slice(1)}
               </p>
             </div>
           </div>
@@ -373,8 +394,10 @@ const Account = () => {
                 <Input
                   id="role"
                   value={
-                    formData.role.charAt(0).toUpperCase() +
-                    formData.role.slice(1)
+                    formData.role
+                      ? formData.role.charAt(0).toUpperCase() +
+                        formData.role.slice(1)
+                      : ""
                   }
                   disabled
                 />

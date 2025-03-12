@@ -22,9 +22,9 @@ import {
 } from "@tanstack/react-table"
 import { format } from "date-fns"
 import { ChevronDown, Lock } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import axiosInstance from "../../../utils/axiosConfig"
+import { useProjectDetails } from "../../../hooks/useProjectDetails"
 
 const LoadingBar = () => (
   <div className="relative mt-2 h-1 bg-gray overflow-hidden">
@@ -33,41 +33,7 @@ const LoadingBar = () => (
 )
 
 const LoadingRow = ({ columnLength }) => {
-  const skeletonData = [
-    {
-      taskId: "TSK-001",
-      name: "Loading task...",
-      owners: [],
-      status: "ACTIVE",
-      progress: 0,
-      startDate: new Date(),
-      endDate: new Date(),
-      duration: "0",
-      taskList: "Loading...",
-    },
-    {
-      taskId: "TSK-002",
-      name: "Please wait...",
-      owners: [],
-      status: "ACTIVE",
-      progress: 0,
-      startDate: new Date(),
-      endDate: new Date(),
-      duration: "0",
-      taskList: "Loading...",
-    },
-    {
-      taskId: "TSK-003",
-      name: "Fetching data...",
-      owners: [],
-      status: "ACTIVE",
-      progress: 0,
-      startDate: new Date(),
-      endDate: new Date(),
-      duration: "0",
-      taskList: "Loading...",
-    },
-  ]
+  const skeletonData = [1, 2, 3]
 
   return (
     <>
@@ -97,7 +63,6 @@ const OwnerCell = ({ owners, projectMembers, task, onUpdate, canEdit }) => {
     )
   }
 
-  // Read-only view for users without edit permissions
   if (!canEdit) {
     return (
       <div className="flex w-full items-center gap-3 py-1">
@@ -234,7 +199,6 @@ const DateCell = ({ date, onUpdate, taskId, field, canEdit }) => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Read-only view for users without edit permissions
   if (!canEdit) {
     return <div className="text-center">{format(new Date(date), "PPP")}</div>
   }
@@ -270,11 +234,14 @@ const DateCell = ({ date, onUpdate, taskId, field, canEdit }) => {
 }
 
 const Tasks = ({ projectId, userRole }) => {
-  const [taskLists, setTaskLists] = useState([])
-  const [projectMembers, setProjectMembers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const {
+    taskLists,
+    projectMembers,
+    isLoadingTasks,
+    isLoadingMembers,
+    updateTask,
+  } = useProjectDetails(projectId)
 
-  // Debug logging
   console.log("Current userRole:", userRole)
 
   const navigate = useNavigate()
@@ -298,10 +265,6 @@ const Tasks = ({ projectId, userRole }) => {
     return hasEditPermission
   }, [userRole])
 
-  // FOR DEBUGGING ONLY - remove in production
-  // Force canEdit true to fix issue
-  // const canEdit = true;
-
   const getTaskStatus = useCallback((status) => {
     switch (status) {
       case "ACTIVE":
@@ -320,58 +283,14 @@ const Tasks = ({ projectId, userRole }) => {
     return styles[status] || styles.DEFAULT
   }, [])
 
-  const fetchTaskLists = async () => {
-    setLoading(true)
-    try {
-      const [tasksResponse, membersResponse] = await Promise.all([
-        axiosInstance.get(`/projects/${projectId}/lists`),
-        axiosInstance.get(`/projects/${projectId}/members`),
-      ])
-
-      if (tasksResponse.data.status === "success") {
-        const formattedData = tasksResponse.data.data.taskLists.flatMap(
-          (list) => [
-            {
-              id: `group-${list.c}`,
-              isGroupHeader: true,
-              criteria: list.name,
-            },
-            ...list.tasks.map((task) => ({
-              ...task,
-              criteria: list.name,
-            })),
-          ]
-        )
-
-        setTaskLists(formattedData)
-      }
-
-      if (membersResponse.data.status === "success") {
-        setProjectMembers(membersResponse.data.data.members)
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleUpdateRow = async (taskId, updates) => {
-    // Only allow updates if user has edit permissions
     if (!canEdit) {
       console.warn("User does not have permission to update tasks")
       return
     }
 
     try {
-      const response = await axiosInstance.patch(
-        `/projects/${projectId}/tasks/${taskId}/assign`,
-        updates
-      )
-
-      if (response.data.status === "success") {
-        fetchTaskLists()
-      }
+      await updateTask(taskId, updates)
     } catch (error) {
       console.error("Error updating task:", error)
     }
@@ -542,21 +461,24 @@ const Tasks = ({ projectId, userRole }) => {
         },
       }),
     ],
-    [projectMembers, getTaskStatus, getStatusStyle, navigate, canEdit]
+    [
+      projectMembers,
+      getTaskStatus,
+      getStatusStyle,
+      navigate,
+      canEdit,
+      handleUpdateRow,
+    ]
   )
 
   const table = useReactTable({
-    data: taskLists,
+    data: taskLists || [],
     columns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
   })
 
-  useEffect(() => {
-    if (projectId) {
-      fetchTaskLists()
-    }
-  }, [projectId])
+  const isLoading = isLoadingTasks || isLoadingMembers
 
   return (
     <div className="w-full mx-auto">
@@ -597,7 +519,7 @@ const Tasks = ({ projectId, userRole }) => {
                   </tr>
                 ))}
               </thead>
-              {loading && (
+              {isLoading && (
                 <thead>
                   <tr>
                     <td colSpan={columns.length} className="p-0">
@@ -607,7 +529,7 @@ const Tasks = ({ projectId, userRole }) => {
                 </thead>
               )}
               <tbody>
-                {loading ? (
+                {isLoading ? (
                   <LoadingRow columnLength={columns.length} />
                 ) : (
                   table.getRowModel().rows.map((row) => (

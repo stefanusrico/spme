@@ -4,18 +4,13 @@ import Card from "../Elements/Card/Card"
 import ProgressAkreditasiTable from "../Elements/DataTable/ProgressAkreditasiTable"
 import "../../index.css"
 import axiosInstance from "../../utils/axiosConfig"
+import { useProjects } from "../../hooks/useProjects"
 
 const MonitoringAkreditasi = () => {
   const [peringkatCount, setPeringkatCount] = useState([])
-  const [projectStats, setProjectStats] = useState({
-    submitted: 0,
-    inProgress: 0,
-    notStarted: 0,
-    total: 0,
-  })
+  const { stats: projectStats } = useProjects() // Use the shared hook
 
   useEffect(() => {
-    // Fetch peringkat count
     axiosInstance
       .get("/count")
       .then((response) => {
@@ -23,42 +18,6 @@ const MonitoringAkreditasi = () => {
       })
       .catch((error) => {
         console.error("There was an error fetching peringkat count!", error)
-      })
-
-    // Fetch projects data
-    axiosInstance
-      .get("/projects/all")
-      .then((response) => {
-        if (response.data.status === "success") {
-          const projects = response.data.data
-          const total = projects.length
-
-          const stats = projects.reduce(
-            (acc, project) => {
-              if (project.progress === 100) {
-                acc.submitted++
-              } else if (project.progress > 0) {
-                acc.inProgress++
-              } else {
-                acc.notStarted++
-              }
-              return acc
-            },
-            {
-              submitted: 0,
-              inProgress: 0,
-              notStarted: 0,
-            }
-          )
-
-          setProjectStats({
-            ...stats,
-            total,
-          })
-        }
-      })
-      .catch((error) => {
-        console.error("Error fetching projects:", error)
       })
   }, [])
 

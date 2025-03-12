@@ -3,60 +3,31 @@ import { useState, useEffect } from "react"
 import DashboardProject from "../components/Elements/Projects/Dashboard"
 import Members from "../components/Elements/Projects/Members"
 import Tasks from "../components/Elements/Projects/Tasks"
-import axiosInstance from "../utils/axiosConfig"
 import ErrorBoundary from "../components/ErrorBoundary"
 import { useUser } from "../context/userContext"
+import { useProjectDetails } from "../hooks/useProjectDetails"
 
 const Projects = () => {
   const { projectId } = useParams()
-  const [projectDetails, setProjectDetails] = useState(null)
-  const [projectMembers, setProjectMembers] = useState([])
-  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("dashboard")
   const [userRole, setUserRole] = useState(null)
   const { userData } = useUser()
 
+  const { projectDetails, projectMembers, isLoading, refetchAll } =
+    useProjectDetails(projectId)
+
   useEffect(() => {
-    const fetchProjectData = async () => {
-      try {
-        setLoading(true)
+    if (projectMembers && userData) {
+      const currentUserId = userData?.id
+      const userMember = projectMembers.find(
+        (member) => member.userId === currentUserId
+      )
 
-        const [detailsResponse, membersResponse] = await Promise.all([
-          axiosInstance.get(`/projects/${projectId}`),
-          axiosInstance.get(`/projects/${projectId}/members`),
-        ])
-
-        if (detailsResponse.data.status === "success") {
-          setProjectDetails(detailsResponse.data.data)
-        }
-
-        if (membersResponse.data.status === "success") {
-          setProjectMembers(membersResponse.data.data.members)
-
-          const currentUserId = userData?.id
-          console.log("DEBUG: userData =", userData)
-          console.log("DEBUG: currentUserId =", currentUserId)
-          console.log("DEBUG: members =", membersResponse.data.data.members)
-
-          const userMember = membersResponse.data.data.members.find(
-            (member) => member.userId === currentUserId
-          )
-
-          if (userMember) {
-            setUserRole(userMember.role)
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching project data:", error)
-      } finally {
-        setLoading(false)
+      if (userMember) {
+        setUserRole(userMember.role)
       }
     }
-
-    if (projectId && userData) {
-      fetchProjectData()
-    }
-  }, [projectId, userData])
+  }, [projectMembers, userData])
 
   const ProjectTabs = ({ activeTab, onTabChange }) => {
     const tabs = [
@@ -90,17 +61,6 @@ const Projects = () => {
     )
   }
 
-  const updateMembers = async () => {
-    try {
-      const response = await axiosInstance.get(`/projects/${projectId}/members`)
-      if (response.data.status === "success") {
-        setProjectMembers(response.data.data.members)
-      }
-    } catch (error) {
-      console.error("Error refreshing members:", error)
-    }
-  }
-
   const renderTabContent = () => {
     switch (activeTab) {
       case "dashboard":
@@ -113,9 +73,9 @@ const Projects = () => {
         return (
           <ErrorBoundary>
             <Tasks
-              userRole={userRole}
               key={`tasks-${projectId}`}
               projectId={projectId}
+              userRole={userRole}
             />
           </ErrorBoundary>
         )
@@ -126,8 +86,7 @@ const Projects = () => {
               key="members"
               projectId={projectId}
               userRole={userRole}
-              members={projectMembers}
-              onMembersUpdate={updateMembers}
+              onMembersUpdate={refetchAll}
             />
           </ErrorBoundary>
         )
@@ -140,7 +99,7 @@ const Projects = () => {
     }
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue"></div>

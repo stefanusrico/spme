@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
-import axiosInstance from "../../../utils/axiosConfig"
+import { useState, useMemo } from "react"
 import { useUser } from "../../../context/userContext"
 import AddMemberModal from "../Modals/AddMemberModal"
 import RoleSelectModal from "../Modals/RoleSelectModal"
@@ -11,6 +10,7 @@ import {
   getFilteredRowModel,
   useReactTable,
 } from "@tanstack/react-table"
+import { useProjectDetails } from "../../../hooks/useProjectDetails"
 
 const LoadingBar = () => (
   <div className="relative mt-2 h-1 bg-gray overflow-hidden">
@@ -61,95 +61,52 @@ const LoadingRow = ({ columnLength }) => {
   )
 }
 
-const Members = ({ projectId, userRole, members = [], onMembersUpdate }) => {
+const Members = ({ projectId, userRole, onMembersUpdate }) => {
   const [showAddDrawer, setShowAddDrawer] = useState(false)
   const [showRoleDrawer, setShowRoleDrawer] = useState(false)
   const [selectedMember, setSelectedMember] = useState(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [availableRoles, setAvailableRoles] = useState([])
   const { userData } = useUser()
+
+  const {
+    projectMembers,
+    availableRoles,
+    isLoadingMembers,
+    addMember,
+    updateMemberRole,
+    removeMember,
+    refetchMembers,
+  } = useProjectDetails(projectId)
+
+  const isLoading = isLoadingMembers
 
   const canManageMembers =
     userRole?.toLowerCase() === "owner" || userRole?.toLowerCase() === "admin"
 
   const canManageAdmins = userRole === "owner"
 
-  useEffect(() => {
-    const fetchRoles = async () => {
-      try {
-        setLoading(true)
-        const response = await axiosInstance.get("/projects/available-roles")
-        if (response.data.status === "success") {
-          setAvailableRoles(response.data.data.roles)
-        }
-      } catch (error) {
-        console.error("Error fetching roles:", error)
-        setAvailableRoles([
-          {
-            id: "admin",
-            name: "Admin",
-            description: "Can manage project members and tasks",
-          },
-          {
-            id: "user",
-            name: "User",
-            description: "Can work on assigned tasks",
-          },
-        ])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchRoles()
-  }, [])
-
   const handleAddMember = async (memberData) => {
     try {
-      setLoading(true)
       setError(null)
-
-      const response = await axiosInstance.post(
-        `/projects/${projectId}/members`,
-        memberData
-      )
-
-      if (response.data.status === "success") {
-        setShowAddDrawer(false)
-        if (onMembersUpdate) onMembersUpdate()
-      }
+      await addMember(memberData)
+      setShowAddDrawer(false)
+      if (onMembersUpdate) onMembersUpdate()
     } catch (err) {
       console.error("Error adding member:", err)
-      setError(err.response?.data?.message || "Failed to add member")
-    } finally {
-      setLoading(false)
+      setError(err.message || "Failed to add member")
     }
   }
 
   const handleUpdateRole = async (userId, newRole) => {
     try {
-      setLoading(true)
       setError(null)
-
-      const response = await axiosInstance.put(
-        `/projects/${projectId}/member-role`,
-        {
-          userId,
-          role: newRole,
-        }
-      )
-
-      if (response.data.status === "success") {
-        setShowRoleDrawer(false)
-        setSelectedMember(null)
-        if (onMembersUpdate) onMembersUpdate()
-      }
+      await updateMemberRole(userId, newRole)
+      setShowRoleDrawer(false)
+      setSelectedMember(null)
+      if (onMembersUpdate) onMembersUpdate()
     } catch (err) {
       console.error("Error updating role:", err)
-      setError(err.response?.data?.message || "Failed to update role")
-    } finally {
-      setLoading(false)
+      setError(err.message || "Failed to update role")
     }
   }
 
@@ -159,21 +116,12 @@ const Members = ({ projectId, userRole, members = [], onMembersUpdate }) => {
     }
 
     try {
-      setLoading(true)
       setError(null)
-
-      const response = await axiosInstance.post(`/removemember/${projectId}`, {
-        userId,
-      })
-
-      if (response.data.status === "success") {
-        if (onMembersUpdate) onMembersUpdate()
-      }
+      await removeMember(userId)
+      if (onMembersUpdate) onMembersUpdate()
     } catch (err) {
       console.error("Error removing member:", err)
-      setError(err.response?.data?.message || "Failed to remove member")
-    } finally {
-      setLoading(false)
+      setError(err.message || "Failed to remove member")
     }
   }
 
@@ -275,7 +223,7 @@ const Members = ({ projectId, userRole, members = [], onMembersUpdate }) => {
   )
 
   const table = useReactTable({
-    data: members,
+    data: projectMembers || [],
     columns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -322,7 +270,7 @@ const Members = ({ projectId, userRole, members = [], onMembersUpdate }) => {
                   </tr>
                 ))}
               </thead>
-              {loading && (
+              {isLoading && (
                 <thead>
                   <tr>
                     <td colSpan={columns.length} className="p-0">
@@ -332,7 +280,7 @@ const Members = ({ projectId, userRole, members = [], onMembersUpdate }) => {
                 </thead>
               )}
               <tbody>
-                {loading ? (
+                {isLoading ? (
                   <LoadingRow columnLength={columns.length} />
                 ) : (
                   table.getRowModel().rows.map((row) => (
@@ -358,7 +306,7 @@ const Members = ({ projectId, userRole, members = [], onMembersUpdate }) => {
           isOpen={showAddDrawer}
           onClose={() => setShowAddDrawer(false)}
           onAdd={handleAddMember}
-          availableRoles={availableRoles}
+          availableRoles={availableRoles || []}
           canAddAdmin={canManageAdmins}
         />
 
@@ -370,10 +318,10 @@ const Members = ({ projectId, userRole, members = [], onMembersUpdate }) => {
             setSelectedMember(null)
           }}
           member={selectedMember}
-          availableRoles={availableRoles}
+          availableRoles={availableRoles || []}
           canManageAdmins={canManageAdmins}
           onUpdateRole={handleUpdateRole}
-          loading={loading}
+          loading={isLoading}
           error={error}
         />
       </div>
