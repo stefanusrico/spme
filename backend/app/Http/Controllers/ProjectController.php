@@ -266,6 +266,7 @@ class ProjectController extends Controller
             if (!$latestProject) {
                 return response()->json([
                     'status' => 'success',
+                    'projectId' => null,
                     'data' => []
                 ]);
             }
@@ -285,6 +286,7 @@ class ProjectController extends Controller
 
             return response()->json([
                 'status' => 'success',
+                'projectId' => $latestProject->_id,
                 'data' => $tasks
             ]);
 
