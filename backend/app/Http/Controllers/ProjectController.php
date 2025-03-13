@@ -256,6 +256,52 @@ class ProjectController extends Controller
         }
     }
 
+    public function getTasksByProdiId($prodiId)
+    {
+        try {
+            $latestProject = Project::where('prodiId', $prodiId)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (!$latestProject) {
+                return response()->json([
+                    'status' => 'success',
+                    'data' => []
+                ]);
+            }
+
+            $tasks = Task::where('projectId', $latestProject->_id)
+                ->with('users')
+                ->get()
+                ->map(function ($task) use ($latestProject) {
+                    return [
+                        'id' => $task->_id,
+                        'taskId' => $task->taskId,
+                        'no' => $task->no,
+                        'sub' => $task->sub,
+                    ];
+                })
+                ->toArray();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $tasks
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error retrieving tasks from latest project by prodiId:', [
+                'error' => $e->getMessage(),
+                'prodiId' => $prodiId,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error retrieving tasks: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function getProjectTaskLists($projectId)
     {
         try {
