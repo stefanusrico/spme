@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import Button from "../Button";
 
-export function FormToast({ closeToast, title = "Title", message = "Message", onSubmit }) {
+export function FormToast({ closeToast, dataIsian, noSub, title = "Title", message = "Message", onSubmit }) {
   const [commit, setCommit] = useState(""); 
 
   const handleSubmit = async () => {
     if (onSubmit) {
-      await onSubmit(commit);
+      await onSubmit(commit, dataIsian, noSub);
     }
     closeToast(); 
   };

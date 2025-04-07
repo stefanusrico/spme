@@ -15,8 +15,6 @@ import DropdownWithSearch from '../components/Elements/Dropdown/WithSearch';
 import VerticalLinearStepper from '../components/Elements/Stepper';
 import ProgressBar from "../components/Elements/Chart/ProgressBar"
 
-const apiKey = "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"
-
 const PengisianMatrikLed = () => {
     const navigate = useNavigate()
     const { no = "", sub = "" } = useParams()

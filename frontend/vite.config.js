@@ -4,6 +4,9 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    global: "window", 
+  },
   optimizeDeps: {
     include: ["jwt-decode", "mathjs"],
   },

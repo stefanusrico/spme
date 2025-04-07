@@ -20,6 +20,7 @@ import JsonGenerator from "./pages/JsonGenerator"
 import LoginPage from "./pages/login"
 import Notifications from "./pages/Notifications"
 import PengisianMatrikLed from "./pages/PengisianMatriksLed"
+import PengisianLed from "./pages/PengisianLed.jsx"
 import Projects from "./pages/Projects"
 import RegisterPage from "./pages/register"
 import UserManagement from "./pages/userManagement"
@@ -114,7 +115,7 @@ const router = createBrowserRouter([
       { path: "section", element: <Section1 /> },
       {
         path: "/pengisian-matriks-led/:no?/:sub?",
-        element: <PengisianMatrikLed />,
+        element: <PengisianLed />,
       },
     ],
   },

@@ -9,13 +9,13 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faPlus } from "@fortawesome/free-solid-svg-icons"
 import { ColorLens } from '@mui/icons-material';
 
-export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, updateUserTask, onClick, selectedProdi, dataColor, allDataMatriks }) {
-  const [dataVersion, setDataVersion] = useState([])
-  const [color, setColor] = useState([])
+export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, updateUserTask, onClick, dataColor, allDataVersion }) {
   const [json, setJson] = useState([])
-  const [colorBg, setColorBg] = useState([])
   const [value, setValue] = useState(0);
+  const [color, setColor] = useState([])
   const [open, setOpen] = useState(false); 
+  const [colorBg, setColorBg] = useState([])
+  const [dataVersion, setDataVersion] = useState([])
   
   useEffect(() => {
     if (allDataNoSub && allDataNoSub.length > 0) {
@@ -25,15 +25,15 @@ export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, update
 
   useEffect(() => {
     if(dataColor && dataColor.length > 0){
-      console.log("masukkkkk")
+      console.log("masukkkkk", dataColor[0].value)
       setColor(dataColor)
     }
-    if(allDataMatriks && allDataMatriks.length > 0){
-      console.log("masukkk", allDataMatriks)
-      setJson(allDataMatriks)
+    if(allDataVersion && allDataVersion.length > 0){
+      console.log("masukkk", allDataVersion)
+      setJson(allDataVersion)
     }
     setBgColor()
-  }, [dataColor, allDataMatriks])
+  }, [dataColor, allDataVersion])
 
   useEffect(() => {
     const defaultIndex = tabsData.findIndex((tab) => tab.no.toString() === no && tab.sub === sub);
@@ -46,10 +46,6 @@ export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, update
   useEffect(() => {
     setBgColor()
   }, [])
-
-  console.log("tabsData : ", tabsData);
-  console.log("json : ", json);
-  console.log("selectedProdi", selectedProdi);
 
   const handleChange = (event, newValue) => {
     setValue(newValue);
@@ -77,18 +73,20 @@ export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, update
   };
 
   const setBgColor = () => {
-    let bgColorArray = new Array(tabsData.length).fill("defaultColor"); // Isi awal dengan warna default
-
+    let bgColorArray = new Array(tabsData.length).fill(color[0]?.value || "#f38383");
+    // const json = allDataVersion
+    console.log("json : ", allDataVersion)
+    console.log("tabsData : ", tabsData)
     for (let i = 0; i < json.length; i++) {
       for (let index = 0; index < tabsData.length; index++) {
-        if (json[i]["No."] === tabsData[index].no.toString() && json[i].Sub === tabsData[index].sub) {
+        if (json[i].task.no === tabsData[index].no && json[i].task.sub === tabsData[index].sub) {
           // Hitung total skor
           let totalScore = 0;
           let count = 0;
 
-          for (let indexDetail = 0; indexDetail < json[i].Details.length; indexDetail++) {
-            if (json[i].Details[indexDetail].Type === "K") {
-              const intScore = parseInt(json[i].Details[indexDetail].Nilai) || 0; 
+          for (let indexDetail = 0; indexDetail < json[i].details.length; indexDetail++) {
+            if (json[i].details[indexDetail].type === "K") {
+              const intScore = parseInt(json[i].details[indexDetail].nilai) || 0; 
               totalScore += intScore;
               count++;
             }
@@ -203,9 +201,9 @@ export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, update
                       bgcolor: 'grey.400',
                     }
                   }}
-                  onClick={() => handleClick(tab["No."], tab.Sub, index)}
+                  onClick={() => handleClick(tab["No."], tab.sub, index)}
                 >
-                  <Typography variant="caption">{`${tab["No."]} ${tab.Sub}`}</Typography>
+                  <Typography variant="caption">{`${tab.no} ${tab.sub}`}</Typography>
                 </Box>
               </Grid>
             ))}
