@@ -25,7 +25,8 @@ use App\Http\Controllers\{
     MatriksController,
     StrataController,
     SpreadsheetInfoController,
-    GoogleDriveController
+    GoogleDriveController,
+    GPTController
 };
 use App\Http\Middleware\JwtMiddleware;
 
@@ -91,6 +92,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::post('projects/{projectId}/members', [ProjectController::class, 'addMember']);
         Route::get('projects/all', [ProjectController::class, 'index']);
         Route::get('projects', [ProjectController::class, 'myProjects']);
+        Route::get('projectsByProdi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);
         Route::get('projects/{projectId}', [ProjectController::class, 'getProjectDetails']);
         Route::get('projects/{projectId}/members', [ProjectController::class, 'getMembers']);
         Route::get('projects/{projectId}/lists', [ProjectController::class, 'getProjectTaskLists']);
@@ -159,21 +161,27 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::controller(GoogleDriveController::class)->group(function () {
             Route::post('/upload-to-drive', 'uploadFile');
             Route::get('/get-files', 'getFiles');
-            Route::delete('/delete-files', 'delete File');
+            Route::delete('/delete-files', 'deleteFile');
         });
 
         Route::controller(VersionController::class)->group(function () {
             Route::post('/versions/getVersion', 'get');
             Route::post('/versions', 'store');
+            Route::get('/versions/{prodiId}', 'getVersionByProdi');
+            Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
         });
+
+        Route::post('/analyze-gpt', [GPTController::class, 'analyze']);
 
         Route::controller(MatriksController::class)->group(function () {
             Route::get('/matriks', 'index');
             Route::post('/matriks', 'store');
             Route::get('/matriks/{id}', 'show');
-            Route::get('/matriks/{no}/{sub}', 'showNoSub');
+            // Route::get('/matriks/{no}/{sub}', 'showNoSub');
             Route::put('/matriks/{id}', 'update');
             Route::delete('/matriks/{id}', 'destroy');
+            Route::get('/matriks/{no}/{sub}', 'showNoSub');
+            Route::get('/getMatriksByProdi/{prodiId}', 'getMatriksByProdi');
         });
 
         Route::controller(StrataController::class)->group(function () {
