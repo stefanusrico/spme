@@ -291,10 +291,11 @@ class TaskController extends Controller
 
         $updates = $request->only(['startDate', 'endDate']);
 
-        // Jika owners dikirim, gabungkan dengan owners yang sudah ada
-        if ($request->has('owners')) {
+        $owners = auth()->id();
+
+        if ($owners) {
             $existingOwners = $task->owners ?? []; // Ambil owners lama
-            $newOwners = array_unique(array_merge($existingOwners, $request->owners)); // Gabungkan
+            $newOwners = array_unique(array_merge($existingOwners, [$owners])); // Gabungkan
             $updates['owners'] = $newOwners;
         }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Matriks;
+use App\Models\Prodi;
 use Illuminate\Http\Request;
 
 class MatriksController extends Controller
@@ -75,6 +76,39 @@ class MatriksController extends Controller
             'data' => $matriks
         ], 200);
     }
+
+    public function getMatriksByProdi($prodiId)
+    {
+        $prodi = Prodi::where('id', $prodiId)->first();
+
+        if (!$prodi) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Prodi tidak ditemukan'
+            ], 404);
+        }
+
+        $lamId = $prodi->lamId;
+        $strataId = $prodi->strataId;
+
+        $matriks = Matriks::where('lamId', $lamId)
+                            ->where('strataId', $strataId)
+                            ->get();
+
+        if ($matriks->isEmpty()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Tidak ada data dengan lamId dan strataId tersebut'
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'total_data' => $matriks->count(), 
+            'data' => $matriks
+        ], 200);
+    }
+
 
     /**
      * Update the specified resource in storage.
