@@ -63,7 +63,7 @@ const ProgressAkreditasiTable = () => {
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex  justify-between mb-6">
         <h2 className="text-2xl font-semibold">Progress Akreditasi</h2>
         <select
           id="statusFilter"

@@ -4,7 +4,6 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\{
     AuthController,
     JurusanController,
-    PostController,
     ProdiController,
     ProjectController,
     RoleController,
@@ -25,14 +24,88 @@ use App\Http\Controllers\{
     MatriksController,
     StrataController,
     SpreadsheetInfoController,
-    GoogleDriveController
+    GoogleDriveController,
+    GoogleSheetController,
+    LkpsController,
+    LkpsDataController,
+    LkpsSectionController,
+    LkpsColumnController,
+    LkpsTableController,
+    LkpsExportController,
+    GPTController
 };
 use App\Http\Middleware\JwtMiddleware;
+
+Route::get('test', function () {
+    return response()->json([
+        'message' => 'API with prefix working correctly',
+        'url' => request()->fullUrl(),
+        'path' => request()->path()
+    ]);
+});
+
+Route::prefix('lkps')->group(function () {
+    Route::get('/prodi', [LkpsController::class, 'getProdiLkps']);
+    Route::get('/{id}', [LkpsController::class, 'getLkps']);
+    Route::post('/create', [LkpsController::class, 'createLkps']);
+    Route::post('/{id}/submit', [LkpsController::class, 'submitLkps']);
+    Route::put('/{id}', [LkpsController::class, 'updateLkps']);
+    Route::delete('/{id}', [LkpsController::class, 'deleteLkps']);
+    Route::post('/sections', [LkpsSectionController::class, 'addSection']);
+    Route::get('/sections', [LkpsSectionController::class, 'getAllSections']);
+    Route::get('/sections/{sectionCode}/config', [LkpsSectionController::class, 'getConfig']);
+    Route::get('/sections/{sectionCode}/data', [LkpsSectionController::class, 'getData']);
+    Route::post('/sections/{sectionCode}/data', [LkpsSectionController::class, 'saveData']);
+    Route::post('/sections/{sectionCode}/calculate', [LkpsSectionController::class, 'calculateScore']);
+    Route::get('/scores/{lkpsId}', [LkpsSectionController::class, 'getSectionScores']);
+    Route::post('/sections', [LkpsSectionController::class, 'addSection']);
+    Route::put('/sections/{sectionCode}', [LkpsSectionController::class, 'updateSection']);
+    Route::delete('/sections/{sectionCode}', [LkpsSectionController::class, 'deleteSection']);
+    Route::get('/sections/{sectionCode}/tables', [LkpsTableController::class, 'getTables']);
+    Route::get('/sections/{sectionCode}/tables/{tableCode}', [LkpsTableController::class, 'getTableWithColumns']);
+    Route::post('/sections/{sectionCode}/tables', [LkpsTableController::class, 'addTable']);
+    Route::put('/sections/{sectionCode}/tables/{tableCode}', [LkpsTableController::class, 'updateTable']);
+    Route::delete('/sections/{sectionCode}/tables/{tableCode}', [LkpsTableController::class, 'deleteTable']);
+    Route::get('/tables/{tableCode}/columns', [LkpsColumnController::class, 'getColumns']);
+    Route::post('/tables/{tableCode}/columns', [LkpsColumnController::class, 'addColumn']);
+    Route::put('/columns/{id}', [LkpsColumnController::class, 'updateColumn']);
+    Route::delete('/columns/{id}', [LkpsColumnController::class, 'deleteColumn']);
+    Route::post('/tables/{tableCode}/column-order', [LkpsColumnController::class, 'updateColumnOrder']);
+    Route::get('/{lkpsId}/data', [LkpsDataController::class, 'getAllData']);
+    Route::get('/{lkpsId}/data/{sectionCode}/{tableCode}', [LkpsDataController::class, 'getTableData']);
+    Route::post('/{lkpsId}/data/{sectionCode}/{tableCode}', [LkpsDataController::class, 'saveTableData']);
+    Route::delete('/{lkpsId}/data/{sectionCode}/{tableCode}', [LkpsDataController::class, 'deleteTableData']);
+    Route::get('/{lkpsId}/export/{sectionCode}/{tableCode?}', [LkpsDataController::class, 'exportData']);
+});
+
+Route::get('/get-scores', [VersionController::class, 'getScorePerNoSubByProdi']);
+
+Route::get('/get-all-sections', [LkpsSectionController::class, 'getAllSections']);
+
+Route::get('/templates/LKPS_template.xlsx', [LkpsExportController::class, 'getTemplate']);
+Route::get('/lkps/sections/all/data', [LkpsExportController::class, 'getAllSectionsData']);
+Route::post('/templates/upload', [LkpsExportController::class, 'uploadTemplate']);
+Route::get('/templates/info', [LkpsExportController::class, 'getTemplateInfo']);
+Route::post('/lkps/export-data', [LkpsExportController::class, 'exportData']);
 
 Route::get('/led/{sheet}', [DataController::class, 'getLembarIsianLed']);
 Route::get('/stortasklist/{projectId}', [TaskListController::class, 'storeFromLed']);
 Route::post('/projects/{projectId}/tasks/led', [TaskController::class, 'storeFromLed']);
+// Route::get('/sheets/colored-cells', [GoogleSheetController::class, 'getColoredCells']);
+Route::get('/available-tables', [GoogleSheetController::class, 'getAvailableTables']);
+Route::get('/colored-cells', [GoogleSheetController::class, 'getColoredCells']);
+Route::get('/colored-cells/table/{tableRef?}', [GoogleSheetController::class, 'getColoredCellsByTable']);
 
+// Legacy route with sheet_gid (keep for backward compatibility)
+Route::get('/colored-cells/gid', [GoogleSheetController::class, 'getColoredCells']);
+
+// API version endpoints (optional)
+Route::prefix('v1')->group(function () {
+    Route::get('tables', [GoogleSheetController::class, 'getAvailableTables']);
+    Route::get('tables/{tableRef}/colored-cells', [GoogleSheetController::class, 'getColoredCellsByTable']);
+});
+
+Route::get('table/{tableRef}', [GoogleSheetController::class, 'getColoredCellsByTable']);
 
 Route::get('/scrape/{perguruan_tinggi}/{strata}', [ScraperController::class, 'scrape']);
 Route::post('/jurusan', [JurusanController::class, 'store']);
@@ -68,6 +141,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::get('tasks', [TaskController::class, 'myTasks']);
     Route::patch('tasks/updateOwner/{no}/{sub}', [TaskController::class, 'updateOwners']);
 
+
     Route::controller(JurusanController::class)->group(function () {
         Route::get('jurusan', 'index');
         Route::get('jurusan/{id}', 'show');
@@ -87,10 +161,13 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::middleware(['role:Admin|admin|Ketua Program Studi'])->group(function () {
         Route::get('test-mongo', [AuthController::class, 'testMongoConnection']);
         Route::post('upload', [UserController::class, 'uploadFile']);
+        Route::delete('users/{id}/profile-picture', [UserController::class, 'removeProfilePicture']);
         Route::post('project', [ProjectController::class, 'store']);
         Route::post('projects/{projectId}/members', [ProjectController::class, 'addMember']);
         Route::get('projects/all', [ProjectController::class, 'index']);
         Route::get('projects', [ProjectController::class, 'myProjects']);
+        Route::get('projectsByProdi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);
+
         Route::get('projects/{projectId}', [ProjectController::class, 'getProjectDetails']);
         Route::get('projects/{projectId}/members', [ProjectController::class, 'getMembers']);
         Route::get('projects/{projectId}/lists', [ProjectController::class, 'getProjectTaskLists']);
@@ -102,6 +179,8 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::put('projects/{projectId}/member-role', [ProjectController::class, 'updateMemberRole']);
         Route::get('projects/available-roles', [ProjectController::class, 'getAvailableRoles']);
         Route::get('projects/{projectId}/statistics', [ProjectController::class, 'getProjectStatistics']);
+        Route::get('prodi/{prodiId}/tasks', [ProjectController::class, 'getTasksByProdiId']);
+
         // Route::put('projects/{projectId}', [ProjectController::class, 'update']);
         // Route::delete('projects/{projectId}', [ProjectController::class, 'destroy']);
 
@@ -165,15 +244,20 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::controller(VersionController::class)->group(function () {
             Route::post('/versions/getVersion', 'get');
             Route::post('/versions', 'store');
+            Route::get('/versions/{prodiId}', 'getVersionByProdi');
+            Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
         });
+
+        Route::post('/analyze-gpt', [GPTController::class, 'analyze']);
 
         Route::controller(MatriksController::class)->group(function () {
             Route::get('/matriks', 'index');
             Route::post('/matriks', 'store');
             Route::get('/matriks/{id}', 'show');
-            Route::get('/matriks/{no}/{sub}', 'showNoSub');
             Route::put('/matriks/{id}', 'update');
             Route::delete('/matriks/{id}', 'destroy');
+            Route::get('/matriks/{no}/{sub}', 'showNoSub');
+            Route::get('/getMatriksByProdi/{prodiId}', 'getMatriksByProdi');
         });
 
         Route::controller(StrataController::class)->group(function () {

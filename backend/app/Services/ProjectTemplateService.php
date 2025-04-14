@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\Prodi;
 use App\Models\TaskList;
 use App\Models\Task;
+use App\Models\LkpsTable;
 use Carbon\Carbon;
 
 class ProjectTemplateService
@@ -52,6 +53,7 @@ class ProjectTemplateService
 
     $taskLists = $service->createTaskListsFromMatriks($projectId, $lamId, $strataId);
     $service->createTasksFromMatriks($projectId, $lamId, $strataId);
+    $service->createLkpsTaskListAndTasks($projectId);
 
     return $taskLists;
   }
@@ -196,6 +198,8 @@ class ProjectTemplateService
           continue;
         }
 
+        $taskName = "Butir {$item->no} - {$item->sub}";
+
         Task::create([
           'taskId' => $this->generateTaskId($projectId),
           'projectId' => $projectId,
@@ -203,6 +207,7 @@ class ProjectTemplateService
           'c' => $c,
           'no' => $item->no,
           'sub' => $item->sub,
+          'name' => $taskName,
           'progress' => 0,
           'status' => 'UNASSIGNED',
           'order' => $order++,
@@ -211,5 +216,74 @@ class ProjectTemplateService
         ]);
       }
     }
+  }
+
+  private function createLkpsTaskListAndTasks($projectId)
+  {
+    \Log::info("Creating LKPS Task List and Tasks for project ID: {$projectId}");
+
+    $project = Project::find($projectId);
+    if (!$project) {
+      throw new \Exception("Project not found");
+    }
+
+    // Perubahan dari 'c' menjadi 'name' untuk mencari TaskList LKPS
+    $lkpsTaskList = TaskList::where('projectId', $projectId)
+      ->where('c', 'LKPS')
+      ->first();
+
+    if (!$lkpsTaskList) {
+      $order = TaskList::where('projectId', $projectId)->max('order') + 1 ?? 1;
+
+      \Log::info("Creating new LKPS Task List with order: {$order}");
+
+      $lkpsTaskList = TaskList::create([
+        'projectId' => $projectId,
+        'c' => 'LKPS',
+        'order' => $order
+      ]);
+    }
+
+    $lkpsTables = LkpsTable::orderBy('created_at')->get();
+
+    \Log::info("Found " . $lkpsTables->count() . " LKPS tables");
+
+    if ($lkpsTables->isEmpty()) {
+      \Log::warning("No LKPS tables found");
+      return;
+    }
+
+    $order = 1;
+
+    foreach ($lkpsTables as $table) {
+      $taskName = "Tabel {$table->section_code}";
+
+      $existingTask = Task::where('projectId', $projectId)
+        ->where('taskListId', $lkpsTaskList->_id)
+        ->where('section_code', $table->section_code)
+        ->first();
+
+      if (!$existingTask) {
+        \Log::info("Creating new LKPS task: {$taskName}");
+
+        Task::create([
+          'taskId' => $this->generateTaskId($projectId),
+          'projectId' => $projectId,
+          'taskListId' => $lkpsTaskList->_id,
+          'name' => $taskName,
+          'section_code' => $table->section_code,
+          'code' => $table->code,
+          'progress' => 0,
+          'status' => 'UNASSIGNED',
+          'order' => $order++,
+          'startDate' => null,
+          'endDate' => null
+        ]);
+      } else {
+        \Log::info("Task for section_code {$table->section_code} already exists");
+      }
+    }
+
+    \Log::info("Completed creating LKPS tasks");
   }
 }

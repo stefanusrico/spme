@@ -200,6 +200,68 @@ class UserController extends Controller
         }
     }
 
+    public function uploadFile(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048',
+                'directory' => 'required|string'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            $filePath = $request->file('file')->store($request->directory, 'public');
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'File uploaded successfully',
+                'file_path' => $filePath
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to upload file: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function removeProfilePicture($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            if (!$user->profile_picture) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak memiliki foto profil'
+                ], 400);
+            }
+
+            if (\Storage::disk('public')->exists($user->profile_picture)) {
+                \Storage::disk('public')->delete($user->profile_picture);
+            }
+
+            $user->profile_picture = null;
+            $user->save();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Foto profil berhasil dihapus',
+                'data' => $user
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal menghapus foto profil: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function destroy($id)
     {
         try {

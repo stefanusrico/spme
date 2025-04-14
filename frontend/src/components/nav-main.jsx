@@ -1,4 +1,5 @@
 import { ChevronRight } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 import {
   Collapsible,
   CollapsibleContent,
@@ -15,6 +16,13 @@ import {
 } from "@/components/ui/sidebar"
 
 export function NavMain({ items }) {
+  const navigate = useNavigate()
+
+  const handleNavigation = (url) => {
+    // Navigate to the exact path, ignoring current location
+    navigate(`/${url}`, { replace: true })
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="flex items-center gap-2 text-zinc-400 mb-8 mt-5">
@@ -23,7 +31,7 @@ export function NavMain({ items }) {
           alt="SPME Logo"
           className="w-12 h-16"
         />
-        <span className="p-5 text-2xl">SPME</span>
+        <span className="p-5 text-2xl">SIAPS</span>
       </SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
@@ -51,12 +59,15 @@ export function NavMain({ items }) {
                           asChild
                           className="pl-9 hover:bg-[#1E293B] text-zinc-200"
                         >
-                          <a href={subItem.url}>
+                          <button
+                            onClick={() => handleNavigation(subItem.url)}
+                            className="flex items-center text-left w-full"
+                          >
                             {subItem.icon && (
                               <subItem.icon className="w-4 h-4 mr-2" />
                             )}
                             <span>{subItem.title}</span>
-                          </a>
+                          </button>
                         </SidebarMenuButton>
                       </SidebarMenuSubItem>
                     ))}
@@ -69,10 +80,13 @@ export function NavMain({ items }) {
                 asChild
                 className="w-full hover:bg-[#1E293B] text-zinc-200"
               >
-                <a href={item.url} className="flex items-center">
+                <button
+                  onClick={() => handleNavigation(item.url)}
+                  className="flex items-center text-left w-full"
+                >
                   <item.icon className="w-4 h-4" />
                   <span className="ml-2">{item.title}</span>
-                </a>
+                </button>
               </SidebarMenuButton>
             )}
           </SidebarMenuItem>

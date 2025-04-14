@@ -46,13 +46,13 @@ export const handleLogout = async () => {
 
   try {
     const token = localStorage.getItem("token")
-    const currentPath = window.location.pathname
+
+    // Dapatkan pathname aktual (tidak termasuk basename)
+    const pathname = window.location.pathname.replace(/^\/siaps/, "")
 
     if (
       !token &&
-      (currentPath === "/login" ||
-        currentPath === "/register" ||
-        currentPath === "/")
+      (pathname === "/login" || pathname === "/register" || pathname === "/")
     ) {
       isLoggingOut = false
       return
@@ -83,14 +83,7 @@ const cleanupStorage = () => {
 }
 
 const redirectToLogin = () => {
-  const currentPath = window.location.pathname
-  if (
-    currentPath !== "/login" &&
-    currentPath !== "/register" &&
-    currentPath !== "/"
-  ) {
-    window.location.href = "/login"
-  }
+  window.location.href = "/siaps/login"
 }
 
 //auth

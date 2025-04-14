@@ -6,19 +6,14 @@ export function useProjectDetails(projectId) {
 
   const availableRoles = [
     {
-      id: "owner",
-      name: "Owner",
-      description: "Full control over the project and can manage all aspects",
-    },
-    {
       id: "admin",
       name: "Admin",
-      description: "Can manage project members and tasks",
+      description: "Dapat mengelola anggota proyek dan tugas",
     },
     {
       id: "user",
       name: "User",
-      description: "Can work on assigned tasks",
+      description: "Dapat mengerjakan tugas yang diberikan",
     },
   ]
 

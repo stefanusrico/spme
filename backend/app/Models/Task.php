@@ -15,6 +15,7 @@ class Task extends Model
         'projectId',
         'sub',
         'no',
+        'name',
         'progress',
         'owners',
         'status',

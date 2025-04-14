@@ -19,6 +19,22 @@ export const uploadFile = async (file, directory) => {
   }
 }
 
+export const removeProfilePicture = async (userId) => {
+  try {
+    const response = await axiosInstance.delete(
+      `/users/${userId}/profile-picture`
+    )
+
+    console.log("Profile picture removal response:", response.data)
+    return response.data
+  } catch (error) {
+    console.error("Error removing profile picture:", error)
+    const errorMessage =
+      error.response?.data?.message || "Gagal menghapus foto profil"
+    throw new Error(errorMessage)
+  }
+}
+
 export const updateUserProfile = async (data, onSuccess, onError) => {
   try {
     const userData = await fetchUserData()

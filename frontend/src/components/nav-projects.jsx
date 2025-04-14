@@ -15,7 +15,7 @@ export function NavProjects() {
         <SidebarMenuItem>
           <SidebarMenuButton className="w-full hover:bg-[#1E293B] text-zinc-200 justify-between">
             <a
-              href="/projects"
+              href="projects"
               className="flex items-center justify-between w-full"
             >
               <span className="ml-2">Project Management</span>
@@ -26,3 +26,5 @@ export function NavProjects() {
     </SidebarGroup>
   )
 }
+
+//change

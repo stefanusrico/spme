@@ -77,6 +77,47 @@ class Prodi extends Model
         return $this->hasMany(Project::class, 'prodiId', '_id');
     }
 
+    public function lkpsDocuments()
+    {
+        return $this->hasMany(Lkps::class, 'prodiId', '_id');
+    }
+
+    /**
+     * Get the active LKPS document for this prodi
+     */
+    public function activeLkps()
+    {
+        return $this->hasOne(Lkps::class, 'prodiId', '_id')
+            ->where('isActive', true);
+    }
+
+    /**
+     * Get LKPS for current accreditation period
+     */
+    public function currentPeriodLkps()
+    {
+        if (!isset($this->akreditasi['tanggalKedaluwarsa'])) {
+            return null;
+        }
+
+        $periode = Lkps::calculatePeriode($this->akreditasi['tanggalKedaluwarsa']);
+
+        return $this->hasOne(Lkps::class, 'prodiId', '_id')
+            ->where('periode', $periode)
+            ->latest();
+    }
+    public function getOrCreateLkps($tahunAkademik, $userId)
+    {
+        if (!isset($this->akreditasi['tanggalKedaluwarsa'])) {
+            throw new \Exception('Tanggal kedaluwarsa akreditasi belum ditetapkan');
+        }
+
+        $periode = Lkps::calculatePeriode($this->akreditasi['tanggalKedaluwarsa']);
+
+        // Find existing LKPS for this period or create a new one
+        return Lkps::createForProdi($this->_id, $periode, $tahunAkademik, $userId);
+    }
+
     public function getJurusanKeyword($name = null)
     {
         $prodiName = $name ?? $this->name;

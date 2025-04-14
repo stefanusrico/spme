@@ -29,7 +29,7 @@ class ProjectController extends Controller
 
     public function index()
     {
-        $projects = Project::all();
+        $projects = Project::orderBy('created_at', 'desc')->get();
 
         $projectsWithOwner = $projects->map(function ($project) {
             $owner = collect($project->members)
@@ -72,7 +72,7 @@ class ProjectController extends Controller
         if (!$user->prodiId) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'User must be associated with a Prodi'
+                'message' => 'User harus memiliki prodi'
             ], 400);
         }
 
@@ -80,7 +80,7 @@ class ProjectController extends Controller
         if (!$prodiModel) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Prodi not found'
+                'message' => 'Prodi tidak ditemukan'
             ], 400);
         }
 
@@ -92,7 +92,7 @@ class ProjectController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'Prodi already has an active project that will end on ' .
+                'message' => 'Prodi sudah memiliki project aktif. Tanggal selesai: ' .
                     Carbon::parse($existingProject->endDate)->format('d M Y'),
             ], 400);
         }
@@ -194,14 +194,13 @@ class ProjectController extends Controller
 
             foreach ($groupedTasks as $status => $tasks) {
                 $tasksByStatus[$status] = $tasks->map(function ($task) {
-                    $taskName = "Butir {$task->no} - {$task->sub}";
 
                     return [
                         'id' => $task->_id,
                         'taskId' => $task->taskId,
                         'no' => $task->no,
                         'sub' => $task->sub,
-                        'name' => $taskName,
+                        'name' => $task->name,
                         'progress' => $task->progress,
                         'owners' => $task->users->map(function ($user) {
                             return [
@@ -256,42 +255,70 @@ class ProjectController extends Controller
         }
     }
 
-    public function getTasksByProdiId($prodiId)
+    public function getProjectDetailsByProdi($prodiId)
     {
         try {
-            $latestProject = Project::where('prodiId', $prodiId)
-                ->orderBy('created_at', 'desc')
+            $project = Project::where('prodiId', $prodiId)
+                ->with([
+                    'prodi',
+                    'tasks' => function ($query) {
+                        $query->with('users')
+                            ->whereIn('status', ['ACTIVE', 'UNASSIGNED']);
+                    }
+                ])
                 ->first();
 
-            if (!$latestProject) {
+            if (!$project) {
                 return response()->json([
-                    'status' => 'success',
-                    'projectId' => null,
-                    'data' => []
-                ]);
+                    'status' => 'error',
+                    'message' => 'Project not found for given prodiId'
+                ], 404);
             }
 
-            $tasks = Task::where('projectId', $latestProject->_id)
-                ->with('users')
-                ->get()
-                ->map(function ($task) use ($latestProject) {
-                    return [
-                        'id' => $task->_id,
-                        'taskId' => $task->taskId,
-                        'no' => $task->no,
-                        'sub' => $task->sub,
-                    ];
-                })
-                ->toArray();
+            $sortedTasks = $project->tasks->sortBy([
+                ['no', 'asc'],
+                ['sub', 'asc']
+            ])->values();
+
+            $tasks = $sortedTasks->map(function ($task) {
+                return [
+                    'id' => $task->_id,
+                    'taskId' => $task->taskId,
+                    'no' => $task->no,
+                    'sub' => $task->sub,
+                    'name' => "Butir {$task->no} - {$task->sub}",
+                    'progress' => $task->progress,
+                    'owners' => $task->users->map(function ($user) {
+                        return [
+                            'id' => $user->_id,
+                            'name' => $user->name,
+                            'profile_picture' => $user->profile_picture
+                        ];
+                    }),
+                    'startDate' => $task->startDate,
+                    'endDate' => $task->endDate
+                ];
+            })->toArray();
+
+            $statistics = [
+                'totalTasks' => count($tasks)
+            ];
 
             return response()->json([
                 'status' => 'success',
-                'projectId' => $latestProject->_id,
-                'data' => $tasks
+                'data' => [
+                    'projectId' => $project->_id,
+                    'projectName' => $project->name,
+                    'prodiName' => $project->prodi->name ?? 'Unknown',
+                    'prodiId' => $project->prodiId,
+                    'createdAt' => $project->created_at,
+                    'statistics' => $statistics,
+                    'tasks' => $tasks
+                ]
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Error retrieving tasks from latest project by prodiId:', [
+            \Log::error('Project details error:', [
                 'error' => $e->getMessage(),
                 'prodiId' => $prodiId,
                 'trace' => $e->getTraceAsString()
@@ -299,7 +326,7 @@ class ProjectController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'Error retrieving tasks: ' . $e->getMessage()
+                'message' => 'Error retrieving project details: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -354,14 +381,12 @@ class ProjectController extends Controller
                                 })->filter();
                             }
 
-                            $taskName = "Butir {$task->no} - {$task->sub}";
-
                             return [
                                 'id' => $task->_id,
                                 'taskId' => $task->taskId,
                                 'no' => $task->no,
                                 'sub' => $task->sub,
-                                'name' => $taskName,
+                                'name' => $task->name,
                                 'status' => $task->status,
                                 'progress' => $task->progress,
                                 'startDate' => $startDate->format('Y-m-d'),
@@ -458,7 +483,7 @@ class ProjectController extends Controller
             if ($isMember) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'User is already a member of this project'
+                    'message' => 'User sudah terdaftar di project ini'
                 ], 400);
             }
 
@@ -466,7 +491,7 @@ class ProjectController extends Controller
             if ($request->role === self::ROLE_ADMIN && !$this->isOwner($project, $currentUser->_id)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Only project owner can add admin members'
+                    'message' => 'Hanya owner yang dapat menambahkan admin'
                 ], 403);
             }
 
@@ -518,7 +543,7 @@ class ProjectController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Member added successfully and notifications sent',
+                'message' => 'Member berhasil ditambahkan dan notifikasi berhasil dikirim',
                 'data' => $project
             ]);
 

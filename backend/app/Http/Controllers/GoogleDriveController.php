@@ -44,14 +44,18 @@ class GoogleDriveController extends Controller
     public function uploadFile(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|max:5000',
+            'file.*' => 'required|file',
             'subFolder' => 'required|string',
             'noSub' => 'required|string',
+            'noKriteria' => 'required|array',
+            'noKriteria.*' => 'required|string',
         ]);
 
-        $file = $request->file('file');
+        $files = $request->file('file');
         $subFolderName = $request->input('subFolder');
         $noSub = $request->input('noSub');
+        $noKriteriaList = $request->input('noKriteria');
+
         $parentFolderId = env('GOOGLE_DRIVE_FOLDER_ID');
 
         $service = $this->getDriveService();
@@ -60,24 +64,44 @@ class GoogleDriveController extends Controller
         $subFolderId = $this->getOrCreateFolder($subFolderName, $parentFolderId, $service);
         $noSubId = $this->getOrCreateFolder($noSub, $subFolderId, $service);
 
-        // Upload file ke Google Drive
-        $fileMetadata = new DriveFile([
-            'name' => $file->getClientOriginalName(),
-            'parents' => [$noSubId],
-        ]);
+        $uploadedFiles = [];
 
-        $uploadedFile = $service->files->create($fileMetadata, [
-            'data' => file_get_contents($file->path()),
-            'mimeType' => $file->getClientMimeType(),
-            'uploadType' => 'multipart',
-        ]);
+        foreach ($files as $index => $file) {
+            $noKriteria = $noKriteriaList[$index] ?? null;
+            if (!$noKriteria) {
+                continue;
+            }
+
+            $noKriteriaId = $this->getOrCreateFolder($noKriteria, $noSubId, $service);
+
+            $fileMetadata = new DriveFile([
+                'name' => $file->getClientOriginalName(),
+                'parents' => [$noKriteriaId],
+            ]);
+
+            $uploadedFile = $service->files->create($fileMetadata, [
+                'data' => file_get_contents($file->path()),
+                'mimeType' => $file->getClientMimeType(),
+                'uploadType' => 'multipart',
+                'fields' => 'id, name',
+            ]);
+
+            $fileDetails = $service->files->get($uploadedFile->id, [
+                'fields' => 'id, name, webViewLink'
+            ]);
+
+            // Simpan informasi file yang diunggah
+            $uploadedFiles[] = [
+                'file_id' => $fileDetails->id,
+                'file_name' => $fileDetails->name,
+                'file_url' => $fileDetails->webViewLink,
+                // 'folder_id' => $noKriteriaId,
+            ];
+        }
 
         return response()->json([
             'message' => 'File berhasil diunggah ke Google Drive',
-            'file_id' => $uploadedFile->id,
-            'file_name' => $uploadedFile->name,
-            'file_url' => $uploadedFile->url,
-            'folder_id' => $noSubId,
+            'files' => $uploadedFiles,
         ]);
     }
 
@@ -85,10 +109,12 @@ class GoogleDriveController extends Controller
     {
         $subFolder = $request->query('subFolder');
         $noSub = $request->query('noSub');
+        $noKriteria = $request->input('noKriteria');
+
         $parentFolderId = env('GOOGLE_DRIVE_FOLDER_ID');
 
-        if (!$subFolder || !$noSub) {
-            return response()->json(['error' => 'Parameter subFolder dan noSub diperlukan'], 400);
+        if (!$subFolder || !$noSub || !$noKriteria) {
+            return response()->json(['error' => 'Parameter subFolder, noSub, dan noKriteria diperlukan'], 400);
         }
 
         $service = $this->getDriveService();
@@ -96,9 +122,10 @@ class GoogleDriveController extends Controller
         // Ambil folder ID
         $subFolderId = $this->getOrCreateFolder($subFolder, $parentFolderId, $service);
         $noSubId = $this->getOrCreateFolder($noSub, $subFolderId, $service);
+        $noKriteriaId = $this->getOrCreateFolder($noKriteria, $noSubId, $service);
 
         // Query untuk mendapatkan file dalam folder
-        $query = sprintf("'%s' in parents and trashed=false and name != 'Folder Sampah'", $noSubId);
+        $query = sprintf("'%s' in parents and trashed=false and name != 'Folder Sampah'", $noKriteriaId);
         $files = $service->files->listFiles(['q' => $query, 'fields' => 'files(id, name, webViewLink)'])->getFiles();
 
         if (empty($files)) {

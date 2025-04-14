@@ -6,7 +6,7 @@ const AuthWrapper = ({ isProtected = false }) => {
 
   if (!isProtected) {
     if (token) {
-      const dashboardPath = role === "Admin" ? "/dashboard" : "/dashboard"
+      const dashboardPath = "dashboard"
       return <Navigate to={dashboardPath} replace />
     }
     return <Outlet />

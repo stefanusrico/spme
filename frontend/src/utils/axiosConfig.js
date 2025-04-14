@@ -2,8 +2,8 @@ import axios from "axios"
 import { jwtDecode } from "jwt-decode"
 
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:8000/api/",
-  withCredentials: true
+  baseURL: "http://127.0.0.1:8000/api/",
+  withCredentials: true,
 })
 
 export const isTokenExpired = (token) => {
@@ -47,6 +47,5 @@ axiosInstance.interceptors.request.use(
 )
 
 export default axiosInstance
-
 
 //auth

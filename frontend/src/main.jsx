@@ -19,11 +19,12 @@ import Jadwal from "./pages/Jadwal"
 import JsonGenerator from "./pages/JsonGenerator"
 import LoginPage from "./pages/login"
 import Notifications from "./pages/Notifications"
-import PengisianMatrikLed from "./pages/PengisianMatriksLed"
+import PengisianLed from "./pages/PengisianLed.jsx"
 import Projects from "./pages/Projects"
 import RegisterPage from "./pages/register"
 import UserManagement from "./pages/userManagement"
 import { isTokenExpired } from "./utils/axiosConfig"
+import DynamicLkpsComponent from "./components/Lkps/DynamicLkpsComponent"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,95 +45,102 @@ let tokenCheckInterval = setInterval(() => {
   }
 }, CHECK_INTERVAL)
 
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+  [
+    {
+      element: (
+        <UserProvider>
+          <AuthWrapper isProtected={false} />
+        </UserProvider>
+      ),
+      errorElement: <ErrorPage />,
+      children: [
+        { path: "/", element: <LoginPage /> },
+        { path: "login", element: <LoginPage /> },
+        { path: "register", element: <RegisterPage /> },
+      ],
+    },
+    {
+      element: (
+        <UserProvider>
+          <RoleBasedRoute
+            allowedRoles={["Admin", "Ketua Program Studi"]}
+            roleComponents={{
+              Admin: DashboardAdmin,
+              "Ketua Program Studi": ProjectsTable,
+            }}
+          />
+        </UserProvider>
+      ),
+      children: [{ path: "/dashboard", element: null }],
+    },
+    {
+      element: (
+        <UserProvider>
+          <RoleBasedRoute
+            allowedRoles={["Admin", "Ketua Program Studi"]}
+            sharedComponents={{
+              account: Account,
+              notifications: Notifications,
+              projects: Projects,
+            }}
+          />
+        </UserProvider>
+      ),
+      children: [
+        { path: "account", element: null },
+        { path: "notifications", element: null },
+        { path: "projects/:projectId", element: <Projects /> },
+      ],
+    },
+    {
+      element: (
+        <UserProvider>
+          <RoleBasedRoute allowedRoles={["Admin"]} />
+        </UserProvider>
+      ),
+      children: [
+        { path: "prodi", element: <ProdiTable /> },
+        { path: "jadwal", element: <Jadwal /> },
+        { path: "json/generate", element: <JsonGenerator /> },
+        { path: "user-management/users", element: <UserManagement /> },
+        { path: "user-management/permissions", element: <UserManagement /> },
+        {
+          path: "user-management/*",
+          element: <Navigate to="/user-management/users" replace />,
+        },
+        { path: "user-management/user/:id/edit", element: <EditUser /> },
+        { path: "user-management/role/:id/edit", element: <EditRole /> },
+        { path: "user-management/user/add", element: <AddUser /> },
+        { path: "user-management/role/add", element: <AddPermission /> },
+        { path: "section", element: <Section1 /> },
+        { path: "lkps", element: <Navigate to="/lkps/1-1" replace /> },
+        { path: "lkps/:sectionCode", element: <DynamicLkpsComponent /> },
+        {
+          path: "pengisian-matriks-led/:no?/:sub?",
+          element: <PengisianLed />,
+        },
+      ],
+    },
+    {
+      element: (
+        <UserProvider>
+          <RoleBasedRoute allowedRoles={["Ketua Program Studi"]} />
+        </UserProvider>
+      ),
+      children: [
+        { path: "projects", element: <ProjectsTable /> },
+        // {
+        //   path: "/pengisian-matriks-led/:no?/:sub?",
+        //   element: <PengisianMatrikLed />,
+        // },
+      ],
+    },
+  ],
   {
-    element: (
-      <UserProvider>
-        <AuthWrapper isProtected={false} />
-      </UserProvider>
-    ),
-    errorElement: <ErrorPage />,
-    children: [
-      { path: "/", element: <LoginPage /> },
-      { path: "/login", element: <LoginPage /> },
-      { path: "/register", element: <RegisterPage /> },
-    ],
-  },
-  {
-    element: (
-      <UserProvider>
-        <RoleBasedRoute
-          allowedRoles={["Admin", "Ketua Program Studi"]}
-          roleComponents={{
-            Admin: DashboardAdmin,
-            "Ketua Program Studi": ProjectsTable,
-          }}
-        />
-      </UserProvider>
-    ),
-    children: [{ path: "/dashboard", element: null }],
-  },
-  {
-    element: (
-      <UserProvider>
-        <RoleBasedRoute
-          allowedRoles={["Admin", "Ketua Program Studi"]}
-          sharedComponents={{
-            account: Account,
-            notifications: Notifications,
-            projects: Projects,
-          }}
-        />
-      </UserProvider>
-    ),
-    children: [
-      { path: "/account", element: null },
-      { path: "/notifications", element: null },
-      { path: "/projects/:projectId", element: <Projects /> },
-    ],
-  },
-  {
-    element: (
-      <UserProvider>
-        <RoleBasedRoute allowedRoles={["Admin"]} />
-      </UserProvider>
-    ),
-    children: [
-      { path: "/prodi", element: <ProdiTable /> },
-      { path: "/jadwal", element: <Jadwal /> },
-      { path: "/json/generate", element: <JsonGenerator /> },
-      { path: "/user-management/users", element: <UserManagement /> },
-      { path: "/user-management/permissions", element: <UserManagement /> },
-      {
-        path: "/user-management/*",
-        element: <Navigate to="/user-management/users" replace />,
-      },
-      { path: "/user-management/user/:id/edit", element: <EditUser /> },
-      { path: "/user-management/role/:id/edit", element: <EditRole /> },
-      { path: "/user-management/user/add", element: <AddUser /> },
-      { path: "/user-management/role/add", element: <AddPermission /> },
-      { path: "section", element: <Section1 /> },
-      {
-        path: "/pengisian-matriks-led/:no?/:sub?",
-        element: <PengisianMatrikLed />,
-      },
-    ],
-  },
-  {
-    element: (
-      <UserProvider>
-        <RoleBasedRoute allowedRoles={["Ketua Program Studi"]} />
-      </UserProvider>
-    ),
-    children: [
-      { path: "/projects", element: <ProjectsTable /> },
-      // {
-      //   path: "/pengisian-matriks-led/:no?/:sub?",
-      //   element: <PengisianMatrikLed />,
-      // },
-    ],
-  },
-])
+    basename: "/siaps",
+  }
+)
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <QueryClientProvider client={queryClient}>

@@ -444,14 +444,23 @@ const Tasks = ({ projectId, userRole }) => {
         size: 100,
         cell: ({ row }) => {
           if (row.original.isGroupHeader) return null
+          const isLkpsTask =
+            row.original.name && row.original.name.startsWith("Tabel")
+
+          let link
+          if (isLkpsTask) {
+            const sectionCodeMatch = row.original.name.match(/Tabel\s+(\S+)/)
+            const sectionCode = sectionCodeMatch ? sectionCodeMatch[1] : ""
+            link = `/lkps/${sectionCode}`
+          } else {
+            // Task biasa (Butir)
+            link = `/pengisian-matriks-led/${row.original.no}/${row.original.sub}`
+          }
+
           return (
             <div className="flex justify-center">
               <button
-                onClick={() =>
-                  navigate(
-                    `/pengisian-matriks-led/${row.original.no}/${row.original.sub}`
-                  )
-                }
+                onClick={() => navigate(link)}
                 className="px-3 py-1.5 text-sm font-medium text-white bg-blue rounded hover:bg-blue-700 rounded-lg"
               >
                 View Task

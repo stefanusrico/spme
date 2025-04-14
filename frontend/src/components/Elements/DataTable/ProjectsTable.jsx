@@ -6,6 +6,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { useEffect, useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 import axiosInstance from "../../../utils/axiosConfig"
 import ProgressBar from "../Chart/ProgressBar"
 import AddProjectModal from "../Modals/AddProjectModal"
@@ -71,6 +72,7 @@ const ProjectsTable = ({ isCollapsed }) => {
     startDate: "",
     endDate: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const columnHelper = createColumnHelper()
 
@@ -82,16 +84,16 @@ const ProjectsTable = ({ isCollapsed }) => {
       }),
       columnHelper.accessor("name", {
         header: "PROJECT NAME",
-        size: 200,
+        size: 2,
         cell: ({ row }) => (
           <div className="relative group">
             <span>{row.original.name}</span>
-            <a
-              href={`/projects/${row.original.id}`}
+            <Link
+              to={`/projects/${row.original.id}`}
               className="absolute right-0 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue_badge text-blue text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-400"
             >
               Access Project
-            </a>
+            </Link>
           </div>
         ),
       }),
@@ -172,13 +174,13 @@ const ProjectsTable = ({ isCollapsed }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setIsSubmitting(true)
     try {
       const response = await axiosInstance.post("/project", formData)
       if (response.data.status === "success") {
         setFormData({ name: "", startDate: "", endDate: "" })
-        setShowModal(false)
         fetchProjects()
-        toast.success("Project created successfully!", {
+        toast.success("Project berhasil dibuat!", {
           position: "top-right",
           autoClose: 3000,
           hideProgressBar: false,
@@ -186,6 +188,7 @@ const ProjectsTable = ({ isCollapsed }) => {
           pauseOnHover: true,
           draggable: true,
         })
+        setShowModal(false)
       }
     } catch (err) {
       console.error("Error creating project:", err)
@@ -197,6 +200,8 @@ const ProjectsTable = ({ isCollapsed }) => {
         pauseOnHover: true,
         draggable: true,
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -350,6 +355,7 @@ const ProjectsTable = ({ isCollapsed }) => {
         formData={formData}
         onInputChange={handleInputChange}
         onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
       />
     </div>
   )
