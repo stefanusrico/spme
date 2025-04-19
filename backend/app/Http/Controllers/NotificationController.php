@@ -115,7 +115,7 @@ class NotificationController extends Controller
     public function sendWhatsAppNotification($phone, $message)
     {
         $token = "ZkK0zVOscvjh06bDeGopbr7QFgqeRWGFCf2DUFJfUJZ3qvsrqUqGdEJ";
-        $secret = "eOFiyzW2";
+        $secret = "QHksVMKw";
 
         $curl = curl_init();
 

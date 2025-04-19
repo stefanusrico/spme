@@ -39,31 +39,23 @@ import DebugPanel from "./DebugPanel"
 import ExportToExcel from "../../utils/ExportToExcel"
 import ExcelTemplateUploader from "./ExcelTemplateUploader"
 
-// Tabs components from antd
 const { TabPane } = Tabs
 const { Title, Paragraph, Text } = Typography
 const { confirm } = Modal
 
-/**
- * Main container component for LKPS section management
- * Refactored to remove prodiData, polbanData, and source fields
- */
 const DynamicLkpsContainer = () => {
   const { sectionCode } = useParams()
   const navigate = useNavigate()
   const { userData, isLoading: userLoading } = useUser()
 
-  // Register plugins when component loads
   useEffect(() => {
     registerPlugins()
   }, [])
 
-  // UI state
   const [debugMode, setDebugMode] = useState(false)
-  const [activeTab, setActiveTab] = useState("export")
+  const [activeTab, setActiveTab] = useState("template")
   const [dataFilter, setDataFilter] = useState("all")
 
-  // Use custom hooks
   const {
     sectionStructure,
     structureLoading,
@@ -83,8 +75,8 @@ const DynamicLkpsContainer = () => {
   const {
     tableData,
     setTableData,
-    selectionData, // Using selectionData instead of polbanData
-    setSelectionData, // Using setSelectionData instead of setPolbanData
+    selectionData,
+    setSelectionData,
     allExcelData,
     setAllExcelData,
     isUploaded,
@@ -124,8 +116,8 @@ const DynamicLkpsContainer = () => {
     configRef,
     tableData,
     setTableData,
-    selectionData, // Using selectionData
-    setSelectionData, // Using setSelectionData
+    selectionData,
+    setSelectionData,
     showSelectionMode,
     setShowSelectionMode,
     calculateScoreData,
@@ -174,7 +166,6 @@ const DynamicLkpsContainer = () => {
     setEditingKey
   )
 
-  // Wrapped handlers
   const handleSave = () => {
     if (!config) return
 
@@ -191,7 +182,6 @@ const DynamicLkpsContainer = () => {
       return
     }
 
-    // Stop editing mode when saving
     setEditingKey(null)
     saveData(config)
   }
@@ -204,7 +194,6 @@ const DynamicLkpsContainer = () => {
     setDataFilter(e.target.value)
   }
 
-  // Loading state
   if (loading || userLoading) {
     return (
       <div
@@ -220,7 +209,6 @@ const DynamicLkpsContainer = () => {
     )
   }
 
-  // Not authenticated
   if (!userData) {
     return (
       <Card>
@@ -232,7 +220,6 @@ const DynamicLkpsContainer = () => {
     )
   }
 
-  // Error state
   if (error) {
     return (
       <Card>
@@ -247,7 +234,6 @@ const DynamicLkpsContainer = () => {
 
   return (
     <div className="lkps-page-container">
-      {/* Navigation header */}
       <SectionHeader
         sectionCode={sectionCode}
         currentSection={currentSection}
@@ -259,20 +245,6 @@ const DynamicLkpsContainer = () => {
 
       <Card style={{ marginBottom: 16 }}>
         <Tabs activeKey={activeTab} onChange={setActiveTab}>
-          <TabPane
-            tab={
-              <span>
-                <FileExcelOutlined /> Export Data
-              </span>
-            }
-            key="export"
-          >
-            <Typography.Title level={5}>
-              Export LKPS Data to Excel
-            </Typography.Title>
-            <ExportToExcel userData={userData} sectionCode={sectionCode} />
-          </TabPane>
-
           {userData?.role === "Admin" && (
             <TabPane
               tab={
@@ -291,8 +263,7 @@ const DynamicLkpsContainer = () => {
         </Tabs>
       </Card>
 
-      {/* Debug panel (only in development) */}
-      {process.env.NODE_ENV === "development" && (
+      {/* {process.env.NODE_ENV === "development" && (
         <DebugPanel
           sectionCode={sectionCode}
           config={config}
@@ -307,9 +278,8 @@ const DynamicLkpsContainer = () => {
           fixAllExistingData={fixAllExistingData}
           plugin={plugin}
         />
-      )}
+      )} */}
 
-      {/* LKPS content */}
       <div className="lkps-section-container">
         <Card style={{ marginBottom: 16 }}>
           <Title level={3}>
@@ -347,12 +317,14 @@ const DynamicLkpsContainer = () => {
           )}
         </Card>
 
-        {/* Score Display */}
-        {score !== null && config?.formula && (
-          <ScoreDisplay score={score} formula={config.formula} />
+        {score !== null && (
+          <ScoreDisplay
+            score={score}
+            formula={config?.formula}
+            scoreDetail={scoreDetail}
+          />
         )}
 
-        {/* Tridharma Score Details */}
         {scoreDetail && plugin?.getInfo().code.startsWith("1-") && (
           <TridharmaScoreDetails
             sectionCode={sectionCode}
@@ -364,7 +336,6 @@ const DynamicLkpsContainer = () => {
           />
         )}
 
-        {/* Table Display */}
         {config && config.tables && config.tables.length > 1 ? (
           <Tabs
             defaultActiveKey={
@@ -411,7 +382,7 @@ const DynamicLkpsContainer = () => {
                   <TableSectionWithSelection
                     tableConfig={tableConfig}
                     tableData={tableData[tableCode] || []}
-                    selectionData={selectionData[tableCode] || []} // Using selectionData instead of polbanData
+                    selectionData={selectionData[tableCode] || []}
                     showSelectionMode={showSelectionMode[tableCode]}
                     toggleSelectionMode={() => toggleSelectionMode(tableCode)}
                     generateColumns={columnsGenerator}
@@ -445,7 +416,6 @@ const DynamicLkpsContainer = () => {
                 ] || []
               }
               selectionData={
-                // Using selectionData instead of polbanData
                 selectionData[
                   typeof config.tables[0] === "string"
                     ? config.tables[0]
@@ -498,17 +468,33 @@ const DynamicLkpsContainer = () => {
           )
         )}
 
-        {/* Section Footer with Navigation */}
-        <SectionFooter
-          saving={saving}
-          onSave={handleSave}
-          onPrev={handlePrev}
-          onNext={handleNext}
-          hasPrev={!!prev}
-          hasNext={!!next}
-        />
+        {/* Section Footer with Navigation and Export Button */}
+        <div
+          className="section-footer"
+          style={{
+            marginTop: "20px",
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <div>
+            {!!prev && (
+              <Button onClick={handlePrev} style={{ marginRight: "10px" }}>
+                Previous
+              </Button>
+            )}
+            {!!next && <Button onClick={handleNext}>Next</Button>}
+          </div>
+          <div style={{ display: "flex" }}>
+            <div style={{ marginRight: "10px" }}>
+              <ExportToExcel userData={userData} sectionCode={sectionCode} />
+            </div>
+            <Button type="primary" onClick={handleSave} loading={saving}>
+              Save Data
+            </Button>
+          </div>
+        </div>
 
-        {/* Create LKPS Modal */}
         <CreateLkpsModal
           visible={showCreateModal}
           onCancel={() => setShowCreateModal(false)}

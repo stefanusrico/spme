@@ -33,6 +33,51 @@ class LkpsExportController extends Controller
     }
 
     /**
+     * Mendapatkan semua lkpsId untuk prodiId tertentu
+     * Dengan penambahan debug dan fleksibilitas untuk query
+     */
+    private function getLkpsIdsForProdi($prodiId)
+    {
+        try {
+            Log::info('Mencari LKPS untuk prodiId', ['prodiId' => $prodiId]);
+
+            // Query dasar
+            $query = ['prodiId' => $prodiId];
+
+            $lkpsCollection = $this->db->selectCollection('lkps');
+            $lkpsList = $lkpsCollection->find($query)->toArray();
+
+            Log::info('Ditemukan LKPS untuk prodiId:', ['count' => count($lkpsList)]);
+
+            // Extract lkpsIds sebagai STRING, bukan sebagai object
+            $lkpsIds = [];
+            foreach ($lkpsList as $lkps) {
+                // Langsung konversi ObjectId ke string
+                $lkpsIds[] = (string) $lkps->_id;
+            }
+
+            // Jika lkpsIds kosong, coba tambahkan lkpsId yang ditemukan di dokumen lkps_data
+            if (empty($lkpsIds)) {
+                $knownLkpsIds = $this->collection->distinct('lkpsId', []);
+                Log::info('LkpsIds yang ditemukan di lkps_data:', ['count' => count($knownLkpsIds)]);
+
+                if (count($knownLkpsIds) > 0) {
+                    foreach ($knownLkpsIds as $id) {
+                        $lkpsIds[] = (string) $id;
+                    }
+                }
+            }
+
+            Log::info('Total LKPS IDs ditemukan:', ['count' => count($lkpsIds), 'ids' => $lkpsIds]);
+            return $lkpsIds;
+
+        } catch (\Exception $e) {
+            Log::error('Error dalam getLkpsIdsForProdi:', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    /**
      * Get Excel template file
      */
     public function getTemplate()
@@ -66,6 +111,7 @@ class LkpsExportController extends Controller
     /**
      * Export data using uploaded template with all sheets
      * Now supports multiple sections based on request
+     * Added support for direct lkpsId and debug_mode
      */
     public function exportData(Request $request)
     {
@@ -77,7 +123,23 @@ class LkpsExportController extends Controller
             // Log memori awal untuk debugging
             Log::info('Initial memory usage: ' . round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB');
 
+            // Get parameters
             $prodiId = $request->input('prodiId');
+            $specificLkpsId = $request->input('lkpsId');
+            $debugMode = $request->input('debug_mode', false);
+
+            // Log all parameters
+            Log::info('Export data requested', [
+                'prodi_id' => $prodiId,
+                'lkps_id' => $specificLkpsId,
+                'debug_mode' => $debugMode
+            ]);
+
+            // Pastikan prodiId atau lkpsId tersedia
+            if (empty($prodiId) && empty($specificLkpsId) && !$debugMode) {
+                Log::error('Baik prodiId maupun lkpsId tidak tersedia');
+                return response()->json(['message' => 'ProdiId atau lkpsId diperlukan'], 400);
+            }
 
             // Get array of section codes to export
             $sectionCodes = $request->input('sections', ['1-1']); // Default to 1-1 if not provided
@@ -86,10 +148,23 @@ class LkpsExportController extends Controller
                 $sectionCodes = [$sectionCodes]; // Convert to array if single value
             }
 
-            Log::info('Export data requested', [
-                'prodi_id' => $prodiId,
-                'section_codes' => $sectionCodes
-            ]);
+            Log::info('Sections to export:', ['section_codes' => $sectionCodes]);
+
+            // Get LKPS IDs based on request
+            $lkpsIds = [];
+
+            // Prioritas: 1. specificLkpsId, 2. getLkpsIdsForProdi, 3. debugMode tanpa filter
+            if (!empty($specificLkpsId)) {
+                $lkpsIds = [$specificLkpsId];
+                Log::info('Using specific lkpsId provided in request', ['lkpsId' => $specificLkpsId]);
+            } elseif (!empty($prodiId) && !$debugMode) {
+                $lkpsIds = $this->getLkpsIdsForProdi($prodiId);
+                Log::info('Using lkpsIds from prodiId', ['count' => count($lkpsIds)]);
+            }
+
+            if (empty($lkpsIds) && !$debugMode) {
+                Log::warning('Tidak ada LKPS yang ditemukan. Menggunakan template kosong.');
+            }
 
             // Path to template
             $templatePath = storage_path('app/public/templates/LKPS_template.xlsx');
@@ -98,7 +173,7 @@ class LkpsExportController extends Controller
                 return response()->json(['message' => 'Template not found'], 404);
             }
 
-            // PENTING: Load template dengan SEMUA sheet (tidak menggunakan setLoadSheetsOnly)
+            // PENTING: Load template dengan SEMUA sheet
             $reader = IOFactory::createReader('Xlsx');
             $reader->setReadDataOnly(false); // Pastikan format dan styling dipertahankan
 
@@ -113,13 +188,46 @@ class LkpsExportController extends Controller
             $processedSections = [];
 
             foreach ($sectionCodes as $sectionCode) {
-                // Query MongoDB for this section
-                $query = ['section_code' => $sectionCode];
+                // Prepare query based on mode
+                if ($debugMode) {
+                    // Debug mode: ignore lkpsId filter
+                    $query = ['section_code' => $sectionCode];
+                    Log::info("Running in debug mode for section {$sectionCode} - ignoring lkpsId filter");
+                } else {
+                    // Normal mode: use lkpsId filter
+                    $query = ['section_code' => $sectionCode];
+
+                    // Add lkpsId filter if we have lkpsIds
+                    if (!empty($lkpsIds)) {
+                        $query['lkpsId'] = ['$in' => $lkpsIds];
+                    }
+                }
+
+                // Debug: Log the final query
+                Log::info("Query for section {$sectionCode}:", ['query' => $query]);
+
                 $documents = $this->collection->find($query)->toArray();
 
                 Log::info("Found " . count($documents) . " documents for section {$sectionCode}");
 
                 if (empty($documents)) {
+                    // Debug: try to find documents with just section_code
+                    $simpleQuery = ['section_code' => $sectionCode];
+                    $allDocs = $this->collection->find($simpleQuery)->toArray();
+                    Log::info("Total documents with section_code {$sectionCode} (without lkpsId filter):", ['count' => count($allDocs)]);
+
+                    if (count($allDocs) > 0) {
+                        // Find all lkpsIds for these documents
+                        $existingLkpsIds = [];
+                        foreach ($allDocs as $doc) {
+                            $docArray = json_decode(json_encode($doc), true);
+                            if (isset($docArray['lkpsId']) && !in_array($docArray['lkpsId'], $existingLkpsIds)) {
+                                $existingLkpsIds[] = $docArray['lkpsId'];
+                            }
+                        }
+                        Log::info("LkpsIds in database for section {$sectionCode}:", ['ids' => $existingLkpsIds]);
+                    }
+
                     Log::warning("No data found for section {$sectionCode}, skipping");
                     continue;
                 }

@@ -7,8 +7,8 @@ const LoginPage = () => {
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 overflow-hidden">
       <div className="w-full md:w-3/4 h-screen relative">
         <img
-          src="https://umaiyomu.wordpress.com/wp-content/uploads/2024/04/sousou-no-frieren-5.jpg"
-          alt="Frieren Gaming"
+          src="https://ppb.polban.ac.id/storage/theme-images/01JHPMYXBED430J4QRHQD4336Q.jpeg"
+          alt="Pendopo POLBAN"
           className="absolute inset-0 w-full h-full object-cover"
         />
       </div>

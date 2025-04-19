@@ -167,7 +167,7 @@ const ExportToExcel = ({ userData, sectionCode }) => {
 
       // Siapkan data untuk dikirim ke API
       const exportData = {
-        prodiId: userData?.prodiId,
+        prodiId: userData?.prodi.id,
         sections: selectedSections,
       }
 
@@ -258,7 +258,7 @@ const ExportToExcel = ({ userData, sectionCode }) => {
         Export to Excel
       </Button>
 
-      {loading && progress > 0 && (
+      {/* {loading && progress > 0 && (
         <Card style={{ marginBottom: 16 }}>
           <Progress
             percent={Math.round(progress)}
@@ -271,7 +271,7 @@ const ExportToExcel = ({ userData, sectionCode }) => {
               : "Ekspor selesai!"}
           </Text>
         </Card>
-      )}
+      )} */}
 
       <Modal
         title="Export LKPS Data to Excel"

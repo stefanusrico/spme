@@ -126,7 +126,7 @@ class ProjectController extends Controller
         $existingProjects = $user->projects ?? [];
         $updatedProjects = array_merge($existingProjects, [
             [
-                'projectId' => $project->projectId,
+                'projectId' => $project->_id,
                 'role' => self::ROLE_OWNER
             ]
         ]);
@@ -408,6 +408,12 @@ class ProjectController extends Controller
                 'completedTasks' => $taskLists->sum(function ($taskList) {
                     return $taskList['tasks']->where('status', 'COMPLETED')->count();
                 }),
+                'inProgressTasks' => $taskLists->sum(function ($taskList) {
+                    return $taskList['tasks']->where('status', 'ACTIVE')->count();
+                }),
+                'notStartedTasks' => $taskLists->sum(function ($taskList) {
+                    return $taskList['tasks']->where('status', 'UNASSIGNED')->count();
+                }),
             ];
 
             return response()->json([
@@ -504,7 +510,7 @@ class ProjectController extends Controller
             $existingProjects = $user->projects ?? [];
             $updatedProjects = array_merge($existingProjects, [
                 [
-                    'projectId' => $project->projectId,
+                    'projectId' => $project->_id,
                     'role' => $request->role
                 ]
             ]);
@@ -805,7 +811,7 @@ class ProjectController extends Controller
         if ($user && isset($user->projects)) {
             $updatedProjects = collect($user->projects)
                 ->reject(function ($userProject) use ($project) {
-                    return $userProject['projectId'] === $project->projectId;
+                    return $userProject['projectId'] === $project->id;
                 })
                 ->toArray();
 

@@ -63,12 +63,20 @@ const DosenTetapPerguruanTinggiPlugin = {
         no: index + 1,
         selected: true,
         nama_dosen: "",
+        nidn_nidk: "",
         jabatan_akademik: "",
-        sertifikat_pendidik_profesional: "",
-        sertifikat_kompetensi: "",
+        magister_magister_terapan_nama_prodi_pasca_sarjana_1: "",
+        doktor_doktor_terapan_nama_prodi_pasca_sarjana_1: "",
+        bidang_keahlian_2: "",
+        kesesuaian_dengan_kompetensi_inti_ps_3: "",
+        nomor_sertifikat_pendidik_profesional_4: "",
+        bidang_sertifikasi_sertifikat_kompetensi_profesi_industri_5: "",
+        lembaga_penerbit_sertifikat_kompetensi_profesi_industri_5: "",
         mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi_6: "",
         kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu_7: "",
         mata_kuliah_yang_diampu_pada_ps_lain_8: "",
+        sertifikat_pendidik_profesional: "",
+        sertifikat_kompetensi: "",
       }
 
       Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
@@ -76,10 +84,13 @@ const DosenTetapPerguruanTinggiPlugin = {
 
         const value = row[colIndex]
 
-        if (fieldName === "no" || fieldName === "nidn") {
+        if (fieldName === "no" || fieldName === "nidn_nidk") {
           item[fieldName] =
             value !== undefined && value !== null ? String(value).trim() : ""
         } else if (
+          fieldName === "kesesuaian_dengan_kompetensi_inti_ps_3" ||
+          fieldName ===
+            "kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu_7" ||
           fieldName === "sertifikat_pendidik_profesional" ||
           fieldName === "sertifikat_kompetensi"
         ) {
@@ -96,7 +107,7 @@ const DosenTetapPerguruanTinggiPlugin = {
             "1",
             "true",
           ].includes(strVal)
-            ? "Ya"
+            ? "V"
             : ["no", "tidak", "0", "false"].includes(strVal)
             ? "Tidak"
             : strVal
@@ -135,12 +146,20 @@ const DosenTetapPerguruanTinggiPlugin = {
               no: 1,
               selected: true,
               nama_dosen: "",
+              nidn_nidk: "",
               jabatan_akademik: "",
-              sertifikat_pendidik_profesional: "",
-              sertifikat_kompetensi: "",
+              magister_magister_terapan_nama_prodi_pasca_sarjana_1: "",
+              doktor_doktor_terapan_nama_prodi_pasca_sarjana_1: "",
+              bidang_keahlian_2: "",
+              kesesuaian_dengan_kompetensi_inti_ps_3: "",
+              nomor_sertifikat_pendidik_profesional_4: "",
+              bidang_sertifikasi_sertifikat_kompetensi_profesi_industri_5: "",
+              lembaga_penerbit_sertifikat_kompetensi_profesi_industri_5: "",
               mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi_6: "",
               kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu_7: "",
               mata_kuliah_yang_diampu_pada_ps_lain_8: "",
+              sertifikat_pendidik_profesional: "",
+              sertifikat_kompetensi: "",
             },
           ]
         }
@@ -150,64 +169,266 @@ const DosenTetapPerguruanTinggiPlugin = {
     return initialTableData
   },
 
-  calculateScore(data) {
-    let totalLecturers = data.length
-    let doctorCount = 0
-    let certifiedCount = 0
-    let fieldMatchCount = 0
+  calculateScore(data, config, additionalData = {}) {
+    console.log("Calculating dosen tetap score with data:", data)
 
-    data.forEach((lecturer) => {
-      if (
-        lecturer.pendidikan_pasca_sarjana_doktor &&
-        lecturer.pendidikan_pasca_sarjana_doktor.trim() !== ""
-      ) {
-        doctorCount++
-      }
+    // Mendapatkan jumlah mahasiswa jika tersedia di additionalData
+    const NM = additionalData.jumlahMahasiswa || 0
 
-      if (
-        ["ya", "yes", "ada", "v", "√", "✓", "1", "true"].includes(
-          String(lecturer.sertifikat_pendidik_profesional || "").toLowerCase()
-        )
-      ) {
-        certifiedCount++
-      }
+    // Menggunakan logika sesuai dengan formula Excel yang diberikan
 
-      if (
-        ["ya", "yes", "sesuai", "v", "√", "✓", "1", "true"].includes(
-          String(
-            lecturer.kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu_7 ||
-              ""
-          ).toLowerCase()
-        )
-      ) {
-        fieldMatchCount++
-      }
+    // 1. Hitung NDT = Jumlah seluruh dosen tetap
+    const NDT = data.filter(
+      (dosen) => dosen.nidn_nidk && dosen.nidn_nidk.trim() !== ""
+    ).length
+
+    // 2. Hitung NDTPS = Jumlah dosen tetap dengan kesesuaian bidang
+    const NDTPS = data.filter((dosen) => {
+      const kesesuaian = (
+        dosen.kesesuaian_dengan_kompetensi_inti_ps_3 || ""
+      ).trim()
+      return (
+        dosen.nidn_nidk &&
+        dosen.nidn_nidk.trim() !== "" &&
+        (kesesuaian === "V" ||
+          kesesuaian === "v" ||
+          kesesuaian === "√" ||
+          kesesuaian === "✓")
+      )
+    }).length
+
+    // 3. Hitung NDS = Jumlah dosen dengan S3/Doktor yang memiliki kesesuaian
+    const NDS = data.filter((dosen) => {
+      const kesesuaian = (
+        dosen.kesesuaian_dengan_kompetensi_inti_ps_3 || ""
+      ).trim()
+      const doktor = (
+        dosen.doktor_doktor_terapan_nama_prodi_pasca_sarjana_1 || ""
+      ).trim()
+      return (
+        dosen.nidn_nidk &&
+        dosen.nidn_nidk.trim() !== "" &&
+        doktor !== "" &&
+        doktor !== "-" &&
+        (kesesuaian === "V" ||
+          kesesuaian === "v" ||
+          kesesuaian === "√" ||
+          kesesuaian === "✓")
+      )
+    }).length
+
+    // 4. Hitung NDSK = Jumlah dosen dengan sertifikat kompetensi
+    const NDSK = data.filter((dosen) => {
+      const kesesuaian = (
+        dosen.kesesuaian_dengan_kompetensi_inti_ps_3 || ""
+      ).trim()
+      const bidangSertifikasi = (
+        dosen.bidang_sertifikasi_sertifikat_kompetensi_profesi_industri_5 || ""
+      ).trim()
+      const lembagaPenerbit = (
+        dosen.lembaga_penerbit_sertifikat_kompetensi_profesi_industri_5 || ""
+      ).trim()
+
+      return (
+        dosen.nidn_nidk &&
+        dosen.nidn_nidk.trim() !== "" &&
+        bidangSertifikasi !== "" &&
+        bidangSertifikasi !== "-" &&
+        lembagaPenerbit !== "" &&
+        (kesesuaian === "V" ||
+          kesesuaian === "v" ||
+          kesesuaian === "√" ||
+          kesesuaian === "✓")
+      )
+    }).length
+
+    // 5. Hitung NDGB, NDLK, NDL = Jumlah dosen dengan jabatan akademik tertentu dan kesesuaian
+    const NDGB = data.filter((dosen) => {
+      const kesesuaian = (
+        dosen.kesesuaian_dengan_kompetensi_inti_ps_3 || ""
+      ).trim()
+      const jabatan = (dosen.jabatan_akademik || "").trim()
+
+      return (
+        dosen.nidn_nidk &&
+        dosen.nidn_nidk.trim() !== "" &&
+        (jabatan === "Guru Besar" ||
+          jabatan.toLowerCase().includes("guru besar") ||
+          jabatan.toLowerCase().includes("profesor") ||
+          jabatan.toLowerCase().includes("professor")) &&
+        (kesesuaian === "V" ||
+          kesesuaian === "v" ||
+          kesesuaian === "√" ||
+          kesesuaian === "✓")
+      )
+    }).length
+
+    const NDLK = data.filter((dosen) => {
+      const kesesuaian = (
+        dosen.kesesuaian_dengan_kompetensi_inti_ps_3 || ""
+      ).trim()
+      const jabatan = (dosen.jabatan_akademik || "").trim()
+
+      return (
+        dosen.nidn_nidk &&
+        dosen.nidn_nidk.trim() !== "" &&
+        (jabatan === "Lektor Kepala" ||
+          jabatan.toLowerCase().includes("lektor kepala")) &&
+        (kesesuaian === "V" ||
+          kesesuaian === "v" ||
+          kesesuaian === "√" ||
+          kesesuaian === "✓")
+      )
+    }).length
+
+    const NDL = data.filter((dosen) => {
+      const kesesuaian = (
+        dosen.kesesuaian_dengan_kompetensi_inti_ps_3 || ""
+      ).trim()
+      const jabatan = (dosen.jabatan_akademik || "").trim()
+
+      return (
+        dosen.nidn_nidk &&
+        dosen.nidn_nidk.trim() !== "" &&
+        (jabatan === "Lektor" ||
+          (jabatan.toLowerCase().includes("lektor") &&
+            !jabatan.toLowerCase().includes("lektor kepala"))) &&
+        (kesesuaian === "V" ||
+          kesesuaian === "v" ||
+          kesesuaian === "√" ||
+          kesesuaian === "✓")
+      )
+    }).length
+
+    // 6. Hitung jumlah dosen tidak tetap (dari additionalData)
+    const NDTT = additionalData.NDTT || 0
+
+    // 7. Hitung persentase-persentase sesuai matriks penilaian
+    // PDS3 = Persentase dosen S3/Doktor
+    const PDS3 = NDTPS > 0 ? (NDS / NDTPS) * 100 : 0
+
+    // PDSK = Persentase dosen dengan sertifikat kompetensi
+    const PDSK = NDTPS > 0 ? (NDSK / NDTPS) * 100 : 0
+
+    // PGBLKL = Persentase dosen dengan jabatan GB/LK/L
+    const PGBLKL = NDTPS > 0 ? ((NDGB + NDLK + NDL) / NDTPS) * 100 : 0
+
+    // PDTT = Persentase dosen tidak tetap
+    const PDTT = NDT + NDTT > 0 ? (NDTT / (NDT + NDTT)) * 100 : 0
+
+    // 8. Hitung RMD = Rasio mahasiswa per dosen
+    const RMD = NDTPS > 0 ? NM / NDTPS : 0
+
+    // 9. Hitung skor untuk masing-masing komponen sesuai matriks penilaian
+
+    // Skor untuk Kecukupan jumlah DTPS (No. 15)
+    let skorKecukupan = 0
+    if (NDTPS >= 12 && PDTT <= 10) {
+      skorKecukupan = 4
+    } else if (NDTPS >= 12 && PDTT <= 40) {
+      skorKecukupan = 2 + (2 * (40 - PDTT)) / 30
+    } else if (NDTPS < 12 && PDTT <= 40) {
+      skorKecukupan = 1
+    } else {
+      skorKecukupan = 0
+    }
+
+    // Skor untuk Kualifikasi akademik DTPS (No. 16)
+    let skorKualifikasi = 0
+    if (PDS3 >= 10) {
+      skorKualifikasi = 4
+    } else if (PDS3 < 10) {
+      skorKualifikasi = 2 + (20 * PDS3) / 100
+    } else {
+      skorKualifikasi = 2 // Minimal skor 2
+    }
+
+    // Skor untuk Sertifikasi kompetensi/profesi (No. 17)
+    let skorSertifikasi = 0
+    if (PDSK >= 50) {
+      skorSertifikasi = 4
+    } else if (PDSK < 50) {
+      skorSertifikasi = 1 + (6 * PDSK) / 100
+    } else {
+      skorSertifikasi = 1 // Minimal skor 1
+    }
+
+    // Skor untuk Jabatan akademik DTPS (No. 18)
+    let skorJabatan = 0
+    if (PGBLKL >= 40) {
+      skorJabatan = 4
+    } else if (PGBLKL < 40) {
+      skorJabatan = 2 + (20 * PGBLKL) / 40
+    } else {
+      skorJabatan = 2 // Minimal skor 2
+    }
+
+    // Skor untuk Rasio mahasiswa-dosen (No. 19)
+    let skorRasio = 0
+    if (RMD >= 10 && RMD <= 20) {
+      skorRasio = 4
+    } else if (RMD < 10) {
+      skorRasio = (2 * RMD) / 5
+    } else if (RMD > 20 && RMD <= 30) {
+      skorRasio = (60 - 2 * RMD) / 5
+    } else {
+      skorRasio = 0
+    }
+
+    // 10. Hitung skor rata-rata untuk keseluruhan indikator
+    const rataRata =
+      (skorKecukupan +
+        skorKualifikasi +
+        skorSertifikasi +
+        skorJabatan +
+        skorRasio) /
+      5
+
+    // Log untuk debugging
+    console.log("Hasil perhitungan skor dosen tetap:", {
+      NDT,
+      NDTPS,
+      NDS,
+      NDSK,
+      NDGB,
+      NDLK,
+      NDL,
+      NDTT,
+      PDS3,
+      PDSK,
+      PGBLKL,
+      PDTT,
+      RMD,
+      skorKecukupan,
+      skorKualifikasi,
+      skorSertifikasi,
+      skorJabatan,
+      skorRasio,
+      rataRata,
     })
 
-    const doctorPercentage =
-      totalLecturers > 0 ? (doctorCount / totalLecturers) * 100 : 0
-    const certifiedPercentage =
-      totalLecturers > 0 ? (certifiedCount / totalLecturers) * 100 : 0
-    const fieldMatchPercentage =
-      totalLecturers > 0 ? (fieldMatchCount / totalLecturers) * 100 : 0
-
-    const compositeScore =
-      doctorPercentage * 0.4 +
-      certifiedPercentage * 0.3 +
-      fieldMatchPercentage * 0.3
-
-    const score = Math.min(4, compositeScore / 25)
-
     return {
-      score: score,
+      score: rataRata,
       scoreDetail: {
-        totalLecturers,
-        doctorCount,
-        certifiedCount,
-        fieldMatchCount,
-        doctorPercentage: doctorPercentage.toFixed(2) + "%",
-        certifiedPercentage: certifiedPercentage.toFixed(2) + "%",
-        fieldMatchPercentage: fieldMatchPercentage.toFixed(2) + "%",
+        NDT,
+        NDTPS,
+        NDS,
+        NDSK,
+        NDGB,
+        NDLK,
+        NDL,
+        NDTT,
+        PDS3: PDS3.toFixed(2) + "%",
+        PDSK: PDSK.toFixed(2) + "%",
+        PGBLKL: PGBLKL.toFixed(2) + "%",
+        PDTT: PDTT.toFixed(2) + "%",
+        RMD: RMD.toFixed(2),
+        skorKecukupan: skorKecukupan.toFixed(2),
+        skorKualifikasi: skorKualifikasi.toFixed(2),
+        skorSertifikasi: skorSertifikasi.toFixed(2),
+        skorJabatan: skorJabatan.toFixed(2),
+        skorRasio: skorRasio.toFixed(2),
+        formula: "Matriks Penilaian LKPS C.4. Sumber Daya Manusia (15-19)",
       },
     }
   },
@@ -218,12 +439,20 @@ const DosenTetapPerguruanTinggiPlugin = {
 
       const textFields = [
         "nama_dosen",
+        "nidn_nidk",
         "jabatan_akademik",
-        "sertifikat_pendidik_profesional",
-        "sertifikat_kompetensi",
+        "magister_magister_terapan_nama_prodi_pasca_sarjana_1",
+        "doktor_doktor_terapan_nama_prodi_pasca_sarjana_1",
+        "bidang_keahlian_2",
+        "kesesuaian_dengan_kompetensi_inti_ps_3",
+        "nomor_sertifikat_pendidik_profesional_4",
+        "bidang_sertifikasi_sertifikat_kompetensi_profesi_industri_5",
+        "lembaga_penerbit_sertifikat_kompetensi_profesi_industri_5",
         "mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi_6",
         "kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu_7",
         "mata_kuliah_yang_diampu_pada_ps_lain_8",
+        "sertifikat_pendidik_profesional",
+        "sertifikat_kompetensi",
       ]
 
       textFields.forEach((field) => {
@@ -248,8 +477,8 @@ const DosenTetapPerguruanTinggiPlugin = {
         errors.push(`Row ${index + 1}: Nama dosen harus diisi`)
       }
 
-      if (item.nidn && !/^\d+$/.test(item.nidn)) {
-        errors.push(`Row ${index + 1}: NIDN harus berupa angka`)
+      if (item.nidn_nidk && !/^\d+$/.test(item.nidn_nidk)) {
+        errors.push(`Row ${index + 1}: NIDN/NIDK harus berupa angka`)
       }
 
       if (!item.mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi_6) {

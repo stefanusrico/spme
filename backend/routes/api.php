@@ -44,6 +44,8 @@ Route::get('test', function () {
     ]);
 });
 
+Route::post('users', [UserController::class, 'store']);
+
 Route::prefix('lkps')->group(function () {
     Route::get('/prodi', [LkpsController::class, 'getProdiLkps']);
     Route::get('/{id}', [LkpsController::class, 'getLkps']);
@@ -78,7 +80,11 @@ Route::prefix('lkps')->group(function () {
     Route::get('/{lkpsId}/export/{sectionCode}/{tableCode?}', [LkpsDataController::class, 'exportData']);
 });
 
-Route::get('/get-scores', [VersionController::class, 'getScorePerNoSubByProdi']);
+Route::get('/get-scores', [
+    VersionController::class,
+    '
+'
+]);
 
 Route::get('/get-all-sections', [LkpsSectionController::class, 'getAllSections']);
 
@@ -158,7 +164,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::get('count', 'countByPeringkat');
     });
 
-    Route::middleware(['role:Admin|admin|Ketua Program Studi'])->group(function () {
+    Route::middleware(['role:Admin|admin|Ketua Program Studi|Tim Penyusun Akreditasi'])->group(function () {
         Route::get('test-mongo', [AuthController::class, 'testMongoConnection']);
         Route::post('upload', [UserController::class, 'uploadFile']);
         Route::delete('users/{id}/profile-picture', [UserController::class, 'removeProfilePicture']);
@@ -238,7 +244,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::controller(GoogleDriveController::class)->group(function () {
             Route::post('/upload-to-drive', 'uploadFile');
             Route::get('/get-files', 'getFiles');
-            Route::delete('/delete-files', 'delete File');
+            Route::delete('/delete-files', 'deleteFile');
         });
 
         Route::controller(VersionController::class)->group(function () {

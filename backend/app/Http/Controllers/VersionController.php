@@ -30,7 +30,7 @@ class VersionController extends Controller
         $validatedData = $validator->validated();
 
         try {
-            if($validatedData['Type'] === "latest"){
+            if ($validatedData['Type'] === "latest") {
                 $version = Version::where('no', $validatedData['No'])
                     ->where('sub', $validatedData['Sub'])
                     ->where('prodiId', $validateData['ProdiId'])
@@ -40,20 +40,20 @@ class VersionController extends Controller
 
                 $user = User::findOrFail($version->user_id);
                 $version->user_name = $user->name;
-            } else{
+            } else {
                 $version = Version::where('no', $validatedData['No'])
                     ->where('sub', $validatedData['Sub'])
                     ->where('prodiId', $validateData['ProdiId'])
                     // ->where('user_id', $validatedData['user_id'])
                     ->orderBy('created_at', 'desc')
                     ->get();
-                
-                    foreach ($version as $v) {
-                        $user = User::findOrFail($v->user_id);
-                        $v->user_name = $user->name;
-                    }
+
+                foreach ($version as $v) {
+                    $user = User::findOrFail($v->user_id);
+                    $v->user_name = $user->name;
+                }
             }
-            
+
             if (!$version) {
                 return response()->json([
                     'status' => 'error',
@@ -80,12 +80,12 @@ class VersionController extends Controller
                 ->with(['task'])
                 ->orderBy('created_at', 'desc')
                 ->get();
-            
-                foreach ($version as $v) {
-                    $user = User::findOrFail($v->user_id);
-                    $v->user_name = $user->name;
-                }
-            
+
+            foreach ($version as $v) {
+                $user = User::findOrFail($v->user_id);
+                $v->user_name = $user->name;
+            }
+
             if (!$version) {
                 return response()->json([
                     'status' => 'error',
@@ -105,9 +105,22 @@ class VersionController extends Controller
         }
     }
 
-    public function getScorePerNoSubByProdi($prodiId)
+    public function getScorePerNoSubByProdi()
     {
         try {
+            // Ambil user yang sedang login
+            $user = auth()->user();
+
+            // Pastikan user memiliki prodiId
+            if (!$user || !$user->prodiId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User tidak memiliki Program Studi yang valid',
+                ], 400);
+            }
+
+            $prodiId = $user->prodiId;
+
             $versions = Version::where('prodiId', $prodiId)
                 ->with(['task'])
                 ->orderBy('created_at', 'desc')
@@ -122,21 +135,21 @@ class VersionController extends Controller
 
             $filteredVersions = $versions->groupBy('taskId')->map(function ($group) {
                 $firstEntry = $group->first();
-    
+
                 $details = collect($firstEntry->details);
                 $totalScore = $details->sum(function ($detail) {
                     return is_numeric($detail['nilai']) ? (float) $detail['nilai'] : 0;
                 });
-    
+
                 $averageScore = $details->count() > 0 ? $totalScore / $details->count() : 0;
-    
+
                 return [
                     'taskId' => $firstEntry->taskId,
                     'commit' => $firstEntry->commit,
                     'prodiId' => $firstEntry->prodiId,
                     'updated_at' => $firstEntry->updated_at,
                     'created_at' => $firstEntry->created_at,
-                    'nilai' => round($averageScore, 2), 
+                    'nilai' => round($averageScore, 2),
                     'task' => $firstEntry->task,
                 ];
             })->values();
@@ -199,7 +212,7 @@ class VersionController extends Controller
                 'taskId' => $validatedData['taskId'],
                 // 'lamId' => $validatedData['lamId'],
                 'prodiId' => $validatedData['prodiId'],
-                'details' => $validatedData['Details'], 
+                'details' => $validatedData['Details'],
             ]);
 
             return response()->json([

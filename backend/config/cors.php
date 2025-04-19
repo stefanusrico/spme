@@ -25,6 +25,8 @@ return [
         "https://polban-space.cloudias79.com",
         'http://localhost:3050',
         'http://localhost:4000',
+        "https://react-spme-dadak-cwh79dw7f-stefanusricos-projects.vercel.app/",
+        "https://react-spme-dadak-mu.vercel.app/"
     ],
     'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],

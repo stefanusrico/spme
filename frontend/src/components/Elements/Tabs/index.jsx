@@ -45,14 +45,23 @@ export default function ScrollableTabs({
   }, [dataColor, allDataVersion])
 
   useEffect(() => {
+    if (!Array.isArray(tabsData) || tabsData.length === 0) {
+      console.error("tabsData is not available or empty.")
+      return
+    }
+
     const defaultIndex = tabsData.findIndex(
-      (tab) => tab.no.toString() === no && tab.sub === sub
+      (tab) => tab?.no?.toString() === no && tab.sub === sub
     )
+
+
     if (defaultIndex >= 0) {
       setValue(defaultIndex)
     }
+
     setBgColor()
   }, [tabsData, no, sub])
+
 
   useEffect(() => {
     setBgColor()
@@ -93,8 +102,8 @@ export default function ScrollableTabs({
     for (let i = 0; i < json.length; i++) {
       for (let index = 0; index < tabsData.length; index++) {
         if (
-          json[i].task.no === tabsData[index].no &&
-          json[i].task.sub === tabsData[index].sub
+          json[i].task?.no === tabsData[index]?.no &&
+          json[i].task?.sub === tabsData[index]?.sub
         ) {
           // Hitung total skor
           let totalScore = 0

@@ -112,10 +112,19 @@ export const fetchMasukanAndScoreFromGPT = async (
   try {
     console.log("data matriks sebelum ke GPT : ", dataKriteriaIndikator)
     console.log("data isian sebelum ke GPT : ", dataIsian)
+    const dataIsianToGPT = {
+          "Data Pendukung" : dataIsian.data_pendukung,
+          "Isian Asesi" : dataIsian.isian_asesi,
+          Masukan : dataIsian.masukan,
+          Nilai : dataIsian.nilai,
+          Reference : dataIsian.reference,
+          Seq : dataIsian.seq,
+          Type : dataIsian.type
+    }
 
     const responseGPT = await axiosInstance.post("/analyze-gpt", {
       dataMatriks: dataKriteriaIndikator,
-      dataIsian: dataIsian,
+      dataIsian: dataIsianToGPT,
     })
 
     console.log("Respon dari GPT:", responseGPT.data)
@@ -125,6 +134,7 @@ export const fetchMasukanAndScoreFromGPT = async (
     try {
       // Pastikan hanya memproses JSON valid
       if (typeof content === "string") {
+        content = content.replace(/```json|```/g, "").trim()
         content = JSON.parse(content)
       }
 
@@ -240,17 +250,19 @@ export const storeVersion = async (commit, dataIsian, noSub) => {
   // Sesuaikan `dataIsian.details`, ganti `data_pendukung` berdasarkan `seq`
   const updatedDetails = dataIsian.details.map((detail) => ({
     ...detail,
-    data_pendukung: detail.data_pendukung.map((file) => {
-      const uploadedFile = uploadedFiles.find(
-        (f) => f.seq === detail.seq && f.name === file.name
-      )
-      return uploadedFile
-        ? {
-            ...uploadedFile,
-            originFileObj: file.originFileObj, // Tetap simpan originFileObj di frontend
-          }
-        : file
-    }),
+    data_pendukung: Array.isArray(detail.data_pendukung)
+      ? detail.data_pendukung.map((file) => {
+          const uploadedFile = uploadedFiles.find(
+            (f) => f.seq === detail.seq && f.name === file.name
+          )
+          return uploadedFile
+            ? {
+                ...uploadedFile,
+                originFileObj: file.originFileObj, // Tetap simpan originFileObj di frontend
+              }
+            : file
+        })
+      : [], // Ensure data_pendukung is always an array
   }))
 
   // Data yang akan dikirim ke backend (tanpa originFileObj)
@@ -262,11 +274,13 @@ export const storeVersion = async (commit, dataIsian, noSub) => {
     c: dataIsian.c,
     Details: updatedDetails.map((detail) => ({
       ...detail,
-      data_pendukung: detail.data_pendukung.map((file) => ({
-        id: file.id,
-        name: file.name,
-        url: file.url,
-      })),
+      data_pendukung: Array.isArray(detail.data_pendukung)
+        ? detail.data_pendukung.map((file) => ({
+            id: file.id || "",
+            name: file.name || "",
+            url: file.url || "",
+          }))
+        : [], // Handle case where data_pendukung might be null
     })),
   }
   console.log("data to store :", dataToStore)
@@ -276,6 +290,11 @@ export const storeVersion = async (commit, dataIsian, noSub) => {
 }
 
 export const storeFileToDrive = async ({ dataIsian, noSub }) => {
+  if (!dataIsian || !dataIsian.details || !Array.isArray(dataIsian.details)) {
+    console.warn("Data isian tidak valid atau details bukan array")
+    return []
+  }
+
   console.log("File yang diunggah:", dataIsian.details)
 
   const filteredFiles = dataIsian.details
@@ -294,7 +313,7 @@ export const storeFileToDrive = async ({ dataIsian, noSub }) => {
       file: file.originFileObj,
       noKriteria: file.seq,
       seq: file.seq,
-      name: file.originFileObj.name, // Simpan nama file asli
+      name: file.originFileObj.name || file.originFileObj.fileName || "unnamed", // Simpan nama file asli dengan fallback
     }))
 
   if (filteredFiles.length === 0) {
@@ -328,7 +347,7 @@ export const storeFileToDrive = async ({ dataIsian, noSub }) => {
     })
     console.log("Upload sukses:", response.data)
 
-    const files = response.data.files
+    const files = response.data.files || []
     return files.map((file) => ({
       name: file.file_name,
       url: file.file_url,

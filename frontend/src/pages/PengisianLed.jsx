@@ -209,7 +209,7 @@ const PengisianLed = () => {
           no: 0,
           sub: "",
         },
-        taskId: "",
+        taskId: "gaming",
         user_id: user.id,
       }
 

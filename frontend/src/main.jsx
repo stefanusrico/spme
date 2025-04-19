@@ -15,6 +15,8 @@ import { UserProvider } from "./context/userContext"
 import ErrorPage from "./pages/404"
 import Account from "./pages/account"
 import DashboardAdmin from "./pages/DashboardAdmin"
+import DashboardKoprodi from "./pages/DashboardKoprodi"
+import DashboardTimPenyusun from "./pages/DashboardTimPenyusun.jsx"
 import Jadwal from "./pages/Jadwal"
 import JsonGenerator from "./pages/JsonGenerator"
 import LoginPage from "./pages/login"
@@ -64,10 +66,15 @@ const router = createBrowserRouter(
       element: (
         <UserProvider>
           <RoleBasedRoute
-            allowedRoles={["Admin", "Ketua Program Studi"]}
+            allowedRoles={[
+              "Admin",
+              "Ketua Program Studi",
+              "Tim Penyusun Akreditasi",
+            ]}
             roleComponents={{
               Admin: DashboardAdmin,
-              "Ketua Program Studi": ProjectsTable,
+              "Ketua Program Studi": DashboardKoprodi,
+              "Tim Penyusun Akreditasi": DashboardTimPenyusun,
             }}
           />
         </UserProvider>
@@ -78,7 +85,11 @@ const router = createBrowserRouter(
       element: (
         <UserProvider>
           <RoleBasedRoute
-            allowedRoles={["Admin", "Ketua Program Studi"]}
+            allowedRoles={[
+              "Admin",
+              "Ketua Program Studi",
+              "Tim Penyusun Akreditasi",
+            ]}
             sharedComponents={{
               account: Account,
               notifications: Notifications,
@@ -96,7 +107,13 @@ const router = createBrowserRouter(
     {
       element: (
         <UserProvider>
-          <RoleBasedRoute allowedRoles={["Admin"]} />
+          <RoleBasedRoute
+            allowedRoles={[
+              "Admin",
+              "Ketua Program Studi",
+              "Tim Penyusun Akreditasi",
+            ]}
+          />
         </UserProvider>
       ),
       children: [

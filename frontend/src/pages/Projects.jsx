@@ -6,6 +6,7 @@ import Tasks from "../components/Elements/Projects/Tasks"
 import ErrorBoundary from "../components/ErrorBoundary"
 import { useUser } from "../context/userContext"
 import { useProjectDetails } from "../hooks/useProjectDetails"
+import { LoadingScreen } from "./LoadingSpinner"
 
 const Projects = () => {
   const { projectId } = useParams()
@@ -102,7 +103,7 @@ const Projects = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue"></div>
+        <LoadingScreen />
       </div>
     )
   }

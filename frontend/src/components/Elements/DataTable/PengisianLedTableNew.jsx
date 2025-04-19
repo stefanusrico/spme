@@ -13,6 +13,8 @@ import Stack from "@mui/material/Stack"
 import ArrowBackIcon from "@mui/icons-material/ArrowBack"
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward"
 import AddFileModal from "../Modals/AddFileModal"
+import { ToastContainer, toast } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
 
 function PengisianLedTableNew({
   dataKriteriaIndikator,
@@ -127,9 +129,10 @@ function PengisianLedTableNew({
 
   const handleButtonCheck = async (seq, index) => {
     try {
+      const toInt = parseInt(seq, 10) - 1
       const data = await fetchMasukanAndScoreFromGPT(
         dataKriteriaIndikator,
-        selectedDetails[0]
+        dataIsian.details[toInt]
       )
 
       if (!data || !data.nilai || !data.masukan) {
@@ -159,13 +162,12 @@ function PengisianLedTableNew({
       }
 
       // Setelah state update, baru update dataIsian
-      const rawContent = JSON.stringify(
-        convertToRaw(newEditorState.getCurrentContent())
-      )
+      const plainText = newEditorState.getCurrentContent().getPlainText()
+
       const updatedDataIsian = {
         ...dataIsian,
         details: dataIsian.details.map((item) =>
-          item.seq === seq ? { ...item, isian_asesi: rawContent } : item
+          item.seq === seq ? { ...item, isian_asesi: plainText } : item
         ),
       }
 
@@ -203,6 +205,10 @@ function PengisianLedTableNew({
     // }
   }
 
+  const toastContainerStyle = {
+    zIndex: 20000,
+  }
+  
   if (isLoading) {
     return <div className="text-center py-4">Loading...</div>
   }

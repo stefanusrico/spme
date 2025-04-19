@@ -4,8 +4,11 @@ import { Card, Space, Badge, Typography } from "antd"
 const { Text, Paragraph } = Typography
 
 // ScoreDisplay component
-const ScoreDisplay = ({ score, formula }) => {
-  if (score === null) return null
+const ScoreDisplay = ({ score, formula, scoreDetail }) => {
+  console.log("ScoreDisplay rendering with:", { score, formula })
+
+  // PERBAIKAN: Gunakan OR operator
+  if (score === null || score === undefined) return null
 
   const scoreRounded = parseFloat(score).toFixed(2)
   const isGoodScore = scoreRounded > 3
@@ -39,6 +42,23 @@ const ScoreDisplay = ({ score, formula }) => {
             </Paragraph>
           )}
         </>
+      )}
+
+      {/* Tambahan: Menampilkan scoreDetail jika ada */}
+      {scoreDetail && (
+        <div className="score-details">
+          <Text strong>Detail Skor:</Text>
+          <ul>
+            {Object.entries(scoreDetail).map(([key, value]) => (
+              <li key={key}>
+                <Text>{key}: </Text>
+                <Text>
+                  {typeof value === "object" ? JSON.stringify(value) : value}
+                </Text>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </Card>
   )
