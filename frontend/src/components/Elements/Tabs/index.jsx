@@ -36,12 +36,17 @@ export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, update
   }, [dataColor, allDataVersion])
 
   useEffect(() => {
-    const defaultIndex = tabsData.findIndex((tab) => tab.no.toString() === no && tab.sub === sub);
-    if (defaultIndex >= 0) {
-      setValue(defaultIndex);
+    if (!open && tabsData.length > 0) {
+      const defaultIndex = tabsData.findIndex((tab) => tab?.no?.toString() === no && tab?.sub === sub);
+      if (defaultIndex >= 0) {
+        setValue(defaultIndex);
+      } else {
+        setValue(0);
+      }
+  
+      setBgColor();
     }
-    setBgColor()
-  }, [tabsData, no, sub]);
+  }, [tabsData, no, sub, open]);
 
   useEffect(() => {
     setBgColor()
@@ -51,8 +56,16 @@ export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, update
     setValue(newValue);
   };
 
-  const handleClick = async (no, sub, index) => {
-    updateUserTask(no, sub)
+  const handleClick = async (no, sub, index, status) => {
+    if(status === 'plus'){
+      await updateUserTask(no, sub)
+      setOpen(false); // Tutup modal
+      if (onClick) {
+        await onClick(no, sub);
+      }
+      return;
+    }
+    
     setValue(index); // Update active tab manually
     if (onClick) {
       if (no && sub) {
@@ -79,7 +92,7 @@ export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, update
     console.log("tabsData : ", tabsData)
     for (let i = 0; i < json.length; i++) {
       for (let index = 0; index < tabsData.length; index++) {
-        if (json[i].task.no === tabsData[index].no && json[i].task.sub === tabsData[index].sub) {
+        if (json[i]?.task?.no === tabsData[index]?.no && json[i]?.task?.sub === tabsData[index]?.sub) {
           // Hitung total skor
           let totalScore = 0;
           let count = 0;
@@ -201,7 +214,7 @@ export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, update
                       bgcolor: 'grey.400',
                     }
                   }}
-                  onClick={() => handleClick(tab["No."], tab.sub, index)}
+                  onClick={() => handleClick(tab.no, tab.sub, index, 'plus')}
                 >
                   <Typography variant="caption">{`${tab.no} ${tab.sub}`}</Typography>
                 </Box>

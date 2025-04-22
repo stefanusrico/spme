@@ -13,6 +13,8 @@ import Stack from "@mui/material/Stack";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import AddFileModal from "../Modals/AddFileModal";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function PengisianLedTableNew({ dataKriteriaIndikator, dataIsian, handleClickButton, updateDataIsian, type, prodi }) {
     const [isLoading, setIsLoading] = useState(true);
@@ -116,7 +118,8 @@ function PengisianLedTableNew({ dataKriteriaIndikator, dataIsian, handleClickBut
 
     const handleButtonCheck = async(seq, index) => {
         try {
-            const data = await fetchMasukanAndScoreFromGPT(dataKriteriaIndikator, selectedDetails[0])
+            const toInt = parseInt(seq, 10) - 1;
+            const data = await fetchMasukanAndScoreFromGPT(dataKriteriaIndikator, dataIsian.details[toInt])
             
             if (!data || !data.nilai || !data.masukan) {
                 throw new Error("Data dari GPT tidak lengkap!");
@@ -145,11 +148,12 @@ function PengisianLedTableNew({ dataKriteriaIndikator, dataIsian, handleClickBut
             };
     
             // Setelah state update, baru update dataIsian
-            const rawContent = JSON.stringify(convertToRaw(newEditorState.getCurrentContent()));
+            const plainText = newEditorState.getCurrentContent().getPlainText();
+
             const updatedDataIsian = {
                 ...dataIsian,
                 details: dataIsian.details.map((item) =>
-                    item.seq === seq ? { ...item, isian_asesi: rawContent } : item
+                    item.seq === seq ? { ...item, isian_asesi: plainText } : item
                 ),
             };
     
@@ -193,8 +197,25 @@ function PengisianLedTableNew({ dataKriteriaIndikator, dataIsian, handleClickBut
 
     const totalPages = Math.ceil((dataKriteriaIndikator?.details?.filter(detail => detail.Type === "K") || []).length / itemsPerPage);
 
+    const toastContainerStyle = { zIndex: 20000 }  
+
     return (
         <div className="border p-4 rounded">
+            <ToastContainer
+                position="top-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="light"
+                style={toastContainerStyle}
+                className="toast-container-custom"
+            />
+
             <AddFileModal
                 isOpen={isOpenModalUploadFile}
                 onClose={() => setIsOpenModalUploadFile(false)}
@@ -252,7 +273,6 @@ function PengisianLedTableNew({ dataKriteriaIndikator, dataIsian, handleClickBut
                             }}
                         ></textarea>
                     </div> */}
-                    <img src="https://drive.google.com/uc?export=view&id=1CaOXresv4JELY5_FxmM8kqYN-Wu_1rsm" />
 
                     <div className="w-full items-center gap-1.5">
                         <Label htmlFor={`isian_asesi_${index}`}>Isian Asesi</Label>

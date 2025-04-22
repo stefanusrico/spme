@@ -109,14 +109,32 @@ const PengisianLed = () => {
             }
         }
 
-        getAllVersionByProdi()  //untuk warna tab
-        getAllDataMatriks()     //untuk header, diambil semua biar sekali aja
         getUserTask()           //untuk tab
         getAllDataTasks()       //untuk menambahkan tab task
+        getAllVersionByProdi()  //untuk warna tab
+        getAllDataMatriks()     //untuk header, diambil semua biar sekali aja
         getAllProdi();          //untuk dropdown piilih referensi
     }, []);  
 
     useEffect(() => {
+        if (!no || !sub) {
+            let firstTask = null;
+
+            if (tasks.length > 0) {
+                firstTask = tasks[0];
+            } else if (allDataTasks.length > 0) {
+                firstTask = allDataTasks[0];
+            }
+
+            if (firstTask) {
+                navigate(`/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`, { replace: true });
+            }
+        }
+    }, [no, sub, tasks, allDataTasks, navigate]);
+
+    useEffect(() => {
+        console.log('no dan sub ketika ganti : ', no, sub)
+        console.log('filtered data version before :', filteredDataVersion)
         const getLatestVersion = (dataArray) => {
             if (!Array.isArray(dataArray)) return null;
     
@@ -147,7 +165,7 @@ const PengisianLed = () => {
 
         if (Array.isArray(dataVersionHistory)) {
             const filtered = dataVersionHistory.filter(
-                item => String(item.task.no) === String(no) && String(item.task.sub) === String(sub)
+                item => String(item.task?.no) === String(no) && String(item.task.sub) === String(sub)
             );
     
             setFilteredDataHistory(filtered); 
@@ -156,6 +174,7 @@ const PengisianLed = () => {
             setVersionSelected(filtered.length > 1 ? "1" : "0");
         }
     
+        console.log('filtered data version after :', getLatestVersion(allDataVersion))
         setFilteredDataVersion(getLatestVersion(allDataVersion));
         setFilteredDataReference(getLatestVersion(dataVersionReference));
     }, [no, sub, allDataMatriks, allDataVersion, dataVersionReference, dataVersionHistory]);
@@ -163,7 +182,9 @@ const PengisianLed = () => {
     useEffect(() => {
         console.log(filteredDataMatriks)
         
-        if (!filteredDataVersion) {
+        if (!filteredDataVersion && allDataTasks) {
+            const matchedTask = allDataTasks.find(task => task.no.toString() === no && task.sub === sub);
+            const taskId = matchedTask ? matchedTask.id : null;
 
             const detailsArray = (filteredDataMatriks?.details || [])
                 .filter(item => item.Type === "K") // Filter hanya Type "K"
@@ -185,13 +206,13 @@ const PengisianLed = () => {
                 komentar: null,
                 prodiId: user.prodiId,
                 task: {
-                    taskId: "TSK-001",
-                    projectId: "",
-                    taskListId: "",
-                    no: 0,
-                    sub: "",
+                    taskId: matchedTask?.taskId,
+                    projectId: matchedTask?.projectId,
+                    taskListId: matchedTask?.taskListId,
+                    no: no,
+                    sub: sub,
                 },
-                taskId: "",
+                taskId: taskId,
                 user_id: user.id,
             };
     
@@ -202,7 +223,7 @@ const PengisianLed = () => {
             setIsDataReady(true);
             setIsLoading(false)
         }
-    }, [filteredDataMatriks]); 
+    }, [filteredDataMatriks, allDataTasks]); 
 
     useEffect(() => {
         console.log("Version selected: ", versionSelected);
@@ -210,6 +231,7 @@ const PengisianLed = () => {
     }, [versionSelected, filteredDataHistory]);
 
     useEffect(() => {
+        console.log('data referensi : ', filteredDataReference)
         if (filteredDataReference && Object.keys(filteredDataReference).length > 0) {
             console.log("data reference : ", filteredDataReference);
             setIsReference(true);
@@ -243,6 +265,18 @@ const PengisianLed = () => {
         navigate(`/pengisian-matriks-led/${newNo}/${newSub}`)
     }
 
+    const updateUserTaskPlus = async(no, sub) => {
+        try {
+            const data = await updateUserTask(no, sub, user.prodiId)
+            console.log("data user task setelah update :", data)
+            setTasks(data);
+            toast.success("Berhasil update Task");
+        } catch (error) {
+            throw new Error("Gagal update user task");
+            toast.error("Gagal update Task");
+        }
+    }
+
     const updateDataIsian = (updateDataIsian) => {
         console.log("update data isian parent :", updateDataIsian)
         console.log("filtered data verison parent : ", filteredDataVersion)
@@ -259,9 +293,7 @@ const PengisianLed = () => {
     const handleClickVersion = () => {
         const getAllVersionByProdi = async() => {
             try {
-                const data = await fetchVersionByProdi(user.prodiId)
-                console.log("all data version reference : ", data)
-                setDataVersionHistory(data)
+                setDataVersionHistory(allDataVersion)
             } catch (error) {
                 toast.error("gagal fetch semua data version history")
             }
@@ -343,7 +375,7 @@ const PengisianLed = () => {
                                     sub={sub}
                                     tabsData={tasks} 
                                     allDataNoSub={allDataTasks}
-                                    updateUserTask={updateUserTask}
+                                    updateUserTask={updateUserTaskPlus}
                                     onClick={changeNoSub}   
                                     dataColor={colors}
                                     allDataVersion={allDataVersion}
@@ -357,6 +389,7 @@ const PengisianLed = () => {
                             {isReference && (
                                 <div className='mt-5 mx-[30px] mb-[0px] bg-[pink] rounded-lg'>
                                     <PengisianLedTableNew
+                                        key={`${no}-${sub}`}
                                         dataKriteriaIndikator={filteredDataMatriks}
                                         dataIsian={filteredDataReference}
                                         // handleClickButton={handleClickButton}
@@ -371,6 +404,7 @@ const PengisianLed = () => {
                             {isDataReady && (
                                 <div className='mt-5 mx-[30px] mb-[0px]'>
                                     <PengisianLedTableNew
+                                        key={`${no}-${sub}`}
                                         dataKriteriaIndikator={filteredDataMatriks}
                                         dataIsian={filteredDataVersion}
                                         // handleClickButton={handleClickButton}
@@ -421,6 +455,7 @@ const PengisianLed = () => {
                                         ) : (
                                             <div className='mt-5 mx-[30px] mb-[0px]'>
                                                 <PengisianLedTableNew
+                                                    key={`${no}-${sub}`}
                                                     dataKriteriaIndikator={filteredDataMatriks}
                                                     dataIsian={filteredDataHistory[parseInt(versionSelected)]}
                                                     // handleClickButton={handleClickButton}

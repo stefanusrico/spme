@@ -67,7 +67,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
     Route::get('tasks', [TaskController::class, 'myTasks']);
-    Route::patch('tasks/updateOwner/{no}/{sub}', [TaskController::class, 'updateOwners']);
+    Route::patch('tasks/updateOwner/{no}/{sub}/{prodi}', [TaskController::class, 'updateOwners']);
 
     Route::controller(JurusanController::class)->group(function () {
         Route::get('jurusan', 'index');

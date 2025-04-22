@@ -276,7 +276,11 @@ class ProjectController extends Controller
                 ], 404);
             }
 
-            $sortedTasks = $project->tasks->sortBy([
+            $filteredTasks = $project->tasks->filter(function ($task) {
+                return Str::startsWith($task->name, 'Butir');
+            }); 
+
+            $sortedTasks = $filteredTasks->sortBy([
                 ['no', 'asc'],
                 ['sub', 'asc']
             ])->values();
@@ -285,17 +289,13 @@ class ProjectController extends Controller
                 return [
                     'id' => $task->_id,
                     'taskId' => $task->taskId,
+                    'taskListId' => $task->taskListId,
                     'no' => $task->no,
                     'sub' => $task->sub,
-                    'name' => "Butir {$task->no} - {$task->sub}",
+                    'name' => $task->name,
+                    'projectId' => $task->projectId,
                     'progress' => $task->progress,
-                    'owners' => $task->users->map(function ($user) {
-                        return [
-                            'id' => $user->_id,
-                            'name' => $user->name,
-                            'profile_picture' => $user->profile_picture
-                        ];
-                    }),
+                    'owners' => $task->owners,
                     'startDate' => $task->startDate,
                     'endDate' => $task->endDate
                 ];

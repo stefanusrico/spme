@@ -37,11 +37,14 @@ export const fetchAllTaskByProdi = async(prodiId) => {
     }
 }
 
-export const updateUserTask = async(newNo, newSub) => {
+export const updateUserTask = async(newNo, newSub, prodiId) => {
     try {
         console.log(newNo, newSub)
-        const responseTask = await axiosInstance.patch(`tasks/updateOwner/${newNo}/${newSub}`)
+        const responseTask = await axiosInstance.patch(`tasks/updateOwner/${newNo}/${newSub}/${prodiId}`)
         console.log(responseTask.data.data);
+        const updatedTasks = await fetchUserTask();
+       
+        return updatedTasks
     } catch (error) {
         throw new Error("Gagal update user task"); 
     }
@@ -103,14 +106,42 @@ export const fetchVersionProdiReference = async() => {
     }
 }
 
+const extractText = (value) => {
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            // Cek apakah formatnya draft-js raw content
+            if (parsed?.blocks && Array.isArray(parsed.blocks)) {
+                return parsed.blocks.map(block => block.text).join('\n');
+            }
+        } catch (e) {
+            // Bukan JSON → biarkan sebagai teks biasa
+        }
+    }
+
+    return value;
+}
+
 export const fetchMasukanAndScoreFromGPT = async(dataKriteriaIndikator, dataIsian) => {
     try {
         console.log("data matriks sebelum ke GPT : ", dataKriteriaIndikator)
         console.log("data isian sebelum ke GPT : ", dataIsian)
 
+        const dataIsianToGPT = {
+            "Data Pendukung" : dataIsian.data_pendukung,
+            "Isian Asesi" : dataIsian.isian_asesi,
+            Masukan : dataIsian.masukan,
+            Nilai : dataIsian.nilai,
+            Reference : dataIsian.reference,
+            Seq : dataIsian.seq,
+            Type : dataIsian.type
+        }
+
+        dataIsianToGPT["Isian Asesi"] = extractText(dataIsianToGPT["Isian Asesi"]);
+
         const responseGPT = await axiosInstance.post('/analyze-gpt',{
             dataMatriks: dataKriteriaIndikator,
-            dataIsian: dataIsian
+            dataIsian: dataIsianToGPT
         })
         
         console.log("Respon dari GPT:", responseGPT.data);
@@ -120,6 +151,7 @@ export const fetchMasukanAndScoreFromGPT = async(dataKriteriaIndikator, dataIsia
         try {
             // Pastikan hanya memproses JSON valid
             if (typeof content === "string") {
+                content = content.trim().replace(/^```json/, '').replace(/```$/, '').trim();
                 content = JSON.parse(content);
             }
 
@@ -231,18 +263,36 @@ export const storeVersion = async (commit, dataIsian, noSub) => {
     const uploadedFiles = await storeFileToDrive({ dataIsian, noSub });
 
     // Sesuaikan `dataIsian.details`, ganti `data_pendukung` berdasarkan `seq`
-    const updatedDetails = dataIsian.details.map(detail => ({
-        ...detail,
-        data_pendukung: detail.data_pendukung.map(file => {
-            const uploadedFile = uploadedFiles.find(f => f.seq === detail.seq && f.name === file.name);
-            return uploadedFile
-                ? {
-                    ...uploadedFile,
-                    originFileObj: file.originFileObj // Tetap simpan originFileObj di frontend
+    const updatedDetails = (dataIsian.details || []).map((detail, detailIndex) => {
+        try {
+            if (!Array.isArray(detail.data_pendukung)) {
+                console.warn(`Detail index ${detailIndex} tidak memiliki data_pendukung sebagai array.`);
+                return { ...detail, data_pendukung: [] };
+            }
+    
+            const updatedPendukung = detail.data_pendukung.map((file, fileIndex) => {
+                const uploadedFile = uploadedFiles.find(f => f.seq === detail.seq && f.name === file.name);
+                if (!uploadedFile) {
+                    console.warn(`File tidak ditemukan pada uploadedFiles untuk detail.seq = ${detail.seq}, file.name = ${file.name}`);
+                    return file;
                 }
-                : file;
-        })
-    }));
+    
+                return {
+                    ...uploadedFile,
+                    originFileObj: file.originFileObj || null
+                };
+            });
+    
+            return {
+                ...detail,
+                data_pendukung: updatedPendukung
+            };
+        } catch (err) {
+            console.error(`Gagal memproses detail index ${detailIndex}:`, err);
+            return detail; // fallback: return detail as is
+        }
+    });
+    
 
     // Data yang akan dikirim ke backend (tanpa originFileObj)
     const dataToStore = {

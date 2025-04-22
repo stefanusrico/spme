@@ -276,7 +276,7 @@ class TaskController extends Controller
         ]);
     }
 
-    public function updateOwners(Request $request, $no, $sub)
+    public function updateOwners(Request $request, $no, $sub, $prodi)
     {
         $request->validate([
             'owners' => 'nullable|array',
@@ -285,8 +285,11 @@ class TaskController extends Controller
             'endDate' => 'nullable|date|after:startDate'
         ]);
 
+        $project = Project::where('prodiId', $prodi)->where('status', 'ACTIVE')->first(); 
+
         $task = Task::where('no', $no)
             ->where('sub', $sub)
+            ->where('projectId', $project->id)
             ->firstOrFail();
 
         $updates = $request->only(['startDate', 'endDate']);
@@ -313,8 +316,12 @@ class TaskController extends Controller
     public function myTasks()
     {
         $userId = auth()->user()->_id;
+        $prodiId = auth()->user()->prodiId;
+
+        $project = Project::where('prodiId', $prodiId)->where('status', 'ACTIVE')->first(); 
 
         $tasks = Task::with(['project', 'tasklist', 'users'])
+            ->where('projectId', $project->id)
             ->where(function ($query) use ($userId) {
                 $query->whereRaw(['owners' => ['$regex' => $userId]]);
             })
