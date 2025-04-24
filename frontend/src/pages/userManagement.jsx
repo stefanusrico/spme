@@ -73,7 +73,7 @@ const UserManagement = ({
                   className={`absolute left-1/2 -translate-x-1/2 bottom-0 h-[2px] bg-primary transition-all duration-300 ease-in-out ${
                     mode === "users"
                       ? "w-[55px] scale-x-100"
-                      : "w-0 group-hover:w-[55px] group-hover:scale-x-100"
+                      : "w-0 group-hover:w-[55px] group-hover:scale-x-10z 0"
                   }`}
                 ></span>
               </div>

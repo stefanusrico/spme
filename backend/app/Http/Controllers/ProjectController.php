@@ -26,7 +26,6 @@ class ProjectController extends Controller
         self::ROLE_USER
     ];
 
-
     public function index()
     {
         $projects = Project::orderBy('created_at', 'desc')->get();
@@ -141,7 +140,6 @@ class ProjectController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            // Jangan menghapus project jika template gagal, biarkan admin yang menangani
             return response()->json([
                 'status' => 'warning',
                 'message' => 'Project created but template generation failed: ' . $e->getMessage(),
@@ -155,7 +153,6 @@ class ProjectController extends Controller
             'data' => $project
         ], 201);
     }
-
 
     public function myProjects()
     {
@@ -176,57 +173,152 @@ class ProjectController extends Controller
     {
         try {
             $project = Project::where('_id', $projectId)
-                ->with([
-                    'prodi',
-                    'tasks' => function ($query) {
-                        $query->with('users');
-                    }
-                ])
+                ->with(['prodi', 'tasks'])
                 ->firstOrFail();
 
-            $groupedTasks = $project->tasks->groupBy('status');
+            $allTasks = $project->tasks;
 
-            $tasksByStatus = [
-                'ACTIVE' => [],
-                'COMPLETED' => [],
-                'UNASSIGNED' => []
-            ];
+            $tasksByStatus = ['ACTIVE' => [], 'COMPLETED' => [], 'UNASSIGNED' => [], 'CANCELLED' => []];
+            $overdueTasksList = [];
+            $todaysTasksList = [];
+            $taskCountsPerMember = [];
+            $weeklyCompleted = array_fill(0, 7, 0);
+            $weeklyActive = array_fill(0, 7, 0);
 
-            foreach ($groupedTasks as $status => $tasks) {
-                $tasksByStatus[$status] = $tasks->map(function ($task) {
+            $today = Carbon::today()->startOfDay();
+            $sevenDaysAgo = $today->copy()->subDays(6);
 
-                    return [
-                        'id' => $task->_id,
-                        'taskId' => $task->taskId,
-                        'no' => $task->no,
-                        'sub' => $task->sub,
-                        'name' => $task->name,
-                        'progress' => $task->progress,
-                        'owners' => $task->users->map(function ($user) {
-                            return [
-                                'id' => $user->_id,
+            foreach ($allTasks as $task) {
+                $taskOwnersDetails = collect();
+                $currentTaskOwnerIds = [];
+
+                if (isset($task->owners) && is_array($task->owners)) {
+                    foreach ($task->owners as $ownerId) {
+                        $user = User::select('_id', 'name', 'profile_picture')->find($ownerId);
+
+                        if ($user) {
+                            $userId = $user->_id;
+
+                            $taskOwnersDetails->push([
+                                'id' => $userId,
                                 'name' => $user->name,
                                 'profile_picture' => $user->profile_picture
-                            ];
-                        }),
-                        'startDate' => $task->startDate,
-                        'endDate' => $task->endDate
-                    ];
-                });
+                            ]);
+                            $currentTaskOwnerIds[] = (string) $userId;
+
+                            if ($task->status !== 'COMPLETED' && $task->status !== 'CANCELLED') {
+                                $key = (string) $userId;
+                                if (!isset($taskCountsPerMember[$key])) {
+                                    $taskCountsPerMember[$key] = 0;
+                                }
+                                $taskCountsPerMember[$key]++;
+                            }
+                        } else {
+                            Log::warning("User not found for owner ID: {$ownerId} in task ID: {$task->_id}");
+                        }
+                    }
+                }
+
+                $formattedTask = [
+                    'id' => $task->_id,
+                    'taskId' => $task->taskId,
+                    'no' => $task->no,
+                    'sub' => $task->sub,
+                    'name' => $task->name ?? "Butir {$task->no} - {$task->sub}",
+                    'status' => $task->status,
+                    'progress' => $task->progress,
+                    'owners' => $taskOwnersDetails->values()->all(),
+                    'startDate' => $task->startDate ? Carbon::parse($task->startDate)->toDateString() : null,
+                    'endDate' => $task->endDate ? Carbon::parse($task->endDate)->toDateString() : null,
+                ];
+
+                if (isset($tasksByStatus[$task->status])) {
+                    $tasksByStatus[$task->status][] = $formattedTask;
+                } elseif ($task->status === 'CANCELLED') {
+                    $tasksByStatus['CANCELLED'][] = $formattedTask;
+                }
+
+                if ($task->status === 'ACTIVE' && $task->startDate && Carbon::parse($task->startDate)->isSameDay($today)) {
+                    $todaysTasksList[] = $formattedTask;
+                }
+
+                if ($task->status === 'ACTIVE' && $task->endDate && Carbon::parse($task->endDate)->lt($today)) {
+                    $overdueTasksList[] = $formattedTask;
+                }
+
+                try {
+                    $taskDate = Carbon::parse($task->updated_at ?? $task->created_at)->startOfDay();
+                    if ($taskDate->betweenIncluded($sevenDaysAgo, $today)) {
+                        $dayIndex = $today->diffInDays($taskDate);
+                        if ($task->status === 'COMPLETED')
+                            $weeklyCompleted[$dayIndex]++;
+                        if ($task->status === 'ACTIVE')
+                            $weeklyActive[$dayIndex]++;
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Invalid date format for weekly trend task {$task->_id}");
+                }
             }
 
-            $statistics = [
-                'totalTasks' => $project->tasks->count(),
-                'completedTasks' => $project->tasks->where('status', 'COMPLETED')->count(),
-                'activeTasks' => $project->tasks->where('status', 'ACTIVE')->count(),
-                'cancelledTasks' => $project->tasks->where('status', 'CANCELLED')->count()
+            $memberIds = collect($project->members ?? [])->pluck('userId')->filter()->unique()->all();
+            $membersInfo = [];
+            if (!empty($memberIds)) {
+                $membersInfo = User::whereIn('_id', $memberIds)
+                    ->select('_id', 'name', 'profile_picture')
+                    ->get()->keyBy('_id');
+            }
+
+            $resourceAllocation = collect($project->members ?? [])->map(function ($memberData) use ($membersInfo, $taskCountsPerMember, $project) {
+                $userId = $memberData['userId'] ?? null;
+                if (!$userId)
+                    return null;
+
+                $userInfo = $membersInfo->get($userId);
+                $taskCount = $taskCountsPerMember[(string) $userId] ?? 0;
+
+                if (!$userInfo) {
+                    return [
+                        'userId' => $userId,
+                        'name' => 'Unknown User',
+                        'profile_picture' => null,
+                        'role' => $memberData['role'] ?? 'Unknown',
+                        'taskCount' => $taskCount,
+                    ];
+                }
+
+                return [
+                    'userId' => $userInfo->_id,
+                    'name' => $userInfo->name,
+                    'profile_picture' => $userInfo->profile_picture,
+                    'role' => $memberData['role'],
+                    'taskCount' => $taskCount,
+                ];
+            })->filter()->values();
+
+            $dayLabels = [];
+            $currentDate = $today->copy();
+            for ($i = 0; $i < 7; $i++) {
+                $dayLabels[] = $currentDate->copy()->subDays(6 - $i)->format('D');
+            }
+            $weeklyTrends = [
+                'labels' => $dayLabels,
+                'datasets' => [
+                    ['label' => 'Completed Tasks', 'data' => array_reverse($weeklyCompleted), 'backgroundColor' => '#4ade80', 'borderColor' => '#16a34a'],
+                    ['label' => 'Active Tasks', 'data' => array_reverse($weeklyActive), 'backgroundColor' => '#38bdf8', 'borderColor' => '#0284c7']
+                ]
             ];
 
-            // Get prodi name through relation
-            $prodiName = 'Unknown';
-            if ($project->prodi) {
-                $prodiName = $project->prodi->name;
-            }
+            $statistics = [
+                'totalTasks' => $allTasks->count(),
+                'completedTasks' => $allTasks->where('status', 'COMPLETED')->count(),
+                'activeTasks' => $allTasks->where('status', 'ACTIVE')->count(),
+                'unassignedTasks' => $allTasks->where('status', 'UNASSIGNED')->count(),
+                'overdueTasks' => count($overdueTasksList),
+                'tasksDueToday' => count($todaysTasksList),
+                'cancelledTasks' => $allTasks->where('status', 'CANCELLED')->count()
+            ];
+
+            $prodiName = $project->prodi->name ?? 'Unknown';
 
             return response()->json([
                 'status' => 'success',
@@ -236,22 +328,24 @@ class ProjectController extends Controller
                     'prodiName' => $prodiName,
                     'prodiId' => $project->prodiId,
                     'createdAt' => $project->created_at,
+                    'startDate' => $project->startDate ? Carbon::parse($project->startDate)->toDateString() : null,
+                    'endDate' => $project->endDate ? Carbon::parse($project->endDate)->toDateString() : null,
                     'statistics' => $statistics,
-                    'tasks' => $tasksByStatus
+                    'tasks' => $tasksByStatus,
+                    'todaysTasks' => array_slice($todaysTasksList, 0, 5),
+                    'overdueTasks' => array_slice($overdueTasksList, 0, 5),
+                    'weeklyTrends' => $weeklyTrends,
+                    'resourceAllocation' => $resourceAllocation,
                 ]
             ]);
 
+        } catch (ModelNotFoundException $e) {
+            Log::warning('Project not found:', ['projectId' => $projectId, 'error' => $e->getMessage()]);
+            return response()->json(['status' => 'error', 'message' => 'Project not found'], 404);
         } catch (\Exception $e) {
-            \Log::error('Project details error:', [
-                'error' => $e->getMessage(),
-                'projectId' => $projectId,
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Error retrieving project details: ' . $e->getMessage()
-            ], 500);
+            Log::error('Error retrieving project details:', ['error' => $e->getMessage(), 'projectId' => $projectId, 'trace' => $e->getTraceAsString()]);
+            $message = config('app.debug') ? 'Error retrieving project details: ' . $e->getMessage() : 'An error occurred.';
+            return response()->json(['status' => 'error', 'message' => $message], 500);
         }
     }
 
@@ -339,45 +433,71 @@ class ProjectController extends Controller
             $taskLists = TaskList::where('projectId', $project->_id)
                 ->with([
                     'tasks' => function ($query) {
-                        $query->orderBy('order', 'asc')
-                            ->with('users');
+                        $query->orderBy('order', 'asc')->with('users:_id,name,profile_picture');
                     }
                 ])
                 ->orderBy('order', 'asc')
                 ->get()
                 ->map(function ($taskList) {
-                    $listName = "Kriteria {$taskList->c}";  // Generate nama tasklist
-    
+                    $listName = $taskList->name ?? "Kriteria {$taskList->c}";
+
                     return [
                         'id' => $taskList->_id,
                         'c' => $taskList->c,
                         'name' => $listName,
                         'order' => $taskList->order,
                         'tasks' => $taskList->tasks->map(function ($task) {
-                            $startDate = new Carbon($task->startDate);
-                            $endDate = new Carbon($task->endDate);
-                            $today = Carbon::now()->startOfDay();
-
+                            $carbonStartDate = null;
+                            $formattedStartDate = null;
+                            $carbonEndDate = null;
+                            $formattedEndDate = null;
                             $duration = 0;
-                            if ($today->lt($startDate)) {
-                                $duration = $startDate->diffInDays($endDate);
-                            } else if ($today->lte($endDate)) {
-                                $duration = $today->diffInDays($endDate);
+
+                            if (!empty($task->startDate)) {
+                                try {
+                                    $carbonStartDate = Carbon::parse($task->startDate);
+                                    $formattedStartDate = $carbonStartDate->format('Y-m-d');
+                                } catch (\Exception $e) {
+                                    Log::warning("Failed to parse startDate '{$task->startDate}' for task ID {$task->_id}: " . $e->getMessage());
+                                }
                             }
 
-                            // Get task owners using relationship instead of direct owner array
+                            if (!empty($task->endDate)) {
+                                try {
+                                    $carbonEndDate = Carbon::parse($task->endDate);
+                                    $formattedEndDate = $carbonEndDate->format('Y-m-d');
+                                } catch (\Exception $e) {
+                                    Log::warning("Failed to parse endDate '{$task->endDate}' for task ID {$task->_id}: " . $e->getMessage());
+                                }
+                            }
+
+                            if ($carbonStartDate && $carbonEndDate) {
+                                $today = Carbon::now()->startOfDay();
+                                if ($today->lt($carbonStartDate)) {
+                                    $duration = $carbonStartDate->diffInDays($carbonEndDate);
+                                } else if ($today->lte($carbonEndDate)) {
+                                    $duration = $today->diffInDays($carbonEndDate);
+                                }
+                                $duration = max(0, $duration);
+                            }
+
                             $owners = collect();
                             if (isset($task->owners) && is_array($task->owners)) {
-                                $owners = collect($task->owners)->map(function ($ownerId) {
-                                    $user = User::find($ownerId);
+                                $owners = collect($task->owners)->map(function ($ownerId) use ($task) {
+                                    if (empty($ownerId))
+                                        return null;
+
+                                    $user = User::select('_id', 'name', 'profile_picture')->find($ownerId);
                                     if ($user) {
                                         return [
                                             'id' => $user->_id,
                                             'name' => $user->name,
-                                            'profile_picture' => $user->profile_picture ?? null
+                                            'profile_picture' => $user->profile_picture
                                         ];
+                                    } else {
+                                        Log::warning("User not found for owner ID: {$ownerId} in task ID: {$task->_id} during TaskList generation.");
+                                        return null;
                                     }
-                                    return null;
                                 })->filter();
                             }
 
@@ -389,8 +509,8 @@ class ProjectController extends Controller
                                 'name' => $task->name,
                                 'status' => $task->status,
                                 'progress' => $task->progress,
-                                'startDate' => $startDate->format('Y-m-d'),
-                                'endDate' => $endDate->format('Y-m-d'),
+                                'startDate' => $formattedStartDate,
+                                'endDate' => $formattedEndDate,
                                 'duration' => (int) $duration,
                                 'order' => $task->order,
                                 'taskListId' => $task->taskListId,
@@ -406,13 +526,13 @@ class ProjectController extends Controller
                     return $taskList['tasks']->count();
                 }),
                 'completedTasks' => $taskLists->sum(function ($taskList) {
-                    return $taskList['tasks']->where('status', 'COMPLETED')->count();
+                    return collect($taskList['tasks'])->where('status', 'COMPLETED')->count();
                 }),
                 'inProgressTasks' => $taskLists->sum(function ($taskList) {
-                    return $taskList['tasks']->where('status', 'ACTIVE')->count();
+                    return collect($taskList['tasks'])->where('status', 'ACTIVE')->count();
                 }),
                 'notStartedTasks' => $taskLists->sum(function ($taskList) {
-                    return $taskList['tasks']->where('status', 'UNASSIGNED')->count();
+                    return collect($taskList['tasks'])->where('status', 'UNASSIGNED')->count();
                 }),
             ];
 
@@ -426,15 +546,20 @@ class ProjectController extends Controller
                 ]
             ]);
 
+        } catch (ModelNotFoundException $e) {
+            Log::warning("Project not found for TaskLists:", ['projectId' => $projectId, 'error' => $e->getMessage()]);
+            return response()->json(['status' => 'error', 'message' => 'Project not found'], 404);
         } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Error retrieving project task lists: ' . $e->getMessage()
-            ], 500);
+            Log::error('Error retrieving project task lists:', [
+                'error' => $e->getMessage(),
+                'projectId' => $projectId,
+                'trace' => $e->getTraceAsString()
+            ]);
+            $message = config('app.debug') ? 'Error retrieving project task lists: ' . $e->getMessage() : 'An error occurred.';
+            return response()->json(['status' => 'error', 'message' => $message], 500);
         }
     }
 
-    // Fungsi untuk memeriksa apakah user memiliki peran yang cukup untuk mengelola member
     protected function canManageMembers($project, $userId = null)
     {
         if (!$userId) {
@@ -449,7 +574,6 @@ class ProjectController extends Controller
             return false;
         }
 
-        // Owner dan admin dapat mengelola member
         return in_array($member['role'], [self::ROLE_OWNER, self::ROLE_ADMIN]);
     }
 
@@ -459,7 +583,6 @@ class ProjectController extends Controller
             $project = Project::where('_id', $projectId)->firstOrFail();
             $currentUser = auth()->user();
 
-            // Verifikasi apakah user memiliki hak untuk menambahkan member
             if (!$this->canManageMembers($project, $currentUser->_id)) {
                 return response()->json([
                     'status' => 'error',
@@ -493,7 +616,6 @@ class ProjectController extends Controller
                 ], 400);
             }
 
-            // Jika user biasa mencoba menambahkan admin, batasi
             if ($request->role === self::ROLE_ADMIN && !$this->isOwner($project, $currentUser->_id)) {
                 return response()->json([
                     'status' => 'error',
@@ -572,7 +694,6 @@ class ProjectController extends Controller
             $project = Project::where('_id', $projectId)->firstOrFail();
             $currentUser = auth()->user();
 
-            // Verifikasi apakah user memiliki hak untuk mengubah role
             if (!$this->canManageMembers($project, $currentUser->_id)) {
                 return response()->json([
                     'status' => 'error',
@@ -604,7 +725,6 @@ class ProjectController extends Controller
                 ], 400);
             }
 
-            // Owner tidak bisa diubah rolenya
             if ($targetMember['role'] === self::ROLE_OWNER) {
                 return response()->json([
                     'status' => 'error',
@@ -612,7 +732,6 @@ class ProjectController extends Controller
                 ], 400);
             }
 
-            // Hanya owner yang bisa mengubah atau menambahkan admin
             if ($request->role === self::ROLE_ADMIN && !$this->isOwner($project, $currentUser->_id)) {
                 return response()->json([
                     'status' => 'error',
@@ -620,7 +739,6 @@ class ProjectController extends Controller
                 ], 403);
             }
 
-            // Update role di project
             Project::where('_id', $project->_id)
                 ->update([
                     'members.$[elem].role' => $request->role
@@ -630,7 +748,6 @@ class ProjectController extends Controller
                     ]
                 ]);
 
-            // Update role di user projects array
             $userProjects = $targetUser->projects ?? [];
             foreach ($userProjects as $key => $userProject) {
                 if ($userProject['projectId'] === $project->projectId) {
@@ -640,7 +757,6 @@ class ProjectController extends Controller
             $targetUser->projects = $userProjects;
             $targetUser->save();
 
-            // Reload project untuk mendapatkan data terbaru
             $project = Project::find($project->_id);
 
             return response()->json([
@@ -691,7 +807,6 @@ class ProjectController extends Controller
             ];
         });
 
-        // Group members by role for better organization
         $membersByRole = [
             'owner' => $memberDetails->where('role', self::ROLE_OWNER)->values(),
             'admin' => $memberDetails->where('role', self::ROLE_ADMIN)->values(),
@@ -714,7 +829,6 @@ class ProjectController extends Controller
     {
         $project = Project::where('projectId', $projectId)->firstOrFail();
 
-        // Verifikasi apakah user memiliki hak untuk update project
         $currentUser = auth()->user();
         if (!$this->canManageMembers($project, $currentUser->_id)) {
             return response()->json([
@@ -768,7 +882,6 @@ class ProjectController extends Controller
         $project = Project::where('_id', $projectId)->firstOrFail();
         $currentUser = auth()->user();
 
-        // Verifikasi apakah user memiliki hak untuk menghapus member
         if (!$this->canManageMembers($project, $currentUser->_id)) {
             return response()->json([
                 'status' => 'error',
@@ -787,7 +900,6 @@ class ProjectController extends Controller
             ], 400);
         }
 
-        // Owner tidak bisa dihapus
         if ($member['role'] === self::ROLE_OWNER) {
             return response()->json([
                 'status' => 'error',
@@ -795,7 +907,6 @@ class ProjectController extends Controller
             ], 400);
         }
 
-        // Admin hanya bisa dihapus oleh owner
         if ($member['role'] === self::ROLE_ADMIN && !$this->isOwner($project, $currentUser->_id)) {
             return response()->json([
                 'status' => 'error',
@@ -806,7 +917,6 @@ class ProjectController extends Controller
         $project->pull('members', ['userId' => $request->userId]);
         $project->save();
 
-        // Also update the user's projects array to remove this project
         $user = User::find($request->userId);
         if ($user && isset($user->projects)) {
             $updatedProjects = collect($user->projects)
@@ -831,7 +941,6 @@ class ProjectController extends Controller
         $project = Project::where('projectId', $projectId)->firstOrFail();
         $currentUserId = auth()->user()->_id;
 
-        // Hanya owner yang bisa menghapus project
         if (!$this->isOwner($project, $currentUserId)) {
             return response()->json([
                 'status' => 'error',
@@ -839,7 +948,6 @@ class ProjectController extends Controller
             ], 403);
         }
 
-        // Update all users who belong to this project
         foreach ($project->members as $member) {
             $user = User::find($member['userId']);
             if ($user && isset($user->projects)) {
@@ -881,7 +989,6 @@ class ProjectController extends Controller
         $completedTasks = $taskStats['COMPLETED'] ?? 0;
         $progress = $totalTasks > 0 ? ($completedTasks / $totalTasks) * 100 : 0;
 
-        // Get member stats by role
         $memberStats = collect($project->members)
             ->groupBy('role')
             ->map(function ($members) {
@@ -902,7 +1009,6 @@ class ProjectController extends Controller
             ]
         ]);
     }
-
 
     public function getAvailableRoles()
     {

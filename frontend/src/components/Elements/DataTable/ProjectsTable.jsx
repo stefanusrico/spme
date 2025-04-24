@@ -13,10 +13,6 @@ import AddProjectModal from "../Modals/AddProjectModal"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 
-const toastContainerStyle = {
-  zIndex: 20000,
-}
-
 const LoadingBar = () => (
   <div className="relative h-1 bg-gray-100 overflow-hidden">
     <div className="absolute top-0 h-1 bg-blue loading-bar"></div>
@@ -84,13 +80,14 @@ const ProjectsTable = ({ isCollapsed }) => {
       }),
       columnHelper.accessor("name", {
         header: "PROJECT NAME",
-        size: 2,
         cell: ({ row }) => (
-          <div className="relative group">
-            <span>{row.original.name}</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate" title={row.original.name}>
+              {row.original.name}
+            </span>
             <Link
               to={`/projects/${row.original.id}`}
-              className="absolute right-0 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue_badge text-blue text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-400"
+              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out bg-blue_badge text-blue text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-400 whitespace-nowrap shrink-0"
             >
               Access Project
             </Link>
@@ -106,7 +103,7 @@ const ProjectsTable = ({ isCollapsed }) => {
         header: "OWNER",
         size: 150,
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
+          <div className="items-center gap-2">
             {row.original.owner.profile_picture && (
               <img
                 src={row.original.owner.profile_picture}
@@ -147,14 +144,14 @@ const ProjectsTable = ({ isCollapsed }) => {
       }),
       columnHelper.accessor("startDate", {
         header: "START DATE",
-        size: 120,
+        size: 200,
       }),
       columnHelper.accessor("endDate", {
         header: "END DATE",
-        size: 120,
+        size: 200,
       }),
     ],
-    []
+    [columnHelper]
   )
 
   const table = useReactTable({
@@ -276,8 +273,6 @@ const ProjectsTable = ({ isCollapsed }) => {
         draggable
         pauseOnHover
         theme="light"
-        style={toastContainerStyle}
-        className="toast-container-custom"
       />
 
       <div className="flex justify-between items-center mb-4">
@@ -305,11 +300,19 @@ const ProjectsTable = ({ isCollapsed }) => {
                           ? "rounded-r-lg"
                           : ""
                       }`}
+                      style={{
+                        width:
+                          header.column.getSize() !== 150
+                            ? header.column.getSize()
+                            : undefined,
+                      }}
                     >
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
                     </th>
                   ))}
                 </tr>
@@ -327,13 +330,18 @@ const ProjectsTable = ({ isCollapsed }) => {
                 table.getRowModel().rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="hover:bg-gray-50 transition-colors"
+                    className="group hover:bg-gray-50 transition-colors"
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td
                         key={cell.id}
                         className="px-4 py-2"
-                        style={{ width: cell.column.getSize() }}
+                        style={{
+                          width:
+                            cell.column.getSize() !== 150
+                              ? cell.column.getSize()
+                              : undefined,
+                        }}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

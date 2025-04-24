@@ -68,7 +68,7 @@ const Input = (props) => {
         <button
           type="button"
           aria-label={showPassword ? "Hide password" : "Show password"}
-          className="absolute top-1/2 right-3 transform -translate-y-1/2 text-gray-600 hover:text-gray-800"
+          className="absolute top-3/4 right-3 transform -translate-y-1/2 text-gray-600 hover:text-gray-800"
           onClick={() => setShowPassword(!showPassword)}
         >
           {showPassword ? <EyeClosedIcon /> : <EyeOpenIcon />}

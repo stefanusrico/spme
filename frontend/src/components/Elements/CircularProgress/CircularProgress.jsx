@@ -43,11 +43,11 @@ const CircularProgress = ({
           strokeLinecap="round"
         ></circle>
       </svg>
-      <div className="absolute top-1/2 start-1/2 transform -translate-y-1/2 -translate-x-1/2 flex flex-col items-center">
-        <span className="text-center text-xs font-light text-primary dark:text-primary">
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-xs font-light text-primary dark:text-primary">
           Status
         </span>
-        <span className="text-center text-sm font-medium text-primary dark:text-primary">
+        <span className="text-sm font-medium text-primary">
           {currentStatus} of {totalStatus}
         </span>
       </div>

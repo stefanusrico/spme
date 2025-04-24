@@ -34,9 +34,9 @@ const NotificationItem = ({
   return (
     <div
       className={cn(
-        "p-4 hover:bg-zinc-800/50 transition-colors cursor-pointer border-b border-zinc-800",
-        isSelected && "bg-zinc-800/50",
-        isUnread && "bg-blue-900/20"
+        "p-4 hover:bg-gray-100 transition-colors cursor-pointer border-b border-gray-200",
+        isSelected && "bg-gray-100", // Selected state background
+        isUnread && "bg-blue-50" // Unread state background
       )}
       onClick={handleClick}
     >
@@ -54,7 +54,9 @@ const NotificationItem = ({
             alt="Profile"
           />
         ) : (
-          <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center text-zinc-200">
+          <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+            {" "}
+            {/* Changed avatar background and text */}
             <Bell className="h-4 w-4" />
           </div>
         )}
@@ -64,7 +66,7 @@ const NotificationItem = ({
             <p
               className={cn(
                 "font-medium",
-                isUnread ? "text-zinc-100" : "text-zinc-400"
+                isUnread ? "text-gray-900 font-semibold" : "text-gray-600" // Adjusted text colors for read/unread
               )}
             >
               {data.type === "project_invitation"
@@ -73,14 +75,16 @@ const NotificationItem = ({
                 ? data.assigned_by.name
                 : "System"}
             </p>
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-gray-500">
+              {" "}
+              {/* Adjusted timestamp color */}
               {moment(notification.created_at).fromNow()}
             </span>
           </div>
           <p
             className={cn(
               "text-sm",
-              isUnread ? "text-zinc-300" : "text-zinc-500"
+              isUnread ? "text-gray-700" : "text-gray-500" // Adjusted message text colors
             )}
           >
             {data.message}
@@ -94,7 +98,9 @@ const NotificationItem = ({
 const NotificationDetail = ({ notification, onAcceptProject }) => {
   if (!notification) {
     return (
-      <div className="flex items-center justify-center h-full text-zinc-500">
+      <div className="flex items-center justify-center h-full text-gray-500">
+        {" "}
+        {/* Adjusted placeholder text color */}
         Select a notification to view details
       </div>
     )
@@ -118,47 +124,58 @@ const NotificationDetail = ({ notification, onAcceptProject }) => {
             alt="Profile"
           />
         ) : (
-          <div className="h-10 w-10 rounded-full bg-zinc-700 flex items-center justify-center text-zinc-200">
+          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+            {" "}
+            {/* Changed avatar background and text */}
             <Bell className="h-6 w-6" />
           </div>
         )}
         <div className="flex-1">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-zinc-100">
+              <h2 className="text-xl font-semibold text-gray-900">
+                {" "}
+                {/* Adjusted heading color */}
                 {data.type === "project_invitation"
                   ? data.added_by.name
                   : data.type === "task_assignment"
                   ? data.assigned_by.name
                   : "System"}
               </h2>
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-gray-500">
+                {" "}
+                {/* Adjusted type text color */}
                 {data.type
                   .split("_")
                   .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                   .join(" ")}
               </p>
             </div>
-            <span className="text-sm text-zinc-500">
+            <span className="text-sm text-gray-500">
+              {" "}
+              {/* Adjusted timestamp color */}
               {moment(notification.created_at).format("MMM D, YYYY h:mm A")}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="prose prose-invert max-w-none">
-        <p className="text-zinc-300 leading-relaxed">{data.message}</p>
+      {/* Removed prose-invert for light mode compatibility */}
+      <div className="prose max-w-none">
+        <p className="text-gray-700 leading-relaxed">{data.message}</p>{" "}
+        {/* Adjusted message text color */}
       </div>
 
       {(data.type === "project_invitation" ||
         data.type === "task_assignment") && (
         <div className="flex gap-4">
+          {/* Button styling is likely fine for light mode */}
           <button
             onClick={(e) => {
               e.stopPropagation()
               onAcceptProject(data.project._id)
             }}
-            className="text-xs font-medium text-blue-500 hover:text-blue-700"
+            className="text-xs font-medium text-blue-600 hover:text-blue-800" // Slightly adjusted blue for better contrast if needed
           >
             {data.type === "project_invitation" ? "View Project" : "View Task"}
           </button>
@@ -168,7 +185,6 @@ const NotificationDetail = ({ notification, onAcceptProject }) => {
   )
 }
 
-// Changed from function declaration to arrow function
 const NotificationsPanel = () => {
   const [notifications, setNotifications] = useState([])
   const [selectedNotification, setSelectedNotification] = useState(null)
@@ -206,7 +222,7 @@ const NotificationsPanel = () => {
       if (!document.hidden) {
         fetchNotifications(isMounted)
       }
-    }, 30000)
+    }, 30000) // Poll every 30 seconds
 
     return () => {
       isMounted = false
@@ -217,6 +233,15 @@ const NotificationsPanel = () => {
   const handleMarkAsRead = async (notificationId) => {
     try {
       await axiosInstance.post(`notifications/${notificationId}/read`)
+      // Optimistic update (optional but good UX)
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === notificationId
+            ? { ...n, read_at: new Date().toISOString() }
+            : n
+        )
+      )
+      // Re-fetch to ensure consistency
       fetchNotifications(true)
     } catch (error) {
       console.error("Error marking notification as read:", error)
@@ -226,6 +251,14 @@ const NotificationsPanel = () => {
   const handleMarkAllAsRead = async () => {
     try {
       await axiosInstance.post("notifications/mark-all-read")
+      // Optimistic update (optional but good UX)
+      setNotifications((prev) =>
+        prev.map((n) => ({
+          ...n,
+          read_at: n.read_at || new Date().toISOString(),
+        }))
+      )
+      // Re-fetch to ensure consistency
       fetchNotifications(true)
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
@@ -237,7 +270,8 @@ const NotificationsPanel = () => {
   }
 
   const filteredNotifications = notifications.filter((notification) => {
-    const matchesSearch = notification.data.message
+    const message = notification.data?.message || "" // Add safe access
+    const matchesSearch = message
       .toLowerCase()
       .includes(searchQuery.toLowerCase())
     const matchesUnread = filterUnread ? !notification.read_at : true
@@ -249,17 +283,20 @@ const NotificationsPanel = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-zinc-900 text-zinc-100">
+    // Changed main background and text color
+    <div className="flex flex-col h-full bg-white text-gray-900">
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel defaultSize={40} minSize={30}>
           <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              {" "}
+              {/* Changed border color */}
               <h2 className="text-xl font-semibold">Notifications</h2>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-zinc-400 hover:text-zinc-100"
+                className="text-gray-600 hover:text-gray-900" // Changed button text/hover color
                 onClick={handleMarkAllAsRead}
               >
                 <Check className="mr-2 h-4 w-4" />
@@ -268,12 +305,16 @@ const NotificationsPanel = () => {
             </div>
 
             {/* Search */}
-            <div className="p-4 border-b border-zinc-800">
+            <div className="p-4 border-b border-gray-200">
+              {" "}
+              {/* Changed border color */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />{" "}
+                {/* Changed icon color */}
                 <Input
                   placeholder="Search notifications..."
-                  className="w-full pl-9 bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
+                  // Changed input background, border, text, placeholder color
+                  className="w-full pl-9 bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 focus:ring-blue-500 focus:border-blue-500"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -281,13 +322,17 @@ const NotificationsPanel = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex gap-2 p-4 border-b border-zinc-800">
+            <div className="flex gap-2 p-4 border-b border-gray-200">
+              {" "}
+              {/* Changed border color */}
               <Button
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "rounded-full",
-                  !filterUnread && "bg-zinc-800 text-zinc-100"
+                  "rounded-full px-3 py-1 text-sm", // Base styles
+                  !filterUnread
+                    ? "bg-gray-100 text-gray-800"
+                    : "text-gray-600 hover:bg-gray-100" // Active/Inactive styles
                 )}
                 onClick={() => setFilterUnread(false)}
               >
@@ -297,8 +342,10 @@ const NotificationsPanel = () => {
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "rounded-full",
-                  filterUnread && "bg-zinc-800 text-zinc-100"
+                  "rounded-full px-3 py-1 text-sm", // Base styles
+                  filterUnread
+                    ? "bg-gray-100 text-gray-800"
+                    : "text-gray-600 hover:bg-gray-100" // Active/Inactive styles
                 )}
                 onClick={() => setFilterUnread(true)}
               >
@@ -319,17 +366,19 @@ const NotificationsPanel = () => {
                   />
                 ))
               ) : (
-                <div className="p-4 text-center text-zinc-500">
+                <div className="p-4 text-center text-gray-500">
+                  {" "}
+                  {/* Changed empty state text color */}
                   No notifications found
                 </div>
               )}
             </ScrollArea>
           </div>
         </ResizablePanel>
-
-        <ResizableHandle withHandle />
-
+        <ResizableHandle withHandle className="bg-gray-200" />{" "}
+        {/* Changed handle background */}
         <ResizablePanel defaultSize={60}>
+          {/* Pass selectedNotification and handler */}
           <NotificationDetail
             notification={selectedNotification}
             onAcceptProject={handleAcceptProjectInvitation}
