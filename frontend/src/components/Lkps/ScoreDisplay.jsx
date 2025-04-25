@@ -8,26 +8,29 @@ const ScoreDisplay = ({ score, formula, scoreDetail }) => {
   console.log("ScoreDisplay rendering with:", { score, formula })
 
   // PERBAIKAN: Gunakan OR operator
-  if (score === null || score === undefined) return null
+  if (!Array.isArray(score) || score.length === 0) return null
 
-  const scoreRounded = parseFloat(score).toFixed(2)
-  const isGoodScore = scoreRounded > 3
+  // const scoreRounded = parseFloat(score).toFixed(2)
+  // const isGoodScore = scoreRounded > 3
 
   return (
     <Card
       style={{ marginBottom: 16 }}
       title={
-        <Space>
-          <Badge
-            status={isGoodScore ? "success" : "warning"}
-            text={
-              <span style={{ fontSize: 16, fontWeight: "bold" }}>
-                Skor: {scoreRounded}
-              </span>
-            }
-            style={{ fontSize: 16, fontWeight: "bold" }}
-          />
+        <Space direction="vertical" size="small">
+          {score.map((item) => (
+            <Badge
+              key={item.butir}
+              status={parseFloat(item.nilai) > 3 ? "success" : "warning"}
+              text={
+                <span style={{ fontSize: 16, fontWeight: "bold" }}>
+                  Skor Butir {item.butir} : {item.nilai}
+                </span>
+              }
+            />
+          ))}
         </Space>
+        
       }
     >
       {formula && (

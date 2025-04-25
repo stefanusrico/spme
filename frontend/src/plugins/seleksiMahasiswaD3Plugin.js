@@ -183,7 +183,10 @@ const seleksiMahasiswaD3Plugin = {
         }
       } else if (result && result.skipped) {
         return {
-          score: null,
+          score: {
+            butir : '',
+            nilai : null
+          },
           scoreDetail: null,
           message: result.message || "Calculation skipped",
         }

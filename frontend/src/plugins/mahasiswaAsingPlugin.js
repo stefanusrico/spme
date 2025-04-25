@@ -156,7 +156,12 @@ const MahasiswaAsingPlugin = {
     }
 
     return {
-      score: score,
+      scores: [
+        {
+          butir : 14,
+          nilai : score
+        }
+      ],
       scoreDetail: {
         totalStudents,
         totalInternationalStudents,

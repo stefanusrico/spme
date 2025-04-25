@@ -94,9 +94,9 @@ export const useSaveData = (
               NDTPS: userData?.NDTPS || 0,
             })
 
-            if (result && result.score !== undefined && result.score !== null) {
-              payload.score = result.score
-              setScore(result.score)
+            if (result && result.scores !== undefined && result.scores !== null) {
+              payload.score = result.scores
+              setScore(result.scores)
 
               if (result.scoreDetail) {
                 setScoreDetail(result.scoreDetail)
@@ -112,7 +112,7 @@ export const useSaveData = (
 
         const response = await axiosInstance.post(
           `/lkps/sections/${sectionCode}/data`,
-          payload
+          payload,
         )
 
         if (response.data.success || response.status === 200) {

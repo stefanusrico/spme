@@ -146,7 +146,12 @@ const DefaultSectionPlugin = {
       )
 
       return {
-        score: result !== null ? result : 0,
+        scores: [
+          {
+            butir : 'default',
+            nilai : result !== null ? result : 0
+          }
+        ],
         scoreDetail: {
           ...variables,
           mainResult: result,

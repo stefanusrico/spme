@@ -408,7 +408,29 @@ const DosenTetapPerguruanTinggiPlugin = {
     })
 
     return {
-      score: rataRata,
+      // score: rataRata,
+      scores: [
+        {
+          butir: 15,
+          nilai: skorKecukupan.toFixed(2),
+        },
+        {
+          butir: 16,
+          nilai: skorKualifikasi.toFixed(2),
+        },
+        {
+          butir: 17,
+          nilai: skorSertifikasi.toFixed(2)
+        },
+        {
+          butir: 18,
+          nilai: skorJabatan.toFixed(2)
+        },
+        {
+          butir: 19,
+          nilai: skorRasio.toFixed(2)
+        },
+      ],
       scoreDetail: {
         NDT,
         NDTPS,
@@ -423,11 +445,6 @@ const DosenTetapPerguruanTinggiPlugin = {
         PGBLKL: PGBLKL.toFixed(2) + "%",
         PDTT: PDTT.toFixed(2) + "%",
         RMD: RMD.toFixed(2),
-        skorKecukupan: skorKecukupan.toFixed(2),
-        skorKualifikasi: skorKualifikasi.toFixed(2),
-        skorSertifikasi: skorSertifikasi.toFixed(2),
-        skorJabatan: skorJabatan.toFixed(2),
-        skorRasio: skorRasio.toFixed(2),
         formula: "Matriks Penilaian LKPS C.4. Sumber Daya Manusia (15-19)",
       },
     }

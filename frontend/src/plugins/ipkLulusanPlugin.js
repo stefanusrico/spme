@@ -125,7 +125,10 @@ const ipkLulusanPlugin = {
   calculateScore(data) {
     if (!data || data.length === 0) {
       return {
-        score: 0,
+        scores: [{
+          butir : 52,
+          nilai : 0
+        }],
         scoreDetail: {
           averageIPK: 0,
           ipkPoints: 0,

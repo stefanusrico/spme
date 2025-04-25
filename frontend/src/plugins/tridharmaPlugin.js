@@ -423,7 +423,12 @@ const TridharmaPlugin = {
 
       if (result !== null && !result.skipped) {
         return {
-          score: result.score,
+          scores: [
+            {
+              butir : 10,
+              nilai :  result.score
+            }
+          ],
           scoreDetail: result.scoreDetail,
           log: result.calculationLog,
         }

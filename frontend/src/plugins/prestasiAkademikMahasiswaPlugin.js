@@ -184,7 +184,12 @@ const PrestasiAkademikMahasiswaPlugin = {
   calculateScore: function (data) {
     if (!data || data.length === 0) {
       return {
-        score: 0,
+        scores: [
+          {
+            butir : '',
+            nilai : 0
+          }
+        ],
         scoreDetail: {
           totalAchievements: 0,
           internationalAchievements: 0,

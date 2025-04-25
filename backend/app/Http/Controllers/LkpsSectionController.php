@@ -196,7 +196,7 @@ class LkpsSectionController extends Controller
                 $sectionCode,
                 $tableCode,
                 $data,
-                $table->used_in_formula ? $score : null,
+                $score,
                 $userId
             );
         }

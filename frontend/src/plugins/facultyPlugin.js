@@ -278,7 +278,12 @@ const FacultyPlugin = {
     }
 
     return {
-      score: calculatedScore,
+      scores: [
+        {
+          butir : 'Tidak digunakan',
+          nilai : calculatedScore
+        }
+      ],
       scoreDetail,
     }
   },
