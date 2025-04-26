@@ -1,5 +1,8 @@
 import * as XLSX from "xlsx"
 import { message } from "antd"
+// Import the string-similarity library
+// To use this, you'll need to install it with: npm install string-similarity
+import stringSimilarity from "string-similarity"
 
 export const extractColumns = (tableConfig) => {
   let columns = []
@@ -25,360 +28,165 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
   const dataIndex =
     possibleNames.length > 0 ? possibleNames[possibleNames.length - 1] : ""
 
-  const normalizedHeaders = headers.map((h) => {
-    if (h === undefined || h === null) return ""
-    return String(h).toLowerCase().trim()
+  // Transform headers to string for comparison
+  const processedHeaders = headers.map((h) => {
+    return String(h || "")
+      .toLowerCase()
+      .trim()
   })
 
-  const fieldTokens = tokenizeFieldName(dataIndex)
+  // Get all possible variants of the field name
+  const fieldVariants = []
+
+  // Add original dataIndex
+  fieldVariants.push(dataIndex)
+
+  // Add dataIndex with underscores replaced by spaces
+  fieldVariants.push(dataIndex.replace(/_/g, " "))
+
+  // Add all possibleNames
+  possibleNames.forEach((name) => {
+    if (name && !fieldVariants.includes(name)) {
+      fieldVariants.push(name)
+    }
+  })
+
+  // Look for special cases with TS prefix/suffix
   const tsInfo = extractTSInfo(dataIndex)
+
+  // Calculate scores for all headers against all field variants
   const columnScores = []
 
-  for (let i = 0; i < normalizedHeaders.length; i++) {
-    const header = normalizedHeaders[i]
+  for (let i = 0; i < processedHeaders.length; i++) {
+    const header = processedHeaders[i]
     if (!header) continue
 
-    const matchDetails = {
-      index: i,
-      header: headers[i],
-      score: 0,
-      matches: [],
-      originalHeader: header,
-    }
+    let bestScore = 0
+    let matchDetails = []
 
+    // Check for hierarchical headers (with " - " delimiter)
     if (header.includes(" - ")) {
-      const [parentPart, childPart] = header
-        .split(" - ")
-        .map((part) => part.trim())
-
+      const [parentPart, childPart] = header.split(" - ").map((p) => p.trim())
       const headerTsInfo = extractTSInfo(childPart)
-      const parentTokens = tokenizeHeaderPart(parentPart)
-      const childTokens = tokenizeHeaderPart(childPart)
-      const parentTokenSet = new Set(parentTokens)
-      const childTokenSet = new Set(childTokens)
-      const matchedFieldTokens = new Set()
-      let parentScore = 0
-      let childScore = 0
 
-      // Kecocokan token di induk
-      fieldTokens.forEach((token) => {
-        if (parentTokenSet.has(token) && !matchedFieldTokens.has(token)) {
-          parentScore += 20
-          matchDetails.matches.push(`Kecocokan tepat di induk: "${token}"`)
-          matchedFieldTokens.add(token)
-        }
-      })
-
-      // Token majemuk di induk
-      fieldTokens
-        .filter((t) => t.includes("_"))
-        .forEach((compoundToken) => {
-          const parts = compoundToken.split("_")
-          let matchedCount = 0
-
-          parts.forEach((part) => {
-            if (parentTokenSet.has(part)) {
-              matchedCount++
-            }
-          })
-
-          if (matchedCount > 0 && !matchedFieldTokens.has(compoundToken)) {
-            const matchRatio = matchedCount / parts.length
-            const score = 15 * matchRatio
-            parentScore += score
-            matchDetails.matches.push(
-              `Kecocokan majemuk di induk: "${compoundToken}" (${matchedCount}/${parts.length} bagian)`
-            )
-            matchedFieldTokens.add(compoundToken)
-          }
-        })
-
-      // Logika pencocokan TS
+      // TS special handling
       if (tsInfo.hasTS && headerTsInfo.hasTS) {
-        childScore += 10
-        matchDetails.matches.push(`Keduanya mengandung TS`)
-
         if (
           tsInfo.hasNumber &&
           headerTsInfo.hasNumber &&
           tsInfo.number === headerTsInfo.number
         ) {
-          childScore += 200
-          matchDetails.matches.push(
-            `Kecocokan nomor TS tepat: TS-${tsInfo.number}`
-          )
+          bestScore += 0.3 // Bonus for matching TS number
+          matchDetails.push(`Matching TS number: ${tsInfo.number}`)
         } else if (!tsInfo.hasNumber && !headerTsInfo.hasNumber) {
-          childScore += 150
-          matchDetails.matches.push(`Kecocokan TS polos tepat (tanpa angka)`)
-        } else if (!tsInfo.hasNumber && headerTsInfo.hasNumber) {
-          childScore -= 100
-          matchDetails.matches.push(
-            `Ketidakcocokan: field tidak memiliki nomor TS tetapi header memilikinya`
-          )
-        } else if (tsInfo.hasNumber && !headerTsInfo.hasNumber) {
-          childScore -= 50
-          matchDetails.matches.push(
-            `Ketidakcocokan: field memiliki nomor TS tetapi header tidak`
-          )
-        } else if (
-          tsInfo.hasNumber &&
-          headerTsInfo.hasNumber &&
-          tsInfo.number !== headerTsInfo.number
-        ) {
-          childScore -= 70
-          matchDetails.matches.push(
-            `Ketidakcocokan nomor TS: ${tsInfo.number} vs ${headerTsInfo.number}`
-          )
+          bestScore += 0.2 // Bonus for plain TS match
+          matchDetails.push("Both contain plain TS")
         }
       }
 
-      // Kecocokan token di anak
-      fieldTokens.forEach((token) => {
-        if (childTokenSet.has(token) && !matchedFieldTokens.has(token)) {
-          childScore += 20
-          matchDetails.matches.push(`Kecocokan tepat di anak: "${token}"`)
-          matchedFieldTokens.add(token)
-        }
-      })
+      // Compare each field variant with parent and child parts
+      for (const variant of fieldVariants) {
+        // Using the stringSimilarity library for better comparison
+        const parentSimilarity = stringSimilarity.compareTwoStrings(
+          variant,
+          parentPart
+        )
+        const childSimilarity = stringSimilarity.compareTwoStrings(
+          variant,
+          childPart
+        )
 
-      // Token majemuk di anak
-      fieldTokens
-        .filter((t) => t.includes("_"))
-        .forEach((compoundToken) => {
-          if (matchedFieldTokens.has(compoundToken)) return
+        // Get the best score between parent and child, with higher weight to child
+        const weightedScore = Math.max(
+          parentSimilarity * 0.6,
+          childSimilarity * 0.8
+        )
 
-          const parts = compoundToken.split("_")
-          let matchedCount = 0
+        if (weightedScore > bestScore) {
+          bestScore = weightedScore
+          matchDetails = [
+            `Similarity with hierarchical header: ${(
+              weightedScore * 100
+            ).toFixed(2)}%`,
+          ]
 
-          parts.forEach((part) => {
-            if (childTokenSet.has(part)) {
-              matchedCount++
-            }
-          })
-
-          if (matchedCount > 0) {
-            const matchRatio = matchedCount / parts.length
-            const score = 15 * matchRatio
-            childScore += score
-            matchDetails.matches.push(
-              `Kecocokan majemuk di anak: "${compoundToken}" (${matchedCount}/${parts.length} bagian)`
-            )
-            matchedFieldTokens.add(compoundToken)
-          }
-        })
-
-      // Kasus khusus split
-      fieldTokens
-        .filter((t) => t.includes("_"))
-        .forEach((compoundToken) => {
-          if (matchedFieldTokens.has(compoundToken)) return
-
-          const compoundParts = compoundToken.split("_")
-          const childText = childPart.toLowerCase()
-          let allPartsInChild = true
-
-          compoundParts.forEach((part) => {
-            if (!childText.includes(part)) {
-              allPartsInChild = false
-            }
-          })
-
-          if (allPartsInChild) {
-            childScore += 25
-            matchDetails.matches.push(
-              `Semua bagian dari "${compoundToken}" ditemukan di anak "${childPart}"`
-            )
-            matchedFieldTokens.add(compoundToken)
-          }
-        })
-
-      // Periksa teks dalam tanda kurung
-      const parenthesisMatch = parentPart.match(/\((.*?)\)/)
-      if (parenthesisMatch && parenthesisMatch[1]) {
-        const parenthesisText = parenthesisMatch[1].toLowerCase()
-
-        if (
-          dataIndex
-            .toLowerCase()
-            .includes(parenthesisText.replace(/[\/\-\s]/g, "_"))
-        ) {
-          parentScore += 40
-          matchDetails.matches.push(
-            `Field berisi teks dalam tanda kurung: "${parenthesisText}"`
-          )
-        }
-
-        if (
-          (parenthesisText.includes("full") ||
-            parenthesisText.includes("part")) &&
-          dataIndex
-            .toLowerCase()
-            .includes(parenthesisText.includes("full") ? "full" : "part")
-        ) {
-          parentScore += 30
-          matchDetails.matches.push(
-            `Kecocokan penunjukan waktu: "${parenthesisText}"`
-          )
-        }
-      }
-
-      // Bonus token pertama/terakhir
-      if (fieldTokens.length > 0) {
-        const firstToken = fieldTokens[0]
-        const lastToken = fieldTokens[fieldTokens.length - 1]
-
-        if (parentTokenSet.has(firstToken)) {
-          parentScore += 5
-          matchDetails.matches.push(
-            `Token pertama "${firstToken}" cocok dengan induk`
-          )
-        }
-
-        if (childTokenSet.has(lastToken)) {
-          childScore += 5
-          matchDetails.matches.push(
-            `Token terakhir "${lastToken}" cocok dengan anak`
-          )
-        }
-      }
-
-      // Bonus token majemuk
-      if (fieldTokens.some((t) => t.includes("_"))) {
-        const compoundTokens = fieldTokens.filter((t) => t.includes("_"))
-
-        compoundTokens.forEach((token) => {
-          const parts = token.split("_")
-          let partsInParent = 0
-          let partsInChild = 0
-
-          parts.forEach((part) => {
-            if (parentPart.includes(part)) partsInParent++
-            if (childPart.includes(part)) partsInChild++
-          })
-
-          if (partsInChild === parts.length) {
-            childScore += 10
-            matchDetails.matches.push(
-              `Semua bagian dari "${token}" ditemukan di anak`
-            )
-          } else if (partsInParent === parts.length) {
-            parentScore += 10
-            matchDetails.matches.push(
-              `Semua bagian dari "${token}" ditemukan di induk`
+          if (parentSimilarity > 0.7) {
+            matchDetails.push(
+              `High parent similarity: ${(parentSimilarity * 100).toFixed(2)}%`
             )
           }
-        })
-      }
 
-      // Penanganan pola khusus
-      if (dataIndex.includes("mahasiswa_aktif")) {
-        if (parentPart.toLowerCase().includes("aktif")) {
-          parentScore += 25
-          matchDetails.matches.push('Induk berisi "Aktif"')
+          if (childSimilarity > 0.7) {
+            matchDetails.push(
+              `High child similarity: ${(childSimilarity * 100).toFixed(2)}%`
+            )
+          }
         }
-      }
-
-      if (
-        dataIndex.includes("penuh_waktu") ||
-        dataIndex.includes("paruh_waktu")
-      ) {
-        const isParuh = dataIndex.includes("paruh_waktu")
-
-        if (parentPart.toLowerCase().includes(isParuh ? "paruh" : "penuh")) {
-          parentScore += 30
-          matchDetails.matches.push(
-            `Induk berisi jenis waktu yang benar: "${
-              isParuh ? "paruh" : "penuh"
-            }"`
-          )
-        }
-      }
-
-      if (dataIndex.includes("full_time") || dataIndex.includes("part_time")) {
-        const isPart = dataIndex.includes("part_time")
-
-        if (parentPart.toLowerCase().includes(isPart ? "part" : "full")) {
-          parentScore += 30
-          matchDetails.matches.push(
-            `Induk berisi jenis waktu yang benar: "${isPart ? "part" : "full"}"`
-          )
-        }
-      }
-
-      matchDetails.score = parentScore + childScore
-
-      if (parentScore > 0 && childScore > 0) {
-        matchDetails.score += 10
-        matchDetails.matches.push(`Bonus: Kecocokan di kedua induk dan anak`)
       }
     } else {
-      const headerTokens = tokenizeHeaderPart(header)
-      const headerTokenSet = new Set(headerTokens)
-      const matchedFieldTokens = new Set()
+      // For regular non-hierarchical headers
+      for (const variant of fieldVariants) {
+        // Using the stringSimilarity library
+        const similarity = stringSimilarity.compareTwoStrings(variant, header)
 
-      fieldTokens.forEach((token) => {
-        if (headerTokenSet.has(token) && !matchedFieldTokens.has(token)) {
-          matchDetails.score += 20
-          matchDetails.matches.push(`Kecocokan tepat: "${token}"`)
-          matchedFieldTokens.add(token)
+        if (similarity > bestScore) {
+          bestScore = similarity
+          matchDetails = [`Similarity score: ${(similarity * 100).toFixed(2)}%`]
         }
-      })
-
-      fieldTokens
-        .filter((t) => t.includes("_"))
-        .forEach((compoundToken) => {
-          if (matchedFieldTokens.has(compoundToken)) return
-
-          const parts = compoundToken.split("_")
-          let matchedCount = 0
-
-          parts.forEach((part) => {
-            if (headerTokenSet.has(part)) {
-              matchedCount++
-            }
-          })
-
-          if (matchedCount > 0) {
-            const matchRatio = matchedCount / parts.length
-            const score = 15 * matchRatio
-            matchDetails.score += score
-            matchDetails.matches.push(
-              `Kecocokan majemuk: "${compoundToken}" (${matchedCount}/${parts.length} bagian)`
-            )
-            matchedFieldTokens.add(compoundToken)
-          }
-        })
-
-      fieldTokens
-        .filter((t) => t.includes("_"))
-        .forEach((compoundToken) => {
-          if (matchedFieldTokens.has(compoundToken)) return
-
-          const parts = compoundToken.split("_")
-          let allPartsInHeader = true
-
-          parts.forEach((part) => {
-            if (!header.includes(part)) {
-              allPartsInHeader = false
-            }
-          })
-
-          if (allPartsInHeader) {
-            matchDetails.score += 25
-            matchDetails.matches.push(
-              `Semua bagian dari "${compoundToken}" ditemukan di header`
-            )
-            matchedFieldTokens.add(compoundToken)
-          }
-        })
+      }
     }
 
-    if (matchDetails.score > 0) {
-      columnScores.push(matchDetails)
+    // Adjust score based on special patterns
+    if (
+      dataIndex.includes("mahasiswa_aktif") &&
+      header.toLowerCase().includes("aktif")
+    ) {
+      bestScore += 0.1
+      matchDetails.push('Header contains "Aktif" keyword')
+    }
+
+    if (
+      (dataIndex.includes("penuh_waktu") || dataIndex.includes("full_time")) &&
+      (header.toLowerCase().includes("penuh") ||
+        header.toLowerCase().includes("full"))
+    ) {
+      bestScore += 0.1
+      matchDetails.push("Time type match: full/penuh")
+    }
+
+    if (
+      (dataIndex.includes("paruh_waktu") || dataIndex.includes("part_time")) &&
+      (header.toLowerCase().includes("paruh") ||
+        header.toLowerCase().includes("part"))
+    ) {
+      bestScore += 0.1
+      matchDetails.push("Time type match: part/paruh")
+    }
+
+    // Add to scores if it's good enough
+    if (bestScore > 0.5) {
+      // Threshold for considering a match
+      columnScores.push({
+        index: i,
+        header: headers[i],
+        score: bestScore,
+        matches: matchDetails,
+        originalHeader: header,
+      })
     }
   }
 
+  // Sort by score (highest first)
   columnScores.sort((a, b) => b.score - a.score)
+
+  // Debug information
+  if (columnScores.length > 0) {
+    console.log(
+      `Best match for "${dataIndex}": "${columnScores[0].header}" with score ${columnScores[0].score}`
+    )
+    console.log(`Match details:`, columnScores[0].matches)
+  }
+
   return columnScores.length > 0 ? columnScores[0].index : -1
 }
 
@@ -410,46 +218,6 @@ function extractTSInfo(text) {
   }
 
   return result
-}
-
-function tokenizeFieldName(fieldName) {
-  const tokens = []
-  const parts = fieldName.toLowerCase().split("_")
-
-  parts.forEach((part) => {
-    if (part && part.length > 0) {
-      tokens.push(part)
-    }
-  })
-
-  if (parts.length >= 2) {
-    for (let i = 0; i < parts.length - 1; i++) {
-      tokens.push(`${parts[i]}_${parts[i + 1]}`)
-    }
-
-    if (parts.length >= 3) {
-      for (let i = 0; i < parts.length - 2; i++) {
-        tokens.push(`${parts[i]}_${parts[i + 1]}_${parts[i + 2]}`)
-      }
-    }
-
-    if (parts.filter((p) => p.length > 0).length >= 2) {
-      tokens.push(parts.filter((p) => p.length > 0).join("_"))
-    }
-  }
-
-  return tokens
-}
-
-function tokenizeHeaderPart(headerPart) {
-  if (!headerPart) return []
-
-  const normalized = headerPart
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, " $& ")
-    .replace(/[\/\-_.:;,]/g, " ")
-
-  return normalized.split(/\s+/).filter((t) => t.length > 0)
 }
 
 export const extractAllColumnsFromConfig = (tableConfig) => {

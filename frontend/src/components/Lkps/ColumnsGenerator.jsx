@@ -113,10 +113,7 @@ const generateColumns = (
     }
 
     // Special handling for tingkat columns (which are now boolean type)
-    if (
-      column.data_index.startsWith("tingkat_") &&
-      (column.type === "text" || column.type === "boolean")
-    ) {
+    if (column.data_index.startsWith("tingkat_") && column.type === "boolean") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
         // Check directly if the value is true, don't check for non-empty content
@@ -311,7 +308,7 @@ const generateColumns = (
             onClick={() => setEditingKey(record.key)}
             style={{ cursor: "pointer", width: "100%" }}
           >
-            {text || "-"}
+            {text !== undefined && text !== null && text !== "" ? text : "-"}
           </div>
         )
       }

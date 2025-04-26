@@ -20,7 +20,12 @@ const kesesuaianBidangKerjaPlugin = {
   },
 
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(workbook, tableCode, config, prodiName)
+    const { rawData, detectedIndices } = await processExcelDataBase(
+      workbook,
+      tableCode,
+      config,
+      prodiName
+    )
 
     console.log("=== DEBUG: Detected Indices ===")
     console.table(detectedIndices)
@@ -31,37 +36,36 @@ const kesesuaianBidangKerjaPlugin = {
     if (rawData.length === 0) return { allRows: [] }
 
     const filteredData = rawData.filter((row) => {
-        if (!row || row.length === 0) return false
-      
-        const nonEmptyValues = row.filter(
-          (val) => val !== undefined && val !== null && val !== ""
-        )
-        if (nonEmptyValues.length <= 1) return false
-      
-        // Cek apakah isinya angka urutan (1, 2, 3, dst)
-        const isSequentialNumbersRow = nonEmptyValues.every((val, idx) => {
-          const num = parseInt(val)
-          return !isNaN(num) && num === idx + 1
-        })
-        if (isSequentialNumbersRow) return false
-      
-        // Cek apakah ada label summary kayak "Jumlah"
-        const hasSummaryLabel = row.some((cell) => {
-          if (typeof cell !== "string") return false
-          const normalized = String(cell).toLowerCase().trim()
-          return (
-            normalized === "jumlah" ||
-            normalized === "total" ||
-            normalized === "sum" ||
-            normalized === "rata-rata" ||
-            normalized === "average"
-          )
-        })
-        if (hasSummaryLabel) return false
-      
-        return true
+      if (!row || row.length === 0) return false
+
+      const nonEmptyValues = row.filter(
+        (val) => val !== undefined && val !== null && val !== ""
+      )
+      if (nonEmptyValues.length <= 1) return false
+
+      // Cek apakah isinya angka urutan (1, 2, 3, dst)
+      const isSequentialNumbersRow = nonEmptyValues.every((val, idx) => {
+        const num = parseInt(val)
+        return !isNaN(num) && num === idx + 1
       })
-      
+      if (isSequentialNumbersRow) return false
+
+      // Cek apakah ada label summary kayak "Jumlah"
+      const hasSummaryLabel = row.some((cell) => {
+        if (typeof cell !== "string") return false
+        const normalized = String(cell).toLowerCase().trim()
+        return (
+          normalized === "jumlah" ||
+          normalized === "total" ||
+          normalized === "sum" ||
+          normalized === "rata-rata" ||
+          normalized === "average"
+        )
+      })
+      if (hasSummaryLabel) return false
+
+      return true
+    })
 
     const processedData = filteredData.map((row, index) => {
       const item = {
@@ -69,7 +73,6 @@ const kesesuaianBidangKerjaPlugin = {
         no: index + 1,
         selected: false,
         tahun_lulus: "",
-        jumlah_lulusan_terlacak: 0,
         jumlah_bekerja_sesuai_bidang: 0,
       }
 
@@ -78,7 +81,11 @@ const kesesuaianBidangKerjaPlugin = {
 
         const value = row[colIndex]
 
-        if (fieldName === "program_studi" || fieldName === "tahun_lulus" || fieldName === "no") {
+        if (
+          fieldName === "program_studi" ||
+          fieldName === "tahun_lulus" ||
+          fieldName === "no"
+        ) {
           item[fieldName] = value ? String(value).trim() : ""
         } else {
           const num = parseFloat(value)
@@ -102,7 +109,11 @@ const kesesuaianBidangKerjaPlugin = {
       config.tables.forEach((table) => {
         const tableCode = typeof table === "object" ? table.code : table
 
-        if (existingData && existingData[tableCode] && existingData[tableCode].length > 0) {
+        if (
+          existingData &&
+          existingData[tableCode] &&
+          existingData[tableCode].length > 0
+        ) {
           initialTableData[tableCode] = existingData[tableCode]
         } else {
           initialTableData[tableCode] = []
@@ -137,7 +148,8 @@ const kesesuaianBidangKerjaPlugin = {
       }
     })
 
-    const percentage = totalTracked > 0 ? (totalFieldConform / totalTracked) * 100 : 0
+    const percentage =
+      totalTracked > 0 ? (totalFieldConform / totalTracked) * 100 : 0
 
     let score
     if (percentage >= 80) {
@@ -194,7 +206,11 @@ const kesesuaianBidangKerjaPlugin = {
       const conform = parseFloat(item.jumlah_bekerja_sesuai_bidang || 0)
 
       if (conform > tracked) {
-        errors.push(`Row ${index + 1}: Jumlah yang bekerja sesuai bidang tidak boleh melebihi jumlah lulusan yang terlacak`)
+        errors.push(
+          `Row ${
+            index + 1
+          }: Jumlah yang bekerja sesuai bidang tidak boleh melebihi jumlah lulusan yang terlacak`
+        )
       }
     })
 
