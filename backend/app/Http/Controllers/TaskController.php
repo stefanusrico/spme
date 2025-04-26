@@ -391,6 +391,31 @@ class TaskController extends Controller
         ]);
     }
 
+    private function updateProjectProgress($projectId)
+    {
+        $project = Project::find($projectId);
+        if (!$project) {
+            return 0;
+        }
+
+        $totalTasks = Task::where('projectId', $projectId)->count();
+
+        if ($totalTasks === 0) {
+            return 0;
+        }
+
+        $completedTasks = Task::where('projectId', $projectId)
+            ->where('status', 'COMPLETED')
+            ->count();
+
+        $progress = ($completedTasks / $totalTasks) * 100;
+
+        $project->progress = round($progress, 2);
+        $project->save();
+
+        return $project->progress;
+    }
+
     public function destroy($projectId, $taskListId, $taskId)
     {
         $task = Task::where('taskId', $taskId)

@@ -13,6 +13,7 @@ import AddProjectModal from "../Modals/AddProjectModal"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 
+// Komponen LoadingBar dan LoadingRow tetap sama (tidak perlu diubah)
 const LoadingBar = () => (
   <div className="relative h-1 bg-gray-100 overflow-hidden">
     <div className="absolute top-0 h-1 bg-blue loading-bar"></div>
@@ -72,6 +73,7 @@ const ProjectsTable = ({ isCollapsed }) => {
 
   const columnHelper = createColumnHelper()
 
+  // Definisi kolom tetap sama
   const columns = useMemo(
     () => [
       columnHelper.accessor("projectId", {
@@ -81,7 +83,9 @@ const ProjectsTable = ({ isCollapsed }) => {
       columnHelper.accessor("name", {
         header: "PROJECT NAME",
         cell: ({ row }) => (
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 group">
+            {" "}
+            {/* Tambahkan 'group' di sini */}
             <span className="truncate" title={row.original.name}>
               {row.original.name}
             </span>
@@ -103,15 +107,20 @@ const ProjectsTable = ({ isCollapsed }) => {
         header: "OWNER",
         size: 150,
         cell: ({ row }) => (
-          <div className="items-center gap-2">
-            {row.original.owner.profile_picture && (
+          // Perbaiki tampilan owner agar lebih rapi
+          <div className="flex items-center gap-2">
+            {row.original.owner.profile_picture ? ( // Cek null/undefined
               <img
                 src={row.original.owner.profile_picture}
                 alt="Profile"
-                className="w-8 h-8 rounded-full object-cover"
+                className="w-8 h-8 rounded-full object-cover flex-shrink-0" // Tambahkan flex-shrink-0
               />
+            ) : (
+              // Placeholder jika tidak ada gambar
+              <div className="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0"></div>
             )}
-            <span>{row.original.owner.name}</span>
+            {/* Tambahkan truncate jika nama panjang */}
+            <span className="truncate">{row.original.owner.name}</span>
           </div>
         ),
       }),
@@ -161,6 +170,7 @@ const ProjectsTable = ({ isCollapsed }) => {
     getFilteredRowModel: getFilteredRowModel(),
   })
 
+  // Fungsi handleInputChange dan handleSubmit tetap sama
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({
@@ -176,7 +186,7 @@ const ProjectsTable = ({ isCollapsed }) => {
       const response = await axiosInstance.post("/project", formData)
       if (response.data.status === "success") {
         setFormData({ name: "", startDate: "", endDate: "" })
-        fetchProjects()
+        fetchProjects() // Panggil fetchProjects lagi untuk refresh data
         toast.success("Project berhasil dibuat!", {
           position: "top-right",
           autoClose: 3000,
@@ -186,10 +196,16 @@ const ProjectsTable = ({ isCollapsed }) => {
           draggable: true,
         })
         setShowModal(false)
+      } else {
+        // Tambahkan penanganan jika status bukan success tapi tidak error
+        toast.error(response.data.message || "Gagal membuat project", {
+          position: "top-right",
+          autoClose: 3000 /* ... other options */,
+        })
       }
     } catch (err) {
       console.error("Error creating project:", err)
-      toast.error(err.response?.data?.message || "Failed to create project", {
+      toast.error(err.response?.data?.message || "Gagal membuat project", {
         position: "top-right",
         autoClose: 3000,
         hideProgressBar: false,
@@ -202,48 +218,102 @@ const ProjectsTable = ({ isCollapsed }) => {
     }
   }
 
+  // --- PERBAIKAN UTAMA DI SINI ---
   const fetchProjects = async () => {
     setLoading(true)
     try {
-      const response = await axiosInstance.get("/projects")
-      if (response.data.status === "success") {
-        const projectsWithUserData = await Promise.all(
-          response.data.data.map(async (project) => {
-            try {
-              const userResponse = await axiosInstance.get(
-                `/users/${project.createdBy}`
-              )
-              const userData =
-                userResponse.data.status === "success"
-                  ? userResponse.data.data
-                  : null
+      // 1. Ambil semua data project
+      const projectsResponse = await axiosInstance.get("/projects")
 
-              return {
-                projectId: project.projectId,
-                name: project.name,
-                progress: project.progress || 0,
-                owner: {
-                  userId: project.createdBy,
-                  name: userData?.name || project.createdBy,
-                  profile_picture: userData?.profile_picture,
-                },
-                status: project.status,
-                task: project.progress || 0,
-                startDate: new Date(project.startDate).toLocaleDateString(),
-                endDate: new Date(project.endDate).toLocaleDateString(),
-                id: project.id,
-              }
-            } catch (err) {
-              console.error(`Error fetching user data:`, err)
-              return null
+      if (
+        projectsResponse.data.status === "success" &&
+        projectsResponse.data.data
+      ) {
+        const rawProjects = projectsResponse.data.data
+
+        // 2. Kumpulkan semua ID unik dari 'createdBy'
+        const uniqueUserIds = [
+          ...new Set(
+            rawProjects.map((project) => project.createdBy).filter(Boolean)
+          ), // filter(Boolean) untuk menghapus null/undefined
+        ]
+
+        let usersMap = {} // Peta untuk menyimpan data user { userId: userData }
+
+        // 3. Hanya fetch data user jika ada ID unik yang ditemukan
+        if (uniqueUserIds.length > 0) {
+          // Buat array promise untuk mengambil data setiap user unik
+          const userPromises = uniqueUserIds.map((userId) =>
+            axiosInstance
+              .get(`/users/${userId}`)
+              .then((res) => {
+                if (res.data.status === "success" && res.data.data) {
+                  // Pastikan respons valid sebelum menggunakannya
+                  return { id: userId, data: res.data.data } // Kembalikan ID bersama data
+                }
+                console.warn(`User data not found or invalid for ID: ${userId}`)
+                return { id: userId, data: null } // Kembalikan null jika data tidak valid
+              })
+              .catch((err) => {
+                console.error(`Error fetching user data for ID ${userId}:`, err)
+                return { id: userId, data: null } // Kembalikan null jika terjadi error
+              })
+          )
+
+          // Jalankan semua promise secara bersamaan
+          const usersResults = await Promise.all(userPromises)
+
+          // 4. Buat map dari hasil fetch user untuk akses cepat
+          usersMap = usersResults.reduce((acc, result) => {
+            if (result && result.data) {
+              // Cek jika result dan data ada
+              acc[result.id] = result.data // Gunakan ID asli sebagai key
             }
-          })
+            return acc
+          }, {})
+        }
+
+        // 5. Gabungkan data project dengan data user dari map
+        const projectsWithUserData = rawProjects.map((project) => {
+          const userData = usersMap[project.createdBy] || {} // Ambil data user, fallback ke objek kosong jika tidak ada
+
+          return {
+            projectId: project.projectId,
+            name: project.name,
+            progress: project.progress || 0,
+            owner: {
+              userId: project.createdBy,
+              // Fallback ke ID jika nama tidak ditemukan
+              name:
+                userData?.name ||
+                `User ID: ${project.createdBy}` ||
+                "Unknown Owner",
+              profile_picture: userData?.profile_picture || null, // Fallback ke null
+            },
+            status: project.status,
+            task: project.progress || 0, // Asumsi task sama dengan progress
+            startDate: new Date(project.startDate).toLocaleDateString(),
+            endDate: new Date(project.endDate).toLocaleDateString(),
+            id: project.id,
+          }
+        })
+
+        setProjects(projectsWithUserData)
+      } else {
+        // Tangani jika /projects tidak sukses atau tidak ada data
+        console.error(
+          "Failed to fetch projects or no projects data received:",
+          projectsResponse.data
         )
-        setProjects(projectsWithUserData.filter(Boolean))
+        setProjects([]) // Set ke array kosong jika gagal
+        toast.error("Gagal memuat data project.", {
+          position: "top-right" /* ... */,
+        })
       }
     } catch (err) {
       console.error("Error fetching projects:", err)
-      toast.error("Failed to fetch projects", {
+      setProjects([]) // Set ke array kosong jika error
+      toast.error("Gagal memuat data project.", {
         position: "top-right",
         autoClose: 3000,
         hideProgressBar: false,
@@ -255,11 +325,14 @@ const ProjectsTable = ({ isCollapsed }) => {
       setLoading(false)
     }
   }
+  // --- AKHIR PERBAIKAN ---
 
   useEffect(() => {
     fetchProjects()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Dependency array kosong agar hanya dijalankan sekali saat mount
 
+  // Render JSX sisanya tetap sama
   return (
     <div className="p-3 w-full">
       <ToastContainer
@@ -278,7 +351,7 @@ const ProjectsTable = ({ isCollapsed }) => {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-3xl font-bold">Projects</h1>
         <button
-          className="bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
+          className="bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 hover:bg-blue-700" // Tambahkan hover effect
           onClick={() => setShowModal(true)}
         >
           Add project
@@ -286,6 +359,8 @@ const ProjectsTable = ({ isCollapsed }) => {
       </div>
       <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
         <div className="overflow-x-auto overflow-y-hidden relative">
+          {/* Loading Bar di atas tabel */}
+          {loading && <LoadingBar />}
           <table className="w-full">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -293,7 +368,8 @@ const ProjectsTable = ({ isCollapsed }) => {
                   {headerGroup.headers.map((header, index) => (
                     <th
                       key={header.id}
-                      className={`px-6 py-3 text-left text-normal font-bold text-black uppercase tracking-wider bg-gray ${
+                      className={`px-4 py-3 text-left text-xs font-bold text-black uppercase tracking-wider bg-gray ${
+                        // Ubah px-6 ke px-4, text-normal ke text-xs
                         index === 0 ? "rounded-l-lg" : ""
                       } ${
                         index === headerGroup.headers.length - 1
@@ -302,9 +378,9 @@ const ProjectsTable = ({ isCollapsed }) => {
                       }`}
                       style={{
                         width:
-                          header.column.getSize() !== 150
+                          header.column.getSize() !== 150 // Default size dari react-table
                             ? header.column.getSize()
-                            : undefined,
+                            : undefined, // Biarkan browser/CSS menghandle jika size = default
                       }}
                     >
                       {header.isPlaceholder
@@ -318,24 +394,30 @@ const ProjectsTable = ({ isCollapsed }) => {
                 </tr>
               ))}
             </thead>
-            {loading && (
-              <div className="absolute mt-2 left-0 right-0 h-1 bg-gray-100 overflow-hidden w-full">
-                <div className="absolute top-0 h-1 bg-blue loading-bar w-full"></div>
-              </div>
-            )}
-            <tbody className="mt-4">
+            {/* Hapus div loading absolut sebelumnya, karena LoadingBar sudah ada */}
+            {/* <tbody className="mt-4"> */} {/* Hapus mt-4 dari tbody */}
+            <tbody>
               {loading ? (
                 <LoadingRow colSpan={columns.length} />
+              ) : projects.length === 0 ? ( // Tampilkan pesan jika tidak ada data
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="text-center py-10 text-gray-500"
+                  >
+                    No projects found.
+                  </td>
+                </tr>
               ) : (
                 table.getRowModel().rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="group hover:bg-gray-50 transition-colors"
+                    className="group hover:bg-gray-50 transition-colors border-b last:border-b-0" // Tambahkan border antar baris
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td
                         key={cell.id}
-                        className="px-4 py-2"
+                        className="px-4 py-2 whitespace-nowrap" // Tambahkan whitespace-nowrap
                         style={{
                           width:
                             cell.column.getSize() !== 150

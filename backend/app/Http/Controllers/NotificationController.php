@@ -23,20 +23,34 @@ class NotificationController extends Controller
             $notificationsWithProjectId = $notifications->map(function ($notification) {
                 $notificationArray = $notification->toArray();
 
-                $projectMongoId = $notificationArray['data']['project']['_id'] ?? null;
+                $projectObjectId = null;
 
-                $projectId = null;
-                if (!$projectMongoId) {
-                    $projectId = $notificationArray['data']['project']['id'] ?? $notificationArray['data']['project_id'] ?? null;
+                if (isset($notificationArray['data']['project']['_id'])) {
+                    $projectObjectId = $notificationArray['data']['project']['_id'];
+                } elseif (isset($notificationArray['data']['project_id'])) {
+                    $projectObjectId = $notificationArray['data']['project_id'];
                 }
 
-                if ($projectMongoId || $projectId) {
+                $projectStringId = null;
+                if (!$projectObjectId) {
+                    $projectStringId = $notificationArray['data']['project']['id'] ??
+                        $notificationArray['data']['project']['projectId'] ??
+                        $notificationArray['data']['projectId'] ?? null;
+                }
+
+                \Log::debug('Processing notification', [
+                    'notification_id' => $notification->id,
+                    'project_object_id' => $projectObjectId,
+                    'project_string_id' => $projectStringId
+                ]);
+
+                if ($projectObjectId || $projectStringId) {
                     $projectQuery = Project::query();
 
-                    if ($projectMongoId) {
-                        $projectQuery->where('_id', $projectMongoId);
+                    if ($projectObjectId) {
+                        $projectQuery->where('_id', $projectObjectId);
                     } else {
-                        $projectQuery->where('projectId', $projectId);
+                        $projectQuery->where('projectId', $projectStringId);
 
                         if (isset($notificationArray['data']['project']['name'])) {
                             $projectQuery->where('name', $notificationArray['data']['project']['name']);
@@ -46,16 +60,20 @@ class NotificationController extends Controller
                     $project = $projectQuery->first();
 
                     if ($project) {
-                        $notificationArray['data']['project']['_id'] = $project->_id;
-
-                        $notificationArray['data']['project']['id'] = $project->projectId;
+                        $notificationArray['data']['project']['_id'] = $project->_id; // MongoDB ObjectId
+                        $notificationArray['data']['project']['id'] = $project->projectId; // String ID
                         $notificationArray['data']['project']['name'] = $project->name;
+
+                        \Log::debug('Project found and updated in notification', [
+                            'notification_id' => $notification->id,
+                            'project_id' => $project->_id
+                        ]);
 
                         return (object) $notificationArray;
                     } else {
                         \Log::warning('Project not found for notification', [
-                            'project_id' => $projectId,
-                            'project_mongo_id' => $projectMongoId,
+                            'project_string_id' => $projectStringId,
+                            'project_object_id' => $projectObjectId,
                             'notification_id' => $notification->id
                         ]);
                     }
@@ -150,7 +168,7 @@ class NotificationController extends Controller
                 'title' => 'Added to Project',
                 'message' => "You have been added to project '{$project->name}' by {$addedBy->name}",
                 'type' => 'project_invitation',
-                'project_id' => $project->projectId,
+                'projectId' => $project->_id,
                 'project' => ['id' => $project->projectId, 'name' => $project->name],
                 'added_by' => ['id' => $addedBy->_id, 'name' => $addedBy->name]
             ],

@@ -692,25 +692,6 @@ const DashboardProject = ({ projectDetails }) => {
             <TaskCompletionRate statistics={statistics} />
 
             <ResourceAllocation allocationData={resourceAllocation} />
-
-            <Card className="md:col-span-2">
-              {" "}
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">
-                  Project Timeline
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Gantt chart or timeline view (Placeholder)
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[200px] flex items-center justify-center bg-gray-50 rounded-lg border border-dashed">
-                  <p className="text-gray-400 text-sm">
-                    Timeline visualization coming soon...
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </TabsContent>
       </Tabs>

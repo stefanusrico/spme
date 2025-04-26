@@ -7,6 +7,7 @@ use App\Models\Task;
 use App\Models\TaskList;
 use App\Models\Prodi;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\TaskController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -822,6 +823,35 @@ class ProjectController extends Controller
                 'members' => $memberDetails,
                 'membersByRole' => $membersByRole
             ]
+        ]);
+    }
+
+    public function projectsWithOwners()
+    {
+        $projects = Project::orderBy('created_at', 'desc')->get();
+
+        $projectsWithOwner = $projects->map(function ($project) {
+            $owner = collect($project->members)
+                ->where('role', self::ROLE_OWNER)
+                ->first();
+
+            $ownerUser = null;
+            if ($owner) {
+                $ownerUser = User::find($owner['userId']);
+            }
+
+            return array_merge($project->toArray(), [
+                'owner' => $ownerUser ? [
+                    'userId' => $ownerUser->_id,
+                    'name' => $ownerUser->name,
+                    'profile_picture' => $ownerUser->profile_picture
+                ] : null
+            ]);
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $projectsWithOwner
         ]);
     }
 

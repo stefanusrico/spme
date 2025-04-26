@@ -31,7 +31,7 @@ class ProjectMemberAddedNotification extends Notification
       'title' => 'Added to Project',
       'message' => "You have been added to the project '{$this->project->name}' by {$this->addedBy->name}",
       'type' => 'project_invitation',
-      'project_id' => $this->project->projectId,
+      'projectId' => $this->project->_id,
       'added_by' => [
         'id' => $this->addedBy->_id,
         'name' => $this->addedBy->name,

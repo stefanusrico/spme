@@ -170,6 +170,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::delete('users/{id}/profile-picture', [UserController::class, 'removeProfilePicture']);
         Route::post('project', [ProjectController::class, 'store']);
         Route::post('projects/{projectId}/members', [ProjectController::class, 'addMember']);
+        Route::get('projects-with-owners', [ProjectController::class, 'projectsWithOwners']);
         Route::get('projects/all', [ProjectController::class, 'index']);
         Route::get('projects', [ProjectController::class, 'myProjects']);
         Route::get('projectsByProdi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);

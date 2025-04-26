@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use MongoDB\Laravel\Eloquent\Model;
+use Carbon\Carbon;
+use App\Events\ProjectEndDatePassed;
 
 class Project extends Model
 {
@@ -33,6 +35,14 @@ class Project extends Model
         ['key' => ['createdBy' => 1]],
         ['key' => ['status' => 1]]
     ];
+
+    public function save(array $options = [])
+    {
+        if ($this->endDate < now()) {
+            event(new ProjectEndDatePassed($this));
+        }
+        return parent::save($options);
+    }
 
     public function prodi()
     {
@@ -66,12 +76,13 @@ class Project extends Model
     {
         parent::boot();
 
-        static::creating(function ($project) {
-            if (!isset($project->status)) {
-                $project->status = 'active';
-            }
-            if (!isset($project->progress)) {
-                $project->progress = 0;
+        static::retrieved(function ($project) {
+            if (
+                $project->status === 'ACTIVE' &&
+                Carbon::parse($project->endDate)->lt(Carbon::now())
+            ) {
+                $project->status = 'CLOSED';
+                $project->save();
             }
         });
     }
