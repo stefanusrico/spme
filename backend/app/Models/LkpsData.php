@@ -15,7 +15,8 @@ class LkpsData extends Model
         'table_code',
         'data',
         'score',
-        'updatedBy'
+        'updatedBy',
+        'scoreDetail',
     ];
 
     /**
@@ -45,7 +46,7 @@ class LkpsData extends Model
      * @param string $userId
      * @return LkpsData
      */
-    public static function saveData($lkpsId, $sectionCode, $tableCode, $data, $score = null, $userId)
+    public static function saveData($lkpsId, $sectionCode, $tableCode, $data, $score = null, $scoreDetail = null, $userId)
     {
         return self::updateOrCreate(
             [
@@ -56,6 +57,7 @@ class LkpsData extends Model
             [
                 'data' => $data,
                 'score' => $score,
+                'scoreDetail' => $scoreDetail,
                 'updatedBy' => $userId
             ]
         );

@@ -1,5 +1,11 @@
 import { processExcelDataBase } from "../utils/tableUtils"
-import { calculateStudentSelectionScore } from "../utils/studentUtils"
+
+function truncateToTwoDecimals(num) {
+  const parts = String(num).split(".")
+  if (parts.length === 1) return num
+  const decimal = parts[1].substring(0, 2)
+  return Number(`${parts[0]}.${decimal}`)
+}
 
 const seleksiMahasiswaD3Plugin = {
   getInfo() {
@@ -24,7 +30,6 @@ const seleksiMahasiswaD3Plugin = {
 
     if (rawData.length === 0) return { allRows: [] }
 
-    // Filter and process data
     const filteredData = rawData.filter((row) => {
       if (!row || row.length === 0) return false
 
@@ -33,24 +38,17 @@ const seleksiMahasiswaD3Plugin = {
       )
       if (nonEmptyValues.length <= 1) return false
 
-      // Filter out rows with only numbers
-      const allNumbers = nonEmptyValues.every((val) => {
-        return (
+      const allNumbers = nonEmptyValues.every(
+        (val) =>
           typeof val === "number" ||
           (typeof val === "string" && !isNaN(val) && val.trim() !== "")
-        )
-      })
+      )
 
-      // Skip rows that are sums or totals
       const hasSummaryLabel = row.some((cell) => {
         if (typeof cell !== "string") return false
         const normalized = String(cell).toLowerCase().trim()
-        return (
-          normalized === "jumlah" ||
-          normalized === "total" ||
-          normalized === "sum" ||
-          normalized === "rata-rata" ||
-          normalized === "average"
+        return ["jumlah", "total", "sum", "rata-rata", "average"].includes(
+          normalized
         )
       })
 
@@ -59,7 +57,6 @@ const seleksiMahasiswaD3Plugin = {
       return !allNumbers || nonEmptyValues.length === 0
     })
 
-    // Create data objects
     const processedData = filteredData.map((row, index) => {
       const item = {
         key: `excel-${index + 1}-${Date.now()}`,
@@ -75,7 +72,6 @@ const seleksiMahasiswaD3Plugin = {
         transfer_jumlah_mahasiswa_aktif: 0,
       }
 
-      // Fill values from detected columns
       Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
         if (colIndex < 0) return
 
@@ -157,84 +153,83 @@ const seleksiMahasiswaD3Plugin = {
     return initialTableData
   },
 
-  /**
-   * Calculate score using formula 13.B from API
-   */
   async calculateScore(data, config, additionalData = {}) {
     const forceCalculation = additionalData.forcedCalculation === true
 
     if (!forceCalculation) {
       return {
-        score: null,
+        scores: null,
         scoreDetail: null,
         message: "Calculations only performed on save",
       }
     }
 
     try {
-      // Use utility function from studentUtils.js
-      const result = await calculateStudentSelectionScore(data, true)
+      const componentA =
+        additionalData.componentA !== undefined
+          ? parseFloat(additionalData.componentA)
+          : 0
 
-      if (result && !result.skipped) {
-        return {
-          score: result.score,
-          scoreDetail: result.scoreDetail,
-          log: result.calculationLog,
-        }
-      } else if (result && result.skipped) {
-        return {
-          score: {
-            butir : '',
-            nilai : null
+      const componentASource =
+        additionalData.componentASource || "Default value"
+
+      const validData = data.filter((item) => {
+        if (!item.tahun_akademik) return false
+        const normalized = String(item.tahun_akademik).toLowerCase().trim()
+        return !["jumlah", "total", "sum", "rata-rata", "average"].includes(
+          normalized
+        )
+      })
+
+      let totalPendaftar = 0
+      let totalLulusSeleksi = 0
+
+      validData.forEach((item) => {
+        totalPendaftar += parseFloat(item.pendaftar_jumlah_calon_mahasiswa) || 0
+        totalLulusSeleksi +=
+          parseFloat(item.lulus_seleksi_jumlah_calon_mahasiswa) || 0
+      })
+
+      console.log("Total pendaftar dari semua tahun:", totalPendaftar)
+      console.log("Total lulus seleksi dari semua tahun:", totalLulusSeleksi)
+
+      const rasioSeleksi =
+        totalLulusSeleksi > 0 ? totalPendaftar / totalLulusSeleksi : 0
+
+      let componentB = 0
+      if (rasioSeleksi >= 3) {
+        componentB = 4
+      } else {
+        componentB = (4 * rasioSeleksi) / 3
+      }
+
+      const finalScore = (componentA + componentB) / 2
+
+      return {
+        scores: [
+          {
+            butir: 13,
+            nilai: parseFloat(finalScore),
           },
-          scoreDetail: null,
-          message: result.message || "Calculation skipped",
-        }
+        ],
+        scoreDetail: {
+          rasio: truncateToTwoDecimals(rasioSeleksi),
+          A: componentA,
+          B: parseFloat(componentB),
+        },
+        log: {
+          message: "Calculation completed successfully",
+          dataUsed: validData.length,
+          calculationMethod: "Using combined data from all rows",
+        },
       }
-
-      // Fallback if utility fails
-      return this.fallbackCalculateScore(data)
     } catch (error) {
-      console.error("Error calculating score:", error)
-      return this.fallbackCalculateScore(data)
-    }
-  },
-
-  /**
-   * Fallback calculation method
-   */
-  fallbackCalculateScore(data) {
-    const pendaftar = data.reduce((sum, item) => {
-      if (
-        item.tahun_akademik &&
-        String(item.tahun_akademik).toLowerCase().includes("jumlah")
-      ) {
-        return sum
+      console.error("Error calculating student selection score:", error)
+      return {
+        scores: [{ butir: 13, nilai: 0 }],
+        scoreDetail: null,
+        error: error.message,
       }
-      return sum + (parseFloat(item.pendaftar_jumlah_calon_mahasiswa) || 0)
-    }, 0)
-
-    const lulusSeleksi = data.reduce((sum, item) => {
-      if (
-        item.tahun_akademik &&
-        String(item.tahun_akademik).toLowerCase().includes("jumlah")
-      ) {
-        return sum
-      }
-      return sum + (parseFloat(item.lulus_seleksi_jumlah_calon_mahasiswa) || 0)
-    }, 0)
-
-    const ratio = lulusSeleksi > 0 ? pendaftar / lulusSeleksi : 0
-    let score = ratio >= 3 ? 4 : (4 * ratio) / 3
-
-    return {
-      score: score || 0,
-      scoreDetail: {
-        pendaftar: pendaftar || 0,
-        lulusSeleksi: lulusSeleksi || 0,
-        ratio: ratio || 0,
-        formula: "Fallback calculation used",
-      },
     }
   },
 
@@ -295,6 +290,10 @@ const seleksiMahasiswaD3Plugin = {
             index + 1
           }: Jumlah pendaftar tidak boleh lebih kecil dari jumlah yang lulus seleksi`
         )
+      }
+
+      if (item.daya_tampung <= 0) {
+        errors.push(`Row ${index + 1}: Daya tampung harus lebih besar dari 0`)
       }
     })
 

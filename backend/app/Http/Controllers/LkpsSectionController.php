@@ -177,9 +177,11 @@ class LkpsSectionController extends Controller
 
         $tables = $section->tables();
         $score = $request->input('score');
+        $scoreDetail = $request->input('scoreDetail');
 
         // Validate that the tables in the request exist
-        $tableData = $request->except(['score', 'prodiId', 'tahunAkademik']);
+        $tableData = $request->except(['score', 'scoreDetail', 'prodiId', 'tahunAkademik']);
+
 
         foreach ($tableData as $tableCode => $data) {
             $table = $tables->where('code', $tableCode)->first();
@@ -197,6 +199,7 @@ class LkpsSectionController extends Controller
                 $tableCode,
                 $data,
                 $score,
+                $scoreDetail,
                 $userId
             );
         }

@@ -160,6 +160,7 @@ class LkpsDataController extends Controller
 
         $data = $request->input('data');
         $score = $request->input('score');
+        $scoreDetail = $request->input('scoreDetail');
         $userId = Auth::id();
 
         // If the table is used in formula, calculate the score
@@ -171,14 +172,7 @@ class LkpsDataController extends Controller
             }
         }
 
-        LkpsData::saveData(
-            $lkpsId,
-            $sectionCode,
-            $tableCode,
-            $data,
-            $table->used_in_formula ? $score : null,
-            $userId
-        );
+        LkpsData::saveData($lkpsId, $sectionCode, $tableCode, $data, $score, $scoreDetail, $userId);
 
         // Update the LKPS lastUpdated timestamp
         $lkps->lastUpdated = now();

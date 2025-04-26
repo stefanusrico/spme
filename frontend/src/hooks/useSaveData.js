@@ -31,62 +31,64 @@ export const useSaveData = (
       }
 
       setSaving(true)
-      message.loading({ content: "Saving data...", key: "saveData" })
+      const loadingKey = "saveData"
+      message.loading({
+        content: "Saving data...",
+        key: loadingKey,
+        duration: 0,
+      })
 
+      const payload = {
+        prodiId: userData.prodiId,
+        score: score,
+        tahunAkademik: `${new Date().getFullYear()}/${
+          new Date().getFullYear() + 1
+        }`,
+        scoreDetail: {},
+      }
+
+      let hasData = false
       try {
-        const payload = {
-          prodiId: userData.prodiId,
-          score: score,
-          tahunAkademik:
-            new Date().getFullYear() + "/" + (new Date().getFullYear() + 1),
-        }
-
-        let hasData = false
-        config.tables.forEach((tableConfig) => {
+        // Prepare data
+        for (const tableConfig of config.tables) {
           const tableCode =
             typeof tableConfig === "string" ? tableConfig : tableConfig.code
-
           const tableRows = tableData[tableCode] || []
 
           if (tableRows.length > 0) {
             hasData = true
-            if (plugin && plugin.prepareDataForSaving) {
-              payload[tableCode] = plugin.prepareDataForSaving(
-                tableRows,
-                userData
-              )
-            } else {
-              payload[tableCode] = tableRows.map((row, index) => ({
-                ...row,
-                no: index + 1,
-                _timestamp: new Date().getTime(),
-              }))
-            }
+            payload[tableCode] = plugin?.prepareDataForSaving
+              ? plugin.prepareDataForSaving(tableRows, userData)
+              : tableRows.map((row, index) => ({
+                  ...row,
+                  no: index + 1,
+                  _timestamp: new Date().getTime(),
+                }))
           } else {
             payload[tableCode] = []
           }
-        })
+        }
 
         if (!hasData) {
-          message.warning("No data to save")
+          message.warning({ content: "No data to save", key: loadingKey })
           setSaving(false)
           return
         }
 
-        if (plugin && typeof plugin.calculateScore === "function") {
-          const tableCode =
-            typeof config.tables[0] === "string"
-              ? config.tables[0]
-              : config.tables[0]?.code
-
-          const data = payload[tableCode] || []
-
+        // Calculate score if needed
+        if (plugin?.calculateScore) {
           try {
+            const firstTableCode =
+              typeof config.tables[0] === "string"
+                ? config.tables[0]
+                : config.tables[0]?.code
+            const data = payload[firstTableCode] || []
+
             message.loading({
               content: "Calculating score...",
-              key: "saveData",
+              key: loadingKey,
+              duration: 0,
             })
-
             const result = await plugin.calculateScore(data, config, {
               userData,
               currentConfig: config,
@@ -94,11 +96,13 @@ export const useSaveData = (
               NDTPS: userData?.NDTPS || 0,
             })
 
-            if (result && result.scores !== undefined && result.scores !== null) {
-              payload.score = result.scores
-              setScore(result.scores)
-
+            if (result) {
+              if (result.scores !== undefined && result.scores !== null) {
+                payload.score = result.scores
+                setScore(result.scores)
+              }
               if (result.scoreDetail) {
+                payload.scoreDetail = result.scoreDetail
                 setScoreDetail(result.scoreDetail)
               }
             }
@@ -110,23 +114,20 @@ export const useSaveData = (
           }
         }
 
+        // Save data
         const response = await axiosInstance.post(
           `/lkps/sections/${sectionCode}/data`,
-          payload,
+          payload
         )
 
         if (response.data.success || response.status === 200) {
-          if (payload.score !== null && payload.score !== undefined) {
-            message.success({
-              content: `Data saved successfully. Score: ${payload.score}`,
-              key: "saveData",
-            })
-          } else {
-            message.success({
-              content: "Data saved successfully",
-              key: "saveData",
-            })
-          }
+          message.success({
+            content:
+              payload.score !== undefined
+                ? `Data saved successfully. Score: ${payload.score}`
+                : "Data saved successfully",
+            key: loadingKey,
+          })
 
           if (Array.isArray(savedSections)) {
             if (!savedSections.includes(sectionCode)) {
@@ -136,19 +137,9 @@ export const useSaveData = (
             setSavedSections([sectionCode])
           }
 
-          if (
-            response.data.score !== undefined &&
-            response.data.score !== null
-          ) {
-            setScore(response.data.score)
-          }
-
-          if (
-            response.data.scoreDetail !== undefined &&
-            response.data.scoreDetail !== null
-          ) {
+          if (response.data.score !== undefined) setScore(response.data.score)
+          if (response.data.scoreDetail !== undefined)
             setScoreDetail(response.data.scoreDetail)
-          }
 
           if (sectionCode.startsWith("1-") && payload.score !== null) {
             try {
@@ -166,23 +157,23 @@ export const useSaveData = (
           }
         } else {
           message.error({
-            content:
-              "Failed to save data: " +
-              (response.data.message || "Unknown error"),
-            key: "saveData",
+            content: `Failed to save data: ${
+              response.data.message || "Unknown error"
+            }`,
+            key: loadingKey,
           })
         }
       } catch (error) {
         console.error("Error saving data:", error)
         message.error({
-          content:
-            "Error saving data: " +
-            (error.response?.data?.message || error.message || "Unknown error"),
-          key: "saveData",
+          content: `Error saving data: ${
+            error.response?.data?.message || error.message || "Unknown error"
+          }`,
+          key: loadingKey,
         })
+      } finally {
+        setSaving(false)
       }
-
-      setSaving(false)
     },
     [
       sectionCode,
@@ -201,13 +192,8 @@ export const useSaveData = (
 
   const handleLkpsCreated = useCallback((lkps, setLkpsId, setLkpsInfo) => {
     if (lkps && lkps._id) {
-      let newLkpsId = null
-      if (typeof lkps._id === "object" && lkps._id.$oid) {
-        newLkpsId = lkps._id.$oid
-      } else {
-        newLkpsId = lkps._id
-      }
-
+      const newLkpsId =
+        typeof lkps._id === "object" && lkps._id.$oid ? lkps._id.$oid : lkps._id
       setLkpsId(newLkpsId)
       setLkpsInfo({
         periode: lkps.periode,
