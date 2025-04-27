@@ -60,6 +60,12 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
   const isMax = dataIndex.includes("maks_")
   const isAverage = dataIndex.includes("rata_rata_")
 
+  // Check for specific contexts in dataIndex
+  const isPadaPsLainDiPt = dataIndex.includes("pada_ps_lain_di_pt")
+  const isPadaPsYangDiakreditasi = dataIndex.includes(
+    "pada_ps_yang_diakreditasi"
+  )
+
   // Calculate scores for all headers against all field variants
   const columnScores = []
 
@@ -73,6 +79,40 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
     // Check for hierarchical headers (with " - " delimiter)
     if (header.includes(" - ")) {
       const headerParts = header.split(" - ").map((p) => p.trim())
+
+      // Context-based checks for program type
+      if (isPadaPsLainDiPt && !header.includes("pada ps lain di pt")) {
+        bestScore -= 0.9 // Strong penalty for context mismatch
+        matchDetails.push(
+          "CONTEXT MISMATCH: Expected 'pada ps lain di pt' but not found"
+        )
+        continue // Skip this header entirely
+      }
+
+      if (
+        isPadaPsYangDiakreditasi &&
+        !header.includes("pada ps yang diakreditasi")
+      ) {
+        bestScore -= 0.9 // Strong penalty for context mismatch
+        matchDetails.push(
+          "CONTEXT MISMATCH: Expected 'pada ps yang diakreditasi' but not found"
+        )
+        continue // Skip this header entirely
+      }
+
+      // Boost scores for correct context matches
+      if (isPadaPsLainDiPt && header.includes("pada ps lain di pt")) {
+        bestScore += 0.3 // Bonus for correct context
+        matchDetails.push("CONTEXT MATCH: Found 'pada ps lain di pt'")
+      }
+
+      if (
+        isPadaPsYangDiakreditasi &&
+        header.includes("pada ps yang diakreditasi")
+      ) {
+        bestScore += 0.3 // Bonus for correct context
+        matchDetails.push("CONTEXT MATCH: Found 'pada ps yang diakreditasi'")
+      }
 
       // Extract TS info from the last header part specifically
       const lastHeaderPart = headerParts[headerParts.length - 1]
@@ -116,6 +156,27 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
           bestScore += 0.4 // Bonus for plain TS match
           matchDetails.push("Both contain plain TS (without number)")
         }
+      }
+
+      // Critical check for min/max/average mismatches in indicator type
+      if (
+        (isMin &&
+          (lastHeaderPart.includes("rata-rata") ||
+            lastHeaderPart.includes("maks") ||
+            lastHeaderPart.includes("max"))) ||
+        (isMax &&
+          (lastHeaderPart.includes("rata-rata") ||
+            lastHeaderPart.includes("min"))) ||
+        (isAverage &&
+          (lastHeaderPart.includes("maks") ||
+            lastHeaderPart.includes("max") ||
+            lastHeaderPart.includes("min")))
+      ) {
+        bestScore -= 0.95 // Critical penalty for indicator type mismatch
+        matchDetails.push(
+          "CRITICAL SEMANTIC MISMATCH: min/max/rata-rata contradiction!"
+        )
+        continue // Skip this header entirely due to critical mismatch
       }
 
       // Special handling for min/max/rata-rata in hierarchical headers
@@ -197,6 +258,24 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
           matchDetails = [`Similarity score: ${(similarity * 100).toFixed(2)}%`]
         }
       }
+
+      // Apply context penalties for non-hierarchical headers too
+      if (isPadaPsLainDiPt && !header.includes("pada ps lain di pt")) {
+        bestScore -= 0.8 // Penalty for context mismatch
+        matchDetails.push(
+          "Non-hierarchical context mismatch: Expected 'pada ps lain di pt'"
+        )
+      }
+
+      if (
+        isPadaPsYangDiakreditasi &&
+        !header.includes("pada ps yang diakreditasi")
+      ) {
+        bestScore -= 0.8 // Penalty for context mismatch
+        matchDetails.push(
+          "Non-hierarchical context mismatch: Expected 'pada ps yang diakreditasi'"
+        )
+      }
     }
 
     // Additional scoring based on keyword matches
@@ -229,11 +308,21 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
     // Strong penalties for specific mismatches
     if (
       (dataIndex.includes("min_") &&
-        (header.includes("maks") || header.includes("max"))) ||
-      (dataIndex.includes("maks_") && header.includes("min"))
+        (header.includes("maks") ||
+          header.includes("max") ||
+          header.includes("rata-rata"))) ||
+      (dataIndex.includes("maks_") &&
+        (header.includes("min") || header.includes("rata-rata"))) ||
+      (dataIndex.includes("rata_rata_") &&
+        (header.includes("maks") ||
+          header.includes("max") ||
+          header.includes("min")))
     ) {
-      bestScore -= 0.8
-      matchDetails.push("SEMANTIC MISMATCH: min/max are opposites!")
+      bestScore -= 0.95 // Critical penalty
+      matchDetails.push(
+        "CRITICAL SEMANTIC MISMATCH: min/max/rata-rata contradiction!"
+      )
+      continue // Skip this header entirely
     }
 
     // Check TS suffix match for non-hierarchical headers too
