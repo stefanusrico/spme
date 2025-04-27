@@ -1,7 +1,5 @@
 import * as XLSX from "xlsx"
 import { message } from "antd"
-// Import the string-similarity library
-// To use this, you'll need to install it with: npm install string-similarity
 import stringSimilarity from "string-similarity"
 
 export const extractColumns = (tableConfig) => {
@@ -35,6 +33,9 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
       .trim()
   })
 
+  // Log all headers to diagnose the issue
+  console.log("Available headers:", processedHeaders)
+
   // Get all possible variants of the field name
   const fieldVariants = []
 
@@ -51,6 +52,81 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
     }
   })
 
+  // Handle min/max/rata-rata specifically
+  const isMin = dataIndex.includes("min_")
+  const isMax = dataIndex.includes("maks_")
+  const isAverage = dataIndex.includes("rata_rata_")
+
+  // If we have a specific min/max/average case, first try direct matching
+  if (isMin || isMax || isAverage) {
+    const baseField = dataIndex
+      .replace("min_", "")
+      .replace("maks_", "")
+      .replace("rata_rata_", "")
+
+    // Look for exact parent header match first
+    const baseHeaderMatches = []
+
+    for (let i = 0; i < processedHeaders.length; i++) {
+      const header = processedHeaders[i]
+
+      // Extract parent part if hierarchical
+      const parentPart = header.includes(" - ")
+        ? header.split(" - ")[0].trim()
+        : header
+
+      // Check if base field matches parent header
+      if (
+        stringSimilarity.compareTwoStrings(
+          baseField.replace(/_/g, " "),
+          parentPart
+        ) > 0.7
+      ) {
+        baseHeaderMatches.push(i)
+      }
+    }
+
+    // Now check for the specific child part within the matching parent headers
+    if (baseHeaderMatches.length > 0) {
+      for (const idx of baseHeaderMatches) {
+        const header = processedHeaders[idx]
+
+        if (!header.includes(" - ")) continue
+
+        const childPart = header.split(" - ")[1].trim()
+
+        if (
+          isMin &&
+          (childPart === "min" ||
+            childPart === "min." ||
+            childPart === "minimum")
+        ) {
+          return idx // Direct min match
+        }
+        if (
+          isMax &&
+          (childPart === "maks" ||
+            childPart === "maks." ||
+            childPart === "max" ||
+            childPart === "max." ||
+            childPart === "maksimum" ||
+            childPart === "maximum")
+        ) {
+          return idx // Direct max match
+        }
+        if (
+          isAverage &&
+          (childPart === "rata-rata" ||
+            childPart === "rata rata" ||
+            childPart === "average" ||
+            childPart === "mean")
+        ) {
+          return idx // Direct average match
+        }
+      }
+    }
+  }
+
   // Look for special cases with TS prefix/suffix
   const tsInfo = extractTSInfo(dataIndex)
 
@@ -63,6 +139,31 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
 
     let bestScore = 0
     let matchDetails = []
+
+    // Special handling for min/max/rata-rata
+    if (dataIndex.includes("min_") && header.includes("min")) {
+      bestScore += 0.4
+      matchDetails.push("Field contains 'min' keyword")
+    } else if (
+      dataIndex.includes("maks_") &&
+      (header.includes("maks") || header.includes("max"))
+    ) {
+      bestScore += 0.4
+      matchDetails.push("Field contains 'max'/'maks' keyword")
+    } else if (dataIndex.includes("rata_rata_") && header.includes("rata")) {
+      bestScore += 0.4
+      matchDetails.push("Field contains 'rata' keyword")
+    }
+
+    // Strong penalty for mismatched min/max
+    if (
+      (dataIndex.includes("min_") &&
+        (header.includes("maks") || header.includes("max"))) ||
+      (dataIndex.includes("maks_") && header.includes("min"))
+    ) {
+      bestScore -= 0.8
+      matchDetails.push("SEMANTIC MISMATCH: min/max are opposites!")
+    }
 
     // Check for hierarchical headers (with " - " delimiter)
     if (header.includes(" - ")) {
@@ -185,6 +286,8 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
       `Best match for "${dataIndex}": "${columnScores[0].header}" with score ${columnScores[0].score}`
     )
     console.log(`Match details:`, columnScores[0].matches)
+  } else {
+    console.log(`No matches found for "${dataIndex}"`)
   }
 
   return columnScores.length > 0 ? columnScores[0].index : -1

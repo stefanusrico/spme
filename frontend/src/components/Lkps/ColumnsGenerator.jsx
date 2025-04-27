@@ -1,10 +1,10 @@
-import { Input, Checkbox, DatePicker } from "antd"
+import { Input, Checkbox, DatePicker, Tooltip, InputNumber } from "antd"
 import dayjs from "dayjs"
 import { extractColumns } from "../../utils/tableUtils"
 
 /**
- * Generate columns for data tables - Simplified Version
- * Properly handles row selection without source field filtering
+ * Generate columns for data tables - Enhanced Version
+ * Properly handles row selection, input validation, and improved UX
  */
 const generateColumns = (
   tableConfig,
@@ -51,6 +51,53 @@ const generateColumns = (
 
     // Otherwise use the original dataIndex
     return dataIndex
+  }
+
+  // Function to validate URL format
+  const isValidUrl = (url) => {
+    try {
+      new URL(url)
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+
+  // Function to handle cell click for editing
+  const handleCellClick = (record) => {
+    if (record.key === editingKey) {
+      setEditingKey(null)
+    } else {
+      setEditingKey(record.key)
+    }
+  }
+
+  // Editable cell wrapper with tooltip and styling
+  const EditableCell = ({
+    children,
+    editable,
+    tooltip,
+    onClick,
+    style = {},
+  }) => {
+    const cell = (
+      <div
+        onClick={onClick}
+        style={{
+          cursor: editable ? "pointer" : "default",
+          width: "100%",
+          padding: "4px 8px",
+          border: editable ? "1px dashed #d9d9d9" : "none",
+          borderRadius: "2px",
+          transition: "all 0.3s",
+          ...style,
+        }}
+      >
+        {children}
+      </div>
+    )
+
+    return tooltip ? <Tooltip title={tooltip}>{cell}</Tooltip> : cell
   }
 
   const processColumn = (column) => {
@@ -112,11 +159,10 @@ const generateColumns = (
       }
     }
 
-    // Special handling for tingkat columns (which are now boolean type)
+    // Handle tingkat columns (which are now boolean type)
     if (column.data_index.startsWith("tingkat_") && column.type === "boolean") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
-        // Check directly if the value is true, don't check for non-empty content
         const isChecked = text === true
 
         return isEditing ? (
@@ -140,12 +186,11 @@ const generateColumns = (
                       tableConfig.code,
                       record.key,
                       colName,
-                      false // Set to false (boolean), not empty string
+                      false
                     )
                   }
                 })
 
-                // Set this field to true (boolean), not "Ya" string
                 debouncedHandleDataChange(
                   tableConfig.code,
                   record.key,
@@ -153,7 +198,6 @@ const generateColumns = (
                   true
                 )
               } else {
-                // When unchecking, set to false (boolean), not empty string
                 debouncedHandleDataChange(
                   tableConfig.code,
                   record.key,
@@ -164,16 +208,13 @@ const generateColumns = (
             }}
           />
         ) : (
-          <div
-            onClick={() => setEditingKey(record.key)}
-            style={{
-              cursor: "pointer",
-              width: "100%",
-              textAlign: "center",
-            }}
+          <EditableCell
+            editable={true}
+            tooltip="Klik untuk mengedit"
+            onClick={() => handleCellClick(record)}
           >
             {isChecked ? "✅" : "❌"}
-          </div>
+          </EditableCell>
         )
       }
     } else if (column.type === "boolean") {
@@ -192,47 +233,51 @@ const generateColumns = (
             }
           />
         ) : (
-          <div
-            onClick={() => setEditingKey(record.key)}
-            style={{
-              cursor: "pointer",
-              width: "100%",
-              textAlign: "center",
-            }}
+          <EditableCell
+            editable={true}
+            tooltip="Klik untuk mengedit"
+            onClick={() => handleCellClick(record)}
           >
             {text === true ? "✅" : text === false ? "❌" : "-"}
-          </div>
+          </EditableCell>
         )
       }
     } else if (column.type === "date") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
+        const formattedDate = text ? dayjs(text).format("D/M/YYYY") : "-"
+
         return isEditing ? (
           <DatePicker
             defaultValue={text ? dayjs(text) : null}
             format="D/M/YYYY"
-            onChange={(date, dateString) =>
+            onChange={(date) => {
+              // Store as ISO string for consistency
+              const dateValue = date ? date.toISOString() : null
               debouncedHandleDataChange(
                 tableConfig.code,
                 record.key,
                 baseColumn.dataIndex,
-                dateString
+                dateValue
               )
-            }
+            }}
             style={{ width: "100%" }}
           />
         ) : (
-          <div
-            onClick={() => setEditingKey(record.key)}
-            style={{ cursor: "pointer", width: "100%" }}
+          <EditableCell
+            editable={true}
+            tooltip="Klik untuk mengedit tanggal"
+            onClick={() => handleCellClick(record)}
           >
-            {text || "Pilih tanggal"}
-          </div>
+            {formattedDate}
+          </EditableCell>
         )
       }
     } else if (column.type === "url") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
+        const isValidLink = text && isValidUrl(text)
+
         return isEditing ? (
           <Input
             defaultValue={text}
@@ -245,30 +290,33 @@ const generateColumns = (
               )
             }
             onBlur={() => setEditingKey(null)}
+            status={text && !isValidUrl(text) ? "error" : ""}
+            placeholder="https://example.com"
           />
-        ) : text ? (
+        ) : isValidLink ? (
           <a href={text} target="_blank" rel="noopener noreferrer">
             Buka Link
           </a>
         ) : (
-          <div
-            onClick={() => setEditingKey(record.key)}
-            style={{ cursor: "pointer", width: "100%" }}
+          <EditableCell
+            editable={true}
+            tooltip="Klik untuk menambahkan URL"
+            onClick={() => handleCellClick(record)}
+            style={{ color: "#1890ff" }}
           >
             {text || "Masukkan Link"}
-          </div>
+          </EditableCell>
         )
       }
     } else if (column.type === "number") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
         return isEditing ? (
-          <Input
-            type="number"
-            defaultValue={text}
-            onChange={(e) => {
-              // Convert to number before saving
-              const numValue = parseFloat(e.target.value) || 0
+          <InputNumber
+            defaultValue={text !== null && text !== undefined ? text : 0}
+            onChange={(value) => {
+              // Use null instead of NaN for empty values
+              const numValue = value !== null && !isNaN(value) ? value : 0
               debouncedHandleDataChange(
                 tableConfig.code,
                 record.key,
@@ -277,14 +325,52 @@ const generateColumns = (
               )
             }}
             onBlur={() => setEditingKey(null)}
+            style={{ width: "100%" }}
+            min={column.min !== undefined ? column.min : undefined}
+            max={column.max !== undefined ? column.max : undefined}
           />
         ) : (
-          <div
-            onClick={() => setEditingKey(record.key)}
-            style={{ cursor: "pointer", width: "100%" }}
+          <EditableCell
+            editable={true}
+            tooltip="Klik untuk mengedit"
+            onClick={() => handleCellClick(record)}
           >
             {text !== undefined && text !== null ? text : "-"}
-          </div>
+          </EditableCell>
+        )
+      }
+    } else if (column.type === "percentage") {
+      baseColumn.render = (text, record) => {
+        const isEditing = record.key === editingKey
+        const percentage = text !== undefined && text !== null ? text : 0
+
+        return isEditing ? (
+          <InputNumber
+            defaultValue={percentage}
+            onChange={(value) => {
+              const numValue = value !== null && !isNaN(value) ? value : 0
+              debouncedHandleDataChange(
+                tableConfig.code,
+                record.key,
+                baseColumn.dataIndex,
+                numValue
+              )
+            }}
+            onBlur={() => setEditingKey(null)}
+            style={{ width: "100%" }}
+            min={0}
+            max={100}
+            formatter={(value) => `${value}%`}
+            parser={(value) => value.replace("%", "")}
+          />
+        ) : (
+          <EditableCell
+            editable={true}
+            tooltip="Klik untuk mengedit persentase"
+            onClick={() => handleCellClick(record)}
+          >
+            {`${percentage}%`}
+          </EditableCell>
         )
       }
     } else {
@@ -302,14 +388,16 @@ const generateColumns = (
               )
             }
             onBlur={() => setEditingKey(null)}
+            placeholder={`Masukkan ${column.title}`}
           />
         ) : (
-          <div
-            onClick={() => setEditingKey(record.key)}
-            style={{ cursor: "pointer", width: "100%" }}
+          <EditableCell
+            editable={true}
+            tooltip="Klik untuk mengedit"
+            onClick={() => handleCellClick(record)}
           >
             {text !== undefined && text !== null && text !== "" ? text : "-"}
-          </div>
+          </EditableCell>
         )
       }
     }

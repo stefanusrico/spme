@@ -12,7 +12,6 @@ const TridharmaScoreDetails = ({
   sectionCode,
   scoreDetail,
   userData,
-  NDTPS,
   setScore,
   setScoreDetail,
 }) => {
@@ -22,7 +21,7 @@ const TridharmaScoreDetails = ({
 
   const handleCalculateCombinedScore = async () => {
     try {
-      const result = await calculateCombinedScore(userData, NDTPS)
+      const result = await calculateCombinedScore(userData)
 
       if (result) {
         setScore(result.score)

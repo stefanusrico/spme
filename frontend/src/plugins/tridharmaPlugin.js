@@ -1,6 +1,3 @@
-/**
- * Plugin for Tridharma sections (1-*)
- */
 import {
   normalizeDataConsistency,
   checkAllRequiredSectionsSaved,
@@ -9,6 +6,7 @@ import {
   extractTridharmaVariables,
 } from "../utils/tridharmaUtils"
 import { processExcelDataBase } from "../utils/tableUtils"
+import { fetchScoreDetails } from "../utils/fetchScoreDetail"
 
 let saveInProgress = false
 
@@ -412,9 +410,13 @@ const TridharmaPlugin = {
         }
       }
 
+      const prodiId = additionalData.userData.prodiId
+      const scoreDetailsResponse = await fetchScoreDetails(prodiId, "3a1")
+      const NDTPS = scoreDetailsResponse?.NDTPS || 0
+
       const result = await calculateCombinedScore(
         additionalData.userData,
-        additionalData.NDTPS || 20,
+        NDTPS,
         additionalData.currentConfig,
         true
       )
@@ -425,9 +427,9 @@ const TridharmaPlugin = {
         return {
           scores: [
             {
-              butir : 10,
-              nilai :  result.score
-            }
+              butir: 10,
+              nilai: result.score,
+            },
           ],
           scoreDetail: result.scoreDetail,
           log: result.calculationLog,

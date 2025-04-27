@@ -96,7 +96,6 @@ const DynamicLkpsContainer = () => {
     showSelectionMode,
     setShowSelectionMode,
     configRef,
-    NDTPS,
     prodiName,
     prodiId,
     fixAllExistingData,
@@ -330,7 +329,6 @@ const DynamicLkpsContainer = () => {
             sectionCode={sectionCode}
             scoreDetail={scoreDetail}
             userData={userData}
-            NDTPS={userData?.NDTPS || 20}
             setScore={setScore}
             setScoreDetail={setScoreDetail}
           />

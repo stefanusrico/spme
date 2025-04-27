@@ -8,7 +8,7 @@ let formulaCache = {}
 
 let calculationInProgress = false
 let lastCalculationTimestamp = 0
-const CALCULATION_THROTTLE_MS = 3000 
+const CALCULATION_THROTTLE_MS = 3000
 
 /**
  * Get table code mappings from section code to table code
@@ -894,6 +894,7 @@ export const calculateCombinedScore = async (
       A,
       B,
       C,
+      NDTPS: NDTPS,
     }
 
     // Log final score

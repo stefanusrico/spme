@@ -31,7 +31,11 @@ export const useSectionData = (sectionCode, config, userData) => {
     configRef.current = config
   }, [config])
 
-  const NDTPS = userData?.NDTPS || 20
+  useEffect(() => {
+    setScore(null)
+    setScoreDetail(null)
+  }, [sectionCode])
+
   const prodiName = userData?.prodi || ""
   const prodiId = userData?.prodiId
 
@@ -236,7 +240,6 @@ export const useSectionData = (sectionCode, config, userData) => {
 
         const additionalData = {
           userData,
-          NDTPS,
           currentConfig: configRef.current,
           sectionCode,
           forcedCalculation: true,
@@ -276,7 +279,7 @@ export const useSectionData = (sectionCode, config, userData) => {
         return null
       }
     },
-    [plugin, tableData, userData, NDTPS, sectionCode]
+    [plugin, tableData, userData, sectionCode]
   )
 
   const fetchSectionData = useCallback(async () => {
@@ -505,7 +508,6 @@ export const useSectionData = (sectionCode, config, userData) => {
     showSelectionMode,
     setShowSelectionMode,
     configRef,
-    NDTPS,
     prodiName,
     prodiId,
     fixAllExistingData,

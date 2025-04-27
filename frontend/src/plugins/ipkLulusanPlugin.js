@@ -64,9 +64,6 @@ const ipkLulusanPlugin = {
         selected: true,
         tahun_lulus: "",
         jumlah_lulusan: 0,
-        indeks_prestasi_kumulatif_min: 0,
-        indeks_prestasi_kumulatif_rata_rata: 0,
-        indeks_prestasi_kumulatif_maks: 0,
       }
 
       Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
@@ -125,10 +122,12 @@ const ipkLulusanPlugin = {
   calculateScore(data) {
     if (!data || data.length === 0) {
       return {
-        scores: [{
-          butir : 52,
-          nilai : 0
-        }],
+        scores: [
+          {
+            butir: 52,
+            nilai: 0,
+          },
+        ],
         scoreDetail: {
           averageIPK: 0,
           ipkPoints: 0,
