@@ -52,83 +52,13 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
     }
   })
 
+  // Extract TS info from the dataIndex
+  const tsInfo = extractTSInfo(dataIndex)
+
   // Handle min/max/rata-rata specifically
   const isMin = dataIndex.includes("min_")
   const isMax = dataIndex.includes("maks_")
   const isAverage = dataIndex.includes("rata_rata_")
-
-  // If we have a specific min/max/average case, first try direct matching
-  if (isMin || isMax || isAverage) {
-    const baseField = dataIndex
-      .replace("min_", "")
-      .replace("maks_", "")
-      .replace("rata_rata_", "")
-
-    // Look for exact parent header match first
-    const baseHeaderMatches = []
-
-    for (let i = 0; i < processedHeaders.length; i++) {
-      const header = processedHeaders[i]
-
-      // Extract parent part if hierarchical
-      const parentPart = header.includes(" - ")
-        ? header.split(" - ")[0].trim()
-        : header
-
-      // Check if base field matches parent header
-      if (
-        stringSimilarity.compareTwoStrings(
-          baseField.replace(/_/g, " "),
-          parentPart
-        ) > 0.7
-      ) {
-        baseHeaderMatches.push(i)
-      }
-    }
-
-    // Now check for the specific child part within the matching parent headers
-    if (baseHeaderMatches.length > 0) {
-      for (const idx of baseHeaderMatches) {
-        const header = processedHeaders[idx]
-
-        if (!header.includes(" - ")) continue
-
-        const childPart = header.split(" - ")[1].trim()
-
-        if (
-          isMin &&
-          (childPart === "min" ||
-            childPart === "min." ||
-            childPart === "minimum")
-        ) {
-          return idx // Direct min match
-        }
-        if (
-          isMax &&
-          (childPart === "maks" ||
-            childPart === "maks." ||
-            childPart === "max" ||
-            childPart === "max." ||
-            childPart === "maksimum" ||
-            childPart === "maximum")
-        ) {
-          return idx // Direct max match
-        }
-        if (
-          isAverage &&
-          (childPart === "rata-rata" ||
-            childPart === "rata rata" ||
-            childPart === "average" ||
-            childPart === "mean")
-        ) {
-          return idx // Direct average match
-        }
-      }
-    }
-  }
-
-  // Look for special cases with TS prefix/suffix
-  const tsInfo = extractTSInfo(dataIndex)
 
   // Calculate scores for all headers against all field variants
   const columnScores = []
@@ -140,88 +70,120 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
     let bestScore = 0
     let matchDetails = []
 
-    // Special handling for min/max/rata-rata
-    if (dataIndex.includes("min_") && header.includes("min")) {
-      bestScore += 0.4
-      matchDetails.push("Field contains 'min' keyword")
-    } else if (
-      dataIndex.includes("maks_") &&
-      (header.includes("maks") || header.includes("max"))
-    ) {
-      bestScore += 0.4
-      matchDetails.push("Field contains 'max'/'maks' keyword")
-    } else if (dataIndex.includes("rata_rata_") && header.includes("rata")) {
-      bestScore += 0.4
-      matchDetails.push("Field contains 'rata' keyword")
-    }
-
-    // Strong penalty for mismatched min/max
-    if (
-      (dataIndex.includes("min_") &&
-        (header.includes("maks") || header.includes("max"))) ||
-      (dataIndex.includes("maks_") && header.includes("min"))
-    ) {
-      bestScore -= 0.8
-      matchDetails.push("SEMANTIC MISMATCH: min/max are opposites!")
-    }
-
     // Check for hierarchical headers (with " - " delimiter)
     if (header.includes(" - ")) {
-      const [parentPart, childPart] = header.split(" - ").map((p) => p.trim())
-      const headerTsInfo = extractTSInfo(childPart)
+      const headerParts = header.split(" - ").map((p) => p.trim())
 
-      // TS special handling
+      // Extract TS info from the last header part specifically
+      const lastHeaderPart = headerParts[headerParts.length - 1]
+      const headerTsInfo = extractTSInfo(lastHeaderPart)
+
+      // STRONG TS NUMBER MATCHING - with improved logic
       if (tsInfo.hasTS && headerTsInfo.hasTS) {
-        if (
-          tsInfo.hasNumber &&
-          headerTsInfo.hasNumber &&
-          tsInfo.number === headerTsInfo.number
-        ) {
-          bestScore += 0.3 // Bonus for matching TS number
-          matchDetails.push(`Matching TS number: ${tsInfo.number}`)
-        } else if (!tsInfo.hasNumber && !headerTsInfo.hasNumber) {
-          bestScore += 0.2 // Bonus for plain TS match
-          matchDetails.push("Both contain plain TS")
+        // Case 1: dataIndex has plain "ts" without number
+        if (!tsInfo.hasNumber && headerTsInfo.hasNumber) {
+          // Plain TS should match to header with current year (TS)
+          // Lower score if it's matching to TS-1 or TS-2
+          bestScore -= 0.9 // Severe penalty for matching plain TS to numbered TS
+          matchDetails.push(
+            `MISMATCH: Plain TS field matching to numbered TS-${headerTsInfo.number}`
+          )
+          continue // Skip this header entirely
+        }
+        // Case 2: Both have numbers, and they must match
+        else if (tsInfo.hasNumber && headerTsInfo.hasNumber) {
+          if (tsInfo.number === headerTsInfo.number) {
+            bestScore += 0.6 // Strong bonus for exact TS number match
+            matchDetails.push(`EXACT TS MATCH: both have TS-${tsInfo.number}`)
+          } else {
+            bestScore -= 0.9 // Very strong penalty for TS number mismatch
+            matchDetails.push(
+              `TS MISMATCH: expected TS-${tsInfo.number} but found TS-${headerTsInfo.number}`
+            )
+            continue // Skip this header entirely
+          }
+        }
+        // Case 3: dataIndex has number but header doesn't
+        else if (tsInfo.hasNumber && !headerTsInfo.hasNumber) {
+          bestScore -= 0.7 // Strong penalty
+          matchDetails.push(
+            `TS MISMATCH: expected TS-${tsInfo.number} but found plain TS`
+          )
+          continue // Skip this header
+        }
+        // Case 4: Both have plain TS (without number)
+        else if (!tsInfo.hasNumber && !headerTsInfo.hasNumber) {
+          bestScore += 0.4 // Bonus for plain TS match
+          matchDetails.push("Both contain plain TS (without number)")
         }
       }
 
-      // Compare each field variant with parent and child parts
-      for (const variant of fieldVariants) {
-        // Using the stringSimilarity library for better comparison
-        const parentSimilarity = stringSimilarity.compareTwoStrings(
-          variant,
-          parentPart
-        )
-        const childSimilarity = stringSimilarity.compareTwoStrings(
-          variant,
-          childPart
-        )
+      // Special handling for min/max/rata-rata in hierarchical headers
+      if (isMin || isMax || isAverage) {
+        // Check if the last part indicates min/max/average
+        if (
+          isMin &&
+          (lastHeaderPart === "min" ||
+            lastHeaderPart === "min." ||
+            lastHeaderPart === "minimum")
+        ) {
+          bestScore += 0.5
+          matchDetails.push("MIN indicator match")
+        } else if (
+          isMax &&
+          (lastHeaderPart === "maks" ||
+            lastHeaderPart === "maks." ||
+            lastHeaderPart === "max" ||
+            lastHeaderPart === "max." ||
+            lastHeaderPart === "maksimum" ||
+            lastHeaderPart === "maximum")
+        ) {
+          bestScore += 0.5
+          matchDetails.push("MAX indicator match")
+        } else if (
+          isAverage &&
+          (lastHeaderPart === "rata-rata" ||
+            lastHeaderPart === "rata rata" ||
+            lastHeaderPart === "average" ||
+            lastHeaderPart === "mean")
+        ) {
+          bestScore += 0.5
+          matchDetails.push("AVERAGE indicator match")
+        }
+      }
 
-        // Get the best score between parent and child, with higher weight to child
-        const weightedScore = Math.max(
-          parentSimilarity * 0.6,
-          childSimilarity * 0.8
-        )
+      // Compare each field variant with each header part
+      for (const variant of fieldVariants) {
+        // Get best similarity across all header parts
+        let bestPartSimilarity = 0
+        let bestPartIndex = -1
+
+        for (let partIndex = 0; partIndex < headerParts.length; partIndex++) {
+          const similarity = stringSimilarity.compareTwoStrings(
+            variant,
+            headerParts[partIndex]
+          )
+
+          if (similarity > bestPartSimilarity) {
+            bestPartSimilarity = similarity
+            bestPartIndex = partIndex
+          }
+        }
+
+        // Weight more if it matches the last part (most specific)
+        const weightedScore =
+          bestPartSimilarity *
+          (bestPartIndex === headerParts.length - 1
+            ? 0.9
+            : 0.7 - 0.1 * bestPartIndex)
 
         if (weightedScore > bestScore) {
           bestScore = weightedScore
           matchDetails = [
-            `Similarity with hierarchical header: ${(
-              weightedScore * 100
+            `Similarity with hierarchical header part ${bestPartIndex + 1}: ${(
+              bestPartSimilarity * 100
             ).toFixed(2)}%`,
           ]
-
-          if (parentSimilarity > 0.7) {
-            matchDetails.push(
-              `High parent similarity: ${(parentSimilarity * 100).toFixed(2)}%`
-            )
-          }
-
-          if (childSimilarity > 0.7) {
-            matchDetails.push(
-              `High child similarity: ${(childSimilarity * 100).toFixed(2)}%`
-            )
-          }
         }
       }
     } else {
@@ -237,7 +199,7 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
       }
     }
 
-    // Adjust score based on special patterns
+    // Additional scoring based on keyword matches
     if (
       dataIndex.includes("mahasiswa_aktif") &&
       header.toLowerCase().includes("aktif")
@@ -262,6 +224,43 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
     ) {
       bestScore += 0.1
       matchDetails.push("Time type match: part/paruh")
+    }
+
+    // Strong penalties for specific mismatches
+    if (
+      (dataIndex.includes("min_") &&
+        (header.includes("maks") || header.includes("max"))) ||
+      (dataIndex.includes("maks_") && header.includes("min"))
+    ) {
+      bestScore -= 0.8
+      matchDetails.push("SEMANTIC MISMATCH: min/max are opposites!")
+    }
+
+    // Check TS suffix match for non-hierarchical headers too
+    if (tsInfo.hasTS && header.includes("ts")) {
+      const headerTsInfo = extractTSInfo(header)
+
+      // Check for plain TS matching to numbered TS headers
+      if (!tsInfo.hasNumber && headerTsInfo.hasNumber) {
+        bestScore -= 0.9 // Strong penalty
+        matchDetails.push(
+          `MISMATCH: Plain TS field matching to numbered TS-${headerTsInfo.number}`
+        )
+        continue // Skip this header
+      }
+
+      if (tsInfo.hasNumber && headerTsInfo.hasNumber) {
+        if (tsInfo.number === headerTsInfo.number) {
+          bestScore += 0.3 // Bonus for matching TS number
+          matchDetails.push(`Matching TS number: ${tsInfo.number}`)
+        } else {
+          bestScore -= 0.9 // Stronger penalty for mismatched TS number
+          matchDetails.push(
+            `TS NUMBER MISMATCH: expected ${tsInfo.number}, found ${headerTsInfo.number}`
+          )
+          continue // Skip this header entirely
+        }
+      }
     }
 
     // Add to scores if it's good enough
@@ -293,6 +292,7 @@ export const findColumnIndexByHeader = (headers, possibleNames) => {
   return columnScores.length > 0 ? columnScores[0].index : -1
 }
 
+// Helper function to extract TS information - improved version
 function extractTSInfo(text) {
   const result = {
     hasTS: false,
@@ -306,17 +306,38 @@ function extractTSInfo(text) {
   if (lowerText.includes("ts")) {
     result.hasTS = true
 
-    const tsPattern = /ts[-_](\d+)/i
-    const tsMatch = lowerText.match(tsPattern)
-
-    if (tsMatch) {
+    // Check for TS-2 pattern
+    if (lowerText.includes("ts-2") || lowerText.includes("ts_2")) {
       result.hasNumber = true
-      result.number = tsMatch[1]
-    } else if (
+      result.number = "2"
+    }
+    // Check for TS-1 pattern
+    else if (lowerText.includes("ts-1") || lowerText.includes("ts_1")) {
+      result.hasNumber = true
+      result.number = "1"
+    }
+    // Plain TS without number
+    else if (
       lowerText === "ts" ||
-      (lowerText.startsWith("ts") && !lowerText.match(/ts\d/))
+      lowerText.endsWith("_ts") ||
+      lowerText.endsWith("-ts")
     ) {
       result.isPlainTS = true
+    }
+    // Fallback to regex for more complex patterns
+    else {
+      const tsPattern = /ts[-_]?(\d+)/i
+      const tsMatch = lowerText.match(tsPattern)
+
+      if (tsMatch) {
+        result.hasNumber = true
+        result.number = tsMatch[1]
+      } else if (
+        lowerText === "ts" ||
+        (lowerText.startsWith("ts") && !lowerText.match(/ts\d/))
+      ) {
+        result.isPlainTS = true
+      }
     }
   }
 
@@ -422,107 +443,201 @@ export const processExcelDataBase = async (
       excelStartRow = 0
     }
 
-    const mainHeaderRow = jsonData[headerRowIndex] || []
-    let subHeaderRow = []
-    let hasSubHeaders = false
+    // Extract all potential header rows - Look for multiple levels of headers
+    const headerRows = []
+    let currentHeaderIndex = headerRowIndex
+    let hasFoundNumericRow = false
 
-    if (headerRowIndex + 1 < jsonData.length) {
-      subHeaderRow = jsonData[headerRowIndex + 1] || []
-      const nonEmptyCells = subHeaderRow.filter((cell) => cell !== "").length
-      const firstCell = String(subHeaderRow[0] || "").trim()
+    while (currentHeaderIndex < jsonData.length && !hasFoundNumericRow) {
+      const row = jsonData[currentHeaderIndex]
+      if (!row || row.length === 0) {
+        break // Stop if we encounter an empty row
+      }
+
+      // Check if this row looks like a data row rather than a header row
+      const firstCell = String(row[0] || "").trim()
       const hasNumericFirstCell = /^\d+\.?$/.test(firstCell)
 
-      if (nonEmptyCells > 0 && !hasNumericFirstCell) {
-        hasSubHeaders = true
+      if (hasNumericFirstCell) {
+        hasFoundNumericRow = true
+        break
       }
+
+      // Add this row as a potential header row
+      headerRows.push(row)
+      currentHeaderIndex++
     }
 
-    let combinedHeaders = [...mainHeaderRow]
+    // We need at least one header row
+    if (headerRows.length === 0) {
+      headerRows.push(jsonData[headerRowIndex] || [])
+    }
 
-    if (hasSubHeaders) {
-      for (let i = 0; i < mainHeaderRow.length; i++) {
-        const mainHeader = mainHeaderRow[i]
-        if (!mainHeader || mainHeader === "") continue
+    // Now combine all header rows into a hierarchical header structure
+    const mainHeaderRow = headerRows[0]
+    const combinedHeaders = [...mainHeaderRow]
 
-        let emptyCount = 0
-        let j = i + 1
-        while (
-          j < mainHeaderRow.length &&
-          (!mainHeaderRow[j] || mainHeaderRow[j] === "")
+    // Process merged cells to identify parent headers
+    const mergedCellMap = new Map()
+
+    if (merges && merges.length > 0) {
+      merges.forEach((merge) => {
+        // Only consider merges in the header rows
+        if (
+          merge.s.r >= headerRowIndex &&
+          merge.e.r < headerRowIndex + headerRows.length
         ) {
-          emptyCount++
-          j++
-        }
-
-        if (emptyCount > 0 && hasSubHeaders) {
-          let hasSubValues = false
-          for (let k = i; k <= i + emptyCount; k++) {
-            if (subHeaderRow[k] && subHeaderRow[k] !== "") {
-              hasSubValues = true
-              break
-            }
+          for (let col = merge.s.c; col <= merge.e.c; col++) {
+            mergedCellMap.set(`${col}`, {
+              rowStart: merge.s.r,
+              rowEnd: merge.e.r,
+              colStart: merge.s.c,
+              colEnd: merge.e.c,
+              value: jsonData[merge.s.r][merge.s.c],
+            })
           }
+        }
+      })
+    }
 
-          if (hasSubValues) {
-            if (subHeaderRow[i] && subHeaderRow[i] !== "") {
-              combinedHeaders[i] = `${mainHeader} - ${subHeaderRow[i]}`
+    // Function to build a hierarchical header from multiple rows
+    function buildHierarchicalHeader(colIndex) {
+      const headerParts = []
+      let lastNonEmptyHeader = null
+
+      for (let rowIndex = 0; rowIndex < headerRows.length; rowIndex++) {
+        const headerRow = headerRows[rowIndex]
+        const cellValue = String(headerRow[colIndex] || "").trim()
+
+        if (cellValue !== "") {
+          // Direct cell value
+          headerParts.push(cellValue)
+          lastNonEmptyHeader = cellValue
+        } else {
+          // Check if this cell is part of a merged cell
+          const mergeKey = `${colIndex}`
+          if (mergedCellMap.has(mergeKey)) {
+            const mergeInfo = mergedCellMap.get(mergeKey)
+            const mergedValue = String(
+              jsonData[mergeInfo.rowStart][mergeInfo.colStart] || ""
+            ).trim()
+
+            if (
+              mergedValue !== "" &&
+              (headerParts.length === 0 ||
+                headerParts[headerParts.length - 1] !== mergedValue)
+            ) {
+              headerParts.push(mergedValue)
+              lastNonEmptyHeader = mergedValue
             }
-
-            for (let k = i + 1; k <= i + emptyCount; k++) {
-              if (subHeaderRow[k] && subHeaderRow[k] !== "") {
-                combinedHeaders[k] = `${mainHeader} - ${subHeaderRow[k]}`
+          } else if (rowIndex > 0) {
+            // Check if we should inherit from previous row
+            // Find the last non-empty header above this cell
+            for (let prevRow = rowIndex - 1; prevRow >= 0; prevRow--) {
+              const prevValue = String(
+                headerRows[prevRow][colIndex] || ""
+              ).trim()
+              if (prevValue !== "") {
+                // Check if this value is already in our headerParts
+                if (!headerParts.includes(prevValue)) {
+                  headerParts.push(prevValue)
+                }
+                break
               }
             }
           }
         }
       }
 
-      const tingkatIndex = mainHeaderRow.findIndex(
-        (header) =>
-          String(header || "")
-            .toLowerCase()
-            .trim() === "tingkat"
+      // Special handling for Tingkat headers
+      // Special handling for Tingkat headers
+      const hasLevelInfo = headerParts.some(
+        (part) =>
+          part.toLowerCase() === "tingkat" ||
+          ((part.toLowerCase().includes("internasional") ||
+            part.toLowerCase().includes("nasional") ||
+            part.toLowerCase().includes("lokal")) &&
+            !headerParts.some(
+              (p) =>
+                p.toLowerCase().includes("bekerja") ||
+                p.toLowerCase().includes("lulusan") ||
+                p.toLowerCase().includes("kerja") ||
+                p.toLowerCase().includes("berwirausaha")
+            ))
       )
 
-      if (tingkatIndex !== -1) {
-        let nextHeaderIndex = tingkatIndex + 1
-        while (
-          nextHeaderIndex < mainHeaderRow.length &&
-          (!mainHeaderRow[nextHeaderIndex] ||
-            mainHeaderRow[nextHeaderIndex] === "")
-        ) {
-          nextHeaderIndex++
-        }
+      if (hasLevelInfo) {
+        // Only apply the "Tingkat -" prefix if the context is about achievement levels
+        // not about workplace location
+        const isTingkatContext = headerParts.some(
+          (part) => part.toLowerCase() === "tingkat"
+        )
 
-        for (let k = tingkatIndex; k < nextHeaderIndex; k++) {
-          const subValue = String(subHeaderRow[k] || "")
-            .toLowerCase()
-            .trim()
+        const isWorkplaceContext = headerParts.some(
+          (part) =>
+            part.toLowerCase().includes("bekerja") ||
+            part.toLowerCase().includes("lulusan") ||
+            part.toLowerCase().includes("kerja") ||
+            part.toLowerCase().includes("berwirausaha")
+        )
 
-          if (
-            subValue.includes("internasional") ||
-            subValue === "ln" ||
-            subValue === "int"
-          ) {
-            combinedHeaders[k] = "Tingkat - Internasional"
-          } else if (
-            subValue.includes("nasional") ||
-            subValue === "n" ||
-            subValue === "dn"
-          ) {
-            combinedHeaders[k] = "Tingkat - Nasional"
-          } else if (
-            subValue.includes("lokal") ||
-            subValue.includes("wilayah") ||
-            subValue === "l"
-          ) {
-            combinedHeaders[k] = "Tingkat - Lokal/Wilayah"
+        // If it's clearly not about workplace, proceed with level detection
+        if (!isWorkplaceContext) {
+          const levelType = headerParts.find(
+            (part) =>
+              part.toLowerCase().includes("internasional") ||
+              part.toLowerCase() === "ln" ||
+              part.toLowerCase() === "int" ||
+              part.toLowerCase().includes("nasional") ||
+              part.toLowerCase() === "n" ||
+              part.toLowerCase() === "dn" ||
+              part.toLowerCase().includes("lokal") ||
+              part.toLowerCase().includes("wilayah") ||
+              part.toLowerCase() === "l"
+          )
+
+          if (levelType) {
+            const lowerLevelType = levelType.toLowerCase()
+            if (
+              lowerLevelType.includes("internasional") ||
+              lowerLevelType === "ln" ||
+              lowerLevelType === "int"
+            ) {
+              return isTingkatContext
+                ? "Tingkat - Internasional"
+                : "Internasional"
+            } else if (
+              lowerLevelType.includes("nasional") ||
+              lowerLevelType === "n" ||
+              lowerLevelType === "dn"
+            ) {
+              return isTingkatContext ? "Tingkat - Nasional" : "Nasional"
+            } else if (
+              lowerLevelType.includes("lokal") ||
+              lowerLevelType.includes("wilayah") ||
+              lowerLevelType === "l"
+            ) {
+              return isTingkatContext
+                ? "Tingkat - Lokal/Wilayah"
+                : "Lokal/Wilayah"
+            }
           }
         }
       }
+
+      // Return combined hierarchical header
+      return headerParts.length > 0 ? headerParts.join(" - ") : ""
     }
 
-    const dataStartRow = hasSubHeaders ? headerRowIndex + 2 : headerRowIndex + 1
+    // Build hierarchical headers for each column
+    for (let colIndex = 0; colIndex < mainHeaderRow.length; colIndex++) {
+      const hierarchicalHeader = buildHierarchicalHeader(colIndex)
+      if (hierarchicalHeader) {
+        combinedHeaders[colIndex] = hierarchicalHeader
+      }
+    }
+
+    const dataStartRow = headerRowIndex + headerRows.length
     const filteredJsonData = jsonData.filter(
       (row, index) =>
         row &&
@@ -562,7 +677,7 @@ export const processExcelDataBase = async (
       columnMap,
       tableConfig: actualTableConfig,
       headerRowIndex,
-      hasSubHeaders,
+      headerRows,
       jsonData,
       dataStartRow,
     }
