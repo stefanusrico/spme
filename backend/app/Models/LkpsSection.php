@@ -55,27 +55,44 @@ class LkpsSection extends Model
 
             // Process columns and add children where applicable
             $processedColumns = $parentColumns->map(function ($column) use ($allColumns) {
+                $columnData = $column->toArray();
+
                 if ($column->is_group) {
                     // If it's a group column, find its children
                     $children = $allColumns->where('parent_id', $column->_id)->sortBy('order');
-                    $column->children = $children;
+
+                    // Process each child and check if they have their own children
+                    $processedChildren = [];
+                    foreach ($children as $child) {
+                        $childData = $child->toArray();
+
+                        if ($child->is_group) {
+                            // If child is also a group, find its children
+                            $grandchildren = $allColumns->where('parent_id', $child->_id)->sortBy('order');
+                            $childData['children'] = $grandchildren->values()->toArray();
+                        }
+
+                        $processedChildren[] = $childData;
+                    }
+
+                    $columnData['children'] = array_values($processedChildren);
                 }
 
-                return $column;
+                return $columnData;
             });
 
-            $table->columns = $processedColumns;
-            return $table;
+            $tableData = $table->toArray();
+            $tableData['columns'] = $processedColumns->values()->toArray();
+            return $tableData;
         });
 
         $config = [
             'id' => $this->code,
             'title' => $this->title,
             'subtitle' => $this->subtitle,
-            'tables' => $tablesWithColumns,
+            'tables' => $tablesWithColumns->toArray(),
         ];
 
-        // Add formula information if available
         if ($this->has_formula) {
             $formula = $this->formula();
 
