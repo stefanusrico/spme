@@ -80,6 +80,8 @@ Route::prefix('lkps')->group(function () {
     Route::get('/{lkpsId}/export/{sectionCode}/{tableCode?}', [LkpsDataController::class, 'exportData']);
 });
 
+Route::get('/score-details', [LkpsDataController::class, 'getScoreDetail']);
+
 Route::get('/get-scores', [
     VersionController::class,
     '

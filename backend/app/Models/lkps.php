@@ -70,17 +70,16 @@ class Lkps extends Model
      */
     public static function createForProdi($prodiId, $periode, $tahunAkademik, $userId)
     {
-        // Check if there's already an active LKPS for this prodi and period
         $existingLkps = self::where('prodiId', $prodiId)
             ->where('periode', $periode)
             ->where('isActive', true)
+            ->orderBy('created_at', 'desc')
             ->first();
 
         if ($existingLkps) {
             return $existingLkps;
         }
 
-        // Create a new LKPS
         return self::create([
             'prodiId' => $prodiId,
             'periode' => $periode,
@@ -93,6 +92,7 @@ class Lkps extends Model
             'updatedBy' => $userId
         ]);
     }
+
 
     /**
      * Calculate current accreditation period based on tanggalKedaluwarsa

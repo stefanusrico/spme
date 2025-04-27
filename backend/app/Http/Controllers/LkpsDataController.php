@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\DB;
 use App\Models\Lkps;
 use App\Models\LkpsSection;
 use App\Models\LkpsTable;
 use App\Models\LkpsData;
+use App\Models\Prodi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class LkpsDataController extends Controller
 {
@@ -456,5 +459,61 @@ class LkpsDataController extends Controller
         foreach (range(1, count($columnMap)) as $col) {
             $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
         }
+    }
+
+    public function getScoreDetail(Request $request)
+    {
+        $validated = $request->validate([
+            'prodiId' => 'required|string',
+            'section_code' => 'required|string',
+        ]);
+
+        $prodiId = $validated['prodiId'];
+        $sectionCode = $validated['section_code'];
+
+        $prodi = Prodi::find($prodiId);
+
+        if (!$prodi) {
+            return response()->json(['message' => 'Prodi not found for the given prodiId'], 404);
+        }
+
+        $lkps = $prodi->lkpsDocuments()
+            ->where('isActive', true)
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        if (!$lkps) {
+            return response()->json(['message' => 'LKPS not found for the given Prodi'], 404);
+        }
+
+        $pipeline = [
+            [
+                '$match' => [
+                    'lkpsId' => $lkps->_id,
+                    'section_code' => $sectionCode,
+                ]
+            ],
+            [
+                '$project' => [
+                    'scoreDetail' => 1,
+                ]
+            ],
+        ];
+
+        Log::info('Pipeline: ', $pipeline);
+
+        $result = LkpsData::raw(function ($collection) use ($pipeline) {
+            return $collection->aggregate($pipeline);
+        });
+
+        $data = iterator_to_array($result);
+
+        Log::info('Mongo Result: ', $data);
+
+        if (empty($data)) {
+            return response()->json(['message' => 'Score Detail not found'], 404);
+        }
+
+        return response()->json($data[0]['scoreDetail']);
     }
 }

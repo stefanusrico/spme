@@ -106,6 +106,7 @@ class Prodi extends Model
             ->where('periode', $periode)
             ->latest();
     }
+    
     public function getOrCreateLkps($tahunAkademik, $userId)
     {
         if (!isset($this->akreditasi['tanggalKedaluwarsa'])) {
@@ -114,7 +115,6 @@ class Prodi extends Model
 
         $periode = Lkps::calculatePeriode($this->akreditasi['tanggalKedaluwarsa']);
 
-        // Find existing LKPS for this period or create a new one
         return Lkps::createForProdi($this->_id, $periode, $tahunAkademik, $userId);
     }
 
