@@ -1,21 +1,21 @@
 /**
- * Plugin khusus untuk section Kesesuaian Bidang Kerja
+ * Plugin khusus untuk section Waktu Tunggu Lulusan
  */
 import { processExcelDataBase } from "../utils/tableUtils"
 
-const kesesuaianBidangKerjaPlugin = {
+const waktuTungguLulusanPlugin = {
   getInfo() {
     return {
-      code: "8b",
-      name: "Kesesuaian Bidang Kerja Plugin",
-      description: "Plugin for employment field conformity data processing",
+      code: "8c",
+      name: "Waktu Tunggu Lulusan Plugin",
+      description: "Plugin for graduate waiting time data processing",
     }
   },
 
   configureSection(config) {
     return {
       ...config,
-      isKesesuaianBidangKerjaSection: true,
+      isWaktuTungguLulusanSection: true,
     }
   },
 
@@ -43,14 +43,12 @@ const kesesuaianBidangKerjaPlugin = {
       )
       if (nonEmptyValues.length <= 1) return false
 
-      // Cek apakah isinya angka urutan (1, 2, 3, dst)
       const isSequentialNumbersRow = nonEmptyValues.every((val, idx) => {
         const num = parseInt(val)
         return !isNaN(num) && num === idx + 1
       })
       if (isSequentialNumbersRow) return false
 
-      // Cek apakah ada label summary kayak "Jumlah"
       const hasSummaryLabel = row.some((cell) => {
         if (typeof cell !== "string") return false
         const normalized = String(cell).toLowerCase().trim()
@@ -73,7 +71,10 @@ const kesesuaianBidangKerjaPlugin = {
         no: index + 1,
         selected: false,
         tahun_lulus: "",
-        jumlah_bekerja_sesuai_bidang: 0,
+        jumlah_lulusan_yang_terlacak: 0,
+        wt_3_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan: 0,
+        wt_3sd6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan: 0,
+        wt_6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan: 0,
       }
 
       Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
@@ -130,72 +131,75 @@ const kesesuaianBidangKerjaPlugin = {
       return {
         scores: [
           {
-            butir: 53,
+            butir: 59,
             nilai: 0,
           },
         ],
         scoreDetail: {
-          NL: 0,
+          NL_Jumlah_Lulusan: 0,
           NJ: 0,
           PJ: 0,
         },
       }
     }
-  
-    let totalTracked = 0
-    let totalLulusan = 0 // UPDATED: pakai nama totalFieldConform, bukan totalConform
-  
+
+    let totalLulusan = 0
+    let totalTerlacak = 0
+
     data.forEach((row, index) => {
-      const tracked = Number(row.jumlah_lulusan_yang_terlacak || 0);
-      const lulusan = Number(row.jumlah_lulusan || 0); // UPDATED: ambil dari tingkat_sedang + tingkat_tinggi
-      
-      console.log(`Row ${index + 1}: Tracked=${tracked}, Conform=${lulusan}`);
-  
-      totalTracked += tracked;
-      totalLulusan += lulusan; 
-    });
-  
-    console.log(`=== DEBUG: Total Tracked = ${totalTracked}, Total Conform = ${totalLulusan} ===`)
-  
-    const percentage = totalLulusan > 0 ? (totalTracked / totalLulusan) * 100 : 0
-  
+      const lulusan = Number(row.jumlah_lulusan || 0)
+      const terlacak = Number(row.jumlah_lulusan_yang_terlacak || 0)
+
+      console.log(`Row ${index + 1}: Lulusan=${lulusan}, Terlacak=${terlacak}`)
+
+      totalLulusan += lulusan
+      totalTerlacak += terlacak
+    })
+
+    console.log(`=== DEBUG: Total Lulusan = ${totalLulusan}, Total Terlacak = ${totalTerlacak} ===`)
+
+    const percentage = totalLulusan > 0 ? (totalTerlacak / totalLulusan) * 100 : 0
+
     console.log(`=== DEBUG: Calculated Percentage = ${percentage.toFixed(2)}% ===`)
-  
+
     let nilai
-    if (percentage >= 80) {
+    if (percentage >= 50) {
       nilai = 4
-    } else if (percentage >= 60) {
-      nilai = 3
     } else if (percentage >= 40) {
+      nilai = 3
+    } else if (percentage >= 30) {
       nilai = 2
     } else if (percentage >= 20) {
       nilai = 1
     } else {
       nilai = 0
     }
-  
+
     console.log(`=== DEBUG: Final Score (Nilai) = ${nilai} ===`)
-  
+
     return {
       scores: [
         {
-          butir: 60, // Sesuaikan dengan butir LKPS untuk Kesesuaian
+          butir: 59, // Sesuaikan dengan butir LKPS untuk Waktu Tunggu
           nilai,
         },
       ],
       scoreDetail: {
         NL: totalLulusan,
-        NJ: totalTracked,
+        NJ: totalTerlacak,
         PJ: percentage.toFixed(2),
+
       },
     }
   },
-  
+
   normalizeData(data) {
     return data.map((item) => {
       const numericFields = [
         "jumlah_lulusan_yang_terlacak",
-        "jumlah_bekerja_sesuai_bidang",
+        "wt_3_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan",
+        "wt_3sd6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan",
+        "wt_6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan",
       ]
 
       const result = { ...item }
@@ -219,11 +223,14 @@ const kesesuaianBidangKerjaPlugin = {
       }
 
       const tracked = parseFloat(item.jumlah_lulusan_yang_terlacak || 0)
-      const conform = parseFloat(item.jumlah_bekerja_sesuai_bidang || 0)
+      const totalWait = 
+        parseFloat(item.wt_3_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan || 0) +
+        parseFloat(item.wt_3sd6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan || 0) +
+        parseFloat(item.wt_6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan || 0)
 
-      if (conform > tracked) {
+      if (totalWait > tracked) {
         errors.push(
-          `Row ${index + 1}: Jumlah yang bekerja sesuai bidang tidak boleh melebihi jumlah lulusan yang terlacak`
+          `Row ${index + 1}: Jumlah total waktu tunggu tidak boleh melebihi jumlah lulusan terlacak`
         )
       }
     })
@@ -246,4 +253,4 @@ const kesesuaianBidangKerjaPlugin = {
   },
 }
 
-export default kesesuaianBidangKerjaPlugin
+export default waktuTungguLulusanPlugin
