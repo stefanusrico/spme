@@ -57,7 +57,7 @@ const router = createBrowserRouter(
       ),
       errorElement: <ErrorPage />,
       children: [
-        { path: "/", element: <LoginPage /> },
+        { path: "/", element: <Navigate to="/login" replace /> },
         { path: "login", element: <LoginPage /> },
         { path: "register", element: <RegisterPage /> },
       ],

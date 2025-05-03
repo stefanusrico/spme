@@ -11,6 +11,7 @@ import dosenTetapPerguruanTinggiPlugin from "./dosenTetapPerguruanTinggiPlugin"
 import DosenPembimbingTugasAkhir from "./tabel-3a2-dosenPembimbingTugasAkhir"
 import ipkLulusanPlugin from "./ipkLulusanPlugin"
 import PrestasiAkademikMahasiswaPlugin from "./prestasiAkademikMahasiswaPlugin"
+import waktuTungguLulusanPlugin from "./waktuTungguLulusanPlugin"
 import kesesuaianBidangKerjaPlugin from "./kesesuaianBidangKerjaLulusanPlugin"
 import PrestasiNonAkademikMahasiswaPlugin from "./prestasiNonAkademikMahasiswaPlugin"
 import TempatKerjaLulusanPlugin from "./tabel-8e1-tempatKerjaLulusan"
@@ -33,6 +34,7 @@ const registerPlugins = () => {
   registerPlugin("8a", ipkLulusanPlugin)
   registerPlugin("8b1", PrestasiAkademikMahasiswaPlugin)
   registerPlugin("8b2", PrestasiNonAkademikMahasiswaPlugin)
+  registerPlugin("8d1", waktuTungguLulusanPlugin)
   registerPlugin("8d2", kesesuaianBidangKerjaPlugin)
   registerPlugin("8e1", TempatKerjaLulusanPlugin)
   registerPlugin("8e2", KepuasanPenggunaLulusanPlugin)

@@ -1,0 +1,50 @@
+<?php
+
+namespace App\Models\Lam;
+
+use App\Models\Prodi\Prodi;
+use MongoDB\Laravel\Eloquent\Model;
+
+class JadwalLam extends Model
+{
+  protected $connection = 'mongodb';
+  protected $collection = 'jadwal_lam';
+
+  protected $fillable = [
+    'lamId',
+    'tahun',
+    'batch',
+    'tanggalSubmit',
+    'tanggalPengumuman'
+  ];
+
+  protected $casts = [
+    'tahun' => 'integer',
+    'batch' => 'integer',
+    'tanggalSubmit' => 'datetime',
+    'tanggalPengumuman' => 'datetime'
+  ];
+
+  public function lam()
+  {
+    return $this->belongsTo(Lam::class, 'lamId', '_id');
+  }
+
+  public function prodis()
+  {
+    return $this->hasMany(Prodi::class, 'jadwalLamId', '_id');
+  }
+
+  protected static function boot()
+  {
+    parent::boot();
+
+    static::creating(function ($jadwalLam) {
+      if ($jadwalLam->lam && $jadwalLam->lam->hasBatch) {
+        if (!in_array($jadwalLam->batch, [1, 2, 3])) {
+          throw new \Exception('Batch harus bernilai 1, 2, atau 3');
+        }
+      }
+    });
+  }
+}

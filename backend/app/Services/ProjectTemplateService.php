@@ -1,14 +1,14 @@
 <?php
 
 namespace App\Services;
-use App\Http\Controllers\TaskListController;
-use App\Http\Controllers\TaskController;
-use App\Models\Matriks;
-use App\Models\Project;
-use App\Models\Prodi;
-use App\Models\TaskList;
-use App\Models\Task;
-use App\Models\LkpsTable;
+use App\Http\Controllers\Project\TaskListController;
+use App\Http\Controllers\Project\TaskController;
+use App\Models\Led\Matriks;
+use App\Models\Project\Project;
+use App\Models\Prodi\Prodi;
+use App\Models\Project\TaskList;
+use App\Models\Project\Task;
+use App\Models\Lkps\LkpsTable;
 use Carbon\Carbon;
 
 class ProjectTemplateService

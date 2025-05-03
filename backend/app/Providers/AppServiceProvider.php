@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Models\Version;
+use App\Models\Led\Version;
 use App\Observers\VersionObserver;
 use Illuminate\Support\ServiceProvider;
 

@@ -2,7 +2,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Http\Controllers\ScraperController;
+use App\Http\Controllers\Prodi\ScraperController;
 
 class ScrapeBanpt extends Command
 {

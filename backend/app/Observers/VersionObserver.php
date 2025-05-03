@@ -2,8 +2,8 @@
 
 namespace App\Observers;
 
-use App\Models\Task;
-use App\Models\Version;
+use App\Models\Project\Task;
+use App\Models\Led\Version;
 use Illuminate\Support\Facades\Log;
 
 class VersionObserver

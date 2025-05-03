@@ -2,7 +2,7 @@
 
 namespace App\Events;
 
-use App\Models\Project;
+use App\Models\Project\Project;
 
 class ProjectEndDatePassed
 {

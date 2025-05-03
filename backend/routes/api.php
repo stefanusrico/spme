@@ -1,20 +1,19 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\User\{UserController, RoleController};
+use App\Http\Controllers\Lam\{LamController, JadwalLamController};
+use App\Http\Controllers\Jurusan\{JurusanController};
+use App\Http\Controllers\Prodi\{ProdiController, StrataController};
+use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController};
+use App\Http\Controllers\Lkps\{LkpsController, LkpsDataController, LkpsSectionController, LkpsColumnController, LkpsTableController, LkpsExportController};
+
+
 use App\Http\Controllers\{
-    AuthController,
-    JurusanController,
-    ProdiController,
-    ProjectController,
-    RoleController,
-    TaskController,
-    TaskListController,
-    UserController,
     NotificationController,
     DataController,
     ScraperController,
-    LamController,
-    JadwalLamController,
     MenuController,
     RumusController,
     SectionController,
@@ -22,16 +21,9 @@ use App\Http\Controllers\{
     VersionController,
     ColorController,
     MatriksController,
-    StrataController,
     SpreadsheetInfoController,
     GoogleDriveController,
     GoogleSheetController,
-    LkpsController,
-    LkpsDataController,
-    LkpsSectionController,
-    LkpsColumnController,
-    LkpsTableController,
-    LkpsExportController,
     GPTController
 };
 use App\Http\Middleware\JwtMiddleware;
@@ -45,6 +37,23 @@ Route::get('test', function () {
 });
 
 Route::post('users', [UserController::class, 'store']);
+
+Route::controller(StrataController::class)->group(function () {
+    Route::get('strata', 'index');
+    Route::post('strata', 'store');
+    Route::get('strata/{id}', 'show');
+    Route::put('strata/{id}', 'update');
+    Route::delete('strata/{id}', 'destroy');
+});
+
+Route::controller(RoleController::class)->group(function () {
+    Route::get('roles', 'index');
+    Route::post('roles', 'store');
+    Route::get('roles/{id}', 'show');
+    Route::put('roles/{id}', 'update');
+    Route::delete('roles/{id}', 'destroy');
+});
+
 
 Route::prefix('lkps')->group(function () {
     Route::get('/prodi', [LkpsController::class, 'getProdiLkps']);
@@ -166,7 +175,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::get('count', 'countByPeringkat');
     });
 
-    Route::middleware(['role:Admin|admin|Ketua Program Studi|Tim Penyusun Akreditasi'])->group(function () {
+    Route::middleware(['role:Admin|Koordinator Program Studi|Tim Penyusun Akreditasi'])->group(function () {
         Route::get('test-mongo', [AuthController::class, 'testMongoConnection']);
         Route::post('upload', [UserController::class, 'uploadFile']);
         Route::delete('users/{id}/profile-picture', [UserController::class, 'removeProfilePicture']);
@@ -196,20 +205,13 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::controller(UserController::class)->group(function () {
             Route::get('users', 'index');
             Route::get('auth/user', 'getAuthenticatedUserData');
-            Route::post('users', 'store');
+            // Route::post('users', 'store');
             Route::get('users/{id}', 'show');
             Route::put('users/{id}', 'update');
             Route::put('users/password/{id}', 'updatePassword');
             Route::delete('users/{id}', 'destroy');
         });
 
-        Route::controller(RoleController::class)->group(function () {
-            Route::get('roles', 'index');
-            Route::post('roles', 'store');
-            Route::get('roles/{id}', 'show');
-            Route::put('roles/{id}', 'update');
-            Route::delete('roles/{id}', 'destroy');
-        });
 
         Route::controller(MenuController::class)->group(function () {
             Route::get('/menus', 'index');
@@ -269,13 +271,6 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/getMatriksByProdi/{prodiId}', 'getMatriksByProdi');
         });
 
-        Route::controller(StrataController::class)->group(function () {
-            Route::get('strata', 'index');
-            Route::post('strata', 'store');
-            Route::get('strata/{id}', 'show');
-            Route::put('strata/{id}', 'update');
-            Route::delete('strata/{id}', 'destroy');
-        });
 
         Route::controller(SpreadsheetInfoController::class)->group(function () {
             Route::get('/spreadsheet-info', 'index');
