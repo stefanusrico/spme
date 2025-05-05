@@ -3,19 +3,19 @@
  */
 import { processExcelDataBase } from "../utils/tableUtils"
 
-const DosenPembimbingTugasAkhir = {
+const EkuivalenWaktuMengajarPenuhDosen = {
     getInfo() {
         return {
-            code : "3a2",
-            name : "Dosen Pembimbing Tugas Akhir",
-            Description : "Plugin for processing final project supervisor",
+            code : "3a3",
+            name : "Ekuivalen Waktu Mengajar Penuh (EWMP) Dosen",
+            Description : "Plugin for processing Lecturer Full Teaching Time Equivalent",
         }
     },
 
     configureSection(config) {
         return {
             ...config,
-            isDosenPembimbingTugasAkhir : true,
+            isEkuivalenWaktuMengajarPenuhDosen : true,
         }
     },
 
@@ -63,21 +63,18 @@ const DosenPembimbingTugasAkhir = {
                 key: `excel-${index + 1}-${Date.now()}`,
                 no: index + 1,
                 selected: true,
-                nama_dosen_2: "",
-                ts_2_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing : 0,
-                ts_1_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing : 0,
-                ts_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing : 0,
-                rata_rata_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing : 0,
+                nama_dosen_dt: "",
+                dtps : "",
+                ps_yang_diakreditasi_pendidikan_pembelajaran_dan_pembimbingan : 0,
+                ps_lain_di_dalam_pt_pendidikan_pembelajaran_dan_pembimbingan : 0,
+                ps_lain_di_luar_pt_pendidikan_pembelajaran_dan_pembimbingan : 0,
 
-                ts_2_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing : 0,
-                ts_1_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing : 0,
-                ts_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing : 0,
-                rata_rata_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing : 0,
+                penelitian_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks : 0,
+                pkm_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks : 0,
+                tugas_tambahan_dan_atau_penunjang_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks : 0,
                 
-                rata_rata_jumlah_bimbingan_di_semua_program_semester_5: 0,
-                ts_2_nomor_sk_penugasan_pembimbing: "",
-                ts_1_nomor_sk_penugasan_pembimbing: "",
-                ts_nomor_sk_penugasan_pembimbing: "",
+                jumlah_per_tahun_sks : 0,
+                jumlah_per_semester_sks: 0,
             }
 
             Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
@@ -85,24 +82,28 @@ const DosenPembimbingTugasAkhir = {
                 
                 const value = row[colIndex]
 
-                if(fieldName === "no" || fieldName === "nama_dosen_2"){
+                if(fieldName === "no" || fieldName === "nama_dosen_dt"){
                     item[fieldName] = value !== undefined && value !== null ? String(value).trim() : ""
                 } else if(
                     [
-                        "ts_2_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing",
-                        "ts_1_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing",
-                        "ts_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing",
-                        "rata_rata_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing",
-                        "ts_2_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing",
-                        "ts_1_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing",
-                        "ts_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing",
-                        "rata_rata_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing",
-                        "rata_rata_jumlah_bimbingan_di_semua_program_semester_5",
+                        "ps_yang_diakreditasi_pendidikan_pembelajaran_dan_pembimbingan",
+                        "ps_lain_di_dalam_pt_pendidikan_pembelajaran_dan_pembimbingan",
+                        "ps_lain_di_luar_pt_pendidikan_pembelajaran_dan_pembimbingan",
+
+                        "penelitian_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks",
+                        "pkm_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks",
+                        "tugas_tambahan_dan_atau_penunjang_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks",
+                        "jumlah_per_tahun_sks",
+                        "jumlah_per_semester_sks",
                     ].includes(fieldName)
                 ){
                     const num = parseFloat(value)
                     item[fieldName] = !isNaN(num) ? Math.max(0, num) : 0
-                } else {
+                } else if (fieldName === "dtps") {
+                    const strVal = String(value || "").toLowerCase().trim()
+                    item[fieldName] = ["yes","ya","ada","v","√","✓","1","true"].includes(strVal) ? "V" 
+                        : ["no", "tidak", "0", "false"].includes(strVal) ? "Tidak" : strVal
+                }else {
                     item[fieldName] = value ? String(value).trim() : ""
                 }
             })
@@ -140,45 +141,49 @@ const DosenPembimbingTugasAkhir = {
 
     calculateScore(data, config, additionalData = {}) {
         // RDPU = Rata-rata jumlah bimbingan sebagai pembimbing utama di seluruh program/ semester. 
-        let RDPU = 0
+        let EWMP = 0
         let index = 0
-        let totalAverageFinalProjectSupervisor = 0
+        let totalEWMP = 0
 
         // Fungsi pengecekan isi field
         data.forEach((item) => {
             if (
-                item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5 !== null && 
-                item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5 !== undefined && 
-                item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5 !== ''
+                item.jumlah_per_semester_sks !== null && 
+                item.jumlah_per_semester_sks !== undefined && 
+                item.jumlah_per_semester_sks !== ''
             ){
                 index += 1
-                totalAverageFinalProjectSupervisor += item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5
+                totalEWMP += item.jumlah_per_semester_sks
             }
         })
 
-        RDPU = index > 0 ? totalAverageFinalProjectSupervisor / index : 0;
+        EWMP = index > 0 ? Math.round((totalEWMP / index) * 100) / 100 : 0;
 
         // Hitung skor
         let score = 0;
-        if (RDPU <= 6) {
+        if (EWMP === 14) {
             score = 4;
-        } else if (RDPU > 6 && RDPU <= 10 ) {
-            score = 7*(RDPU/2);
-        }
+        } else if (EWMP >= 12 && EWMP < 14 ) {
+            score = ((3 * EWMP) - 34) / 2
+        } else if (EWMP > 14 && EWMP <= 16 ) {
+            score = (50 - (3 * EWMP)) / 2
+        } 
+
+        score = Math.round(score * 100) / 100;
 
         // Logging untuk debugging
-        console.log('Hasil RDPU :', RDPU);
+        console.log('Hasil EWMP :', EWMP);
         console.log('Score : ', score)
 
         return {
             scores: [
                 {
-                    butir : 20,
+                    butir : 21,
                     nilai : score
                 }
             ],
             scoreDetail : {
-                RDPU
+                EWMP,
             }
         }
     },
@@ -188,28 +193,28 @@ const DosenPembimbingTugasAkhir = {
             const result = { ...item }
 
             const numericFields = [
-                "ts_2_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing",
-                "ts_1_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing",
-                "ts_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing",
-                "rata_rata_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing",
-                "ts_2_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing",
-                "ts_1_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing",
-                "ts_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing",
-                "rata_rata_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing",
-                "rata_rata_jumlah_bimbingan_di_semua_program_semester_5",
+                "ps_yang_diakreditasi_pendidikan_pembelajaran_dan_pembimbingan",
+                "ps_lain_di_dalam_pt_pendidikan_pembelajaran_dan_pembimbingan",
+                "ps_lain_di_luar_pt_pendidikan_pembelajaran_dan_pembimbingan",
+
+                "penelitian_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks",
+                "pkm_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks",
+                "tugas_tambahan_dan_atau_penunjang_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks",
+                "jumlah_per_tahun_sks",
+                "jumlah_per_semester_sks",
             ]
 
             const textFields = [
-                "nama_dosen_2",
-                "ts_2_nomor_sk_penugasan_pembimbing",
-                "ts_1_nomor_sk_penugasan_pembimbing",
-                "ts_nomor_sk_penugasan_pembimbing"
+                "nama_dosen_dt",
+                "dpts",
             ]
 
             textFields.forEach((field) => {
                 if (result[field] === undefined || result[field] === null) {
                     result[field] = ""
                 } else if (typeof result[field] === "object") {
+                    result[field] = String(result[field])
+                } else if (typeof result[field] !== "string") {
                     result[field] = String(result[field])
                 }
             })
@@ -223,15 +228,13 @@ const DosenPembimbingTugasAkhir = {
     },
 
     validateData(data) {
-        const errors = []
+        const errors = [];
     
         data.forEach((item, index) => {
             // Daftar field wajib isi
             const requiredFields = [
-                { field: item.nama_dosen_2, message: `Row ${index + 1}: Nama dosen harus diisi` },
-                { field: item.ts_2_nomor_sk_penugasan_pembimbing, message: `Row ${index + 1}: Nomor SK TS-2 harus diisi` },
-                { field: item.ts_1_nomor_sk_penugasan_pembimbing, message: `Row ${index + 1}: Nomor SK TS-1 harus diisi` },
-                { field: item.ts_nomor_sk_penugasan_pembimbing, message: `Row ${index + 1}: Nomor SK TS harus diisi` },
+                { field: item.nama_dosen_dt, message: `Row ${index + 1}: Nama dosen harus diisi` },
+                { field: item.dtps, message: `Row ${index + 1}: DTPS harus diisi` },
             ];
     
             // Cek field wajib isi
@@ -239,31 +242,33 @@ const DosenPembimbingTugasAkhir = {
                 if (!field) errors.push(message);
             });
     
-            // Helper untuk cek jumlah mahasiswa dibimbing
-            const validateJumlahMahasiswa = (rataRata, ts2, ts1, ts) => {
-                const tolerance = 0.0001;
-                const total = parseFloat(ts2 || 0) + parseFloat(ts1 || 0) + parseFloat(ts || 0);
-                return Math.abs(parseFloat(rataRata || 0) - total) <= tolerance;
-            };
+            // Hitung jumlah_per_tahun_sks
+            const totalSKS = 
+                (parseFloat(item.ps_yang_diakreditasi_pendidikan_pembelajaran_dan_pembimbingan) || 0) +
+                (parseFloat(item.ps_lain_di_dalam_pt_pendidikan_pembelajaran_dan_pembimbingan) || 0) +
+                (parseFloat(item.ps_lain_di_luar_pt_pendidikan_pembelajaran_dan_pembimbingan) || 0) +
+                (parseFloat(item.penelitian_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks) || 0) +
+                (parseFloat(item.pkm_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks) || 0) +
+                (parseFloat(item.tugas_tambahan_dan_atau_penunjang_ekuivalen_waktu_mengajar_penuh_ewmp_pada_saat_ts_dalam_satuan_kredit_semester_sks) || 0);
     
-            // Validasi PS yang diakreditasi
-            if (!validateJumlahMahasiswa(
-                item.rata_rata_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing,
-                item.ts_2_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing,
-                item.ts_1_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing,
-                item.ts_pada_ps_yang_diakreditasi_3_jumlah_mahasiswa_yang_dibimbing
-            )) {
-                errors.push(`Row ${index + 1}: Data TS-2, TS-1, TS pada jumlah mahasiswa yang dibimbing pada PS yang diakreditasi tidak sama dengan rata-ratanya`);
+            // Cek apakah semua komponen EWMP kosong
+            const allZero = totalSKS === 0;
+    
+            // Set jumlah_per_tahun_sks dan jumlah_per_semester_sks
+            if (item.dtps === "V" && !allZero) {
+                item.jumlah_per_tahun_sks = totalSKS;
+                item.jumlah_per_semester_sks = totalSKS / 2;
+            } else {
+                item.jumlah_per_tahun_sks = "";
+                item.jumlah_per_semester_sks = "";
             }
     
-            // Validasi PS lain di PT
-            if (!validateJumlahMahasiswa(
-                item.rata_rata_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing,
-                item.ts_2_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing,
-                item.ts_1_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing,
-                item.ts_pada_ps_lain_di_pt_4_jumlah_mahasiswa_yang_dibimbing
-            )) {
-                errors.push(`Row ${index + 1}: Data TS-2, TS-1, TS pada jumlah mahasiswa yang dibimbing pada PS Lain di PT tidak sama dengan rata-ratanya`);
+            // Validasi apakah jumlah_per_tahun_sks dan jumlah_per_semester_sks sesuai
+            if (item.dtps === "V" && !allZero) {
+                const tolerance = 0.0001;
+                if (Math.abs(item.jumlah_per_semester_sks * 2 - item.jumlah_per_tahun_sks) > tolerance) {
+                    errors.push(`Row ${index + 1}: Jumlah per tahun SKS dan jumlah per semester SKS tidak konsisten`);
+                }
             }
         });
     
@@ -272,6 +277,7 @@ const DosenPembimbingTugasAkhir = {
             errors,
         };
     },
+    
     
 
     prepareDataForSaving(data) {
@@ -297,4 +303,4 @@ const DosenPembimbingTugasAkhir = {
     },
 }
 
-export default DosenPembimbingTugasAkhir;
+export default EkuivalenWaktuMengajarPenuhDosen;

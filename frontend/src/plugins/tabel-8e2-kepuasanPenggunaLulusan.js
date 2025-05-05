@@ -202,7 +202,7 @@ const KepuasanPenggunaLulusanPlugin = {
     console.log("Calculating kepuasan pengguna score with data:", data)
 
     const prodiId = additionalData.userData.prodiId
-    const scoreDetailsResponse = await fetchScoreDetails(prodiId, "8e1")
+    const scoreDetailsResponse = await fetchScoreDetails("8e1")
     console.log("Fetched score details from 8e1:", scoreDetailsResponse)
 
     // Extract the required values from the API response

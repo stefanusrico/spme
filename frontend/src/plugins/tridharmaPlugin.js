@@ -411,7 +411,7 @@ const TridharmaPlugin = {
       }
 
       const prodiId = additionalData.userData.prodiId
-      const scoreDetailsResponse = await fetchScoreDetails(prodiId, "3a1")
+      const scoreDetailsResponse = await fetchScoreDetails("3a1")
       const NDTPS = scoreDetailsResponse?.NDTPS || 0
 
       const result = await calculateCombinedScore(
