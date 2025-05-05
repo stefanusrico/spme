@@ -8,14 +8,15 @@ import TridharmaPlugin from "./tridharmaPlugin"
 import seleksiMahasiswaD3Plugin from "./seleksiMahasiswaD3Plugin"
 import mahasiswaAsingPlugin from "./mahasiswaAsingPlugin"
 import dosenTetapPerguruanTinggiPlugin from "./dosenTetapPerguruanTinggiPlugin"
-import DosenPembimbingTugasAkhir from "./tabel-3a2-dosenPembimbingTugasAkhir"
 import ipkLulusanPlugin from "./ipkLulusanPlugin"
 import PrestasiAkademikMahasiswaPlugin from "./prestasiAkademikMahasiswaPlugin"
 import kesesuaianBidangKerjaPlugin from "./kesesuaianBidangKerjaLulusanPlugin"
 import PrestasiNonAkademikMahasiswaPlugin from "./prestasiNonAkademikMahasiswaPlugin"
-import TempatKerjaLulusanPlugin from "./tabel-8e1-tempatKerjaLulusan"
-import KepuasanPenggunaLulusanPlugin from "./tabel-8e2-kepuasanPenggunaLulusan"
 import ProdukJasaYangDihasilkanMahasiswa from "./tabel-8f4-produkJasaYangDihasilkanMahasiswaPlugin"
+import waktuTungguLulusanPlugin from "./waktuTungguLulusanPlugin"
+import dataPrasaranaUPPSPlugin from "./dataPrasaranaUPPSPluggin"
+import prasaranaDanPeralatanUtamaPlugin from "./prasaranaDanPeralatanUtamaPlugin"
+import penggunaanDanaPlugin from "./penggunaanDanaPlugin"
 
 const registerPlugins = () => {
   console.log("Registering LKPS plugins...")
@@ -28,14 +29,16 @@ const registerPlugins = () => {
   registerPlugin("2b", mahasiswaAsingPlugin)
 
   registerPlugin("3a1", dosenTetapPerguruanTinggiPlugin)
-  registerPlugin("3a2", DosenPembimbingTugasAkhir)
+
+  registerPlugin("4a", penggunaanDanaPlugin)
+  registerPlugin("4b", prasaranaDanPeralatanUtamaPlugin)
+  registerPlugin("4c", dataPrasaranaUPPSPlugin)
 
   registerPlugin("8a", ipkLulusanPlugin)
   registerPlugin("8b1", PrestasiAkademikMahasiswaPlugin)
   registerPlugin("8b2", PrestasiNonAkademikMahasiswaPlugin)
+  registerPlugin("8d1", waktuTungguLulusanPlugin) 
   registerPlugin("8d2", kesesuaianBidangKerjaPlugin)
-  registerPlugin("8e1", TempatKerjaLulusanPlugin)
-  registerPlugin("8e2", KepuasanPenggunaLulusanPlugin)
   registerPlugin("8f4", ProdukJasaYangDihasilkanMahasiswa)
 
   console.log("All LKPS plugins registered successfully")
