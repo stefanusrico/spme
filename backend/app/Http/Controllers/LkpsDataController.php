@@ -464,11 +464,12 @@ class LkpsDataController extends Controller
     public function getScoreDetail(Request $request)
     {
         $validated = $request->validate([
-            'prodiId' => 'required|string',
             'section_code' => 'required|string',
         ]);
 
-        $prodiId = $validated['prodiId'];
+        // $prodiId = $validated['prodiId'];
+        $user = Auth::user();
+        $prodiId = $user->prodiId;
         $sectionCode = $validated['section_code'];
 
         $prodi = Prodi::find($prodiId);

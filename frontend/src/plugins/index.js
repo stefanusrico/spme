@@ -8,6 +8,24 @@ import TridharmaPlugin from "./tridharmaPlugin"
 import seleksiMahasiswaD3Plugin from "./seleksiMahasiswaD3Plugin"
 import mahasiswaAsingPlugin from "./mahasiswaAsingPlugin"
 import dosenTetapPerguruanTinggiPlugin from "./dosenTetapPerguruanTinggiPlugin"
+
+import DosenPembimbingTugasAkhir from "./tabel-3a2-dosenPembimbingTugasAkhir"
+import EkuivalenWaktuMengajarPenuhDosen from "./tabel-3a3-ekuivalenWaktuMengajarPenuh(EWMP)Dosen"
+import DosenTidakTetap from "./tabel-3a4-dosenTidakTetap"
+import DosenIndustriPraktisi from "./tabel-3a5-dosenIndustriPraktisi"
+
+import PengakuanRekognisiDtps from "./tabel-3b1-pengakuanRekognisiDosen"
+import PengakuanRekognisiDtpsPlugins from "./plugin-tabel-3b1-PengakuanRekognisiDosen"
+import pengabdianKepadaMasyarakatDtpsPlugin from "./plugin-tabel-3b3-pengabdianKepadaMasyakatDtps"
+import PenelitianDtps from "./tabel-3b2-penelitianDtps"
+import PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin from "./plugin-tabel-3b5-pagelaranPameranPresentasiPublikasiIlmiahDtps"
+import KaryaIlmiahDtpsYangDisitasi from "./plugin-tabel-3b6-karyaIlmiahDtpsYangDisitasi"
+import ProdukJasaDtpsYangDiadopsiOlehIndustriMasyarakat from "./plugin-tabel-3b7-produkJasaDtpsYangDiadopsiOlehIndustriMasyarakat"
+import LuaranPenelitianPkmLainnyaHKIPatenPatenSederhana from "./plugin-tabel-3b8-1-LuaranPenelitianPkmLainnyaHKIPatenPatenSederhana"
+import LuaranPenelitianPkmLainnyaHKIHakCiptaDesainProdukIndustriDll from "./plugin-tabel-3b8-2-LuaranPenelitianPkmLainnyaHKIHakCiptaDesainProdukIndustriDll"
+import LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk from "./plugin-tabel-3b8-3-LuaranPenelitianPkmLainnyaTeknologiCepatGunaProdukKaryaSeniRekayasaSosial"
+import LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter from "./plugin-tabel-3b8-4-LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter"
+
 import ipkLulusanPlugin from "./ipkLulusanPlugin"
 import PrestasiAkademikMahasiswaPlugin from "./prestasiAkademikMahasiswaPlugin"
 import kesesuaianBidangKerjaPlugin from "./kesesuaianBidangKerjaLulusanPlugin"
@@ -29,6 +47,21 @@ const registerPlugins = () => {
   registerPlugin("2b", mahasiswaAsingPlugin)
 
   registerPlugin("3a1", dosenTetapPerguruanTinggiPlugin)
+  registerPlugin("3a2", DosenPembimbingTugasAkhir)
+  registerPlugin("3a3", EkuivalenWaktuMengajarPenuhDosen)
+  registerPlugin("3a4", DosenTidakTetap)
+  registerPlugin("3a5", DosenIndustriPraktisi)
+
+  registerPlugin("3b1", PengakuanRekognisiDtpsPlugins)
+  registerPlugin("3b2", PenelitianDtps)
+  registerPlugin("3b3", pengabdianKepadaMasyarakatDtpsPlugin)
+  registerPlugin("3b5", PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin)
+  registerPlugin("3b6", KaryaIlmiahDtpsYangDisitasi)
+  registerPlugin("3b7", ProdukJasaDtpsYangDiadopsiOlehIndustriMasyarakat)
+  registerPlugin("3b8-1", LuaranPenelitianPkmLainnyaHKIPatenPatenSederhana)
+  registerPlugin("3b8-2", LuaranPenelitianPkmLainnyaHKIHakCiptaDesainProdukIndustriDll)
+  registerPlugin("3b8-3", LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk)
+  registerPlugin("3b8-4", LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter)
 
   registerPlugin("4a", penggunaanDanaPlugin)
   registerPlugin("4b", prasaranaDanPeralatanUtamaPlugin)
