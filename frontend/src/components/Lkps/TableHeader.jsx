@@ -14,22 +14,22 @@ import { HomeOutlined } from "@ant-design/icons"
 const { Title, Text } = Typography
 const { Option } = Select
 
-const SectionHeader = ({
-  sectionCode,
-  currentSection,
-  savedSections,
-  sectionStructure,
-  onSectionChange,
+const TableHeader = ({
+  tableCode,
+  currentTable,
+  savedTables,
+  tableStructure,
+  onTableChange,
   navigate,
   loading = false,
 }) => {
-  // Fixed parent sections
-  const parentSections = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+  // Fixed parent tables
+  const parentTables = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
-  // Track the currently expanded parent section
+  // Track the currently expanded parent table
   const [expandedParent, setExpandedParent] = useState(null)
 
-  // Get the parent code of the current section (extract the first digit)
+  // Get the parent code of the current table (extract the first digit)
   const getCurrentParentCode = (code) => {
     if (!code) return null
 
@@ -38,64 +38,63 @@ const SectionHeader = ({
     return match ? match[1] : null
   }
 
-  const currentParentCode = getCurrentParentCode(sectionCode)
+  const currentParentCode = getCurrentParentCode(tableCode)
 
-  // Set the current parent as expanded on initial load and when changing sections
+  // Set the current parent as expanded on initial load and when changing tables
   useEffect(() => {
     if (currentParentCode) {
       setExpandedParent(currentParentCode)
     }
   }, [currentParentCode])
 
-  // Create flattened list of all sections for the dropdown
-  const getAllFlattenedSections = () => {
-    const flattenedSections = []
-    if (sectionStructure && sectionStructure.length > 0) {
-      sectionStructure.forEach((mainSection) => {
-        // Check for both subSections and children properties
-        const subSections =
-          mainSection.subSections || mainSection.children || []
+  // Create flattened list of all tables for the dropdown
+  const getAllFlattenedTables = () => {
+    const flattenedTables = []
+    if (tableStructure && tableStructure.length > 0) {
+      tableStructure.forEach((mainTable) => {
+        // Check for both subTables and children properties
+        const subTables = mainTable.subTables || mainTable.children || []
 
-        if (subSections && subSections.length > 0) {
-          subSections.forEach((subSection) => {
-            flattenedSections.push({
-              code: subSection.code,
-              title: `${subSection.code} - ${subSection.title}`,
+        if (subTables && subTables.length > 0) {
+          subTables.forEach((subTable) => {
+            flattenedTables.push({
+              code: subTable.code,
+              title: `${subTable.code} - ${subTable.title}`,
             })
           })
         }
       })
     }
-    return flattenedSections
+    return flattenedTables
   }
 
-  // Handle click on parent section
+  // Handle click on parent table
   const handleParentClick = (parentCode) => {
     setExpandedParent(expandedParent === parentCode ? null : parentCode)
   }
 
-  // Get subsections for a parent - filter all subsections to match the first digit
-  const getSubsectionsForParent = (parentCode) => {
-    const allSubsections = []
+  // Get subtables for a parent - filter all subtables to match the first digit
+  const getSubtablesForParent = (parentCode) => {
+    const allSubtables = []
 
-    // Collect all subsections from all main sections
-    if (sectionStructure && Array.isArray(sectionStructure)) {
-      sectionStructure.forEach((section) => {
-        // Support both subSections and children properties
-        const subSections = section.subSections || section.children || []
+    // Collect all subtables from all main tables
+    if (tableStructure && Array.isArray(tableStructure)) {
+      tableStructure.forEach((table) => {
+        // Support both subTables and children properties
+        const subTables = table.subTables || table.children || []
 
-        if (subSections && subSections.length) {
-          allSubsections.push(...subSections)
+        if (subTables && subTables.length) {
+          allSubtables.push(...subTables)
         }
       })
     }
 
-    // Filter to include subsections where the first digit is the parent code
+    // Filter to include subtables where the first digit is the parent code
     // This handles all formats: "1-1", "3a1", "2b", etc.
-    return allSubsections.filter((sub) => {
+    return allSubtables.filter((sub) => {
       if (!sub || !sub.code) return false
 
-      // Extract the first digit from the subsection code
+      // Extract the first digit from the subtable code
       const match = sub.code.match(/^(\d)/)
       if (!match) return false
 
@@ -110,7 +109,7 @@ const SectionHeader = ({
         <div
           style={{ display: "flex", justifyContent: "center", padding: "20px" }}
         >
-          <Spin tip="Loading section structure..." />
+          <Spin tip="Loading table structure..." />
         </div>
       </Card>
     )
@@ -131,39 +130,39 @@ const SectionHeader = ({
               <HomeOutlined /> Dashboard
             </Breadcrumb.Item>
             <Breadcrumb.Item>LKPS</Breadcrumb.Item>
-            {currentSection?.parentCode && (
-              <Breadcrumb.Item href={`/lkps/${currentSection.parentCode}`}>
-                {currentSection.parentTitle}
+            {currentTable?.parentCode && (
+              <Breadcrumb.Item href={`/lkps/${currentTable.parentCode}`}>
+                {currentTable.parentTitle}
               </Breadcrumb.Item>
             )}
             <Breadcrumb.Item>
-              {currentSection?.title || sectionCode}
+              {currentTable?.title || tableCode}
             </Breadcrumb.Item>
           </Breadcrumb>
 
           <Title level={4} style={{ marginTop: 16 }}>
-            {currentSection
-              ? `${sectionCode} - ${currentSection.title}`
-              : `Section ${sectionCode}`}
+            {currentTable
+              ? `${tableCode} - ${currentTable.title}`
+              : `Table ${tableCode}`}
           </Title>
         </div>
 
         <Space direction="vertical" align="end">
-          <Text type="secondary">Pilih Section:</Text>
+          <Text type="secondary">Pilih Tabel:</Text>
           <Select
             style={{ width: 350 }}
-            value={sectionCode}
-            onChange={onSectionChange}
+            value={tableCode}
+            onChange={onTableChange}
             showSearch
             optionFilterProp="children"
             filterOption={(input, option) =>
               option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
             }
           >
-            {getAllFlattenedSections().map((section) => (
-              <Option key={section.code} value={section.code}>
-                {section.title}
-                {savedSections.includes(section.code) && " ✓"}
+            {getAllFlattenedTables().map((table) => (
+              <Option key={table.code} value={table.code}>
+                {table.title}
+                {savedTables.includes(table.code) && " ✓"}
               </Option>
             ))}
           </Select>
@@ -172,9 +171,9 @@ const SectionHeader = ({
 
       <Divider />
 
-      {/* Fixed parent section buttons (1-9) */}
+      {/* Fixed parent table buttons (1-9) */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {parentSections.map((parentCode) => (
+        {parentTables.map((parentCode) => (
           <Button
             key={parentCode}
             type={expandedParent === parentCode ? "primary" : "default"}
@@ -185,7 +184,7 @@ const SectionHeader = ({
         ))}
       </div>
 
-      {/* Show subsections only for the expanded parent */}
+      {/* Show subtables only for the expanded parent */}
       {expandedParent && (
         <div
           style={{
@@ -198,15 +197,15 @@ const SectionHeader = ({
             animation: "fadeIn 0.3s ease-in-out",
           }}
         >
-          {getSubsectionsForParent(expandedParent).map((subSection) => (
+          {getSubtablesForParent(expandedParent).map((subTable) => (
             <Button
-              key={subSection.code}
-              type={sectionCode === subSection.code ? "primary" : "default"}
+              key={subTable.code}
+              type={tableCode === subTable.code ? "primary" : "default"}
               size="small"
-              onClick={() => navigate(`/lkps/${subSection.code}`)}
+              onClick={() => navigate(`/lkps/${subTable.code}`)}
             >
-              {subSection.code}
-              {savedSections.includes(subSection.code) && " ✓"}
+              {subTable.code}
+              {savedTables.includes(subTable.code) && " ✓"}
             </Button>
           ))}
         </div>
@@ -228,4 +227,4 @@ const SectionHeader = ({
   )
 }
 
-export default SectionHeader
+export default TableHeader

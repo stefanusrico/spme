@@ -18,23 +18,23 @@ class LkpsColumnController extends Controller
      */
     public function getColumns($tableCode)
     {
-        $table = LkpsTable::where('code', $tableCode)->first();
+        $table = LkpsTable::where('kode', $tableCode)->first();
 
         if (!$table) {
             return response()->json(['message' => 'Table not found'], 404);
         }
 
         // Get all columns for this table
-        $allColumns = LkpsColumn::where('table_code', $tableCode)->get();
+        $allColumns = LkpsColumn::where('kodeTabel', $tableCode)->get();
 
         // Organize columns by parent/child relationship
-        $parentColumns = $allColumns->where('parent_id', null)->sortBy('order');
+        $parentColumns = $allColumns->where('parentId', null)->sortBy('order');
 
         $columns = $parentColumns->map(function ($column) use ($allColumns) {
             $result = $column->toArray();
 
-            if ($column->is_group) {
-                $result['children'] = $allColumns->where('parent_id', $column->_id)
+            if ($column->isGroup) {
+                $result['children'] = $allColumns->where('parentId', $column->_id)
                     ->sortBy('order')
                     ->values()
                     ->toArray();
@@ -56,7 +56,7 @@ class LkpsColumnController extends Controller
     public function addColumn(Request $request, $tableCode)
     {
         // Validate table existence first
-        $table = LkpsTable::where('code', $tableCode)->first();
+        $table = LkpsTable::where('kode', $tableCode)->first();
 
         if (!$table) {
             return response()->json([
@@ -66,25 +66,25 @@ class LkpsColumnController extends Controller
         }
 
         $validator = \Validator::make($request->all(), [
-            'data_index' => [
+            'indeksData' => [
                 'required',
                 'string',
                 'regex:/^[a-zA-Z0-9_]+$/' // Ensure only alphanumeric and underscore
             ],
-            'title' => 'required|string|max:255',
+            'judul' => 'required|string|max:255',
             'type' => 'required|string|in:text,number,boolean,date,url,group',
-            'width' => 'nullable|integer|min:50|max:500', // Optional reasonable width constraints
-            'excel_index' => 'nullable|integer|min:1',
+            'lebar' => 'nullable|integer|min:50|max:500', // Optional reasonable width constraints
+            'indeksExcel' => 'nullable|integer|min:1',
             'order' => 'required|integer|min:1',
             'align' => 'nullable|string|in:left,center,right',
-            'is_group' => 'required|boolean',
-            'parent_id' => 'nullable|string'
+            'isGroup' => 'required|boolean',
+            'parentId' => 'nullable|string'
         ], [
-            'data_index.regex' => 'Data index must contain only letters, numbers, and underscores',
-            'width.min' => 'Minimum column width is 50',
-            'width.max' => 'Maximum column width is 500',
+            'indeksData.regex' => 'Data index must contain only letters, numbers, and underscores',
+            'lebar.min' => 'Minimum column width is 50',
+            'lebar.max' => 'Maximum column width is 500',
             'order.min' => 'Minimum order is 1',
-            'excel_index.min' => 'Minimum Excel index is 1'
+            'indeksExcel.min' => 'Minimum Excel index is 1'
         ]);
 
         if ($validator->fails()) {
@@ -94,41 +94,41 @@ class LkpsColumnController extends Controller
             ], 422);
         }
 
-        // Check if column data_index already exists in this table
-        $existingColumn = LkpsColumn::where('table_code', $tableCode)
-            ->where('data_index', $request->data_index)
+        // Check if column indeksData already exists in this table
+        $existingColumn = LkpsColumn::where('kodeTabel', $tableCode)
+            ->where('indeksData', $request->indeksData)
             ->first();
 
         if ($existingColumn) {
             return response()->json([
-                'message' => 'Column with this data_index already exists in the table',
+                'message' => 'Column with this indeksData already exists in the table',
                 'existing_column' => $existingColumn
             ], 422);
         }
 
-        // If parent_id is provided, do thorough checks
-        if ($request->filled('parent_id')) {
-            $parentColumn = LkpsColumn::find($request->parent_id);
+        // If parentId is provided, do thorough checks
+        if ($request->filled('parentId')) {
+            $parentColumn = LkpsColumn::find($request->parentId);
 
             if (!$parentColumn) {
                 return response()->json([
                     'message' => 'Parent column not found',
-                    'details' => ['parent_id' => $request->parent_id]
+                    'details' => ['parentId' => $request->parentId]
                 ], 404);
             }
 
-            if (!$parentColumn->is_group) {
+            if (!$parentColumn->isGroup) {
                 return response()->json([
                     'message' => 'Selected parent column is not a group column',
-                    'details' => ['parent_id' => $request->parent_id]
+                    'details' => ['parentId' => $request->parentId]
                 ], 422);
             }
 
-            if ($parentColumn->table_code !== $tableCode) {
+            if ($parentColumn->kodeTabel !== $tableCode) {
                 return response()->json([
                     'message' => 'Parent column belongs to a different table',
                     'details' => [
-                        'parent_table_code' => $parentColumn->table_code,
+                        'parent_table_code' => $parentColumn->kodeTabel,
                         'current_table_code' => $tableCode
                     ]
                 ], 422);
@@ -137,17 +137,17 @@ class LkpsColumnController extends Controller
 
         try {
             $columnData = $request->only([
-                'data_index',
-                'title',
+                'indeksData',
+                'judul',
                 'type',
-                'width',
-                'excel_index',
+                'lebar',
+                'indeksExcel',
                 'order',
                 'align',
-                'is_group',
-                'parent_id'
+                'isGroup',
+                'parentId'
             ]);
-            $columnData['table_code'] = $tableCode;
+            $columnData['kodeTabel'] = $tableCode;
 
             $column = LkpsColumn::create($columnData);
 
@@ -189,48 +189,48 @@ class LkpsColumnController extends Controller
         }
 
         $validator = \Validator::make($request->all(), [
-            'title' => 'sometimes|string',
+            'judul' => 'sometimes|string',
             'type' => 'sometimes|string|in:text,number,boolean,date,url,group',
-            'width' => 'nullable|integer',
-            'excel_index' => 'nullable|integer',
+            'lebar' => 'nullable|integer',
+            'indeksExcel' => 'nullable|integer',
             'order' => 'sometimes|integer',
             'align' => 'nullable|string|in:left,center,right',
-            'is_group' => 'sometimes|boolean',
-            'parent_id' => 'nullable|string'
+            'isGroup' => 'sometimes|boolean',
+            'parentId' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // If changing parent_id, check if new parent exists and is a group
-        if ($request->has('parent_id') && $request->parent_id !== $column->parent_id) {
-            // If parent_id is null, that's okay (making it a top-level column)
-            if ($request->parent_id) {
-                $parentColumn = LkpsColumn::find($request->parent_id);
+        // If changing parentId, check if new parent exists and is a group
+        if ($request->has('parentId') && $request->parentId !== $column->parentId) {
+            // If parentId is null, that's okay (making it a top-level column)
+            if ($request->parentId) {
+                $parentColumn = LkpsColumn::find($request->parentId);
 
                 if (!$parentColumn) {
                     return response()->json(['message' => 'Parent column not found'], 404);
                 }
 
-                if (!$parentColumn->is_group) {
+                if (!$parentColumn->isGroup) {
                     return response()->json(['message' => 'Parent column is not a group'], 422);
                 }
 
-                if ($parentColumn->table_code !== $column->table_code) {
+                if ($parentColumn->kodeTabel !== $column->kodeTabel) {
                     return response()->json(['message' => 'Parent column belongs to a different table'], 422);
                 }
 
                 // Check for circular reference
-                if ($parentColumn->parent_id === $column->_id) {
+                if ($parentColumn->parentId === $column->_id) {
                     return response()->json(['message' => 'Circular reference detected'], 422);
                 }
             }
         }
 
         // Check if making a group column into a non-group would orphan children
-        if ($column->is_group && $request->has('is_group') && !$request->is_group) {
-            $childCount = LkpsColumn::where('parent_id', $column->_id)->count();
+        if ($column->isGroup && $request->has('isGroup') && !$request->isGroup) {
+            $childCount = LkpsColumn::where('parentId', $column->_id)->count();
 
             if ($childCount > 0) {
                 return response()->json([
@@ -267,7 +267,7 @@ class LkpsColumnController extends Controller
         }
 
         // Check if this is a group column with children
-        $childCount = LkpsColumn::where('parent_id', $column->_id)->count();
+        $childCount = LkpsColumn::where('parentId', $column->_id)->count();
 
         if ($childCount > 0) {
             return response()->json([
@@ -309,7 +309,7 @@ class LkpsColumnController extends Controller
         foreach ($columns as $columnData) {
             $column = LkpsColumn::find($columnData['id']);
 
-            if ($column && $column->table_code === $tableCode) {
+            if ($column && $column->kodeTabel === $tableCode) {
                 $column->order = $columnData['order'];
                 $column->save();
             }

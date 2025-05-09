@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { message } from "antd"
 import axiosInstance from "../utils/axiosConfig"
-import { useSectionPlugin } from "./useSectionPlugin"
+import { useTablePlugin } from "./useTablePlugin"
 import {
   createDefaultAcademicYears,
   shouldHaveDefaultAcademicYears,
-  initializeStudentSectionData,
 } from "../utils/studentUtils"
 
-export const useSectionData = (sectionCode, config, userData) => {
-  const { plugin, loading: pluginLoading } = useSectionPlugin(sectionCode)
+export const useTableData = (tableCode, config, userData) => {
+  const { plugin, loading: pluginLoading } = useTablePlugin(tableCode)
 
   const [tableData, setTableData] = useState({})
   const [selectionData, setSelectionData] = useState({})
@@ -34,23 +33,23 @@ export const useSectionData = (sectionCode, config, userData) => {
   useEffect(() => {
     setScore(null)
     setScoreDetail(null)
-  }, [sectionCode])
+  }, [tableCode])
 
   const prodiName = userData?.prodi || ""
   const prodiId = userData?.prodiId
 
-  const ensureStudentSectionDefaults = useCallback(() => {
+  const ensureStudentTableDefaults = useCallback(() => {
     if (
-      !sectionCode ||
-      !shouldHaveDefaultAcademicYears(sectionCode) ||
+      !tableCode ||
+      !shouldHaveDefaultAcademicYears(tableCode) ||
       !config ||
       !config.tables
     ) {
       return false
     }
 
-    const defaultData = initializeStudentSectionData(
-      sectionCode,
+    const defaultData = initializeStudentTableData(
+      tableCode,
       config,
       {},
       prodiName
@@ -93,7 +92,7 @@ export const useSectionData = (sectionCode, config, userData) => {
     }
 
     return false
-  }, [sectionCode, config, tableData, prodiName])
+  }, [tableCode, config, tableData, prodiName])
 
   const fixAllExistingData = useCallback(async () => {
     if (!plugin || !userData) return
@@ -112,8 +111,9 @@ export const useSectionData = (sectionCode, config, userData) => {
 
       if (userData.role === "admin") {
         try {
-          const response = await axiosInstance.post("/lkps/sections/fix-data", {
-            sectionCode,
+          // Update this endpoint to match your new API structure
+          const response = await axiosInstance.post("/lkps/data/fix-format", {
+            tableCode: tableCode,
             prodiId: userData.prodiId,
           })
 
@@ -143,7 +143,7 @@ export const useSectionData = (sectionCode, config, userData) => {
         key: "fixData",
       })
     }
-  }, [plugin, tableData, userData, sectionCode])
+  }, [plugin, tableData, userData, tableCode])
 
   useEffect(() => {
     if (!config || !plugin) return
@@ -152,11 +152,7 @@ export const useSectionData = (sectionCode, config, userData) => {
       return
     }
 
-    const initialTableData = plugin.initializeData(
-      config,
-      prodiName,
-      sectionCode
-    )
+    const initialTableData = plugin.initializeData(config, prodiName, tableCode)
 
     const initialUploadState = {}
     const initialSelectionMode = {}
@@ -171,7 +167,7 @@ export const useSectionData = (sectionCode, config, userData) => {
       initialSelectionData[tableCode] = []
     })
 
-    if (shouldHaveDefaultAcademicYears(sectionCode)) {
+    if (shouldHaveDefaultAcademicYears(tableCode)) {
       let needsUpdate = false
       const updatedInitialData = { ...initialTableData }
 
@@ -183,7 +179,7 @@ export const useSectionData = (sectionCode, config, userData) => {
           updatedInitialData[tableCode].length === 0
         ) {
           updatedInitialData[tableCode] = createDefaultAcademicYears(
-            sectionCode,
+            tableCode,
             prodiName
           )
 
@@ -211,7 +207,7 @@ export const useSectionData = (sectionCode, config, userData) => {
     setSelectionData(initialSelectionData)
 
     hasBeenInitialized.current = true
-  }, [config, plugin, prodiName, sectionCode, tableData])
+  }, [config, plugin, prodiName, tableCode, tableData])
 
   const calculateScoreData = useCallback(
     async (specificData = null, forcedCalculation = false) => {
@@ -241,7 +237,7 @@ export const useSectionData = (sectionCode, config, userData) => {
         const additionalData = {
           userData,
           currentConfig: configRef.current,
-          sectionCode,
+          tableCode,
           forcedCalculation: true,
         }
 
@@ -279,17 +275,17 @@ export const useSectionData = (sectionCode, config, userData) => {
         return null
       }
     },
-    [plugin, tableData, userData, sectionCode]
+    [plugin, tableData, userData, tableCode]
   )
 
-  const fetchSectionData = useCallback(async () => {
+  const fetchTableData = useCallback(async () => {
     if (!config || !userData || !plugin) return
 
     try {
-      const response = await axiosInstance.get(
-        `/lkps/sections/${sectionCode}/data`,
-        { params: { prodiId } }
-      )
+      // Update this to use the new data endpoint
+      const response = await axiosInstance.get(`/lkps/data/${tableCode}`, {
+        params: { prodiId },
+      })
 
       if (response.data) {
         let processedLkpsId = null
@@ -307,32 +303,21 @@ export const useSectionData = (sectionCode, config, userData) => {
         setLkpsId(processedLkpsId)
         setLkpsInfo(response.data.lkpsInfo || null)
 
+        // Process data from response
         const savedData = {}
-
-        if (response.data.tables) {
-          Object.keys(response.data.tables).forEach((tableCode) => {
-            if (Array.isArray(response.data.tables[tableCode])) {
-              const normalizedData = plugin.normalizeData(
-                response.data.tables[tableCode]
-              )
-
-              const dataWithSelection = normalizedData.map((item) => ({
-                ...item,
-                selected: true,
-              }))
-
-              savedData[tableCode] = dataWithSelection
-            }
-          })
+        if (response.data.data) {
+          // Assuming data is already in the right format
+          savedData[tableCode] = plugin.normalizeData(response.data.data)
         }
 
         const initializedData = plugin.initializeData(
           config,
           prodiName,
-          sectionCode,
+          tableCode,
           savedData
         )
 
+        // Merge saved data with initialized data
         Object.keys(savedData).forEach((tableCode) => {
           if (
             savedData[tableCode] &&
@@ -344,9 +329,10 @@ export const useSectionData = (sectionCode, config, userData) => {
           }
         })
 
-        if (shouldHaveDefaultAcademicYears(sectionCode)) {
-          const defaultData = initializeStudentSectionData(
-            sectionCode,
+        // Handle student table defaults
+        if (shouldHaveDefaultAcademicYears(tableCode)) {
+          const defaultData = initializeStudentTableData(
+            tableCode,
             config,
             {},
             prodiName
@@ -385,34 +371,43 @@ export const useSectionData = (sectionCode, config, userData) => {
 
         setTableData(initializedData)
 
+        // Initialize selection data
         const initialSelectionData = {}
         Object.keys(initializedData).forEach((tableCode) => {
           initialSelectionData[tableCode] = []
         })
         setSelectionData(initialSelectionData)
 
-        if (response.data.score !== null && response.data.score !== undefined) {
-          setScore(response.data.score)
+        // Set score if available
+        if (response.data.nilai !== null && response.data.nilai !== undefined) {
+          setScore(response.data.nilai)
+        }
+
+        // Set score details if available
+        if (response.data.detailNilai) {
+          setScoreDetail(response.data.detailNilai)
         }
       }
     } catch (err) {
-      console.error("Error fetching section data:", err)
+      console.error("Error fetching data:", err)
 
       if (err.response?.status === 404) {
+        // Create new data if needed
         if (err.response?.data?.create_new) {
           setShowCreateModal(true)
         }
 
+        // Initialize empty data
         const initializedData = plugin.initializeData(
           config,
           prodiName,
-          sectionCode,
+          tableCode,
           {}
         )
 
-        if (shouldHaveDefaultAcademicYears(sectionCode)) {
-          const defaultData = initializeStudentSectionData(
-            sectionCode,
+        if (shouldHaveDefaultAcademicYears(tableCode)) {
+          const defaultData = initializeStudentTableData(
+            tableCode,
             config,
             {},
             prodiName
@@ -439,23 +434,23 @@ export const useSectionData = (sectionCode, config, userData) => {
         setSelectionData(initialSelectionData)
       }
     }
-  }, [config, sectionCode, prodiId, prodiName, userData, plugin])
+  }, [config, tableCode, prodiId, prodiName, userData, plugin])
 
   useEffect(() => {
     if (config && userData && plugin && !config.isLoading && !pluginLoading) {
-      fetchSectionData()
+      fetchTableData()
     }
-  }, [config, fetchSectionData, userData, plugin, pluginLoading])
+  }, [config, fetchTableData, userData, plugin, pluginLoading])
 
   useEffect(() => {
-    if (shouldHaveDefaultAcademicYears(sectionCode) && plugin && config) {
+    if (shouldHaveDefaultAcademicYears(tableCode) && plugin && config) {
       const timer = setTimeout(() => {
-        ensureStudentSectionDefaults()
+        ensureStudentTableDefaults()
       }, 1000)
 
       return () => clearTimeout(timer)
     }
-  }, [sectionCode, plugin, config, ensureStudentSectionDefaults])
+  }, [tableCode, plugin, config, ensureStudentTableDefaults])
 
   const prepareDataForSaving = useCallback(
     (tableCode) => {
@@ -514,6 +509,6 @@ export const useSectionData = (sectionCode, config, userData) => {
     calculateScoreData,
     prepareDataForSaving,
     plugin,
-    ensureStudentSectionDefaults,
+    ensureStudentTableDefaults,
   }
 }

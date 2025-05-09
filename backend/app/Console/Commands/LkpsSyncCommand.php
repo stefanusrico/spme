@@ -3,10 +3,9 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Http\Controllers\GoogleSheetController;
-use App\Models\LkpsSection;
-use App\Models\LkpsTable;
-use App\Models\LkpsColumn;
+use App\Http\Controllers\Lkps\GoogleSheetController;
+use App\Models\Lkps\LkpsTable;
+use App\Models\Lkps\LkpsColumn;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use MongoDB\BSON\ObjectId;
@@ -20,7 +19,7 @@ class LkpsSyncCommand extends Command
      * @var string
      */
 
-     //php artisan lkps:sync --spreadsheet_id=1eTiQOVI5Ac1cHEzkBL1kkUA9uSP2aoM7ntukkLRxND8 --clear
+    //php artisan lkps:sync --spreadsheet_id=1eTiQOVI5Ac1cHEzkBL1kkUA9uSP2aoM7ntukkLRxND8 --clear
     protected $signature = 'lkps:sync 
                             {--spreadsheet_id= : ID Google Spreadsheet}
                             {--clear : Hapus struktur yang sudah ada sebelum sinkronisasi}
@@ -31,7 +30,7 @@ class LkpsSyncCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Sinkronisasi struktur LKPS dari Google Sheets (section, table, column) dalam satu command';
+    protected $description = 'Sinkronisasi struktur LKPS dari Google Sheets (tabel, kolom) dalam satu command';
 
     /**
      * GoogleSheetController yang digunakan
@@ -47,7 +46,6 @@ class LkpsSyncCommand extends Command
      * Hasil struktur yang dibuat
      */
     private $generatedStructure = [
-        'sections' => 0,
         'tables' => 0,
         'columns' => 0
     ];
@@ -107,8 +105,8 @@ class LkpsSyncCommand extends Command
                 $this->info('Mapping: ' . json_encode($response['mapping'] ?? []));
             }
 
-            // Step 2: Buat struktur section dan table
-            $this->createSectionsAndTables($response);
+            // Step 2: Buat struktur tabel
+            $this->createTables($response);
 
             // Step 3: Update data indices untuk kolom dengan menggunakan pendekatan parent-child
             $this->updateColumnDataIndicesWithParent();
@@ -116,7 +114,6 @@ class LkpsSyncCommand extends Command
             // Tampilkan ringkasan
             $this->info('Sinkronisasi selesai!');
             $this->info('Total struktur yang dibuat:');
-            $this->info('- Sections: ' . $this->generatedStructure['sections']);
             $this->info('- Tables: ' . $this->generatedStructure['tables'] . " (Attempted: {$this->attemptedTables}, Success: {$this->successTables}, Failed: {$this->failedTables})");
             $this->info('- Columns: ' . $this->generatedStructure['columns']);
 
@@ -147,11 +144,7 @@ class LkpsSyncCommand extends Command
         $tableCount = LkpsTable::count();
         LkpsTable::query()->delete();
 
-        // Hapus LkpsSection
-        $sectionCount = LkpsSection::count();
-        LkpsSection::query()->delete();
-
-        $this->info("Berhasil menghapus $sectionCount section, $tableCount tabel, dan $columnCount kolom.");
+        $this->info("Berhasil menghapus $tableCount tabel, dan $columnCount kolom.");
     }
 
     /**
@@ -230,11 +223,11 @@ class LkpsSyncCommand extends Command
     }
 
     /**
-     * Buat struktur section dan table
+     * Buat tabel-tabel berdasarkan data dari Google Sheet
      */
-    private function createSectionsAndTables($response)
+    private function createTables($response)
     {
-        $this->info('Membuat struktur section dan table...');
+        $this->info('Membuat struktur tabel...');
 
         // Ambil data dari response
         $titleMappings = $response['title_mappings'] ?? [];
@@ -257,39 +250,10 @@ class LkpsSyncCommand extends Command
             return;
         }
 
-        // Buat sections
-        $createdSections = [];
-        $sectionOrder = 1;
-
-        foreach ($titleMappings as $title => $sectionCode) {
-            // Ambil subtitle jika ada
-            $subtitle = $this->extractSubtitle($title);
-
-            // Buat section
-            $section = LkpsSection::updateOrCreate(
-                ['code' => $sectionCode],
-                [
-                    'title' => $title,
-                    'subtitle' => $subtitle,
-                    'order' => $sectionOrder++,
-                    'has_formula' => false,
-                    'formula_nomor' => null,
-                    'formula_sub' => null
-                ]
-            );
-
-            $createdSections[$sectionCode] = $section;
-            $this->generatedStructure['sections']++;
-            $this->info("- Section dibuat: {$section->code} - {$section->title}");
-        }
-
-        // Buat tables
-        $tableOrder = 1;
-
         // Log semua title dalam titleMappings
         $this->info('--- Daftar semua tabel yang akan dibuat ---');
-        foreach ($titleMappings as $title => $sectionCode) {
-            $this->info("Tabel: '$title' (Section: $sectionCode)");
+        foreach ($titleMappings as $title => $sheetCode) {
+            $this->info("Tabel: '$title' (Sheet Code: $sheetCode)");
         }
         $this->info('----------------------------------------');
 
@@ -298,12 +262,9 @@ class LkpsSyncCommand extends Command
         $this->successTables = 0;
         $this->failedTables = 0;
 
-        foreach ($titleMappings as $title => $sectionCode) {
+        $tableOrder = 1;
+        foreach ($titleMappings as $title => $sheetCode) {
             $this->attemptedTables++;
-            if (!isset($createdSections[$sectionCode])) {
-                $this->warn("  Section $sectionCode tidak ditemukan, melewati tabel untuk $title");
-                continue;
-            }
 
             // Generate unique table code
             $tableCode = $this->generateTableCode($title);
@@ -320,7 +281,7 @@ class LkpsSyncCommand extends Command
                 if (
                     stripos($sheet, $cleanTableTitle) !== false ||
                     stripos($cleanTableTitle, $sheet) !== false ||
-                    stripos($sheet, $sectionCode) !== false
+                    stripos($sheet, $sheetCode) !== false
                 ) {
                     $nameSheet = $sheet;
                     $this->info("  Menemukan sheet name: $nameSheet untuk tabel $title");
@@ -328,30 +289,26 @@ class LkpsSyncCommand extends Command
                 }
             }
 
-            // Fallback: jika tidak ketemu, gunakan section code
+            // Fallback: jika tidak ketemu, gunakan sheet code
             if (!$nameSheet) {
-                $nameSheet = $sectionCode;
-                $this->info("  Menggunakan section code sebagai sheet name: $nameSheet");
+                $nameSheet = $sheetCode;
+                $this->info("  Menggunakan sheet code sebagai sheet name: $nameSheet");
             }
 
-            // Buat tabel
+            // Buat tabel menggunakan nama sheet sebagai kode
             $table = LkpsTable::updateOrCreate(
                 [
-                    'section_code' => $sectionCode,
-                    'code' => $tableCode
+                    'kode' => $nameSheet // Gunakan nama sheet sebagai kode tabel
                 ],
                 [
-                    'title' => $title,
-                    'excel_start_row' => 2, // Default, akan diupdate saat analisis kolom
-                    'pagination' => ['enabled' => true, 'size' => 10],
-                    'order' => $tableOrder++,
-                    'used_in_formula' => false
+                    'judul' => $title,
+                    'barisAwalExcel' => 2, // Default, akan diupdate saat analisis kolom
                 ]
             );
 
             $this->generatedStructure['tables']++;
             $this->successTables++;
-            $this->info("- Tabel dibuat: {$table->code} - {$table->title}");
+            $this->info("- Tabel dibuat: {$table->kode} - {$table->judul}");
             $this->info("  Sheet name yang digunakan: $nameSheet");
 
             // Buat kolom untuk tabel ini
@@ -360,20 +317,7 @@ class LkpsSyncCommand extends Command
     }
 
     /**
-     * Ekstrak subtitle dari title
-     */
-    private function extractSubtitle($title)
-    {
-        // Coba ekstrak subtitle (bagian setelah "-" atau ":" jika ada)
-        if (preg_match('/^.+[-:]\s*(.+)$/i', $title, $matches)) {
-            return trim($matches[1]);
-        }
-
-        return '';
-    }
-
-    /**
-     * Generate kode tabel dari judul
+     * Generate kode tabel dari judul (tidak digunakan - sekarang menggunakan nama sheet)
      */
     private function generateTableCode($title)
     {
@@ -420,7 +364,7 @@ class LkpsSyncCommand extends Command
      */
     private function createColumnsForTable($table, $nameSheet)
     {
-        $this->info("  Menganalisis dan membuat kolom untuk tabel {$table->code}...");
+        $this->info("  Menganalisis dan membuat kolom untuk tabel {$table->kode}...");
 
         try {
             // Ambil struktur kolom dari Google Sheets
@@ -436,7 +380,7 @@ class LkpsSyncCommand extends Command
             }
 
             if (!isset($response->original) || !isset($response->original['restructured_data']) || empty($response->original['restructured_data'])) {
-                $this->warn("  Tidak ditemukan struktur kolom untuk tabel {$table->code}");
+                $this->warn("  Tidak ditemukan struktur kolom untuk tabel {$table->kode}");
                 return;
             }
 
@@ -444,31 +388,31 @@ class LkpsSyncCommand extends Command
             $headerData = $restructuredData[0] ?? null;
 
             if (!$headerData || empty($headerData['columns'])) {
-                $this->warn("  Tidak ditemukan header untuk tabel {$table->code}");
+                $this->warn("  Tidak ditemukan header untuk tabel {$table->kode}");
                 if ($this->debug) {
                     $this->info("  Header data: " . json_encode($headerData));
                 }
                 return;
             }
 
-            // Update excel_start_row jika ditemukan
+            // Update barisAwalExcel jika ditemukan
             if (isset($headerData['header_row']) && $headerData['header_row'] > 0) {
-                $table->excel_start_row = $headerData['header_row'] + 1;
+                $table->barisAwalExcel = $headerData['header_row'] + 1;
                 $table->save();
-                $this->info("  Excel start row diupdate menjadi {$table->excel_start_row}");
+                $this->info("  Excel start row diupdate menjadi {$table->barisAwalExcel}");
             }
 
             // Hapus kolom yang sudah ada untuk tabel ini
-            $deletedColumns = LkpsColumn::where('table_code', $table->code)->delete();
-            $this->info("  Menghapus {$deletedColumns} kolom lama untuk tabel {$table->code}");
+            $deletedColumns = LkpsColumn::where('kodeTabel', $table->kode)->delete();
+            $this->info("  Menghapus {$deletedColumns} kolom lama untuk tabel {$table->kode}");
 
             // Buat kolom baru
             $columnCount = $this->createColumnsFromHeaderData($table, $headerData['columns']);
-            $this->info("  Berhasil membuat {$columnCount} kolom untuk tabel {$table->code}");
+            $this->info("  Berhasil membuat {$columnCount} kolom untuk tabel {$table->kode}");
 
         } catch (\Exception $e) {
-            $this->error("  Gagal membuat kolom untuk tabel {$table->code}: {$e->getMessage()}");
-            Log::error("Error creating columns for table {$table->code}: {$e->getMessage()}");
+            $this->error("  Gagal membuat kolom untuk tabel {$table->kode}: {$e->getMessage()}");
+            Log::error("Error creating columns for table {$table->kode}: {$e->getMessage()}");
             Log::error($e->getTraceAsString());
 
             if ($this->debug) {
@@ -479,7 +423,7 @@ class LkpsSyncCommand extends Command
 
     /**
      * Buat kolom dari data header yang sudah distrukturisasi
-     * Implementasi dasar untuk membuat kolom, tanpa mengatur data_index berdasarkan parent
+     * Implementasi dasar untuk membuat kolom, tanpa mengatur indeksData berdasarkan parent
      */
     private function createColumnsFromHeaderData($table, $columns, $parentId = null, $parentOrder = 0)
     {
@@ -495,16 +439,16 @@ class LkpsSyncCommand extends Command
 
                 // Buat kolom
                 $newColumn = LkpsColumn::create([
-                    'table_code' => $table->code,
-                    'data_index' => $dataIndex,
-                    'title' => $column['name'],
+                    'kodeTabel' => $table->kode,
+                    'indeksData' => $dataIndex,
+                    'judul' => $column['name'],
                     'type' => $hasChildren ? 'group' : $dataType,
-                    'width' => 150, // Default
-                    'excel_index' => $this->columnLetterToIndex($column['column']) - 1, // Konversi ke 0-based
+                    'lebar' => 150, // Default
+                    'indeksExcel' => $this->columnLetterToIndex($column['column']) - 1, // Konversi ke 0-based
                     'order' => $parentId ? $order : $parentOrder + $order,
                     'align' => 'left',
-                    'is_group' => $hasChildren,
-                    'parent_id' => $parentId
+                    'isGroup' => $hasChildren,
+                    'parentId' => $parentId
                 ]);
 
                 $columnCount++;
@@ -536,114 +480,114 @@ class LkpsSyncCommand extends Command
     }
 
     /**
-     * Update data_index untuk semua kolom dengan menggunakan pendekatan parent-child
+     * Update indeksData untuk semua kolom dengan menggunakan pendekatan parent-child
      * Metode ini akan dijalankan setelah semua kolom dibuat
      */
     private function updateColumnDataIndicesWithParent()
     {
-        $this->info('Memperbarui data_index kolom berdasarkan relasi parent-child...');
-        
+        $this->info('Memperbarui indeksData kolom berdasarkan relasi parent-child...');
+
         // Ambil semua kolom
         $allColumns = LkpsColumn::all();
-        
+
         // Kelompokkan berdasarkan ID untuk pencarian cepat
         $columnsById = [];
         foreach ($allColumns as $column) {
-            $columnsById[(string)$column->_id] = $column;
+            $columnsById[(string) $column->_id] = $column;
         }
-        
+
         // Track jumlah kolom yang diupdate
         $updatedCount = 0;
-        
-        // Proses setiap kolom yang memiliki parent_id
+
+        // Proses setiap kolom yang memiliki parentId
         foreach ($allColumns as $column) {
-            if (!empty($column->parent_id)) {
-                // Konversi parent_id ke string jika berupa ObjectId
-                $parentId = $column->parent_id;
+            if (!empty($column->parentId)) {
+                // Konversi parentId ke string jika berupa ObjectId
+                $parentId = $column->parentId;
                 if (is_object($parentId)) {
                     if (method_exists($parentId, '__toString')) {
-                        $parentId = (string)$parentId;
+                        $parentId = (string) $parentId;
                     } elseif (property_exists($parentId, '$oid')) {
                         $parentId = $parentId->{'$oid'};
                     }
                 }
-                
+
                 // Cari parent column
                 $parent = null;
                 foreach ($allColumns as $possibleParent) {
-                    $possibleParentId = (string)$possibleParent->_id;
+                    $possibleParentId = (string) $possibleParent->_id;
                     if (is_object($possibleParent->_id)) {
                         if (method_exists($possibleParent->_id, '__toString')) {
-                            $possibleParentId = (string)$possibleParent->_id;
+                            $possibleParentId = (string) $possibleParent->_id;
                         } elseif (property_exists($possibleParent->_id, '$oid')) {
                             $possibleParentId = $possibleParent->_id->{'$oid'};
                         }
                     }
-                    
+
                     if ($possibleParentId === $parentId) {
                         $parent = $possibleParent;
                         break;
                     }
                 }
-                
+
                 if ($parent) {
-                    // Format parent title untuk data_index
-                    $parentTitle = $this->formatTitleForDataIndex($parent->title);
-                    $originalIndex = $column->data_index;
+                    // Format parent title untuk indeksData
+                    $parentTitle = $this->formatTitleForDataIndex($parent->judul);
+                    $originalIndex = $column->indeksData;
                     $newDataIndex = '';
-                    
+
                     // Kasus khusus untuk kolom tingkat (internasional, nasional, lokal)
                     if (
-                        strtolower($parent->title) === 'tingkat' || 
-                        strpos(strtolower($parent->title), 'tingkat') !== false
+                        strtolower($parent->judul) === 'tingkat' ||
+                        strpos(strtolower($parent->judul), 'tingkat') !== false
                     ) {
                         // Format tingkat_[child] untuk kompatibilitas dengan front-end
                         // Contoh: "internasional" menjadi "tingkat_internasional"
                         $newDataIndex = 'tingkat_' . $originalIndex;
-                        
-                        $this->info("    Special case: {$column->title} with parent '{$parent->title}' - using '{$newDataIndex}'");
+
+                        $this->info("    Special case: {$column->judul} with parent '{$parent->judul}' - using '{$newDataIndex}'");
                     } else {
                         // Format standar [child]_[parent]
-                        // Cek apakah data_index sudah mengandung parent title
+                        // Cek apakah indeksData sudah mengandung parent title
                         if (strpos(strtolower($originalIndex), strtolower($parentTitle)) === false) {
                             $newDataIndex = $originalIndex . '_' . $parentTitle;
                         } else {
                             $newDataIndex = $originalIndex; // Tidak perlu diupdate
                         }
                     }
-                    
-                    // Update record jika data_index berubah
+
+                    // Update record jika indeksData berubah
                     if ($newDataIndex && $newDataIndex !== $originalIndex) {
-                        $column->data_index = $newDataIndex;
+                        $column->indeksData = $newDataIndex;
                         $column->save();
-                        
+
                         $updatedCount++;
-                        
+
                         if ($this->debug) {
-                            $this->info("    Updated: {$column->title} data_index dari '{$originalIndex}' menjadi '{$newDataIndex}'");
+                            $this->info("    Updated: {$column->judul} indeksData dari '{$originalIndex}' menjadi '{$newDataIndex}'");
                         }
                     }
                 }
             }
         }
-        
-        $this->info("Total {$updatedCount} kolom diupdate dengan data_index yang mengandung parent title.");
+
+        $this->info("Total {$updatedCount} kolom diupdate dengan indeksData yang mengandung parent title.");
     }
 
     /**
-     * Format judul untuk digunakan dalam data_index
+     * Format judul untuk digunakan dalam indeksData
      */
     private function formatTitleForDataIndex($title)
     {
         // Konversi ke lowercase
         $formatted = strtolower($title);
-        
+
         // Ganti spasi dan karakter khusus dengan underscore
         $formatted = preg_replace('/[^a-z0-9]+/', '_', $formatted);
-        
+
         // Hapus underscore di awal dan akhir
         $formatted = trim($formatted, '_');
-        
+
         return $formatted;
     }
 

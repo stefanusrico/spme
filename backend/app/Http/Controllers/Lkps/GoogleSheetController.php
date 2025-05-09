@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Data;
+namespace App\Http\Controllers\Lkps;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -8,6 +8,9 @@ use Google_Client;
 use Google_Service_Sheets;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use App\Models\Lkps\LkpsColumn;
+use App\Models\Lkps\LkpsTable;
 
 class GoogleSheetController extends Controller
 {
@@ -43,9 +46,9 @@ class GoogleSheetController extends Controller
     }
 
     /**
-     * Update data_index for records with parent_id by incorporating parent title
-     * Example: If child data_index = "reguler" and parent title = "Jumlah Mahasiswa Aktif"
-     * Then new child data_index = "reguler_jumlah_mahasiswa_aktif"
+     * Update indeksData for records with parentId by incorporating parent title
+     * Example: If child indeksData = "reguler" and parent title = "Jumlah Mahasiswa Aktif"
+     * Then new child indeksData = "reguler_jumlah_mahasiswa_aktif"
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -53,16 +56,15 @@ class GoogleSheetController extends Controller
     public function updateDataIndicesWithParent(Request $request)
     {
         try {
-            // We'll use a model approach to get our data
-            // Assuming you have models for the table structure
+            // Get table code from request
             $tableCode = $request->input('table_code', null);
 
             // Get all records for a specific table if table_code is provided
             // Otherwise get all records across all tables
             if ($tableCode) {
-                $records = \App\Models\TableStructure::where('table_code', $tableCode)->get();
+                $records = LkpsColumn::where('kodeTabel', $tableCode)->get();
             } else {
-                $records = \App\Models\TableStructure::all();
+                $records = LkpsColumn::all();
             }
 
             // Group records by ID to allow for easy lookup
@@ -77,15 +79,15 @@ class GoogleSheetController extends Controller
 
             // Process and update each record with a parent_id
             foreach ($records as $record) {
-                if (!empty($record->parent_id)) {
+                if (!empty($record->parentId)) {
                     // Get parent ID as string
                     $parentId = null;
-                    if (is_object($record->parent_id) && property_exists($record->parent_id, '$oid')) {
-                        $parentId = $record->parent_id->{'$oid'};
-                    } elseif (is_string($record->parent_id)) {
-                        $parentId = $record->parent_id;
-                    } elseif (is_object($record->parent_id) && method_exists($record->parent_id, '__toString')) {
-                        $parentId = (string) $record->parent_id;
+                    if (is_object($record->parentId) && property_exists($record->parentId, '$oid')) {
+                        $parentId = $record->parentId->{'$oid'};
+                    } elseif (is_string($record->parentId)) {
+                        $parentId = $record->parentId;
+                    } elseif (is_object($record->parentId) && method_exists($record->parentId, '__toString')) {
+                        $parentId = (string) $record->parentId;
                     }
 
                     // Find the parent record
@@ -105,24 +107,24 @@ class GoogleSheetController extends Controller
                     }
 
                     if ($parent) {
-                        // Create new data_index with parent title
-                        $parentTitle = $this->formatTitleForIndex($parent->title);
-                        $originalIndex = $record->data_index;
+                        // Create new indeksData with parent title
+                        $parentTitle = $this->formatTitleForIndex($parent->judul);
+                        $originalIndex = $record->indeksData;
 
-                        // Check if the data_index already contains the parent's title
+                        // Check if the indeksData already contains the parent's title
                         if (strpos(strtolower($originalIndex), strtolower($parentTitle)) === false) {
-                            // Apply the new data_index
+                            // Apply the new indeksData
                             $newDataIndex = $originalIndex . '_' . $parentTitle;
 
                             // Update the record
-                            $record->data_index = $newDataIndex;
+                            $record->indeksData = $newDataIndex;
                             $record->save();
 
                             $updatedRecords[] = [
                                 'id' => is_object($record->_id) ? $record->_id->{'$oid'} : $record->_id,
                                 'old_data_index' => $originalIndex,
                                 'new_data_index' => $newDataIndex,
-                                'parent_title' => $parent->title
+                                'parent_title' => $parent->judul
                             ];
                         }
                     }
@@ -155,7 +157,7 @@ class GoogleSheetController extends Controller
             // Connect to MongoDB directly
             $mongo = new \MongoDB\Client(env('MONGODB_URI', 'mongodb://localhost:27017'));
             $database = $mongo->selectDatabase(env('MONGODB_DATABASE', 'your_database'));
-            $collection = $database->selectCollection('table_structures'); // Use your actual collection name
+            $collection = $database->selectCollection('lkps_columns'); // Use your actual collection name
 
             // Get all records
             $records = $collection->find([]);
@@ -171,32 +173,32 @@ class GoogleSheetController extends Controller
 
             // Process each record with a parent_id
             foreach ($recordsArray as $record) {
-                if (!empty($record->parent_id)) {
+                if (!empty($record->parentId)) {
                     // Find the parent record
-                    $parentId = (string) $record->parent_id;
+                    $parentId = (string) $record->parentId;
                     if (isset($recordsArray[$parentId])) {
                         $parent = $recordsArray[$parentId];
 
-                        // Create new data_index with parent title
-                        $parentTitle = $this->formatTitleForIndex($parent->title);
-                        $originalIndex = $record->data_index;
+                        // Create new indeksData with parent title
+                        $parentTitle = $this->formatTitleForIndex($parent->judul);
+                        $originalIndex = $record->indeksData;
 
-                        // Check if the data_index already contains the parent's title
+                        // Check if the indeksData already contains the parent's title
                         if (strpos(strtolower($originalIndex), strtolower($parentTitle)) === false) {
-                            // Apply the new data_index
+                            // Apply the new indeksData
                             $newDataIndex = $originalIndex . '_' . $parentTitle;
 
                             // Update the record in the database
                             $collection->updateOne(
                                 ['_id' => $record->_id],
-                                ['$set' => ['data_index' => $newDataIndex]]
+                                ['$set' => ['indeksData' => $newDataIndex]]
                             );
 
                             $updatedRecords[] = [
                                 'id' => (string) $record->_id,
                                 'old_data_index' => $originalIndex,
                                 'new_data_index' => $newDataIndex,
-                                'parent_title' => $parent->title
+                                'parent_title' => $parent->judul
                             ];
                         }
                     }
@@ -260,8 +262,8 @@ class GoogleSheetController extends Controller
 
         // Process each record that has a parent_id
         foreach ($data as &$record) {
-            if (!empty($record['parent_id'])) {
-                $parentId = $record['parent_id'];
+            if (!empty($record['parentId'])) {
+                $parentId = $record['parentId'];
                 if (is_array($parentId) && isset($parentId['$oid'])) {
                     $parentId = $parentId['$oid'];
                 }
@@ -270,11 +272,11 @@ class GoogleSheetController extends Controller
                     $parent = $recordsById[$parentId];
 
                     // Format parent title for data_index
-                    $parentTitle = $this->formatTitleForIndex($parent['title']);
+                    $parentTitle = $this->formatTitleForIndex($parent['judul']);
 
                     // Update data_index to include parent title
-                    if (!strpos($record['data_index'], $parentTitle)) {
-                        $record['data_index'] = $record['data_index'] . '_' . $parentTitle;
+                    if (!strpos($record['indeksData'], $parentTitle)) {
+                        $record['indeksData'] = $record['indeksData'] . '_' . $parentTitle;
                     }
                 }
             }

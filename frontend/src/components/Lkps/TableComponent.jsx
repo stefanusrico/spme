@@ -16,12 +16,12 @@ import {
   FilterOutlined,
   FileExcelOutlined,
 } from "@ant-design/icons"
-import { isSelectionAllowedForSection } from "../../constants/sectionStructure"
+import { isSelectionAllowedForTable } from "../../constants/tableStructure"
 
 const { Text, Title, Paragraph } = Typography
 
 // Table component with selection - Updated for MongoDB
-const TableSectionWithSelection = ({
+const TableComponent = ({
   tableConfig,
   tableData,
   selectionData,
@@ -31,7 +31,7 @@ const TableSectionWithSelection = ({
   handleUpload,
   handleAddRow,
   isUploaded,
-  sectionCode,
+  tableCode,
   editingKey,
   setEditingKey,
   debouncedHandleDataChange,
@@ -42,23 +42,23 @@ const TableSectionWithSelection = ({
     if (typeof tableConfig === "string") return tableConfig
     if (tableConfig && tableConfig.code) return tableConfig.code
     if (tableConfig && tableConfig.kode) return tableConfig.kode
-    return sectionCode // Default to section code
+    return tableCode // Default to table code
   }
 
-  const tableCode = getTableCode()
+  const currentTableCode = getTableCode()
 
   // Debug logs
   useEffect(() => {
-    console.log("TableSectionWithSelection - tableConfig:", tableConfig)
-    console.log("TableSectionWithSelection - extracted tableCode:", tableCode)
+    console.log("TableComponent - tableConfig:", tableConfig)
+    console.log("TableComponent - extracted tableCode:", currentTableCode)
 
-    if (sectionCode.startsWith("1-")) {
-      console.log(`Rendering section ${sectionCode} table:`, {
+    if (tableCode.startsWith("1-")) {
+      console.log(`Rendering table ${tableCode}:`, {
         tableData: tableData?.length || 0,
         selectionData: selectionData?.length || 0,
         showSelectionMode,
-        sectionCode,
         tableCode,
+        currentTableCode,
       })
     }
   }, [
@@ -66,14 +66,14 @@ const TableSectionWithSelection = ({
     tableData,
     selectionData,
     showSelectionMode,
-    sectionCode,
     tableCode,
+    currentTableCode,
   ])
 
   const hasData = tableData && tableData.length > 0
   const hasSelectionData = selectionData && selectionData.length > 0
 
-  if (!tableCode) {
+  if (!currentTableCode) {
     return (
       <Card>
         <Typography.Title level={4}>Configuration Error</Typography.Title>
@@ -145,7 +145,7 @@ const TableSectionWithSelection = ({
             <Space>
               <Upload
                 beforeUpload={() => false}
-                onChange={(info) => handleUpload(info, tableCode)}
+                onChange={(info) => handleUpload(info, currentTableCode)}
                 showUploadList={false}
                 accept=".xlsx,.xls"
               >
@@ -159,23 +159,22 @@ const TableSectionWithSelection = ({
 
               <Button
                 icon={<PlusOutlined />}
-                onClick={() => handleAddRow(tableCode)}
+                onClick={() => handleAddRow(currentTableCode)}
               >
                 Tambah Baris
               </Button>
 
-              {hasSelectionData &&
-                isSelectionAllowedForSection(sectionCode) && (
-                  <Button
-                    icon={<FilterOutlined />}
-                    type={showSelectionMode ? "primary" : "default"}
-                    onClick={() => toggleSelectionMode(tableCode)}
-                  >
-                    {showSelectionMode
-                      ? "Sembunyikan Data Seleksi"
-                      : "Pilih Data Dari Excel"}
-                  </Button>
-                )}
+              {hasSelectionData && isSelectionAllowedForTable(tableCode) && (
+                <Button
+                  icon={<FilterOutlined />}
+                  type={showSelectionMode ? "primary" : "default"}
+                  onClick={() => toggleSelectionMode(currentTableCode)}
+                >
+                  {showSelectionMode
+                    ? "Sembunyikan Data Seleksi"
+                    : "Pilih Data Dari Excel"}
+                </Button>
+              )}
             </Space>
 
             <Space>
@@ -244,7 +243,7 @@ const TableSectionWithSelection = ({
 
         {showSelectionMode &&
           hasSelectionData &&
-          isSelectionAllowedForSection(sectionCode) && (
+          isSelectionAllowedForTable(tableCode) && (
             <Card
               title="Data Tersedia untuk Dipilih"
               style={{ marginBottom: 16 }}
@@ -297,7 +296,7 @@ const TableSectionWithSelection = ({
       </div>
     )
   } catch (error) {
-    console.error("Error rendering TableSectionWithSelection:", error)
+    console.error("Error rendering TableComponent:", error)
     return (
       <Card>
         <Typography.Title level={4}>Rendering Error</Typography.Title>
@@ -313,4 +312,4 @@ const TableSectionWithSelection = ({
   }
 }
 
-export default TableSectionWithSelection
+export default TableComponent

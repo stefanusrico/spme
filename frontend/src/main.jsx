@@ -68,12 +68,12 @@ const router = createBrowserRouter(
           <RoleBasedRoute
             allowedRoles={[
               "Admin",
-              "Ketua Program Studi",
+              "Koordinator Program Studi",
               "Tim Penyusun Akreditasi",
             ]}
             roleComponents={{
               Admin: DashboardAdmin,
-              "Ketua Program Studi": DashboardKoprodi,
+              "Koordinator Program Studi": DashboardKoprodi,
               "Tim Penyusun Akreditasi": DashboardTimPenyusun,
             }}
           />
@@ -87,7 +87,7 @@ const router = createBrowserRouter(
           <RoleBasedRoute
             allowedRoles={[
               "Admin",
-              "Ketua Program Studi",
+              "Koordinator Program Studi",
               "Tim Penyusun Akreditasi",
             ]}
             sharedComponents={{
@@ -110,7 +110,7 @@ const router = createBrowserRouter(
           <RoleBasedRoute
             allowedRoles={[
               "Admin",
-              "Ketua Program Studi",
+              "Koordinator Program Studi",
               "Tim Penyusun Akreditasi",
             ]}
           />
@@ -132,7 +132,7 @@ const router = createBrowserRouter(
         { path: "user-management/role/add", element: <AddPermission /> },
         { path: "section", element: <Section1 /> },
         { path: "lkps", element: <Navigate to="/lkps/1-1" replace /> },
-        { path: "lkps/:sectionCode", element: <DynamicLkpsComponent /> },
+        { path: "lkps/:tableCode", element: <DynamicLkpsComponent /> },
         {
           path: "pengisian-matriks-led/:no?/:sub?",
           element: <PengisianLed />,
@@ -142,7 +142,7 @@ const router = createBrowserRouter(
     {
       element: (
         <UserProvider>
-          <RoleBasedRoute allowedRoles={["Ketua Program Studi"]} />
+          <RoleBasedRoute allowedRoles={["Koordinator Program Studi"]} />
         </UserProvider>
       ),
       children: [

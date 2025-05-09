@@ -10,39 +10,27 @@ class LkpsTable extends Model
     protected $collection = 'lkps_tables';
 
     protected $fillable = [
-        'section_code',  // Reference to the section this table belongs to
-        'code',          // Unique identifier for the table within a section (e.g., 'kerjasama')
-        'title',         // Display title for the table
-        'excel_start_row', // Which row to start reading from in Excel uploads
-        'pagination',    // Pagination options as array, e.g., ['enabled' => true, 'size' => 10]
-        'order',         // Display order within the section
-        'used_in_formula' // Whether this table's data is used in formula calculations
+        'kode',          // Unique identifier for the table (e.g., 'kerjasama')
+        'judul',         // Display title for the table
+        'barisAwalExcel', // Which row to start reading from in Excel uploads
     ];
-
-    /**
-     * Get the section this table belongs to
-     */
-    public function section()
-    {
-        return $this->belongsTo(LkpsSection::class, 'section_code', 'code');
-    }
 
     /**
      * Get all columns for this table
      */
-    public function columns()
+    public function kolom()
     {
-        return $this->hasMany(LkpsColumn::class, 'table_code', 'code')
-            ->where('parent_id', null)
+        return $this->hasMany(LkpsColumn::class, 'kodeTabel', 'kode')
+            ->where('parentId', null)
             ->orderBy('order');
     }
 
     /**
      * Get all columns including children
      */
-    public function allColumns()
+    public function semuaKolom()
     {
-        return LkpsColumn::where('table_code', $this->code)->get();
+        return $this->hasMany(LkpsColumn::class, 'kodeTabel', 'kode');
     }
 
     /**
@@ -50,20 +38,47 @@ class LkpsTable extends Model
      */
     public function data()
     {
-        return $this->hasMany(LkpsData::class, 'table_code', 'code');
+        return $this->hasMany(LkpsData::class, 'kodeTabel', 'kode');
     }
 
     /**
-     * Get data for this table in a specific LKPS
+     * Get data for this table
      * 
-     * @param string $lkpsId
      * @return LkpsData|null
      */
-    public function getDataForLkps($lkpsId)
+    public function getData()
     {
-        return LkpsData::where('lkpsId', $lkpsId)
-            ->where('section_code', $this->section_code)
-            ->where('table_code', $this->code)
-            ->first();
+        return LkpsData::where('kodeTabel', $this->kode)->first();
+    }
+
+    /**
+     * Get complete table configuration including columns
+     */
+    public function getKonfigurasi()
+    {
+        // Get all columns for this table
+        $semuaKolom = $this->semuaKolom;
+
+        // Get parent columns (those without parent_id)
+        $kolomInduk = $semuaKolom->where('parentId', null)->sortBy('order');
+
+        // Process columns and add children where applicable
+        $kolomDiproses = $kolomInduk->map(function ($kolom) use ($semuaKolom) {
+            if ($kolom->isGroup) {
+                // If it's a group column, find its children
+                $anak = $semuaKolom->where('parentId', $kolom->_id)->sortBy('order');
+                $kolom->anak = $anak;
+            }
+
+            return $kolom;
+        });
+
+        $konfigurasi = [
+            'id' => $this->kode,
+            'judul' => $this->judul,
+            'kolom' => $kolomDiproses,
+        ];
+
+        return $konfigurasi;
     }
 }

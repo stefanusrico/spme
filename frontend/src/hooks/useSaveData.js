@@ -19,12 +19,6 @@ export const useSaveData = (
 
   const handleSave = useCallback(
     async (config) => {
-      if (!lkpsId) {
-        message.error("No LKPS ID found. Please create LKPS first")
-        setShowCreateModal(true)
-        return
-      }
-
       if (!userData) {
         message.error("User information not found")
         return
@@ -39,17 +33,14 @@ export const useSaveData = (
       })
 
       const payload = {
-        prodiId: userData.prodiId,
-        score: score,
-        tahunAkademik: `${new Date().getFullYear()}/${
-          new Date().getFullYear() + 1
-        }`,
-        scoreDetail: {},
+        data: [],
+        nilai: null,
+        detailNilai: {},
       }
 
       let hasData = false
       try {
-        // Prepare data
+        // Prepare data for each table
         for (const tableConfig of config.tables) {
           const tableCode =
             typeof tableConfig === "string" ? tableConfig : tableConfig.code
@@ -57,15 +48,14 @@ export const useSaveData = (
 
           if (tableRows.length > 0) {
             hasData = true
-            payload[tableCode] = plugin?.prepareDataForSaving
+            // Use the table data directly - our backend expects this format
+            payload.data = plugin?.prepareDataForSaving
               ? plugin.prepareDataForSaving(tableRows, userData)
               : tableRows.map((row, index) => ({
                   ...row,
                   no: index + 1,
                   _timestamp: new Date().getTime(),
                 }))
-          } else {
-            payload[tableCode] = []
           }
         }
 
@@ -76,56 +66,81 @@ export const useSaveData = (
         }
 
         // Calculate score if needed
+        let calculatedScores = null
         if (plugin?.calculateScore) {
           try {
             const firstTableCode =
               typeof config.tables[0] === "string"
                 ? config.tables[0]
                 : config.tables[0]?.code
-            const data = payload[firstTableCode] || []
+            const data = tableData[firstTableCode] || []
 
             message.loading({
               content: "Calculating score...",
               key: loadingKey,
               duration: 0,
             })
+
             const result = await plugin.calculateScore(data, config, {
               userData,
               currentConfig: config,
               forcedCalculation: true,
-              NDTPS: userData?.NDTPS || 0,
             })
 
             if (result) {
-              if (result.scores !== undefined && result.scores !== null) {
-                payload.score = result.scores
+              // Handle scores array from plugin
+              if (
+                result.scores &&
+                Array.isArray(result.scores) &&
+                result.scores.length > 0
+              ) {
+                // Save the full scores array directly in the nilai field
+                calculatedScores = result.scores
+                payload.nilai = result.scores
+
+                // For UI display, set the array
                 setScore(result.scores)
+                console.log("Setting UI scores array:", result.scores)
               }
+              // Fallback to single score value if present
+              else if (result.score !== undefined && result.score !== null) {
+                const numericScore = parseFloat(result.score) || 0
+                calculatedScores = [{ butir: 1, nilai: numericScore }]
+                payload.nilai = calculatedScores
+                setScore(calculatedScores)
+                console.log("Setting single score as array:", calculatedScores)
+              }
+
               if (result.scoreDetail) {
-                payload.scoreDetail = result.scoreDetail
+                payload.detailNilai = result.scoreDetail
                 setScoreDetail(result.scoreDetail)
+                console.log("Setting score details:", result.scoreDetail)
               }
             }
           } catch (error) {
-            console.error(
-              `Error calculating score for section ${sectionCode}:`,
-              error
-            )
+            console.error("Error calculating score:", error)
           }
         }
 
-        // Save data
+        // Save data using the new API endpoint
         const response = await axiosInstance.post(
-          `/lkps/sections/${sectionCode}/data`,
+          `/lkps/data/${sectionCode}`,
           payload
         )
 
-        if (response.data.success || response.status === 200) {
+        if (response.data || response.status === 200) {
+          // Format scores for display in the success message
+          let scoreMessage = ""
+          if (calculatedScores && Array.isArray(calculatedScores)) {
+            scoreMessage = calculatedScores
+              .map((s) => `${s.butir}: ${parseFloat(s.nilai).toFixed(2)}`)
+              .join(", ")
+          }
+
           message.success({
-            content:
-              payload.score !== undefined
-                ? `Data saved successfully. Score: ${payload.score}`
-                : "Data saved successfully",
+            content: `Data saved successfully${
+              scoreMessage ? `. Score: ${scoreMessage}` : ""
+            }`,
             key: loadingKey,
           })
 
@@ -137,28 +152,22 @@ export const useSaveData = (
             setSavedSections([sectionCode])
           }
 
-          if (response.data.score !== undefined) setScore(response.data.score)
-          if (response.data.scoreDetail !== undefined)
-            setScoreDetail(response.data.scoreDetail)
+          // After successful save, update state with response data
+          if (response.data) {
+            // If the server returned scores, update them
+            if (response.data.nilai !== undefined) {
+              setScore(response.data.nilai)
+            }
 
-          if (sectionCode.startsWith("1-") && payload.score !== null) {
-            try {
-              await axiosInstance.post(`/lkps/sections/update-scores`, {
-                prodiId: userData.prodiId,
-                sections: ["1-1", "1-2", "1-3"],
-                score: payload.score,
-              })
-            } catch (updateError) {
-              console.error(
-                "Error updating related section scores:",
-                updateError
-              )
+            // Update score details if available
+            if (response.data.detailNilai !== undefined) {
+              setScoreDetail(response.data.detailNilai)
             }
           }
         } else {
           message.error({
             content: `Failed to save data: ${
-              response.data.message || "Unknown error"
+              response.data?.message || "Unknown error"
             }`,
             key: loadingKey,
           })
@@ -177,7 +186,6 @@ export const useSaveData = (
     },
     [
       sectionCode,
-      lkpsId,
       tableData,
       userData,
       score,
@@ -185,7 +193,6 @@ export const useSaveData = (
       setSavedSections,
       setScore,
       setScoreDetail,
-      setShowCreateModal,
       plugin,
     ]
   )

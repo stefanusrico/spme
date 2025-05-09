@@ -4,6 +4,7 @@ namespace App\Models\Project;
 
 use App\Models\Led\Version;
 use App\Models\User\User;
+use App\Models\LkpsData;
 use MongoDB\Laravel\Eloquent\Model;
 
 class Task extends Model
@@ -23,7 +24,8 @@ class Task extends Model
         'status',
         'startDate',
         'endDate',
-        'order'
+        'order',
+        'lkpsDataId'
     ];
 
     protected $casts = [
@@ -53,5 +55,10 @@ class Task extends Model
     public function versions()
     {
         return $this->hasMany(Version::class, 'taskId', '_id');
+    }
+
+    public function lkpsData()
+    {
+        return $this->belongsTo(LkpsData::class, 'lkpsDataId', '_id');
     }
 }

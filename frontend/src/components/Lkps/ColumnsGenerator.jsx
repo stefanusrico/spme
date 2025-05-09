@@ -3,8 +3,7 @@ import dayjs from "dayjs"
 import { extractColumns } from "../../utils/tableUtils"
 
 /**
- * Generate columns for data tables - Enhanced Version
- * Properly handles row selection, input validation, and improved UX
+ * Generate columns for data tables - Updated for MongoDB
  */
 const generateColumns = (
   tableConfig,
@@ -14,9 +13,23 @@ const generateColumns = (
   editingKey,
   setEditingKey
 ) => {
-  if (!tableConfig) return []
+  if (!tableConfig) {
+    console.error("No tableConfig provided to generateColumns")
+    return []
+  }
 
   console.log("Generating columns for table config:", tableConfig)
+
+  // Helper function to get table code from different formats
+  const getTableCode = (config) => {
+    if (typeof config === "string") return config
+    if (config && config.code) return config.code
+    if (config && config.kode) return config.kode
+    return "unknown"
+  }
+
+  const tableCode = getTableCode(tableConfig)
+  console.log("Table code extracted:", tableCode)
 
   // Add a custom row number column
   const rowNumberColumn = {
@@ -101,53 +114,65 @@ const generateColumns = (
   }
 
   const processColumn = (column) => {
+    // Adapt to MongoDB column structure
+    const columnTitle = column.title || column.judul || ""
+    const columnDataIndex = column.data_index || column.indeksData || ""
+    const columnType = column.type || "text"
+    const columnWidth = column.width || column.lebar || 150
+    const columnAlign = column.align || "center"
+    const isGroup = column.is_group || column.isGroup || false
+    const childColumns = column.children || []
+
     // Skip if it's a No. column - we'll add our own
     if (
-      column.title === "No." ||
-      column.data_index === "no" ||
-      column.data_index === "rowIndex"
+      columnTitle === "No." ||
+      columnDataIndex === "no" ||
+      columnDataIndex === "rowIndex"
     ) {
       return null
     }
 
     // Skip source field
-    if (column.data_index === "source") {
+    if (columnDataIndex === "source") {
       return null
     }
 
     // Map student section fields if needed
-    let dataIndex = column.data_index
-    let key = column.data_index
+    let dataIndex = columnDataIndex
+    let key = columnDataIndex
 
     // Check if this is part of a student section table by looking at the table code
     const isStudentSection =
-      tableConfig.code &&
-      (tableConfig.code.includes("seleksi_mahasiswa") ||
-        tableConfig.code.includes("mahasiswa"))
+      tableCode &&
+      (tableCode.includes("seleksi_mahasiswa") ||
+        tableCode.includes("mahasiswa"))
 
     if (isStudentSection) {
-      dataIndex = mapStudentFieldName(column.title, column.data_index)
+      dataIndex = mapStudentFieldName(columnTitle, columnDataIndex)
       key = dataIndex
     }
 
     const baseColumn = {
-      title: column.title,
+      title: columnTitle,
       dataIndex: dataIndex,
       key: key,
-      width: column.width,
-      align: column.align || "center",
+      width: columnWidth,
+      align: columnAlign,
     }
 
-    if (column.is_group && column.children) {
-      const children = Array.isArray(column.children)
-        ? column.children
-        : typeof column.children === "object"
-        ? Object.values(column.children)
+    if (isGroup && childColumns && childColumns.length > 0) {
+      // Process children for group columns
+      const children = Array.isArray(childColumns)
+        ? childColumns
+        : typeof childColumns === "object"
+        ? Object.values(childColumns)
         : []
 
-      // Filter out source from children too
       const filteredChildren = children
-        .filter((child) => child.data_index !== "source")
+        .filter((child) => {
+          const childDataIndex = child.data_index || child.indeksData || ""
+          return childDataIndex !== "source"
+        })
         .map((child) => processColumn(child))
         .filter(Boolean)
 
@@ -160,7 +185,7 @@ const generateColumns = (
     }
 
     // Handle tingkat columns (which are now boolean type)
-    if (column.data_index.startsWith("tingkat_") && column.type === "boolean") {
+    if (dataIndex.startsWith("tingkat_") && columnType === "boolean") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
         const isChecked = text === true
@@ -178,12 +203,9 @@ const generateColumns = (
                 ]
 
                 tingkatColumns.forEach((colName) => {
-                  if (
-                    colName !== column.data_index &&
-                    record[colName] !== undefined
-                  ) {
+                  if (colName !== dataIndex && record[colName] !== undefined) {
                     debouncedHandleDataChange(
-                      tableConfig.code,
+                      tableCode,
                       record.key,
                       colName,
                       false
@@ -192,16 +214,16 @@ const generateColumns = (
                 })
 
                 debouncedHandleDataChange(
-                  tableConfig.code,
+                  tableCode,
                   record.key,
-                  column.data_index,
+                  dataIndex,
                   true
                 )
               } else {
                 debouncedHandleDataChange(
-                  tableConfig.code,
+                  tableCode,
                   record.key,
-                  column.data_index,
+                  dataIndex,
                   false
                 )
               }
@@ -217,7 +239,7 @@ const generateColumns = (
           </EditableCell>
         )
       }
-    } else if (column.type === "boolean") {
+    } else if (columnType === "boolean") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
         return isEditing ? (
@@ -225,7 +247,7 @@ const generateColumns = (
             checked={Boolean(text)}
             onChange={(e) =>
               debouncedHandleDataChange(
-                tableConfig.code,
+                tableCode,
                 record.key,
                 baseColumn.dataIndex,
                 e.target.checked
@@ -242,7 +264,7 @@ const generateColumns = (
           </EditableCell>
         )
       }
-    } else if (column.type === "date") {
+    } else if (columnType === "date") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
         const formattedDate = text ? dayjs(text).format("D/M/YYYY") : "-"
@@ -255,7 +277,7 @@ const generateColumns = (
               // Store as ISO string for consistency
               const dateValue = date ? date.toISOString() : null
               debouncedHandleDataChange(
-                tableConfig.code,
+                tableCode,
                 record.key,
                 baseColumn.dataIndex,
                 dateValue
@@ -273,7 +295,7 @@ const generateColumns = (
           </EditableCell>
         )
       }
-    } else if (column.type === "url") {
+    } else if (columnType === "url") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
         const isValidLink = text && isValidUrl(text)
@@ -283,7 +305,7 @@ const generateColumns = (
             defaultValue={text}
             onChange={(e) =>
               debouncedHandleDataChange(
-                tableConfig.code,
+                tableCode,
                 record.key,
                 baseColumn.dataIndex,
                 e.target.value
@@ -308,7 +330,7 @@ const generateColumns = (
           </EditableCell>
         )
       }
-    } else if (column.type === "number") {
+    } else if (columnType === "number") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
         return isEditing ? (
@@ -318,7 +340,7 @@ const generateColumns = (
               // Use null instead of NaN for empty values
               const numValue = value !== null && !isNaN(value) ? value : 0
               debouncedHandleDataChange(
-                tableConfig.code,
+                tableCode,
                 record.key,
                 baseColumn.dataIndex,
                 numValue
@@ -339,7 +361,7 @@ const generateColumns = (
           </EditableCell>
         )
       }
-    } else if (column.type === "percentage") {
+    } else if (columnType === "percentage") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
         const percentage = text !== undefined && text !== null ? text : 0
@@ -350,7 +372,7 @@ const generateColumns = (
             onChange={(value) => {
               const numValue = value !== null && !isNaN(value) ? value : 0
               debouncedHandleDataChange(
-                tableConfig.code,
+                tableCode,
                 record.key,
                 baseColumn.dataIndex,
                 numValue
@@ -381,14 +403,14 @@ const generateColumns = (
             defaultValue={text}
             onChange={(e) =>
               debouncedHandleDataChange(
-                tableConfig.code,
+                tableCode,
                 record.key,
                 baseColumn.dataIndex,
                 e.target.value
               )
             }
             onBlur={() => setEditingKey(null)}
-            placeholder={`Masukkan ${column.title}`}
+            placeholder={`Masukkan ${columnTitle}`}
           />
         ) : (
           <EditableCell
@@ -416,19 +438,59 @@ const generateColumns = (
         checked={record.selected}
         onChange={(e) => {
           // Call handleToggleSelection with row, isChecked, and tableCode
-          handleToggleSelection(record, e.target.checked, tableConfig.code)
+          handleToggleSelection(record, e.target.checked, tableCode)
         }}
       />
     ),
   }
 
-  // Extract and filter columns
-  const columns = extractColumns(tableConfig)
+  // Extract and process columns based on MongoDB structure
+  const getColumnsFromConfig = (tableConfig) => {
+    try {
+      // If columns are in the expected format, use extractColumns
+      if (tableConfig.columns) {
+        return extractColumns(tableConfig)
+      }
+
+      // Otherwise, try to get them directly from the tableConfig
+      const columnsArray = []
+
+      // Handle MongoDB LkpsColumn format
+      if (tableConfig.kolom) {
+        return Array.isArray(tableConfig.kolom)
+          ? tableConfig.kolom
+          : Object.values(tableConfig.kolom)
+      }
+
+      // If we have standard column properties, create a simple column
+      if (tableConfig.indeksData || tableConfig.judul) {
+        columnsArray.push({
+          data_index: tableConfig.indeksData,
+          title: tableConfig.judul,
+          type: tableConfig.type || "text",
+          width: tableConfig.lebar || 150,
+          align: tableConfig.align || "center",
+          is_group: tableConfig.isGroup || false,
+        })
+      }
+
+      return columnsArray
+    } catch (error) {
+      console.error("Error extracting columns:", error)
+      return []
+    }
+  }
+
+  // Extract columns from config
+  const columns = getColumnsFromConfig(tableConfig)
   console.log(`Generated ${columns.length} columns for table`)
 
   // Process and filter out source field
   const processedColumns = columns
-    .filter((col) => col.data_index !== "source")
+    .filter((col) => {
+      const dataIndex = col.data_index || col.indeksData
+      return dataIndex !== "source"
+    })
     .map(processColumn)
     .filter(Boolean)
 

@@ -64,7 +64,7 @@ const DosenPembimbingTugasAkhir = {
       const item = {
         key: `excel-${index + 1}-${Date.now()}`,
         no: index + 1,
-        selected: true,
+        // Removed selected: true
         nama_dosen_2: "",
         ts_2_pada_ps_yang_diakreditasi_3: 0,
         ts_1_pada_ps_yang_diakreditasi_3: 0,
@@ -142,6 +142,51 @@ const DosenPembimbingTugasAkhir = {
   },
 
   calculateScore(data, config, additionalData = {}) {
+    // Check if data is valid for calculation
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      console.log("No data available for calculation")
+      return {
+        scores: [
+          {
+            butir: 20,
+            nilai: 0,
+          },
+        ],
+        scoreDetail: {
+          RDPU: 0,
+        },
+      }
+    }
+
+    // Check if there's at least one valid entry with required fields
+    const validEntries = data.filter(
+      (item) =>
+        item &&
+        item.nama_dosen_2 &&
+        item.nama_dosen_2.trim() !== "" &&
+        (item.ts_2_pada_ps_yang_diakreditasi_3 > 0 ||
+          item.ts_1_pada_ps_yang_diakreditasi_3 > 0 ||
+          item.ts_pada_ps_yang_diakreditasi_3 > 0 ||
+          item.ts_2_pada_ps_lain_di_pt_4 > 0 ||
+          item.ts_1_pada_ps_lain_di_pt_4 > 0 ||
+          item.ts_pada_ps_lain_di_pt_4 > 0)
+    )
+
+    if (validEntries.length === 0) {
+      console.log("No valid entries with required fields")
+      return {
+        scores: [
+          {
+            butir: 20,
+            nilai: 0,
+          },
+        ],
+        scoreDetail: {
+          RDPU: 0,
+        },
+      }
+    }
+
     // RDPU = Rata-rata jumlah bimbingan sebagai pembimbing utama di seluruh program/ semester.
     let RDPU = 0
     let index = 0
@@ -150,16 +195,39 @@ const DosenPembimbingTugasAkhir = {
     // Fungsi pengecekan isi field
     data.forEach((item) => {
       if (
+        item &&
+        item.nama_dosen_2 &&
+        item.nama_dosen_2.trim() !== "" &&
         item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5 !== null &&
         item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5 !==
           undefined &&
-        item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5 !== ""
+        item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5 !== "" &&
+        parseFloat(
+          item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5
+        ) > 0
       ) {
         index += 1
-        totalAverageFinalProjectSupervisor +=
+        totalAverageFinalProjectSupervisor += parseFloat(
           item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5
+        )
       }
     })
+
+    // If no valid data for RDPU calculation
+    if (index === 0) {
+      console.log("No valid data for RDPU calculation")
+      return {
+        scores: [
+          {
+            butir: 20,
+            nilai: 0,
+          },
+        ],
+        scoreDetail: {
+          RDPU: 0,
+        },
+      }
+    }
 
     RDPU = index > 0 ? totalAverageFinalProjectSupervisor / index : 0
 
@@ -168,12 +236,17 @@ const DosenPembimbingTugasAkhir = {
     if (RDPU <= 6) {
       score = 4
     } else if (RDPU > 6 && RDPU <= 10) {
-      score = 7 * (RDPU / 2)
+      score = 7 - RDPU / 2
     }
 
     // Logging untuk debugging
-    console.log("Hasil RDPU :", RDPU)
-    console.log("Score : ", score)
+    console.log("Jumlah dosen yang dihitung:", index)
+    console.log(
+      "Total rata-rata bimbingan:",
+      totalAverageFinalProjectSupervisor
+    )
+    console.log("Hasil RDPU:", RDPU)
+    console.log("Score:", score)
 
     return {
       scores: [
@@ -184,6 +257,8 @@ const DosenPembimbingTugasAkhir = {
       ],
       scoreDetail: {
         RDPU,
+        dosenDihitung: index,
+        totalRataRataBimbingan: totalAverageFinalProjectSupervisor,
       },
     }
   },
@@ -233,6 +308,22 @@ const DosenPembimbingTugasAkhir = {
     const errors = []
 
     data.forEach((item, index) => {
+      // Skip completely empty rows
+      if (
+        !item.nama_dosen_2 &&
+        !item.ts_2_nomor_sk_penugasan_pembimbing &&
+        !item.ts_1_nomor_sk_penugasan_pembimbing &&
+        !item.ts_nomor_sk_penugasan_pembimbing &&
+        item.ts_2_pada_ps_yang_diakreditasi_3 === 0 &&
+        item.ts_1_pada_ps_yang_diakreditasi_3 === 0 &&
+        item.ts_pada_ps_yang_diakreditasi_3 === 0 &&
+        item.ts_2_pada_ps_lain_di_pt_4 === 0 &&
+        item.ts_1_pada_ps_lain_di_pt_4 === 0 &&
+        item.ts_pada_ps_lain_di_pt_4 === 0
+      ) {
+        return
+      }
+
       // Daftar field wajib isi
       const requiredFields = [
         {
@@ -263,7 +354,7 @@ const DosenPembimbingTugasAkhir = {
         const tolerance = 0.0001
         const total =
           parseFloat(ts2 || 0) + parseFloat(ts1 || 0) + parseFloat(ts || 0)
-        return Math.abs(parseFloat(rataRata || 0) - total) <= tolerance
+        return Math.abs(parseFloat(rataRata || 0) - total / 3) <= tolerance
       }
 
       // Validasi PS yang diakreditasi
@@ -311,7 +402,7 @@ const DosenPembimbingTugasAkhir = {
         ...item,
         no: index + 1,
         _timestamp: new Date().getTime(),
-        selected: true,
+        // Removed selected: true
       }
 
       Object.keys(preparedItem).forEach((key) => {

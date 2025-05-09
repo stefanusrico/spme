@@ -9,6 +9,11 @@ export const useColumnsGenerator = (
 ) => {
   const columnsGenerator = useCallback(
     (tableConfig, isSelectionTable = false) => {
+      if (!tableConfig) {
+        console.warn("No table config provided to columnsGenerator")
+        return []
+      }
+
       return generateColumns(
         tableConfig,
         isSelectionTable,
@@ -28,5 +33,3 @@ export const useColumnsGenerator = (
 
   return columnsGenerator
 }
-
-export default useColumnsGenerator

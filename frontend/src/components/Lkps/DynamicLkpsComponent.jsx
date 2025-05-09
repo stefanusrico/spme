@@ -21,19 +21,18 @@ import {
 import registerPlugins from "../../plugins"
 
 import { useUser } from "../../context/userContext"
-import { useSection } from "../../hooks/useSection"
-import { useSectionConfig } from "../../hooks/useSectionConfig"
-import { useSectionData } from "../../hooks/useSectionData"
+import { useTable } from "../../hooks/useTable"
+import { useTableConfig } from "../../hooks/useTableConfig"
+import { useTableData } from "../../hooks/useTableData"
 import { useTableOperations } from "../../hooks/useTableOperations"
 import { useFileUpload } from "../../hooks/useFileUpload"
 import { useSaveData } from "../../hooks/useSaveData"
 import { useColumnsGenerator } from "../../hooks/useColumnsGenerator"
 
-import SectionHeader from "./SectionHeader"
-import TableSectionWithSelection from "./TableSectionWithSelection"
+import TableHeader from "./TableHeader"
+import TableComponent from "./TableComponent"
 import ScoreDisplay from "./ScoreDisplay"
-import CreateLkpsModal from "./CreateLkpsModal"
-import SectionFooter from "./SectionFooter"
+import TableFooter from "./TableFooter"
 import TridharmaScoreDetails from "./TridharmaScoreDetails"
 import DebugPanel from "./DebugPanel"
 import ExportToExcel from "../../utils/ExportToExcel"
@@ -44,7 +43,7 @@ const { Title, Paragraph, Text } = Typography
 const { confirm } = Modal
 
 const DynamicLkpsContainer = () => {
-  const { sectionCode } = useParams()
+  const { tableCode } = useParams()
   const navigate = useNavigate()
   const { userData, isLoading: userLoading } = useUser()
 
@@ -57,20 +56,22 @@ const DynamicLkpsContainer = () => {
   const [dataFilter, setDataFilter] = useState("all")
 
   const {
-    sectionStructure,
+    tableStructure,
     structureLoading,
-    currentSection,
-    savedSections,
-    setSavedSections,
+    currentTable,
+    savedTables,
+    setSavedTables,
     prev,
     next,
     handlePrev,
     handleNext,
-    handleSectionChange,
-  } = useSection(sectionCode, navigate)
+    handleTableChange,
+  } = useTable(tableCode, navigate)
 
-  const { config, setConfig, loading, error, fetchFormulaForSection } =
-    useSectionConfig(sectionCode, userData)
+  const { config, setConfig, loading, error } = useTableConfig(
+    tableCode,
+    userData
+  )
 
   const {
     tableData,
@@ -101,7 +102,7 @@ const DynamicLkpsContainer = () => {
     fixAllExistingData,
     calculateScoreData,
     plugin,
-  } = useSectionData(sectionCode, config, userData)
+  } = useTableData(tableCode, config, userData)
 
   const {
     handleToggleSelection,
@@ -110,7 +111,7 @@ const DynamicLkpsContainer = () => {
     debouncedHandleDataChange,
     handleAddRow,
   } = useTableOperations(
-    sectionCode,
+    tableCode,
     prodiName,
     configRef,
     tableData,
@@ -126,7 +127,7 @@ const DynamicLkpsContainer = () => {
   )
 
   const { handleUpload } = useFileUpload(
-    sectionCode,
+    tableCode,
     prodiName,
     config,
     configRef,
@@ -145,13 +146,13 @@ const DynamicLkpsContainer = () => {
     handleSave: saveData,
     handleLkpsCreated,
   } = useSaveData(
-    sectionCode,
+    tableCode,
     userData,
     tableData,
     score,
     lkpsId,
-    savedSections,
-    setSavedSections,
+    savedTables,
+    setSavedTables,
     setScore,
     setScoreDetail,
     setShowCreateModal,
@@ -165,22 +166,15 @@ const DynamicLkpsContainer = () => {
     setEditingKey
   )
 
+  useEffect(() => {
+    console.log("Passing table structure to header:", tableStructure)
+  }, [tableStructure])
+
+  // Updated handleSave to bypass LKPS check
   const handleSave = () => {
     if (!config) return
 
-    if (!lkpsId) {
-      confirm({
-        title: "LKPS not created yet",
-        icon: React.createElement(ExclamationCircleOutlined),
-        content:
-          "LKPS for this study program hasn't been created. Create a new LKPS?",
-        onOk() {
-          setShowCreateModal(true)
-        },
-      })
-      return
-    }
-
+    // Simply save the data without checking for LKPS ID
     setEditingKey(null)
     saveData(config)
   }
@@ -231,14 +225,68 @@ const DynamicLkpsContainer = () => {
     )
   }
 
+  // Get the actual table code to use (might be the table code if they match)
+  const getTableCode = (tableConfig) => {
+    if (typeof tableConfig === "string") return tableConfig
+    if (tableConfig && tableConfig.code) return tableConfig.code
+    if (tableConfig && tableConfig.kode) return tableConfig.kode
+    return tableCode // Fallback to table code
+  }
+
+  const ConfigDebugger = ({ config, tableCode }) => {
+    if (!config) return null
+
+    return (
+      <Card
+        style={{ marginBottom: 20, padding: 16, border: "1px dashed #f00" }}
+      >
+        <h3>Debug Information</h3>
+        <p>Table Code: {tableCode}</p>
+        <p>Config Title: {config.title}</p>
+        <p>Tables Count: {config.tables?.length || 0}</p>
+
+        {config.tables &&
+          config.tables.map((table, index) => (
+            <div key={index} style={{ marginTop: 10 }}>
+              <h4>Table {index + 1}</h4>
+              <p>Code: {getTableCode(table)}</p>
+              <p>Title: {table.title || table.judul || "Unknown"}</p>
+              <p>
+                Columns:{" "}
+                {table.columns?.length ||
+                  0 ||
+                  table.kolom?.length ||
+                  0 ||
+                  "Unknown"}
+              </p>
+              <button onClick={() => console.log("Table config:", table)}>
+                Log Table Config
+              </button>
+            </div>
+          ))}
+
+        <button onClick={() => console.log("Full config:", config)}>
+          Log Full Config
+        </button>
+      </Card>
+    )
+  }
+
+  // In your DynamicLkpsContainer component, add this line before the main content
+  {
+    process.env.NODE_ENV === "development" && (
+      <ConfigDebugger config={config} tableCode={tableCode} />
+    )
+  }
+
   return (
     <div className="lkps-page-container">
-      <SectionHeader
-        sectionCode={sectionCode}
-        currentSection={currentSection}
-        savedSections={savedSections}
-        sectionStructure={sectionStructure}
-        onSectionChange={handleSectionChange}
+      <TableHeader
+        tableCode={tableCode}
+        currentTable={currentTable}
+        savedTables={savedTables}
+        tableStructure={tableStructure}
+        onTableChange={handleTableChange}
         navigate={navigate}
       />
 
@@ -262,35 +310,18 @@ const DynamicLkpsContainer = () => {
         </Tabs>
       </Card>
 
-      {/* {process.env.NODE_ENV === "development" && (
-        <DebugPanel
-          sectionCode={sectionCode}
-          config={config}
-          score={score}
-          setScore={setScore}
-          debugMode={debugMode}
-          setDebugMode={setDebugMode}
-          calculateScoreData={calculateScoreData}
-          tableData={tableData}
-          fetchFormulaForSection={fetchFormulaForSection}
-          setConfig={setConfig}
-          fixAllExistingData={fixAllExistingData}
-          plugin={plugin}
-        />
-      )} */}
-
-      <div className="lkps-section-container">
+      <div className="lkps-table-container">
         <Card style={{ marginBottom: 16 }}>
           <Title level={3}>
             {(config && config.title) ||
-              (currentSection && currentSection.title) ||
+              (currentTable && currentTable.title) ||
               ""}
           </Title>
           {((config && config.subtitle) ||
-            (currentSection && currentSection.parentTitle)) && (
+            (currentTable && currentTable.parentTitle)) && (
             <Title level={4} style={{ fontWeight: "normal" }}>
               {(config && config.subtitle) ||
-                (currentSection && `Part of ${currentSection.parentTitle}`) ||
+                (currentTable && `Part of ${currentTable.parentTitle}`) ||
                 ""}
             </Title>
           )}
@@ -309,7 +340,7 @@ const DynamicLkpsContainer = () => {
               <Text type="secondary">Status: {lkpsInfo.status}</Text>
               {userData && (
                 <Text type="secondary">
-                  Study Program: {userData.prodiId || "Not available"}
+                  Study Program: {userData.prodi || "Not available"}
                 </Text>
               )}
             </Space>
@@ -326,7 +357,7 @@ const DynamicLkpsContainer = () => {
 
         {scoreDetail && plugin?.getInfo().code.startsWith("1-") && (
           <TridharmaScoreDetails
-            sectionCode={sectionCode}
+            tableCode={tableCode}
             scoreDetail={scoreDetail}
             userData={userData}
             setScore={setScore}
@@ -338,20 +369,17 @@ const DynamicLkpsContainer = () => {
           <Tabs
             defaultActiveKey={
               Array.isArray(config.tables) && config.tables.length > 0
-                ? typeof config.tables[0] === "string"
-                  ? config.tables[0]
-                  : config.tables[0].code
+                ? getTableCode(config.tables[0])
                 : ""
             }
             type="card"
           >
             {config.tables.map((tableConfig, index) => {
-              const tableCode =
-                typeof tableConfig === "string" ? tableConfig : tableConfig.code
+              const tableCode = getTableCode(tableConfig)
               const tableTitle =
                 typeof tableConfig === "string"
                   ? tableCode
-                  : tableConfig.title || tableCode
+                  : tableConfig.title || tableConfig.judul || tableCode
 
               return (
                 <TabPane
@@ -377,7 +405,7 @@ const DynamicLkpsContainer = () => {
                   }
                   key={tableCode}
                 >
-                  <TableSectionWithSelection
+                  <TableComponent
                     tableConfig={tableConfig}
                     tableData={tableData[tableCode] || []}
                     selectionData={selectionData[tableCode] || []}
@@ -387,7 +415,7 @@ const DynamicLkpsContainer = () => {
                     handleUpload={(info) => handleUpload(info, tableCode)}
                     handleAddRow={() => handleAddRow(tableCode)}
                     isUploaded={isUploaded[tableCode]}
-                    sectionCode={sectionCode}
+                    tableCode={tableCode}
                     editingKey={editingKey}
                     setEditingKey={setEditingKey}
                     debouncedHandleDataChange={debouncedHandleDataChange}
@@ -400,64 +428,29 @@ const DynamicLkpsContainer = () => {
         ) : (
           config?.tables &&
           config.tables.length > 0 && (
-            <TableSectionWithSelection
+            <TableComponent
               tableConfig={
                 typeof config.tables[0] === "string"
                   ? { code: config.tables[0] }
                   : config.tables[0]
               }
-              tableData={
-                tableData[
-                  typeof config.tables[0] === "string"
-                    ? config.tables[0]
-                    : config.tables[0]?.code
-                ] || []
-              }
+              tableData={tableData[getTableCode(config.tables[0])] || []}
               selectionData={
-                selectionData[
-                  typeof config.tables[0] === "string"
-                    ? config.tables[0]
-                    : config.tables[0]?.code
-                ] || []
+                selectionData[getTableCode(config.tables[0])] || []
               }
               showSelectionMode={
-                showSelectionMode[
-                  typeof config.tables[0] === "string"
-                    ? config.tables[0]
-                    : config.tables[0]?.code
-                ]
+                showSelectionMode[getTableCode(config.tables[0])]
               }
               toggleSelectionMode={() =>
-                toggleSelectionMode(
-                  typeof config.tables[0] === "string"
-                    ? config.tables[0]
-                    : config.tables[0]?.code
-                )
+                toggleSelectionMode(getTableCode(config.tables[0]))
               }
               generateColumns={columnsGenerator}
               handleUpload={(info) =>
-                handleUpload(
-                  info,
-                  typeof config.tables[0] === "string"
-                    ? config.tables[0]
-                    : config.tables[0]?.code
-                )
+                handleUpload(info, getTableCode(config.tables[0]))
               }
-              handleAddRow={() =>
-                handleAddRow(
-                  typeof config.tables[0] === "string"
-                    ? config.tables[0]
-                    : config.tables[0]?.code
-                )
-              }
-              isUploaded={
-                isUploaded[
-                  typeof config.tables[0] === "string"
-                    ? config.tables[0]
-                    : config.tables[0]?.code
-                ]
-              }
-              sectionCode={sectionCode}
+              handleAddRow={() => handleAddRow(getTableCode(config.tables[0]))}
+              isUploaded={isUploaded[getTableCode(config.tables[0])]}
+              tableCode={tableCode}
               editingKey={editingKey}
               setEditingKey={setEditingKey}
               debouncedHandleDataChange={debouncedHandleDataChange}
@@ -466,9 +459,8 @@ const DynamicLkpsContainer = () => {
           )
         )}
 
-        {/* Section Footer with Navigation and Export Button */}
         <div
-          className="section-footer"
+          className="table-footer"
           style={{
             marginTop: "20px",
             display: "flex",
@@ -485,20 +477,13 @@ const DynamicLkpsContainer = () => {
           </div>
           <div style={{ display: "flex" }}>
             <div style={{ marginRight: "10px" }}>
-              <ExportToExcel userData={userData} sectionCode={sectionCode} />
+              <ExportToExcel userData={userData} tableCode={tableCode} />
             </div>
             <Button type="primary" onClick={handleSave} loading={saving}>
               Save Data
             </Button>
           </div>
         </div>
-
-        <CreateLkpsModal
-          visible={showCreateModal}
-          onCancel={() => setShowCreateModal(false)}
-          onSuccess={handleLkpsCreatedWrapper}
-          prodiId={userData?.prodiId}
-        />
       </div>
     </div>
   )

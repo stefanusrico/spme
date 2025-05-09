@@ -1,10 +1,10 @@
 import { useCallback } from "react"
 import { message } from "antd"
 import * as XLSX from "xlsx"
-import { isSelectionAllowedForSection } from "../constants/sectionStructure"
+import { isSelectionAllowedForTable } from "../constants/tableStructure"
 
 export const useFileUpload = (
-  sectionCode,
+  tableCode,
   prodiName,
   config,
   configRef,
@@ -54,7 +54,7 @@ export const useFileUpload = (
             tableCode,
             config,
             prodiName,
-            sectionCode
+            tableCode
           )
 
           // Extract data and check if we should replace existing data
@@ -64,12 +64,12 @@ export const useFileUpload = (
 
           // Log important debug information
           console.log("===== REPLACEMENT DEBUG INFO =====")
-          console.log("Section code:", sectionCode)
+          console.log("Table code:", tableCode)
           console.log("Table code:", tableCode)
           console.log("shouldReplaceExisting:", shouldReplaceExisting)
           console.log(
             "Selection allowed:",
-            isSelectionAllowedForSection(sectionCode)
+            isSelectionAllowedForTable(tableCode)
           )
           console.log("Rows count:", allRows.length)
           console.log("================================")
@@ -94,8 +94,8 @@ export const useFileUpload = (
             [tableCode]: allRows,
           }))
 
-          // For sections with selection allowed, separate data into tableData and selectionData
-          if (isSelectionAllowedForSection(sectionCode)) {
+          // For tables with selection allowed, separate data into tableData and selectionData
+          if (isSelectionAllowedForTable(tableCode)) {
             if (shouldReplaceExisting) {
               // Create modified rows with selected=true
               const modifiedRows = allRows.map((row) => ({
@@ -153,7 +153,7 @@ export const useFileUpload = (
               }
             }
           } else {
-            // For non-selectable sections, add all data directly to tableData
+            // For non-selectable tables, add all data directly to tableData
             if (shouldReplaceExisting) {
               // Replace existing data
               setTableData((prev) => ({
@@ -173,14 +173,14 @@ export const useFileUpload = (
                     ...currentTableData,
                     ...allRows.map((row) => ({
                       ...row,
-                      selected: true, // Mark all as selected for non-selection sections
+                      selected: true, // Mark all as selected for non-selection tables
                     })),
                   ],
                 }
               })
             }
 
-            // No selection data for non-selectable sections
+            // No selection data for non-selectable tables
             setSelectionData((prev) => ({
               ...prev,
               [tableCode]: [],
@@ -201,10 +201,10 @@ export const useFileUpload = (
           // Validate data if plugin provides validation function
           if (plugin.validateData) {
             // Validate the newly processed data
-            const dataToValidate = isSelectionAllowedForSection(sectionCode)
+            const dataToValidate = isSelectionAllowedForTable(tableCode)
               ? shouldReplaceExisting
                 ? allRows.map((row) => ({ ...row, selected: true }))
-                : [] // For selection sections with no replace, initially there's no selected data
+                : [] // For selection tables with no replace, initially there's no selected data
               : allRows.map((row) => ({ ...row, selected: true }))
 
             const { valid, errors } = plugin.validateData(dataToValidate)
@@ -241,7 +241,7 @@ export const useFileUpload = (
       setIsUploaded,
       setShowSelectionMode,
       setAllExcelData,
-      sectionCode,
+      tableCode,
       prodiName,
       configRef,
       plugin,

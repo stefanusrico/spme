@@ -7,7 +7,7 @@ use App\Http\Controllers\Lam\{LamController, JadwalLamController};
 use App\Http\Controllers\Jurusan\{JurusanController};
 use App\Http\Controllers\Prodi\{ProdiController, StrataController};
 use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController};
-use App\Http\Controllers\Lkps\{LkpsController, LkpsDataController, LkpsSectionController, LkpsColumnController, LkpsTableController, LkpsExportController};
+use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
 
 
 use App\Http\Controllers\{
@@ -56,37 +56,22 @@ Route::controller(RoleController::class)->group(function () {
 
 
 Route::prefix('lkps')->group(function () {
-    Route::get('/prodi', [LkpsController::class, 'getProdiLkps']);
-    Route::get('/{id}', [LkpsController::class, 'getLkps']);
-    Route::post('/create', [LkpsController::class, 'createLkps']);
-    Route::post('/{id}/submit', [LkpsController::class, 'submitLkps']);
-    Route::put('/{id}', [LkpsController::class, 'updateLkps']);
-    Route::delete('/{id}', [LkpsController::class, 'deleteLkps']);
-    Route::post('/sections', [LkpsSectionController::class, 'addSection']);
-    Route::get('/sections', [LkpsSectionController::class, 'getAllSections']);
-    Route::get('/sections/{sectionCode}/config', [LkpsSectionController::class, 'getConfig']);
-    Route::get('/sections/{sectionCode}/data', [LkpsSectionController::class, 'getData']);
-    Route::post('/sections/{sectionCode}/data', [LkpsSectionController::class, 'saveData']);
-    Route::post('/sections/{sectionCode}/calculate', [LkpsSectionController::class, 'calculateScore']);
-    Route::get('/scores/{lkpsId}', [LkpsSectionController::class, 'getSectionScores']);
-    Route::post('/sections', [LkpsSectionController::class, 'addSection']);
-    Route::put('/sections/{sectionCode}', [LkpsSectionController::class, 'updateSection']);
-    Route::delete('/sections/{sectionCode}', [LkpsSectionController::class, 'deleteSection']);
-    Route::get('/sections/{sectionCode}/tables', [LkpsTableController::class, 'getTables']);
-    Route::get('/sections/{sectionCode}/tables/{tableCode}', [LkpsTableController::class, 'getTableWithColumns']);
-    Route::post('/sections/{sectionCode}/tables', [LkpsTableController::class, 'addTable']);
-    Route::put('/sections/{sectionCode}/tables/{tableCode}', [LkpsTableController::class, 'updateTable']);
-    Route::delete('/sections/{sectionCode}/tables/{tableCode}', [LkpsTableController::class, 'deleteTable']);
+    // Table routes
+    Route::get('/tables', [LkpsTableController::class, 'getAllTables']);
+    Route::get('/tables/{tableCode}', [LkpsTableController::class, 'getTableWithColumns']);
+    Route::get('/tables/{tableCode}/config', [LkpsTableController::class, 'getTableConfig']);
+    Route::get('/tables/{tableCode}/data', [LkpsTableController::class, 'getData']);
+    Route::post('/tables/{tableCode}/data', [LkpsTableController::class, 'saveData']);
+    Route::post('/tables/{tableCode}/calculate', [LkpsTableController::class, 'calculateScore']);
+
+    // Column routes
     Route::get('/tables/{tableCode}/columns', [LkpsColumnController::class, 'getColumns']);
-    Route::post('/tables/{tableCode}/columns', [LkpsColumnController::class, 'addColumn']);
-    Route::put('/columns/{id}', [LkpsColumnController::class, 'updateColumn']);
-    Route::delete('/columns/{id}', [LkpsColumnController::class, 'deleteColumn']);
-    Route::post('/tables/{tableCode}/column-order', [LkpsColumnController::class, 'updateColumnOrder']);
-    Route::get('/{lkpsId}/data', [LkpsDataController::class, 'getAllData']);
-    Route::get('/{lkpsId}/data/{sectionCode}/{tableCode}', [LkpsDataController::class, 'getTableData']);
-    Route::post('/{lkpsId}/data/{sectionCode}/{tableCode}', [LkpsDataController::class, 'saveTableData']);
-    Route::delete('/{lkpsId}/data/{sectionCode}/{tableCode}', [LkpsDataController::class, 'deleteTableData']);
-    Route::get('/{lkpsId}/export/{sectionCode}/{tableCode?}', [LkpsDataController::class, 'exportData']);
+
+    // Data routes
+    Route::get('/data', [LkpsDataController::class, 'getAllData']);
+    Route::get('/data/{tableCode}', [LkpsDataController::class, 'getTableData']);
+    Route::post('/data/{tableCode}', [LkpsDataController::class, 'saveTableData']);
+    Route::get('/export/{tableCode?}', [LkpsDataController::class, 'exportData']);
 });
 
 Route::get('/score-details', [LkpsDataController::class, 'getScoreDetail']);
@@ -97,7 +82,7 @@ Route::get('/get-scores', [
 '
 ]);
 
-Route::get('/get-all-sections', [LkpsSectionController::class, 'getAllSections']);
+
 
 Route::get('/templates/LKPS_template.xlsx', [LkpsExportController::class, 'getTemplate']);
 Route::get('/lkps/sections/all/data', [LkpsExportController::class, 'getAllSectionsData']);

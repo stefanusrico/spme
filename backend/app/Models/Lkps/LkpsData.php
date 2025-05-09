@@ -2,6 +2,7 @@
 
 namespace App\Models\Lkps;
 
+use App\Models\Project\Task;
 use MongoDB\Laravel\Eloquent\Model;
 
 class LkpsData extends Model
@@ -10,91 +11,86 @@ class LkpsData extends Model
     protected $collection = 'lkps_data';
 
     protected $fillable = [
-        'lkpsId',
-        'section_code',
-        'table_code',
+        'kodeTabel',
         'data',
-        'score',
-        'updatedBy',
-        'scoreDetail',
+        'nilai',
+        'detailNilai',
     ];
 
     /**
-     * Get the LKPS document this data belongs to
+     * Get the table this data belongs to
      */
-    public function lkps()
+    public function tabel()
     {
-        return $this->belongsTo(Lkps::class, 'lkpsId', '_id');
+        return $this->belongsTo(LkpsTable::class, 'kodeTabel', 'kode');
     }
 
     /**
-     * Get the section this data belongs to
+     * Get the tasks associated with this LKPS data
      */
-    public function section()
+    public function tasks()
     {
-        return $this->belongsTo(LkpsSection::class, 'section_code', 'code');
+        return $this->hasMany(Task::class, 'lkpsDataId', '_id');
     }
 
     /**
-     * Save data for a specific section and table in an LKPS document
+     * Save data for a specific table
      * 
-     * @param string $lkpsId
-     * @param string $sectionCode
-     * @param string $tableCode
-     * @param array $data
-     * @param float|null $score
-     * @param string $userId
+     * @param string $kodeTabel Table code
+     * @param array $data The data to save
+     * @param float|null $nilai Score
+     * @param array $detailNilai Score details
      * @return LkpsData
      */
-    public static function saveData($lkpsId, $sectionCode, $tableCode, $data, $score = null, $scoreDetail = null, $userId)
+    public static function saveData($kodeTabel, $data, $nilai = null, $detailNilai = [])
     {
         return self::updateOrCreate(
             [
-                'lkpsId' => $lkpsId,
-                'section_code' => $sectionCode,
-                'table_code' => $tableCode,
+                'kodeTabel' => $kodeTabel,
             ],
             [
                 'data' => $data,
-                'score' => $score,
-                'scoreDetail' => $scoreDetail,
-                'updatedBy' => $userId
+                'nilai' => $nilai,
+                'detailNilai' => $detailNilai
             ]
         );
     }
 
     /**
-     * Get data for a specific section and table in an LKPS document
+     * Get data for a specific table
      * 
-     * @param string $lkpsId
-     * @param string $sectionCode
-     * @param string $tableCode
+     * @param string $kodeTabel Table code
      * @return array|null
      */
-    public static function getData($lkpsId, $sectionCode, $tableCode)
+    public static function getData($kodeTabel)
     {
-        $record = self::where('lkpsId', $lkpsId)
-            ->where('section_code', $sectionCode)
-            ->where('table_code', $tableCode)
-            ->first();
-
+        $record = self::where('kodeTabel', $kodeTabel)->first();
         return $record ? $record->data : null;
     }
 
     /**
-     * Get score for a specific section in an LKPS document
+     * Get all data with table information
      * 
-     * @param string $lkpsId
-     * @param string $sectionCode
-     * @return float|null
+     * @return \Illuminate\Support\Collection
      */
-    public static function getScore($lkpsId, $sectionCode)
+    public static function getAllWithTableInfo()
     {
-        $record = self::where('lkpsId', $lkpsId)
-            ->where('section_code', $sectionCode)
-            ->whereNotNull('score')
-            ->first();
+        $records = self::all();
 
-        return $record ? $record->score : null;
+        return $records->map(function ($record) {
+            $tabel = LkpsTable::where('kode', $record->kodeTabel)->first();
+            $record->tableTitle = $tabel ? $tabel->judul : null;
+            return $record;
+        });
+    }
+
+    /**
+     * Check if this data has valid score
+     * 
+     * @return bool
+     */
+    public function hasValidScore()
+    {
+        return $this->nilai !== null && is_numeric($this->nilai);
     }
 }

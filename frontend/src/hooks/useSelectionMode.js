@@ -1,10 +1,10 @@
 import { useState, useCallback } from "react"
 import { message } from "antd"
-import { isSelectionAllowedForSection } from "../constants/sectionStructure"
+import { isSelectionAllowedForTable } from "../constants/tableStructure"
 
 /**
  * Custom hook for managing selection mode for tables
- * @param {string} sectionCode - Current section code
+ * @param {string} tableCode - Current table code
  * @param {object} polbanData - Polban data for all tables
  * @param {object} prodiData - Prodi data for all tables
  * @param {object} tableData - Combined table data
@@ -15,7 +15,7 @@ import { isSelectionAllowedForSection } from "../constants/sectionStructure"
  * @returns {object} Selection state and functions
  */
 const useSelectionMode = (
-  sectionCode,
+  tableCode,
   polbanData,
   prodiData,
   tableData,
@@ -32,17 +32,17 @@ const useSelectionMode = (
    */
   const toggleSelectionMode = useCallback(
     (tableCode) => {
-      // Only allow toggling selection mode for specific sections
-      if (isSelectionAllowedForSection(sectionCode)) {
+      // Only allow toggling selection mode for specific tables
+      if (isSelectionAllowedForTable(tableCode)) {
         setShowSelectionMode((prev) => ({
           ...prev,
           [tableCode]: !prev[tableCode],
         }))
       } else {
-        message.info("Data selection feature is not available for this section")
+        message.info("Data selection feature is not available for this table")
       }
     },
-    [sectionCode]
+    [tableCode]
   )
 
   /**
@@ -57,9 +57,9 @@ const useSelectionMode = (
    */
   const handleToggleSelection = useCallback(
     (tableCode, rowKey) => {
-      // Skip if selection is not allowed for current section
-      if (!isSelectionAllowedForSection(sectionCode)) {
-        message.info("Data selection feature is not available for this section")
+      // Skip if selection is not allowed for current table
+      if (!isSelectionAllowedForTable(tableCode)) {
+        message.info("Data selection feature is not available for this table")
         return
       }
 
@@ -113,7 +113,7 @@ const useSelectionMode = (
       polbanData,
       prodiData,
       tableData,
-      sectionCode,
+      tableCode,
       calculateScoreData,
       setPolbanData,
       setTableData,

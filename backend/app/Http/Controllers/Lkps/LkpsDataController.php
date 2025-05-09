@@ -4,8 +4,6 @@ namespace App\Http\Controllers\Lkps;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
-use App\Models\Lkps\Lkps;
-use App\Models\Lkps\LkpsSection;
 use App\Models\Lkps\LkpsTable;
 use App\Models\Lkps\LkpsData;
 use App\Models\Prodi\Prodi;
@@ -16,137 +14,67 @@ use Illuminate\Support\Facades\Log;
 class LkpsDataController extends Controller
 {
     /**
-     * Get data for all sections in an LKPS
+     * Get data for all tables
      * 
-     * @param string $lkpsId
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getAllData($lkpsId)
+    public function getAllData()
     {
-        $lkps = Lkps::find($lkpsId);
-
-        if (!$lkps) {
-            return response()->json(['message' => 'LKPS not found'], 404);
-        }
-
-        // Check if user has access to this LKPS
-        $user = Auth::user();
-        if (!$user->hasRole('Admin') && $lkps->prodiId != $user->prodiId) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        // Get all sections
-        $sections = LkpsSection::orderBy('order')->get();
+        // Get all tables
+        $tables = LkpsTable::orderBy('judul')->get();
 
         $result = [
-            'lkpsId' => $lkpsId,
-            'lkpsInfo' => [
-                'prodiId' => $lkps->prodiId,
-                'periode' => $lkps->periode,
-                'tahunAkademik' => $lkps->tahunAkademik,
-                'status' => $lkps->status,
-                'tanggalPembuatan' => $lkps->tanggalPembuatan,
-                'lastUpdated' => $lkps->lastUpdated
-            ],
-            'sections' => []
+            'tables' => []
         ];
 
-        foreach ($sections as $section) {
-            $sectionData = [
-                'section_code' => $section->code,
-                'title' => $section->title,
-                'subtitle' => $section->subtitle,
-                'tables' => [],
-                'score' => null
+        foreach ($tables as $table) {
+            $data = LkpsData::where('kodeTabel', $table->kode)->first();
+
+            $result['tables'][$table->kode] = [
+                'tableInfo' => $table,
+                'data' => $data ? $data->data : [],
+                'nilai' => $data ? $data->nilai : null,
+                'detailNilai' => $data ? $data->detailNilai : null
             ];
-
-            // Get tables for this section
-            $tables = LkpsTable::where('section_code', $section->code)->get();
-
-            foreach ($tables as $table) {
-                $data = LkpsData::getData($lkpsId, $section->code, $table->code);
-                $sectionData['tables'][$table->code] = $data ?? [];
-            }
-
-            $sectionData['score'] = LkpsData::getScore($lkpsId, $section->code);
-
-            $result['sections'][] = $sectionData;
         }
 
         return response()->json($result);
     }
 
     /**
-     * Get data for a specific section and table
+     * Get data for a specific table
      * 
-     * @param string $lkpsId
-     * @param string $sectionCode
      * @param string $tableCode
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getTableData($lkpsId, $sectionCode, $tableCode)
+    public function getTableData($tableCode)
     {
-        $lkps = Lkps::find($lkpsId);
-
-        if (!$lkps) {
-            return response()->json(['message' => 'LKPS not found'], 404);
-        }
-
-        // Check if user has access to this LKPS
-        $user = Auth::user();
-        if (!$user->hasRole('Admin') && $lkps->prodiId != $user->prodiId) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $table = LkpsTable::where('section_code', $sectionCode)
-            ->where('code', $tableCode)
-            ->first();
+        $table = LkpsTable::where('kode', $tableCode)->first();
 
         if (!$table) {
             return response()->json(['message' => 'Table not found'], 404);
         }
 
-        $data = LkpsData::getData($lkpsId, $sectionCode, $tableCode);
+        $data = LkpsData::where('kodeTabel', $tableCode)->first();
 
         return response()->json([
-            'lkpsId' => $lkpsId,
-            'section_code' => $sectionCode,
-            'table_code' => $tableCode,
-            'data' => $data ?? []
+            'tableCode' => $tableCode,
+            'data' => $data ? $data->data : [],
+            'nilai' => $data ? $data->nilai : null,
+            'detailNilai' => $data ? $data->detailNilai : null
         ]);
     }
 
     /**
-     * Save data for a specific section and table
+     * Save data for a specific table
      * 
      * @param \Illuminate\Http\Request $request
-     * @param string $lkpsId
-     * @param string $sectionCode
      * @param string $tableCode
      * @return \Illuminate\Http\JsonResponse
      */
-    public function saveTableData(Request $request, $lkpsId, $sectionCode, $tableCode)
+    public function saveTableData(Request $request, $tableCode)
     {
-        $lkps = Lkps::find($lkpsId);
-
-        if (!$lkps) {
-            return response()->json(['message' => 'LKPS not found'], 404);
-        }
-
-        // Check if user has access to this LKPS
-        $user = Auth::user();
-        if (!$user->hasRole('Admin') && $lkps->prodiId != $user->prodiId) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        // Only allow saving data to draft LKPS
-        if ($lkps->status !== 'draft') {
-            return response()->json(['message' => 'Cannot save data to a submitted LKPS'], 400);
-        }
-
-        $table = LkpsTable::where('section_code', $sectionCode)
-            ->where('code', $tableCode)
-            ->first();
+        $table = LkpsTable::where('kode', $tableCode)->first();
 
         if (!$table) {
             return response()->json(['message' => 'Table not found'], 404);
@@ -154,7 +82,8 @@ class LkpsDataController extends Controller
 
         $validator = \Validator::make($request->all(), [
             'data' => 'required|array',
-            'score' => 'nullable|numeric'
+            'nilai' => 'nullable|array',
+            'detailNilai' => 'nullable|array'
         ]);
 
         if ($validator->fails()) {
@@ -162,78 +91,39 @@ class LkpsDataController extends Controller
         }
 
         $data = $request->input('data');
-        $score = $request->input('score');
-        $scoreDetail = $request->input('scoreDetail');
-        $userId = Auth::id();
+        $nilai = $request->input('nilai');
+        $detailNilai = $request->input('detailNilai', []);
 
-        // If the table is used in formula, calculate the score
-        if ($table->used_in_formula && $score === null) {
-            $section = LkpsSection::where('code', $sectionCode)->first();
-
-            if ($section && $section->has_formula) {
-                $score = $section->calculateScore($data);
-            }
-        }
-
-        LkpsData::saveData($lkpsId, $sectionCode, $tableCode, $data, $score, $scoreDetail, $userId);
-
-        // Update the LKPS lastUpdated timestamp
-        $lkps->lastUpdated = now();
-        $lkps->updatedBy = $userId;
-        $lkps->save();
+        $lkpsData = LkpsData::saveData(
+            $tableCode,
+            $data,
+            $nilai,
+            $detailNilai
+        );
 
         return response()->json([
             'message' => 'Data saved successfully',
-            'score' => $score
+            'nilai' => $nilai
         ]);
     }
 
     /**
-     * Delete data for a specific section and table
+     * Delete data for a specific table
      * 
-     * @param string $lkpsId
-     * @param string $sectionCode
      * @param string $tableCode
      * @return \Illuminate\Http\JsonResponse
      */
-    public function deleteTableData($lkpsId, $sectionCode, $tableCode)
+    public function deleteTableData($tableCode)
     {
-        $lkps = Lkps::find($lkpsId);
-
-        if (!$lkps) {
-            return response()->json(['message' => 'LKPS not found'], 404);
-        }
-
-        // Check if user has access to this LKPS
-        $user = Auth::user();
-        if (!$user->hasRole('Admin') && $lkps->prodiId != $user->prodiId) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        // Only allow deleting data from draft LKPS
-        if ($lkps->status !== 'draft') {
-            return response()->json(['message' => 'Cannot delete data from a submitted LKPS'], 400);
-        }
-
-        $table = LkpsTable::where('section_code', $sectionCode)
-            ->where('code', $tableCode)
-            ->first();
+        $table = LkpsTable::where('kode', $tableCode)->first();
 
         if (!$table) {
             return response()->json(['message' => 'Table not found'], 404);
         }
 
-        $deleted = LkpsData::where('lkpsId', $lkpsId)
-            ->where('section_code', $sectionCode)
-            ->where('table_code', $tableCode)
-            ->delete();
+        $deleted = LkpsData::where('kodeTabel', $tableCode)->delete();
 
         if ($deleted) {
-            // Update the LKPS lastUpdated timestamp
-            $lkps->lastUpdated = now();
-            $lkps->updatedBy = Auth::id();
-            $lkps->save();
-
             return response()->json(['message' => 'Data deleted successfully']);
         }
 
@@ -244,69 +134,46 @@ class LkpsDataController extends Controller
      * Export data as Excel
      * 
      * @param \Illuminate\Http\Request $request
-     * @param string $lkpsId
-     * @param string $sectionCode
      * @param string $tableCode
      * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
      */
-    public function exportData(Request $request, $lkpsId, $sectionCode, $tableCode = null)
+    public function exportData(Request $request, $tableCode = null)
     {
-        $lkps = Lkps::find($lkpsId);
-
-        if (!$lkps) {
-            return response()->json(['message' => 'LKPS not found'], 404);
-        }
-
-        // Check if user has access to this LKPS
-        $user = Auth::user();
-        if (!$user->hasRole('Admin') && $lkps->prodiId != $user->prodiId) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        // Get the section
-        $section = LkpsSection::where('code', $sectionCode)->first();
-
-        if (!$section) {
-            return response()->json(['message' => 'Section not found'], 404);
-        }
-
         // Initialize Excel
         $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
 
         if ($tableCode) {
             // Export a specific table
-            $table = LkpsTable::where('section_code', $sectionCode)
-                ->where('code', $tableCode)
-                ->first();
+            $table = LkpsTable::where('kode', $tableCode)->first();
 
             if (!$table) {
                 return response()->json(['message' => 'Table not found'], 404);
             }
 
-            $data = LkpsData::getData($lkpsId, $sectionCode, $tableCode);
+            $data = LkpsData::where('kodeTabel', $tableCode)->first();
 
-            if (!$data) {
+            if (!$data || empty($data->data)) {
                 return response()->json(['message' => 'No data found'], 404);
             }
 
-            $this->createTableSheet($spreadsheet->getActiveSheet(), $table, $data);
+            $this->createTableSheet($spreadsheet->getActiveSheet(), $table, $data->data);
         } else {
-            // Export all tables in the section
-            $tables = LkpsTable::where('section_code', $sectionCode)->get();
+            // Export all tables
+            $tables = LkpsTable::all();
 
             $spreadsheet->removeSheetByIndex(0);
 
             foreach ($tables as $index => $table) {
-                $data = LkpsData::getData($lkpsId, $sectionCode, $table->code);
+                $data = LkpsData::where('kodeTabel', $table->kode)->first();
 
-                if (!$data) {
+                if (!$data || empty($data->data)) {
                     continue;
                 }
 
-                $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($spreadsheet, $table->title);
+                $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($spreadsheet, $table->judul);
                 $spreadsheet->addSheet($sheet);
 
-                $this->createTableSheet($sheet, $table, $data);
+                $this->createTableSheet($sheet, $table, $data->data);
             }
 
             if ($spreadsheet->getSheetCount() === 0) {
@@ -315,7 +182,7 @@ class LkpsDataController extends Controller
         }
 
         // Generate filename
-        $filename = "LKPS_Section_{$sectionCode}";
+        $filename = "LKPS";
         if ($tableCode) {
             $filename .= "_{$tableCode}";
         }
@@ -341,42 +208,42 @@ class LkpsDataController extends Controller
     private function createTableSheet($sheet, $table, $data)
     {
         // Get columns for this table
-        $columns = LkpsColumn::where('table_code', $table->code)->get();
+        $columns = LkpsColumn::where('kodeTabel', $table->kode)->get();
 
         // Organize columns for export
         $headerColumns = [];
         $columnMap = [];
 
         foreach ($columns as $column) {
-            if (!$column->parent_id) {
-                if ($column->is_group) {
+            if (!$column->parentId) {
+                if ($column->isGroup) {
                     // Find children
-                    $children = $columns->where('parent_id', $column->_id);
+                    $children = $columns->where('parentId', $column->_id);
 
                     if ($children->count() > 0) {
                         $childHeaders = [];
 
                         foreach ($children as $child) {
-                            $childHeaders[] = $child->title;
+                            $childHeaders[] = $child->judul;
                             $columnMap[] = [
-                                'data_index' => $child->data_index,
+                                'indeksData' => $child->indeksData,
                                 'type' => $child->type
                             ];
                         }
 
                         $headerColumns[] = [
-                            'title' => $column->title,
+                            'judul' => $column->judul,
                             'children' => $childHeaders,
                             'width' => count($childHeaders)
                         ];
                     }
                 } else {
                     $headerColumns[] = [
-                        'title' => $column->title,
+                        'judul' => $column->judul,
                         'width' => 1
                     ];
                     $columnMap[] = [
-                        'data_index' => $column->data_index,
+                        'indeksData' => $column->indeksData,
                         'type' => $column->type
                     ];
                 }
@@ -396,7 +263,7 @@ class LkpsDataController extends Controller
         $col = 1;
 
         // Add title
-        $sheet->setCellValueByColumnAndRow(1, $row, $table->title);
+        $sheet->setCellValueByColumnAndRow(1, $row, $table->judul);
         $sheet->mergeCellsByColumnAndRow(1, $row, count($columnMap), $row);
         $sheet->getStyleByColumnAndRow(1, $row, count($columnMap), $row)
             ->getFont()->setBold(true);
@@ -406,11 +273,11 @@ class LkpsDataController extends Controller
             // Add group headers
             foreach ($headerColumns as $column) {
                 if (isset($column['children'])) {
-                    $sheet->setCellValueByColumnAndRow($col, $row, $column['title']);
+                    $sheet->setCellValueByColumnAndRow($col, $row, $column['judul']);
                     $sheet->mergeCellsByColumnAndRow($col, $row, $col + $column['width'] - 1, $row);
                     $col += $column['width'];
                 } else {
-                    $sheet->setCellValueByColumnAndRow($col, $row, $column['title']);
+                    $sheet->setCellValueByColumnAndRow($col, $row, $column['judul']);
                     $sheet->mergeCellsByColumnAndRow($col, $row, $col, $row + 1);
                     $col++;
                 }
@@ -433,7 +300,7 @@ class LkpsDataController extends Controller
         } else {
             // Just add column headers
             foreach ($columnMap as $index => $column) {
-                $sheet->setCellValueByColumnAndRow($index + 1, $row, $headerColumns[$index]['title']);
+                $sheet->setCellValueByColumnAndRow($index + 1, $row, $headerColumns[$index]['judul']);
             }
             $row++;
         }
@@ -442,7 +309,7 @@ class LkpsDataController extends Controller
         foreach ($data as $rowData) {
             $col = 1;
             foreach ($columnMap as $column) {
-                $value = $rowData[$column['data_index']] ?? '';
+                $value = $rowData[$column['indeksData']] ?? '';
 
                 // Format based on column type
                 if ($column['type'] === 'boolean') {
@@ -464,38 +331,20 @@ class LkpsDataController extends Controller
     public function getScoreDetail(Request $request)
     {
         $validated = $request->validate([
-            'prodiId' => 'required|string',
-            'section_code' => 'required|string',
+            'tableCode' => 'required|string',
         ]);
 
-        $prodiId = $validated['prodiId'];
-        $sectionCode = $validated['section_code'];
-
-        $prodi = Prodi::find($prodiId);
-
-        if (!$prodi) {
-            return response()->json(['message' => 'Prodi not found for the given prodiId'], 404);
-        }
-
-        $lkps = $prodi->lkpsDocuments()
-            ->where('isActive', true)
-            ->orderBy('created_at', 'desc')
-            ->first();
-
-        if (!$lkps) {
-            return response()->json(['message' => 'LKPS not found for the given Prodi'], 404);
-        }
+        $tableCode = $validated['tableCode'];
 
         $pipeline = [
             [
                 '$match' => [
-                    'lkpsId' => $lkps->_id,
-                    'section_code' => $sectionCode,
+                    'kodeTabel' => $tableCode,
                 ]
             ],
             [
                 '$project' => [
-                    'scoreDetail' => 1,
+                    'detailNilai' => 1,
                 ]
             ],
         ];
@@ -514,6 +363,6 @@ class LkpsDataController extends Controller
             return response()->json(['message' => 'Score Detail not found'], 404);
         }
 
-        return response()->json($data[0]['scoreDetail']);
+        return response()->json($data[0]['detailNilai']);
     }
 }
