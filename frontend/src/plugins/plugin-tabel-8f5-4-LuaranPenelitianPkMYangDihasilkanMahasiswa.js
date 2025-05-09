@@ -1,25 +1,24 @@
 import { createPluginHandler } from "./core-plugin";
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
-import { cekStrata } from "./checkStrata";
 
 //vokasi
-const LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter = createPluginHandler({
+const LuaranPenelitianPkmYangDihasilkanMahasiswaBukuBerIsbnBookChapter = createPluginHandler({
     info: {
-        code: "3b8-4",
-        name: "Luaran Penelitian/PkM Lainnya - Teknologi Tepat Guna, Produk",
-        Description: "Plugin for processing Luaran Penelitian/PkM Lainnya - Teknologi Tepat Guna, Produk",
+        code: "8f5-4",
+        name: "Luaran Penelitian/PkM Lainnya - Buku Ber-ISBN, Book Chapter",
+        Description: "Plugin for processing Luaran Penelitian/PkM Lainnya - Buku Ber-ISBN, Book Chapter",
     },
 
     fieldMapping: {
-        judul_luaran_penelitian_dan_pkm: 1,
+        luaran_penelitian_dan_pkm: 1,
         tanggal_hh_bb_tttt: 2,
-        keterangan_nomor_isbn: 3,
+        nomor_isbn: 3,
     },
 
     validationRules: [
         { field: "judul_luaran_penelitian_dan_pkm", message: "Judul Luaran Penelitian dan PkM harus diisi" },
         { field: "tanggal_hh_bb_tttt", message: "Tanggal (HH/BB/TTTT) harus diisi" },
-        { field: "keterangan_nomor_isbn", message: "Keterangan (Nomor ISBN) harus diisi" },
+        { field: "nomor_isbn", message: "Keterangan (Nomor ISBN) harus diisi" },
     ],
 
     scoreCalculator: async function (data, config) {
@@ -28,10 +27,6 @@ const LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter = createPluginHandler({
         // NC = Jumlah luaran penelitian/PkM dalam bentuk Teknologi Tepat Guna, Produk (Produk Terstandarisasi, Produk Tersertifikasi), Karya Seni, Rekayasa Sosial. 
         // ND = Jumlah luaran penelitian/PkM yang diterbitkan dalam bentuk Buku ber-ISBN, Book Chapter.
         let ND = 0
-
-        //Cek strata
-        const strata = cekStrata()
-        const butir = strata === "D-3" ? 29 : 31
 
         const isValidField = (value) => {
             if (typeof value === 'string') {
@@ -46,38 +41,35 @@ const LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter = createPluginHandler({
             if(
                 isValidField(item.judul_luaran_penelitian_dan_pkm) &&
                 isValidField(item.tanggal_hh_bb_tttt) &&
-                isValidField(item.keterangan_nomor_isbn) 
+                isValidField(item.nomor_isbn) 
             ){
                 ND += 1
             }
         });
-
-        const responseScoreDetail = await fetchScoreDetails("3a1")
-        const responseScoreDetail1 = await fetchScoreDetails("3b8-1")
-        const responseScoreDetail2= await fetchScoreDetails("3b8-2")
-        const responseScoreDetail3 = await fetchScoreDetails("3b8-3")
-        if (!responseScoreDetail || !responseScoreDetail1 || !responseScoreDetail1 || !responseScoreDetail1) {
-            console.warn('Masukan data dari tabel 3a1, 3b8-1, 3b8-2, dan 3b8-3');
+        const responseScoreDetail1 = await fetchScoreDetails("8f5-1")
+        const responseScoreDetail2= await fetchScoreDetails("8f5-2")
+        const responseScoreDetail3 = await fetchScoreDetails("8f5-3")
+        if (!responseScoreDetail1 || !responseScoreDetail1 || !responseScoreDetail1) {
+            console.warn('Masukan data dari tabel 8f5-1, 8f5-2, dan 8f5-3');
             return {
                 scores: [
                     {
-                        butir: butir,
+                        butir: 71,
                         nilai: 0 
                     }
                 ],
                 scoreDetail: {}
             };
         }
-        const NDTPS = Number(responseScoreDetail?.NDTPS || 0)
         const NA = Number(responseScoreDetail1?.NA || 0)
         const NB = Number(responseScoreDetail2?.NB || 0)
         const NC = Number(responseScoreDetail3?.NC || 0)
 
-        //Menghitung RLP
-        const RLP = Math.round(((2 * (NA + NB + NC) + ND) / NDTPS) * 100 ) / 100
+        //Menghitung NLP
+        const NLP = Math.round((2 * (NA + NB + NC) + ND) * 100 ) / 100
 
         let score = 0
-        if(RLP >= 1){
+        if(NLP >= 1){
             score = 4
         }else{
             score = 2 + (2 * RLP)
@@ -85,15 +77,15 @@ const LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter = createPluginHandler({
         return {
             scores: [
                 {
-                    butir : butir,
+                    butir : 71,
                     nilai : score
                 }
             ],
             scoreDetail : {
-                NA,NB,NC,ND,RLP
+                NA,NB,NC,ND,NLP
             }
         }
     },
 });
 
-export default LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter;
+export default LuaranPenelitianPkmYangDihasilkanMahasiswaBukuBerIsbnBookChapter;

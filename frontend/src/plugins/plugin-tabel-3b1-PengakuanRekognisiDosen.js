@@ -1,5 +1,6 @@
 import { createPluginHandler } from "./core-plugin";
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { cekStrata } from "./checkStrata";
 
 const PengakuanRekognisiDtpsPlugins = createPluginHandler({
     info: {
@@ -35,17 +36,27 @@ const PengakuanRekognisiDtpsPlugins = createPluginHandler({
             }
         });
 
+        //Cek strata
+        const strata = cekStrata()
+        const butir = strata === "D-3" ? 24 : 25
+
         const response = await fetchScoreDetails("3a1");
         const NDTPS = response?.NDTPS || 0;
         const RRD = NDTPS ? NRD / NDTPS : 0;
 
-        let score = RRD >= 0.25 ? 4 : 2 + (8 * RRD);
+        let score = 0;
+        if(strata === "D-3"){
+            score = RRD >= 0.25 ? 4 : 2 + (8 * RRD)
+        }else{
+            score = RRD >= 0.5 ? 4 : 2 + (4 * RRD)
+        }
+        
         score = Math.round(score * 100) / 100;
 
         return {
             scores: [
                 { 
-                    butir: 24, 
+                    butir: butir, 
                     nilai: score 
                 }
             ],

@@ -3,6 +3,7 @@
  */
 import { processExcelDataBase } from "../utils/tableUtils"
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { cekStrata } from "./checkStrata"
 
 const DosenTidakTetap = {
     getInfo() {
@@ -128,6 +129,10 @@ const DosenTidakTetap = {
     async calculateScore(data, config, additionalData = {}) {
         // NDTT = Jumlah dosen tidak tetap yang ditugaskan sebagai pengampu mata kuliah di program studi yang diakreditasi. 
         let NDTT = 0
+
+        //Cek strata
+        const strata = cekStrata()
+        const butir = strata === "D-3" ? 22 : 23
         
         // NDT =  Jumlah dosen tetap yang ditugaskan sebagai pengampu mata kuliah di program studi yang diakreditasi. 
         const responseScoreDetail = await fetchScoreDetails("3a1")
@@ -137,7 +142,7 @@ const DosenTidakTetap = {
             return {
                 scores: [
                     {
-                        butir: 22,
+                        butir: butir,
                         nilai: 0 
                     }
                 ],
@@ -182,7 +187,7 @@ const DosenTidakTetap = {
         return {
             scores: [
                 {
-                    butir : 22,
+                    butir : butir,
                     nilai : score
                 }
             ],

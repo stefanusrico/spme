@@ -1,5 +1,6 @@
 import { createPluginHandler } from "./core-plugin";
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { cekStrata } from "./checkStrata";
 
 //vokasi
 const LuaranPenelitianPkmLainnyaHKIPatenPatenSederhana = createPluginHandler({
@@ -28,6 +29,10 @@ const LuaranPenelitianPkmLainnyaHKIPatenPatenSederhana = createPluginHandler({
         // ND = Jumlah luaran penelitian/PkM yang diterbitkan dalam bentuk Buku ber-ISBN, Book Chapter.
         let NA = 0
 
+        //Cek strata
+        const strata = cekStrata()
+        const butir = strata === "D-3" ? 29 : 31
+
         const isValidField = (value) => {
             if (typeof value === 'string') {
                 return value.trim() !== '';
@@ -50,8 +55,8 @@ const LuaranPenelitianPkmLainnyaHKIPatenPatenSederhana = createPluginHandler({
         return {
             scores: [
                 {
-                    butir : 29,
-                    nilai : score
+                    butir : butir,
+                    nilai : "Score ada di 3b8-4"
                 }
             ],
             scoreDetail : {

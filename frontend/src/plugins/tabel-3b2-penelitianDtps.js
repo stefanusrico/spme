@@ -3,6 +3,7 @@
  */
 import { processExcelDataBase } from "../utils/tableUtils"
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { cekStrata } from "./checkStrata"
 
 const PenelitianDtps = {
     getInfo() {
@@ -123,6 +124,10 @@ const PenelitianDtps = {
 
         let NL = 0, NN = 0, NI = 0;
 
+        //Cek strata
+        const strata = cekStrata()
+        const butir = strata === "D-3" ? 25 : 26
+
         //Mendapatkan nilai NI, NN, dan NL
         data.forEach(item => {
             const jumlah = (item.ts_2_jumlah_judul_penelitian || 0)
@@ -146,7 +151,7 @@ const PenelitianDtps = {
             return {
                 scores: [
                     {
-                        butir: 25,
+                        butir: butir,
                         nilai: 0 
                     }
                 ],
@@ -183,7 +188,7 @@ const PenelitianDtps = {
         return {
             scores: [
                 {
-                    butir : 25,
+                    butir : butir,
                     nilai : score
                 }
             ],

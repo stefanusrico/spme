@@ -2,6 +2,7 @@
  * Plugin khusus untuk section produk / jasa yang dihasilkan mahasiswa yang diadopsi oleh industri / masyarakat
  */
 import { processExcelDataBase } from "../utils/tableUtils"
+import { cekStrata } from "./checkStrata"
 
 const ProdukJasaYangDihasilkanMahasiswa = {
     getInfo() {
@@ -125,6 +126,10 @@ const ProdukJasaYangDihasilkanMahasiswa = {
         
         // Fungsi pengecekan isi field
         const isValidField = (field) => typeof field === 'string' && field.trim() !== "";
+
+        //Cek strata
+        const strata = cekStrata()
+        const butir = strata === "D-3" ? 63 : 70
 
         // NAPJ: Jumlah produk/jasa karya mahasiswa
         const NAPJ = data.filter(item =>
