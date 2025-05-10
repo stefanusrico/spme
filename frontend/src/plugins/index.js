@@ -13,6 +13,7 @@ import DosenPembimbingTugasAkhir from "./tabel-3a2-dosenPembimbingTugasAkhir"
 import EkuivalenWaktuMengajarPenuhDosen from "./tabel-3a3-ekuivalenWaktuMengajarPenuh(EWMP)Dosen"
 import DosenTidakTetap from "./tabel-3a4-dosenTidakTetap"
 import DosenIndustriPraktisi from "./tabel-3a5-dosenIndustriPraktisi"
+import waktuTungguLulusanPlugin from "./waktuTungguLulusanPlugin"
 
 import PenelitianDtpsYangMelibatkanMahasiswa from "./plugin-tabel-6a-PenelitianDtpsYangMelibatkanMahasiswa"
 import PkmDtpsYangMelibatkanMahasiswa from "./plugin-tabel-7-PkMDtpsYangMelibatkanMahasiswa"
@@ -87,11 +88,23 @@ const registerPlugins = () => {
   registerPlugin("8d1", waktuTungguLulusanPlugin)
   registerPlugin("8d2", kesesuaianBidangKerjaPlugin)
   registerPlugin("8f4", ProdukJasaYangDihasilkanMahasiswa)
-  registerPlugin("8f5-1", LuaranPenelitianPkmYangDihasilkanMahasiswaHKIPatenPatenSederhana)
-  registerPlugin("8f5-2", LuaranPenelitianPkmYangDihasilkanMahasiswaHKIHakCiptaDesainProdukIndustriDll)
-  registerPlugin("8f5-3", LuaranPenelitianPkmYangDihasilkanMahasiswaTeknologiTepatGunaProdukKaryaSeniRekayasaSosial)
-  registerPlugin("8f5-4", LuaranPenelitianPkmYangDihasilkanMahasiswaBukuBerIsbnBookChapter)
-  
+  registerPlugin(
+    "8f5-1",
+    LuaranPenelitianPkmYangDihasilkanMahasiswaHKIPatenPatenSederhana
+  )
+  registerPlugin(
+    "8f5-2",
+    LuaranPenelitianPkmYangDihasilkanMahasiswaHKIHakCiptaDesainProdukIndustriDll
+  )
+  registerPlugin(
+    "8f5-3",
+    LuaranPenelitianPkmYangDihasilkanMahasiswaTeknologiTepatGunaProdukKaryaSeniRekayasaSosial
+  )
+  registerPlugin(
+    "8f5-4",
+    LuaranPenelitianPkmYangDihasilkanMahasiswaBukuBerIsbnBookChapter
+  )
+
   console.log("All LKPS plugins registered successfully")
 }
 
