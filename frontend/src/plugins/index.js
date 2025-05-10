@@ -40,7 +40,7 @@ import waktuTungguLulusanPlugin from "./waktuTungguLulusanPlugin"
 import kesesuaianBidangKerjaPlugin from "./kesesuaianBidangKerjaLulusanPlugin"
 import PrestasiNonAkademikMahasiswaPlugin from "./prestasiNonAkademikMahasiswaPlugin"
 import ProdukJasaYangDihasilkanMahasiswa from "./tabel-8f4-produkJasaYangDihasilkanMahasiswaPlugin"
-import waktuTungguLulusanPlugin from "./waktuTungguLulusanPlugin"
+
 import dataPrasaranaUPPSPlugin from "./dataPrasaranaUPPSPluggin"
 import prasaranaDanPeralatanUtamaPlugin from "./prasaranaDanPeralatanUtamaPlugin"
 import penggunaanDanaPlugin from "./penggunaanDanaPlugin"
