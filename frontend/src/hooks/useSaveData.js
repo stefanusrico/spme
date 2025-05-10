@@ -124,7 +124,13 @@ export const useSaveData = (
           message.success({
             content:
               payload.score !== undefined
-                ? `Data saved successfully. Score: ${payload.score}`
+                ? `Data saved successfully. Score: ${
+                    Array.isArray(payload.score)
+                      ? payload.score
+                          .map((item) => `Butir ${item.butir}: ${item.nilai}`)
+                          .join(", ")
+                      : JSON.stringify(payload.score)
+                  }`
                 : "Data saved successfully",
             key: loadingKey,
           })

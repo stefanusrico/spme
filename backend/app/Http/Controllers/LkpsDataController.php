@@ -517,4 +517,61 @@ class LkpsDataController extends Controller
 
         return response()->json($data[0]['scoreDetail']);
     }
+
+    public function getScoreByButir(Request $request)
+    {
+        $validated = $request->validate([
+            'section_code' => 'required|string',
+            'butir' => 'required|numeric',
+        ]);
+
+        $sectionCode = $validated['section_code'];
+        $butir = $validated['butir'];
+
+        // Get the user's prodiId
+        $user = Auth::user();
+        $prodiId = $user->prodiId;
+
+        if (!$prodiId && !$user->hasRole('Admin')) {
+            return response()->json(['message' => 'User has no associated prodi'], 400);
+        }
+
+        // Get the active LKPS for this prodi
+        $lkps = Lkps::getActiveForProdi($prodiId);
+
+        if (!$lkps) {
+            return response()->json(['message' => 'No active LKPS found for this prodi'], 404);
+        }
+
+        $lkpsId = $lkps->_id;
+
+        // Get the data document
+        $data = LkpsData::where('lkpsId', $lkpsId)
+            ->where('section_code', $sectionCode)
+            ->first();
+
+        if (!$data) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+
+        // Find the score with the specified butir
+        $scoreItem = null;
+        if (isset($data->score) && is_array($data->score)) {
+            foreach ($data->score as $item) {
+                if (isset($item['butir']) && $item['butir'] == $butir) {
+                    $scoreItem = $item;
+                    break;
+                }
+            }
+        }
+
+        if ($scoreItem) {
+            return response()->json([
+                'butir' => $scoreItem['butir'],
+                'nilai' => $scoreItem['nilai']
+            ]);
+        } else {
+            return response()->json(['message' => 'Score with specified butir not found'], 404);
+        }
+    }
 }

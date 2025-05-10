@@ -24,6 +24,12 @@ class GoogleSheetController extends Controller
         'blue' => 0.88
     ];
 
+    private $yellowColorRGB = [
+        'red' => 0.97,
+        'green' => 0.90,
+        'blue' => 0.07
+    ];
+
     private $colorTolerance = 0.1;
 
     public function __construct(Request $request = null)
@@ -621,7 +627,8 @@ class GoogleSheetController extends Controller
             $sheetName = $request->input('sheet_name');
             $tableRef = $request->input('table_ref');
 
-            $rangeToCheck = $sheetName . '!A1:O100';
+            // Increase range to check more rows
+            $rangeToCheck = $sheetName . '!A1:Z200';
 
             $response = $this->service->spreadsheets->get($this->spreadsheetId, [
                 'includeGridData' => true,
@@ -641,12 +648,17 @@ class GoogleSheetController extends Controller
             $rowData = $data->getRowData();
 
             $coloredCells = [];
+            $yellowCells = []; // New array to track yellow cells
+            $firstYellowRow = null; // Track the first row with yellow cell
             $coloredColumns = [];
             $tableSections = [];
             $currentTableSection = null;
             $tableData = [];
 
-            $isSimilarColor = function ($color1, $color2, $tolerance = 0.1) {
+            $isSimilarColor = function ($color1, $color2, $tolerance = 0.15) {
+                if (!isset($color1['red']) || !isset($color2['red']))
+                    return false;
+
                 foreach (['red', 'green', 'blue'] as $component) {
                     $val1 = $color1[$component] ?? 0;
                     $val2 = $color2[$component] ?? 0;
@@ -694,6 +706,8 @@ class GoogleSheetController extends Controller
                     }
                 }
 
+                $rowHasYellowCell = false;
+
                 foreach ($row->getValues() as $colIndex => $cell) {
                     if (!$cell) {
                         continue;
@@ -731,6 +745,10 @@ class GoogleSheetController extends Controller
                         'blue' => $backgroundColor->getBlue() ?? 0
                     ];
 
+                    // Debug color values
+                    $hexColor = $toHex($cellColor);
+
+                    // Check for target blue color (existing functionality)
                     if ($isSimilarColor($cellColor, $this->targetColorRGB, $this->colorTolerance)) {
                         $value = $this->getCellValue($cell);
                         $columnLetter = $this->columnIndexToLetter($colIndex + 1);
@@ -742,13 +760,13 @@ class GoogleSheetController extends Controller
                             'column' => $columnLetter,
                             'cell' => $columnLetter . ($rowIndex + 1),
                             'value' => $value,
-                            'color' => $toHex($cellColor),
+                            'color' => $hexColor,
                             'table_index' => count($tableSections) - 1
                         ];
 
                         if ($currentTableSection !== null) {
                             if (isset($currentTableSection['rows'][$rowIndex][$columnLetter])) {
-                                $currentTableSection['rows'][$rowIndex][$columnLetter]['color'] = $toHex($cellColor);
+                                $currentTableSection['rows'][$rowIndex][$columnLetter]['color'] = $hexColor;
                             }
 
                             if (!in_array($columnLetter, $currentTableSection['columns'])) {
@@ -756,6 +774,30 @@ class GoogleSheetController extends Controller
                             }
                         }
                     }
+
+                    // Check for yellow color (#f8e613) with a slightly more tolerant check
+                    // The hex color #f8e613 is approximately R:248, G:230, B:19 in RGB
+                    // Which is roughly R:0.97, G:0.90, B:0.07 in the 0-1 scale used by Google Sheets API
+                    if ($isSimilarColor($cellColor, $this->yellowColorRGB, 0.15)) {
+                        $value = $this->getCellValue($cell);
+                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
+
+                        $rowHasYellowCell = true;
+
+                        $yellowCells[] = [
+                            'row' => $rowIndex + 1,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . ($rowIndex + 1),
+                            'value' => $value,
+                            'color' => $hexColor,
+                            'table_index' => count($tableSections) - 1
+                        ];
+                    }
+                }
+
+                // After processing all cells in the row, check if this row had yellow cells
+                if ($rowHasYellowCell && ($firstYellowRow === null || $rowIndex + 1 < $firstYellowRow)) {
+                    $firstYellowRow = $rowIndex + 1;
                 }
             }
 
@@ -818,6 +860,9 @@ class GoogleSheetController extends Controller
                 'table_ref' => $tableRef,
                 'target_color' => '#8db3e1',
                 'colored_cells' => $coloredCells,
+                'first_yellow_row' => $firstYellowRow, // Add this line with the exact row number
+                'yellow_cells_count' => count($yellowCells), // Add count of yellow cells
+                'yellow_cells' => array_slice($yellowCells, 0, min(10, count($yellowCells))), // Show sample of yellow cells
                 'restructured_data' => $restructuredData,
                 'total_colored_cells_found' => count($coloredCells),
                 'total_tables_found' => count($tableData)
@@ -829,7 +874,8 @@ class GoogleSheetController extends Controller
             return response()->json([
                 'error' => 'Terjadi kesalahan: ' . $e->getMessage(),
                 'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
             ], 500);
         }
     }

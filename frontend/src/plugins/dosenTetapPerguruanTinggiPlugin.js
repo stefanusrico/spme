@@ -1,7 +1,5 @@
-/**
- * Plugin khusus untuk section Dosen Tetap Perguruan Tinggi
- */
 import { processExcelDataBase } from "../utils/tableUtils"
+import { fetchScoreDetails } from "../utils/fetchScoreDetail"
 
 const DosenTetapPerguruanTinggiPlugin = {
   getInfo() {
@@ -169,13 +167,13 @@ const DosenTetapPerguruanTinggiPlugin = {
     return initialTableData
   },
 
-  calculateScore(data, config, additionalData = {}) {
+  async calculateScore(data, config, additionalData = {}) {
     console.log("Calculating dosen tetap score with data:", data)
 
-    // Mendapatkan jumlah mahasiswa jika tersedia di additionalData
     const NM = additionalData.jumlahMahasiswa || 0
-
-    // Menggunakan logika sesuai dengan formula Excel yang diberikan
+    const scoreDetailsResponse = await fetchScoreDetails("3a4")
+    // Mengubah dari const menjadi let agar bisa diubah nilainya
+    let NDTT = scoreDetailsResponse?.NDTT || 0
 
     // 1. Hitung NDT = Jumlah seluruh dosen tetap
     const NDT = data.filter(
@@ -197,48 +195,35 @@ const DosenTetapPerguruanTinggiPlugin = {
       )
     }).length
 
-    // 3. Hitung NDS = Jumlah dosen dengan S3/Doktor yang memiliki kesesuaian
-    const NDS = data.filter((dosen) => {
-      const kesesuaian = (
-        dosen.kesesuaian_dengan_kompetensi_inti_ps_3 || ""
-      ).trim()
+    // 3. Hitung NDS3 = Jumlah dosen dengan S3/Doktor yang memiliki kesesuaian
+    const NDS3 = data.filter((dosen) => {
+      const namaDosen = (dosen.nama_dosen || "").trim()
+
       const doktor = (
         dosen.doktor_doktor_terapan_nama_prodi_pasca_sarjana_1 || ""
       ).trim()
-      return (
-        dosen.nidn_nidk &&
-        dosen.nidn_nidk.trim() !== "" &&
-        doktor !== "" &&
-        doktor !== "-" &&
-        (kesesuaian === "V" ||
-          kesesuaian === "v" ||
-          kesesuaian === "√" ||
-          kesesuaian === "✓")
-      )
+
+      const kesesuaian = (
+        dosen.kesesuaian_dengan_kompetensi_inti_ps_3 || ""
+      ).trim()
+
+      return namaDosen !== "" && doktor !== "" && kesesuaian === "V"
     }).length
 
     // 4. Hitung NDSK = Jumlah dosen dengan sertifikat kompetensi
     const NDSK = data.filter((dosen) => {
-      const kesesuaian = (
-        dosen.kesesuaian_dengan_kompetensi_inti_ps_3 || ""
-      ).trim()
+      const namaDosen = (dosen.nama_dosen || "").trim()
+
       const bidangSertifikasi = (
         dosen.bidang_sertifikasi_sertifikat_kompetensi_profesi_industri_5 || ""
       ).trim()
+
       const lembagaPenerbit = (
         dosen.lembaga_penerbit_sertifikat_kompetensi_profesi_industri_5 || ""
       ).trim()
 
       return (
-        dosen.nidn_nidk &&
-        dosen.nidn_nidk.trim() !== "" &&
-        bidangSertifikasi !== "" &&
-        bidangSertifikasi !== "-" &&
-        lembagaPenerbit !== "" &&
-        (kesesuaian === "V" ||
-          kesesuaian === "v" ||
-          kesesuaian === "√" ||
-          kesesuaian === "✓")
+        namaDosen !== "" && bidangSertifikasi !== "" && lembagaPenerbit !== ""
       )
     }).length
 
@@ -301,11 +286,15 @@ const DosenTetapPerguruanTinggiPlugin = {
     }).length
 
     // 6. Hitung jumlah dosen tidak tetap (dari additionalData)
-    const NDTT = additionalData.NDTT || 0
+    // Tidak perlu reassign karena NDTT sudah diubah menjadi let
+    // Jika nilai NDTT tidak valid, pastikan nilai default-nya adalah 0
+    if (NDTT === undefined || NDTT === null || isNaN(NDTT)) {
+      NDTT = 0
+    }
 
     // 7. Hitung persentase-persentase sesuai matriks penilaian
     // PDS3 = Persentase dosen S3/Doktor
-    const PDS3 = NDTPS > 0 ? (NDS / NDTPS) * 100 : 0
+    const PDS3 = NDTPS > 0 ? (NDS3 / NDTPS) * 100 : 0
 
     // PDSK = Persentase dosen dengan sertifikat kompetensi
     const PDSK = NDTPS > 0 ? (NDSK / NDTPS) * 100 : 0
@@ -388,7 +377,7 @@ const DosenTetapPerguruanTinggiPlugin = {
     console.log("Hasil perhitungan skor dosen tetap:", {
       NDT,
       NDTPS,
-      NDS,
+      NDS3,
       NDSK,
       NDGB,
       NDLK,
@@ -420,21 +409,21 @@ const DosenTetapPerguruanTinggiPlugin = {
         },
         {
           butir: 17,
-          nilai: skorSertifikasi.toFixed(2)
+          nilai: skorSertifikasi.toFixed(2),
         },
         {
           butir: 18,
-          nilai: skorJabatan.toFixed(2)
+          nilai: skorJabatan.toFixed(2),
         },
         {
           butir: 19,
-          nilai: skorRasio.toFixed(2)
+          nilai: skorRasio.toFixed(2),
         },
       ],
       scoreDetail: {
         NDT,
         NDTPS,
-        NDS,
+        NDS3,
         NDSK,
         NDGB,
         NDLK,
@@ -445,7 +434,6 @@ const DosenTetapPerguruanTinggiPlugin = {
         PGBLKL: PGBLKL.toFixed(2) + "%",
         PDTT: PDTT.toFixed(2) + "%",
         RMD: RMD.toFixed(2),
-        formula: "Matriks Penilaian LKPS C.4. Sumber Daya Manusia (15-19)",
       },
     }
   },

@@ -242,7 +242,7 @@ const DynamicLkpsContainer = () => {
         navigate={navigate}
       />
 
-      <Card style={{ marginBottom: 16 }}>
+      {/* <Card style={{ marginBottom: 16 }}>
         <Tabs activeKey={activeTab} onChange={setActiveTab}>
           {userData?.role === "Admin" && (
             <TabPane
@@ -260,7 +260,7 @@ const DynamicLkpsContainer = () => {
             </TabPane>
           )}
         </Tabs>
-      </Card>
+      </Card> */}
 
       {/* {process.env.NODE_ENV === "development" && (
         <DebugPanel
@@ -317,21 +317,7 @@ const DynamicLkpsContainer = () => {
         </Card>
 
         {score !== null && (
-          <ScoreDisplay
-            score={score}
-            formula={config?.formula}
-            scoreDetail={scoreDetail}
-          />
-        )}
-
-        {scoreDetail && plugin?.getInfo().code.startsWith("1-") && (
-          <TridharmaScoreDetails
-            sectionCode={sectionCode}
-            scoreDetail={scoreDetail}
-            userData={userData}
-            setScore={setScore}
-            setScoreDetail={setScoreDetail}
-          />
+          <ScoreDisplay score={score} scoreDetail={scoreDetail} />
         )}
 
         {config && config.tables && config.tables.length > 1 ? (

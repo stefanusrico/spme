@@ -78,6 +78,7 @@ Route::prefix('lkps')->group(function () {
     Route::post('/{lkpsId}/data/{sectionCode}/{tableCode}', [LkpsDataController::class, 'saveTableData']);
     Route::delete('/{lkpsId}/data/{sectionCode}/{tableCode}', [LkpsDataController::class, 'deleteTableData']);
     Route::get('/{lkpsId}/export/{sectionCode}/{tableCode?}', [LkpsDataController::class, 'exportData']);
+    Route::get('/score/butir', [LkpsDataController::class, 'getScoreByButir']);
 });
 
 Route::get('/score-details', [LkpsDataController::class, 'getScoreDetail']);

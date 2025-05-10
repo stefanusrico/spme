@@ -20,7 +20,7 @@ class LkpsSyncCommand extends Command
      * @var string
      */
 
-     //php artisan lkps:sync --spreadsheet_id=1eTiQOVI5Ac1cHEzkBL1kkUA9uSP2aoM7ntukkLRxND8 --clear
+    //php artisan lkps:sync --spreadsheet_id=1eTiQOVI5Ac1cHEzkBL1kkUA9uSP2aoM7ntukkLRxND8 --clear
     protected $signature = 'lkps:sync 
                             {--spreadsheet_id= : ID Google Spreadsheet}
                             {--clear : Hapus struktur yang sudah ada sebelum sinkronisasi}
@@ -119,6 +119,7 @@ class LkpsSyncCommand extends Command
             $this->info('- Sections: ' . $this->generatedStructure['sections']);
             $this->info('- Tables: ' . $this->generatedStructure['tables'] . " (Attempted: {$this->attemptedTables}, Success: {$this->successTables}, Failed: {$this->failedTables})");
             $this->info('- Columns: ' . $this->generatedStructure['columns']);
+            $this->validateUniqueTableCodes();
 
             return 0;
         } catch (\Exception $e) {
@@ -306,7 +307,9 @@ class LkpsSyncCommand extends Command
             }
 
             // Generate unique table code
-            $tableCode = $this->generateTableCode($title);
+            $tableCode = $this->generateTableCode($title, $sectionCode);
+
+            $this->info("  Table code generated: {$tableCode} for table: {$title}");
 
             // Ambil nama tabel tanpa prefix "Tabel X"
             $cleanTableTitle = preg_replace('/^Tabel\s+[\d\.a-z\(\)]+\s*/i', '', $title);
@@ -373,24 +376,52 @@ class LkpsSyncCommand extends Command
     }
 
     /**
-     * Generate kode tabel dari judul
+     * Generate kode tabel dari judul dengan memastikan kode unik tanpa prefix
      */
-    private function generateTableCode($title)
+    private function generateTableCode($title, $sectionCode = null)
     {
-        // Contoh: "Tabel 1 Kerjasama Tridharma Perguruan Tinggi - Pendidikan" -> "kerjasama_pendidikan"
+        // Ekstrak nomor tabel dari judul (misalnya "Tabel 3.b.7" akan mengambil "3.b.7")
+        $tableNumber = '';
+        if (preg_match('/^Tabel\s+([\d\.a-z\(\)]+)/i', $title, $matches)) {
+            $tableNumber = preg_replace('/[^a-z0-9\.]/i', '', $matches[1]);
+        }
 
         // Hapus "Tabel X" dari awal judul
         $cleanTitle = preg_replace('/^Tabel\s+[\d\.a-z\(\)]+\s*/i', '', $title);
 
-        // Jika ada subtitel (setelah "-" atau ":"), ambil bagian setelahnya
-        if (preg_match('/[-:]\s*(.+)$/i', $cleanTitle, $matches)) {
-            $mainTitle = trim($matches[1]);
-        } else {
-            $mainTitle = $cleanTitle;
-        }
+        // Ambil judul lengkap (termasuk bagian sebelum dan setelah "-" atau ":")
+        $fullTitle = $cleanTitle;
 
         // Bersihkan dan konversi ke snake_case
-        $tableCode = Str::snake(preg_replace('/[^a-z0-9\s]/i', ' ', $mainTitle));
+        $tableCode = Str::snake(preg_replace('/[^a-z0-9\s]/i', ' ', $fullTitle));
+
+        // Jika kode terlalu pendek, tambahkan nomor tabel atau section code
+        if (strlen($tableCode) < 5) {
+            if (!empty($tableNumber)) {
+                $tableCode .= '_' . str_replace('.', '_', $tableNumber);
+            } elseif (!empty($sectionCode)) {
+                $tableCode .= '_' . strtolower($sectionCode);
+            }
+        }
+
+        // Buat kode unik dengan menambahkan hash singkat jika perlu
+        $originalCode = $tableCode;
+        $counter = 0;
+
+        while (LkpsTable::where('code', $tableCode)->exists()) {
+            $counter++;
+            if ($counter == 1) {
+                // Pada percobaan pertama, coba tambahkan bagian dari section code
+                if (!empty($sectionCode)) {
+                    $tableCode = $originalCode . '_' . substr(strtolower($sectionCode), 0, 3);
+                } else {
+                    $tableCode = $originalCode . '_' . $counter;
+                }
+            } else {
+                // Untuk percobaan berikutnya, gunakan counter
+                $tableCode = $originalCode . '_' . $counter;
+            }
+        }
 
         return $tableCode;
     }
@@ -443,19 +474,30 @@ class LkpsSyncCommand extends Command
             $restructuredData = $response->original['restructured_data'];
             $headerData = $restructuredData[0] ?? null;
 
-            if (!$headerData || empty($headerData['columns'])) {
-                $this->warn("  Tidak ditemukan header untuk tabel {$table->code}");
+            // PRIORITAS: Periksa ada tidaknya sel berwarna kuning
+            if (isset($response->original['first_yellow_row']) && $response->original['first_yellow_row'] > 0) {
+                // Gunakan row pertama dengan sel kuning sebagai excel_start_row
+                $yellowStartRow = $response->original['first_yellow_row'];
+                $table->excel_start_row = $yellowStartRow;
+                $table->save();
+
+                $this->info("  Excel start row diupdate menjadi {$table->excel_start_row} (berdasarkan sel kuning di baris {$yellowStartRow})");
+
+                if ($this->debug && isset($response->original['yellow_cells'])) {
+                    $this->info("  Detail sel kuning: " . json_encode($response->original['yellow_cells']));
+                }
+            }
+            // FALLBACK: Jika tidak ada sel kuning, gunakan header_row + 1
+            else if (!$headerData || empty($headerData['columns'])) {
+                $this->warn("  Tidak ditemukan header atau sel kuning untuk tabel {$table->code}");
                 if ($this->debug) {
                     $this->info("  Header data: " . json_encode($headerData));
                 }
                 return;
-            }
-
-            // Update excel_start_row jika ditemukan
-            if (isset($headerData['header_row']) && $headerData['header_row'] > 0) {
+            } else if (isset($headerData['header_row']) && $headerData['header_row'] > 0) {
                 $table->excel_start_row = $headerData['header_row'] + 1;
                 $table->save();
-                $this->info("  Excel start row diupdate menjadi {$table->excel_start_row}");
+                $this->info("  Excel start row diupdate menjadi {$table->excel_start_row} (berdasarkan header_row, tidak ditemukan sel kuning)");
             }
 
             // Hapus kolom yang sudah ada untuk tabel ini
@@ -542,19 +584,19 @@ class LkpsSyncCommand extends Command
     private function updateColumnDataIndicesWithParent()
     {
         $this->info('Memperbarui data_index kolom berdasarkan relasi parent-child...');
-        
+
         // Ambil semua kolom
         $allColumns = LkpsColumn::all();
-        
+
         // Kelompokkan berdasarkan ID untuk pencarian cepat
         $columnsById = [];
         foreach ($allColumns as $column) {
-            $columnsById[(string)$column->_id] = $column;
+            $columnsById[(string) $column->_id] = $column;
         }
-        
+
         // Track jumlah kolom yang diupdate
         $updatedCount = 0;
-        
+
         // Proses setiap kolom yang memiliki parent_id
         foreach ($allColumns as $column) {
             if (!empty($column->parent_id)) {
@@ -562,45 +604,45 @@ class LkpsSyncCommand extends Command
                 $parentId = $column->parent_id;
                 if (is_object($parentId)) {
                     if (method_exists($parentId, '__toString')) {
-                        $parentId = (string)$parentId;
+                        $parentId = (string) $parentId;
                     } elseif (property_exists($parentId, '$oid')) {
                         $parentId = $parentId->{'$oid'};
                     }
                 }
-                
+
                 // Cari parent column
                 $parent = null;
                 foreach ($allColumns as $possibleParent) {
-                    $possibleParentId = (string)$possibleParent->_id;
+                    $possibleParentId = (string) $possibleParent->_id;
                     if (is_object($possibleParent->_id)) {
                         if (method_exists($possibleParent->_id, '__toString')) {
-                            $possibleParentId = (string)$possibleParent->_id;
+                            $possibleParentId = (string) $possibleParent->_id;
                         } elseif (property_exists($possibleParent->_id, '$oid')) {
                             $possibleParentId = $possibleParent->_id->{'$oid'};
                         }
                     }
-                    
+
                     if ($possibleParentId === $parentId) {
                         $parent = $possibleParent;
                         break;
                     }
                 }
-                
+
                 if ($parent) {
                     // Format parent title untuk data_index
                     $parentTitle = $this->formatTitleForDataIndex($parent->title);
                     $originalIndex = $column->data_index;
                     $newDataIndex = '';
-                    
+
                     // Kasus khusus untuk kolom tingkat (internasional, nasional, lokal)
                     if (
-                        strtolower($parent->title) === 'tingkat' || 
+                        strtolower($parent->title) === 'tingkat' ||
                         strpos(strtolower($parent->title), 'tingkat') !== false
                     ) {
                         // Format tingkat_[child] untuk kompatibilitas dengan front-end
                         // Contoh: "internasional" menjadi "tingkat_internasional"
                         $newDataIndex = 'tingkat_' . $originalIndex;
-                        
+
                         $this->info("    Special case: {$column->title} with parent '{$parent->title}' - using '{$newDataIndex}'");
                     } else {
                         // Format standar [child]_[parent]
@@ -611,14 +653,14 @@ class LkpsSyncCommand extends Command
                             $newDataIndex = $originalIndex; // Tidak perlu diupdate
                         }
                     }
-                    
+
                     // Update record jika data_index berubah
                     if ($newDataIndex && $newDataIndex !== $originalIndex) {
                         $column->data_index = $newDataIndex;
                         $column->save();
-                        
+
                         $updatedCount++;
-                        
+
                         if ($this->debug) {
                             $this->info("    Updated: {$column->title} data_index dari '{$originalIndex}' menjadi '{$newDataIndex}'");
                         }
@@ -626,7 +668,7 @@ class LkpsSyncCommand extends Command
                 }
             }
         }
-        
+
         $this->info("Total {$updatedCount} kolom diupdate dengan data_index yang mengandung parent title.");
     }
 
@@ -637,13 +679,13 @@ class LkpsSyncCommand extends Command
     {
         // Konversi ke lowercase
         $formatted = strtolower($title);
-        
+
         // Ganti spasi dan karakter khusus dengan underscore
         $formatted = preg_replace('/[^a-z0-9]+/', '_', $formatted);
-        
+
         // Hapus underscore di awal dan akhir
         $formatted = trim($formatted, '_');
-        
+
         return $formatted;
     }
 
@@ -731,5 +773,48 @@ class LkpsSyncCommand extends Command
         }
 
         return $result;
+    }
+
+    /**
+     * Validasi bahwa tidak ada kode tabel yang duplikat
+     */
+    private function validateUniqueTableCodes()
+    {
+        // Use MongoDB's aggregation framework instead of SQL-style havingRaw
+        $duplicateCodes = LkpsTable::raw(function ($collection) {
+            return $collection->aggregate([
+                [
+                    '$group' => [
+                        '_id' => '$code',
+                        'count' => ['$sum' => 1],
+                        'ids' => ['$push' => '$_id']
+                    ]
+                ],
+                [
+                    '$match' => [
+                        'count' => ['$gt' => 1]
+                    ]
+                ]
+            ]);
+        });
+
+        $hasDuplicates = false;
+
+        foreach ($duplicateCodes as $duplicate) {
+            if (!$hasDuplicates) {
+                $this->warn("Ditemukan kode tabel duplikat:");
+                $hasDuplicates = true;
+            }
+
+            $code = $duplicate->_id;
+            $this->warn("  Kode: {$code}");
+
+            $tables = LkpsTable::where('code', $code)->get();
+            foreach ($tables as $table) {
+                $this->warn("    - {$table->title}");
+            }
+        }
+
+        return !$hasDuplicates;
     }
 }

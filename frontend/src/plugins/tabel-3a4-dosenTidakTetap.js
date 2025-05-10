@@ -1,6 +1,3 @@
-/**
- * Plugin khusus untuk section produk / jasa yang dihasilkan mahasiswa yang diadopsi oleh industri / masyarakat
- */
 import { processExcelDataBase } from "../utils/tableUtils"
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
 
@@ -126,10 +123,8 @@ const DosenTidakTetap = {
     },
 
     async calculateScore(data, config, additionalData = {}) {
-        // NDTT = Jumlah dosen tidak tetap yang ditugaskan sebagai pengampu mata kuliah di program studi yang diakreditasi. 
         let NDTT = 0
-        
-        // NDT =  Jumlah dosen tetap yang ditugaskan sebagai pengampu mata kuliah di program studi yang diakreditasi. 
+
         const responseScoreDetail = await fetchScoreDetails("3a1")
         
         if (!responseScoreDetail) {

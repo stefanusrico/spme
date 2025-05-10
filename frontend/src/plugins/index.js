@@ -28,7 +28,6 @@ import LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter from "./plugin-tabel-3b8
 
 import ipkLulusanPlugin from "./ipkLulusanPlugin"
 import PrestasiAkademikMahasiswaPlugin from "./prestasiAkademikMahasiswaPlugin"
-import waktuTungguLulusanPlugin from "./waktuTungguLulusanPlugin"
 import kesesuaianBidangKerjaPlugin from "./kesesuaianBidangKerjaLulusanPlugin"
 import PrestasiNonAkademikMahasiswaPlugin from "./prestasiNonAkademikMahasiswaPlugin"
 import ProdukJasaYangDihasilkanMahasiswa from "./tabel-8f4-produkJasaYangDihasilkanMahasiswaPlugin"
@@ -60,7 +59,10 @@ const registerPlugins = () => {
   registerPlugin("3b6", KaryaIlmiahDtpsYangDisitasi)
   registerPlugin("3b7", ProdukJasaDtpsYangDiadopsiOlehIndustriMasyarakat)
   registerPlugin("3b8-1", LuaranPenelitianPkmLainnyaHKIPatenPatenSederhana)
-  registerPlugin("3b8-2", LuaranPenelitianPkmLainnyaHKIHakCiptaDesainProdukIndustriDll)
+  registerPlugin(
+    "3b8-2",
+    LuaranPenelitianPkmLainnyaHKIHakCiptaDesainProdukIndustriDll
+  )
   registerPlugin("3b8-3", LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk)
   registerPlugin("3b8-4", LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter)
 
@@ -71,7 +73,7 @@ const registerPlugins = () => {
   registerPlugin("8a", ipkLulusanPlugin)
   registerPlugin("8b1", PrestasiAkademikMahasiswaPlugin)
   registerPlugin("8b2", PrestasiNonAkademikMahasiswaPlugin)
-  registerPlugin("8d1", waktuTungguLulusanPlugin) 
+  registerPlugin("8d1", waktuTungguLulusanPlugin)
   registerPlugin("8d2", kesesuaianBidangKerjaPlugin)
   registerPlugin("8f4", ProdukJasaYangDihasilkanMahasiswa)
 
