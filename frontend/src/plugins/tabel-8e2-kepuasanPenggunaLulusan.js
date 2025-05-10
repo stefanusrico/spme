@@ -1,5 +1,6 @@
 import { processExcelDataBase } from "../utils/tableUtils"
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { cekStrata } from "./checkStrata"
 
 const KepuasanPenggunaLulusanPlugin = {
   getInfo() {
@@ -205,6 +206,10 @@ const KepuasanPenggunaLulusanPlugin = {
     const scoreDetailsResponse = await fetchScoreDetails("8e1")
     console.log("Fetched score details from 8e1:", scoreDetailsResponse)
 
+    //Cek strata
+    const strata = cekStrata()
+    const butir = strata === "D-3" ? 62 : 68
+
     // Extract the required values from the API response
     let NL = 0
     let NJ = 0
@@ -292,7 +297,7 @@ const KepuasanPenggunaLulusanPlugin = {
     return {
       scores: [
         {
-          butir: 62,
+          butir: butir,
           nilai: finalScore,
         },
       ],

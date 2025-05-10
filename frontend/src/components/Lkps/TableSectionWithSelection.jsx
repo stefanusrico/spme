@@ -49,6 +49,13 @@ const TableSectionWithSelection = ({
     }
   }, [tableData, selectionData, showSelectionMode, sectionCode])
 
+  const hiddenAddRowCodes = [
+    "2a1", "2a2", "2a3", "2a4",
+    "3b2", "3b3", "3b4", "3b5", "3c",
+    "4a", "5d", "9a", "9b",
+    "8a", "8d1", "8d2", "8e1", "8e2", "8f1", "8f2",
+  ]
+
   const hasData = tableData && tableData.length > 0
   const hasSelectionData = selectionData && selectionData.length > 0
 
@@ -112,12 +119,14 @@ const TableSectionWithSelection = ({
               </Button>
             </Upload>
 
-            <Button
-              icon={<PlusOutlined />}
-              onClick={() => handleAddRow(tableCode)}
-            >
-              Tambah Baris
-            </Button>
+            {!hiddenAddRowCodes.includes(tableConfig.section_code) && (
+              <Button
+                icon={<PlusOutlined />}
+                onClick={() => handleAddRow(tableCode)}
+              >
+                Tambah Baris
+              </Button>
+            )}
 
             {hasSelectionData && isSelectionAllowedForSection(sectionCode) && (
               <Button

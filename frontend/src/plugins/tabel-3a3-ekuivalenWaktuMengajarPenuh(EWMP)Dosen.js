@@ -2,6 +2,7 @@
  * Plugin khusus untuk section produk / jasa yang dihasilkan mahasiswa yang diadopsi oleh industri / masyarakat
  */
 import { processExcelDataBase } from "../utils/tableUtils"
+import { cekStrata } from "./checkStrata"
 
 const EkuivalenWaktuMengajarPenuhDosen = {
     getInfo() {
@@ -145,6 +146,10 @@ const EkuivalenWaktuMengajarPenuhDosen = {
         let index = 0
         let totalEWMP = 0
 
+        //Cek strata
+        const strata = cekStrata()
+        const butir = strata === "D-3" ? 21 : 22
+
         // Fungsi pengecekan isi field
         data.forEach((item) => {
             if (
@@ -178,7 +183,7 @@ const EkuivalenWaktuMengajarPenuhDosen = {
         return {
             scores: [
                 {
-                    butir : 21,
+                    butir : butir,
                     nilai : score
                 }
             ],

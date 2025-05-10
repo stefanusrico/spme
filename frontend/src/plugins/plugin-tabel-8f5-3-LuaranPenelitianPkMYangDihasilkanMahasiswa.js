@@ -1,26 +1,25 @@
 import { createPluginHandler } from "./core-plugin";
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
-import { cekStrata } from "./checkStrata";
 
-//vokasi
-const LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk = createPluginHandler({
+//STr
+const LuaranPenelitianPkmYangDihasilkanMahasiswaTeknologiTepatGunaProdukKaryaSeniRekayasaSosial = createPluginHandler({
     info: {
-        code: "3b8-3",
-        name: "Luaran Penelitian/PkM Lainnya - Teknologi Tepat Guna, Produk",
-        Description: "Plugin for processing Luaran Penelitian/PkM Lainnya - Teknologi Tepat Guna, Produk",
+        code: "8f5-3",
+        name: "Luaran Penelitian/PkM yang Dihasilkan Mahasiswa - Teknologi Tepat Guna, Produk, Karya Seni, Rekayasa Sosial",
+        Description: "Plugin for processing Luaran Penelitian/PkM yang Dihasilkan Mahasiswa - Teknologi Tepat Guna, Produk, Karya Seni, Rekayasa Sosial",
     },
 
     fieldMapping: {
-        judul_luaran_penelitian_dan_pkm: 1,
+        luaran_penelitian_dan_pkm: 1,
         tanggal_hh_bb_tttt: 2,
         status_tingkat_kesiapan_teknologi: 3,
-        nomor_sertifikat_tkt: 4
+        nomor_sertifikat_tkt: 4,
     },
 
     validationRules: [
-        { field: "judul_luaran_penelitian_dan_pkm", message: "Judul Luaran Penelitian dan PkM harus diisi" },
+        { field: "luaran_penelitian_dan_pkm", message: "Judul Luaran Penelitian dan PkM harus diisi" },
         { field: "tanggal_hh_bb_tttt", message: "Tanggal (HH/BB/TTTT) harus diisi" },
-        { field: "status_tingkat_kesiapan_teknologi", message: "Status Tingkat Kesiapan Teknologi harus diisi" },
+        { field: "status_tingkat_kesiapan_teknologi", message: "Status harus diisi" },
         { field: "nomor_sertifikat_tkt", message: "Nomor Sertifikat TKT harus diisi" },
     ],
 
@@ -30,10 +29,6 @@ const LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk = createPluginHandler({
         // NC = Jumlah luaran penelitian/PkM dalam bentuk Teknologi Tepat Guna, Produk (Produk Terstandarisasi, Produk Tersertifikasi), Karya Seni, Rekayasa Sosial. 
         // ND = Jumlah luaran penelitian/PkM yang diterbitkan dalam bentuk Buku ber-ISBN, Book Chapter.
         let NC = 0
-
-        //Cek strata
-        const strata = cekStrata()
-        const butir = strata === "D-3" ? 29 : 31
 
         const isValidField = (value) => {
             if (typeof value === 'string') {
@@ -46,7 +41,7 @@ const LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk = createPluginHandler({
         }
         data.forEach(item => {
             if(
-                isValidField(item.judul_luaran_penelitian_dan_pkm) &&
+                isValidField(item.luaran_penelitian_dan_pkm) &&
                 isValidField(item.tanggal_hh_bb_tttt) &&
                 isValidField(item.status_tingkat_kesiapan_teknologi) &&
                 isValidField(item.nomor_sertifikat_tkt)
@@ -58,8 +53,8 @@ const LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk = createPluginHandler({
         return {
             scores: [
                 {
-                    butir : butir,
-                    nilai : "Score ada di 3b8-4"
+                    butir : 71,
+                    nilai : "Score ada di 8f5-4"
                 }
             ],
             scoreDetail : {
@@ -69,4 +64,4 @@ const LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk = createPluginHandler({
     },
 });
 
-export default LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk;
+export default LuaranPenelitianPkmYangDihasilkanMahasiswaTeknologiTepatGunaProdukKaryaSeniRekayasaSosial;

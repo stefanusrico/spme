@@ -1,5 +1,6 @@
 import { createPluginHandler } from "./core-plugin";
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { cekStrata } from "./checkStrata";
 
 const PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin = createPluginHandler({
     info: {
@@ -41,6 +42,10 @@ const PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin = createPluginHandler(
 
         let NA1 = 0, NA2 = 0, NA3 = 0, NA4 = 0, NB1 = 0, NB2 = 0, NB3 = 0, NC1 = 0, NC2 = 0, NC3 = 0;
 
+        //Cek strata
+        const strata = cekStrata()
+        const butir = strata === "D-3" ? 27 : 28
+
         //Mendapatkan nilai NI, NN, dan NL
         data.forEach(item => {
             const ts2 = typeof item.ts_2_jumlah_judul === 'number' ? item.ts_2_jumlah_judul : Number(item.ts_2_jumlah_judul) || 0;
@@ -81,7 +86,7 @@ const PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin = createPluginHandler(
             return {
                 scores: [
                     {
-                        butir: 27,
+                        butir: butir,
                         nilai: 0 
                     }
                 ],
@@ -94,7 +99,7 @@ const PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin = createPluginHandler(
             return {
                 scores: [
                     {
-                        butir: 27,
+                        butir: butir,
                         nilai: 0
                     }
                 ],
@@ -111,9 +116,13 @@ const PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin = createPluginHandler(
         let RI = Math.round(((NA4 + NB3 + NC3) / NDTPS) * 100) / 100
 
         //Dengan Faktor: 
-        const a = 0.05  
-        const b = 0.3 
-        const c = 1 
+        let a = 0, b = 0, c = 0;
+
+        if(strata === "D-3"){
+            a = 0.05; b = 0.5; c = 1
+        }else{
+            a = 0.1; b = 1; c = 2
+        } 
 
         //Mendapatkan nilai A, B, dan C 
         let A = Math.round((RI / a) * 100) / 100
@@ -134,7 +143,7 @@ const PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin = createPluginHandler(
         return {
             scores: [
                 {
-                    butir : 27,
+                    butir : butir,
                     nilai : score
                 }
             ],

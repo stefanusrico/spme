@@ -1,5 +1,6 @@
 import { createPluginHandler } from "./core-plugin";
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { cekStrata } from "./checkStrata";
 
 const PengabdianKepadaMasyarakatDtpsPlugin = createPluginHandler({
     info: {
@@ -29,6 +30,10 @@ const PengabdianKepadaMasyarakatDtpsPlugin = createPluginHandler({
 
         let NL = 0, NN = 0, NI = 0;
 
+        //Cek strata
+        const strata = cekStrata()
+        const butir = strata === "D-3" ? 26 : 27
+
         //Mendapatkan nilai NI, NN, dan NL
         data.forEach(item => {
             console.log("data jumlah judul pkm ts-2: ", item.ts_2_jumlah_judul_pkm)
@@ -56,7 +61,7 @@ const PengabdianKepadaMasyarakatDtpsPlugin = createPluginHandler({
             return {
                 scores: [
                     {
-                        butir: 26,
+                        butir: butir,
                         nilai: 0 
                     }
                 ],
@@ -94,7 +99,7 @@ const PengabdianKepadaMasyarakatDtpsPlugin = createPluginHandler({
         return {
             scores: [
                 {
-                    butir : 26,
+                    butir : butir,
                     nilai : score
                 }
             ],

@@ -14,6 +14,14 @@ import EkuivalenWaktuMengajarPenuhDosen from "./tabel-3a3-ekuivalenWaktuMengajar
 import DosenTidakTetap from "./tabel-3a4-dosenTidakTetap"
 import DosenIndustriPraktisi from "./tabel-3a5-dosenIndustriPraktisi"
 
+import PenelitianDtpsYangMelibatkanMahasiswa from "./plugin-tabel-6a-PenelitianDtpsYangMelibatkanMahasiswa"
+import PkmDtpsYangMelibatkanMahasiswa from "./plugin-tabel-7-PkMDtpsYangMelibatkanMahasiswa"
+
+import LuaranPenelitianPkmYangDihasilkanMahasiswaHKIPatenPatenSederhana from "./plugin-tabel-8f5-1-LuaranPenelitianPkMYangDihasilkanMahasiswa"
+import LuaranPenelitianPkmYangDihasilkanMahasiswaHKIHakCiptaDesainProdukIndustriDll from "./plugin-tabel-8f5-2-LuaranPenelitianPkmYangDihasilkanMahasiswa"
+import LuaranPenelitianPkmYangDihasilkanMahasiswaTeknologiTepatGunaProdukKaryaSeniRekayasaSosial from "./plugin-tabel-8f5-3-LuaranPenelitianPkMYangDihasilkanMahasiswa"
+import LuaranPenelitianPkmYangDihasilkanMahasiswaBukuBerIsbnBookChapter from "./plugin-tabel-8f5-4-LuaranPenelitianPkMYangDihasilkanMahasiswa"
+
 import PengakuanRekognisiDtps from "./tabel-3b1-pengakuanRekognisiDosen"
 import PengakuanRekognisiDtpsPlugins from "./plugin-tabel-3b1-PengakuanRekognisiDosen"
 import pengabdianKepadaMasyarakatDtpsPlugin from "./plugin-tabel-3b3-pengabdianKepadaMasyakatDtps"
@@ -31,7 +39,7 @@ import PrestasiAkademikMahasiswaPlugin from "./prestasiAkademikMahasiswaPlugin"
 import kesesuaianBidangKerjaPlugin from "./kesesuaianBidangKerjaLulusanPlugin"
 import PrestasiNonAkademikMahasiswaPlugin from "./prestasiNonAkademikMahasiswaPlugin"
 import ProdukJasaYangDihasilkanMahasiswa from "./tabel-8f4-produkJasaYangDihasilkanMahasiswaPlugin"
-import waktuTungguLulusanPlugin from "./waktuTungguLulusanPlugin"
+
 import dataPrasaranaUPPSPlugin from "./dataPrasaranaUPPSPluggin"
 import prasaranaDanPeralatanUtamaPlugin from "./prasaranaDanPeralatanUtamaPlugin"
 import penggunaanDanaPlugin from "./penggunaanDanaPlugin"
@@ -70,13 +78,20 @@ const registerPlugins = () => {
   registerPlugin("4b", prasaranaDanPeralatanUtamaPlugin)
   registerPlugin("4c", dataPrasaranaUPPSPlugin)
 
+  registerPlugin("6a", PenelitianDtpsYangMelibatkanMahasiswa)
+  registerPlugin("7", PkmDtpsYangMelibatkanMahasiswa)
+
   registerPlugin("8a", ipkLulusanPlugin)
   registerPlugin("8b1", PrestasiAkademikMahasiswaPlugin)
   registerPlugin("8b2", PrestasiNonAkademikMahasiswaPlugin)
   registerPlugin("8d1", waktuTungguLulusanPlugin)
   registerPlugin("8d2", kesesuaianBidangKerjaPlugin)
   registerPlugin("8f4", ProdukJasaYangDihasilkanMahasiswa)
-
+  registerPlugin("8f5-1", LuaranPenelitianPkmYangDihasilkanMahasiswaHKIPatenPatenSederhana)
+  registerPlugin("8f5-2", LuaranPenelitianPkmYangDihasilkanMahasiswaHKIHakCiptaDesainProdukIndustriDll)
+  registerPlugin("8f5-3", LuaranPenelitianPkmYangDihasilkanMahasiswaTeknologiTepatGunaProdukKaryaSeniRekayasaSosial)
+  registerPlugin("8f5-4", LuaranPenelitianPkmYangDihasilkanMahasiswaBukuBerIsbnBookChapter)
+  
   console.log("All LKPS plugins registered successfully")
 }
 

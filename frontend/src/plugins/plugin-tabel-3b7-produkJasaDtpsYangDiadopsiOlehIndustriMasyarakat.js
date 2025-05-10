@@ -1,5 +1,6 @@
 import { createPluginHandler } from "./core-plugin";
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { cekStrata } from "./checkStrata";
 
 //vokasi
 const ProdukJasaDtpsYangDiadopsiOlehIndustriMasyarakat = createPluginHandler({
@@ -25,6 +26,10 @@ const ProdukJasaDtpsYangDiadopsiOlehIndustriMasyarakat = createPluginHandler({
     scoreCalculator: async function (data, config) {
         //NAPJ = Jumlah produk/jasa yang diadopsi oleh industri/masyarakat dalam 3 tahun terakhir.
         let NAPJ = 0
+
+        //Cek strata
+        const strata = cekStrata()
+        const butir = strata === "D-3" ? 28 : 30
 
         const isValidField = (value) => {
             if (typeof value === 'string') {
@@ -53,7 +58,7 @@ const ProdukJasaDtpsYangDiadopsiOlehIndustriMasyarakat = createPluginHandler({
             return {
                 scores: [
                     {
-                        butir: 28,
+                        butir: butir,
                         nilai: 0 
                     }
                 ],
@@ -66,7 +71,7 @@ const ProdukJasaDtpsYangDiadopsiOlehIndustriMasyarakat = createPluginHandler({
             return {
                 scores: [
                     {
-                        butir: 28,
+                        butir: butir,
                         nilai: 0
                     }
                 ],
@@ -91,7 +96,7 @@ const ProdukJasaDtpsYangDiadopsiOlehIndustriMasyarakat = createPluginHandler({
         return {
             scores: [
                 {
-                    butir : 28,
+                    butir : butir,
                     nilai : score
                 }
             ],
