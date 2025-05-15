@@ -1,23 +1,23 @@
-import { useState, useEffect } from "react"
 import { Sidebar, SidebarContent, SidebarFooter } from "@/components/ui/sidebar"
-import { useUser } from "@/context/userContext"
-import { useSidebarMenu } from "../hooks/useSideBarMenu"
 import { userMenuItems } from "@/config/sidebarItems"
-import { NavMain } from "./nav-main"
-import { NavUser } from "./nav-user"
-import { NavProjects } from "./nav-projects"
+import { useUser } from "@/context/userContext"
 import {
+  Bell,
+  Calendar,
+  CreditCard,
   Home,
   Inbox,
-  Settings,
-  Calendar,
-  Search,
-  CreditCard,
-  User2,
-  Bell,
   LogOut,
+  Search,
+  Settings,
   User,
+  User2,
 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useSidebarMenu } from "../hooks/useSideBarMenu"
+import { NavMain } from "./nav-main"
+import { NavProjects } from "./nav-projects"
+import { NavUser } from "./nav-user"
 
 const getIcon = (iconName) => {
   const icons = {
