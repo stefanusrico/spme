@@ -65,7 +65,6 @@ export const useFileUpload = (
           // Log important debug information
           console.log("===== REPLACEMENT DEBUG INFO =====")
           console.log("Table code:", tableCode)
-          console.log("Table code:", tableCode)
           console.log("shouldReplaceExisting:", shouldReplaceExisting)
           console.log(
             "Selection allowed:",
