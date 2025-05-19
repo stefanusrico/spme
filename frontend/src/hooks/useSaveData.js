@@ -44,6 +44,8 @@ export const useSaveData = (
         for (const tableConfig of config.tables) {
           const tableCode =
             typeof tableConfig === "string" ? tableConfig : tableConfig.code
+
+          console.log("Ini tabel yang disave: ", tableCode)
           const tableRows = tableData[tableCode] || []
 
           if (tableRows.length > 0) {
@@ -73,6 +75,7 @@ export const useSaveData = (
               typeof config.tables[0] === "string"
                 ? config.tables[0]
                 : config.tables[0]?.code
+            console.log("Ini table code untuk save: ", firstTableCode)
             const data = tableData[firstTableCode] || []
 
             message.loading({
