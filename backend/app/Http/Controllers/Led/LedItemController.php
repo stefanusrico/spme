@@ -3,18 +3,19 @@
 namespace App\Http\Controllers\Led;
 
 use App\Http\Controllers\Controller;
-use App\Models\Led\Matriks;
+use App\Models\Led\LedItem;
 use App\Models\Prodi\Prodi;
 use Illuminate\Http\Request;
+use MongoDB\BSON\ObjectId;
 
-class MatriksController extends Controller
+class LedItemController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        return response()->json(Matriks::all());
+        return response()->json(LedItem::all());
     }
 
     /**
@@ -26,18 +27,22 @@ class MatriksController extends Controller
             $request->validate([
                 'lamId' => 'required|string',
                 'strataId' => 'required|string',
-                'c' => 'required|string',
+                'kriteria' => 'required|string',
                 'no' => 'required|string',
                 'sub' => 'required|string',
+
                 'details' => 'nullable|array',
+                'type' => 'nullable|array',
+                'seq' => 'nullable|string',
+                'reference' => 'nullable|string',
             ]);
 
-            $matriks = Matriks::create($request->all());
+            $ledItem = LedItem::create($request->all());
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Data berhasil disimpan.',
-                'data' => $matriks
+                'data' => $ledItem
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
@@ -49,25 +54,24 @@ class MatriksController extends Controller
         }
     }
 
-
     /**
      * Display the specified resource.
      */
     public function show(string $id)
     {
-        $matriks = Matriks::find($id);
-        if (!$matriks) {
+        $ledItem = LedItem::find($id);
+        if (!$ledItem) {
             return response()->json(['message' => 'Data not found'], 404);
         }
-        return response()->json($matriks);
+        return response()->json($ledItem);
     }
 
     public function showNoSub(string $no, string $sub)
     {
-        $matriks = Matriks::where('no', $no)
+        $ledItem = LedItem::where('no', $no)
             ->where('sub', $sub)
             ->first();
-        if (!$matriks) {
+        if (!$ledItem) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'tidak ada data dengan no dan sub tersebut'
@@ -75,11 +79,11 @@ class MatriksController extends Controller
         }
         return response()->json([
             'status' => 'success',
-            'data' => $matriks
+            'data' => $ledItem
         ], 200);
     }
 
-    public function getMatriksByProdi($prodiId)
+    public function getLedItemByProdi($prodiId)
     {
         $prodi = Prodi::where('id', $prodiId)->first();
 
@@ -93,21 +97,24 @@ class MatriksController extends Controller
         $lamId = $prodi->lamId;
         $strataId = $prodi->strataId;
 
-        $matriks = Matriks::where('lamId', $lamId)
-            ->where('strataId', $strataId)
-            ->get();
+        \Log::info('lamId:', [$lamId]);
+        \Log::info('strataId:', [$strataId]);
 
-        if ($matriks->isEmpty()) {
+        $ledItem = LedItem::where('lamId', new ObjectId($lamId))
+                  ->where('strataId', new ObjectId($strataId))
+                  ->get();
+
+        if ($ledItem->isEmpty()) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Tidak ada data dengan lamId dan strataId tersebut'
+                'message' => "Tidak ada data dengan lamId : {$lamId} dan strataId : {$strataId} tersebut"
             ], 404);
         }
 
         return response()->json([
             'status' => 'success',
-            'total_data' => $matriks->count(),
-            'data' => $matriks
+            'total_data' => $ledItem->count(),
+            'data' => $ledItem
         ], 200);
     }
 
@@ -117,13 +124,13 @@ class MatriksController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $matriks = Matriks::find($id);
-        if (!$matriks) {
+        $ledItem = LedItem::find($id);
+        if (!$ledItem) {
             return response()->json(['message' => 'Data not found'], 404);
         }
 
-        $matriks->update($request->all());
-        return response()->json($matriks);
+        $ledItem->update($request->all());
+        return response()->json($ledItem);
     }
 
     /**
@@ -131,12 +138,12 @@ class MatriksController extends Controller
      */
     public function destroy(string $id)
     {
-        $matriks = Matriks::find($id);
-        if (!$matriks) {
+        $ledItem = LedItem::find($id);
+        if (!$ledItem) {
             return response()->json(['message' => 'Data not found'], 404);
         }
 
-        $matriks->delete();
+        $ledItem->delete();
         return response()->json(['message' => 'Data deleted successfully']);
     }
 }

@@ -8,7 +8,8 @@ use App\Http\Controllers\Jurusan\{JurusanController};
 use App\Http\Controllers\Prodi\{ProdiController, StrataController};
 use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController};
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
-
+use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController};
+use App\Http\Controllers\Data\{SpreadsheetInfoController};
 
 use App\Http\Controllers\{
     NotificationController,
@@ -18,13 +19,10 @@ use App\Http\Controllers\{
     RumusController,
     SectionController,
     JsonController,
-    VersionController,
     ColorController,
-    MatriksController,
-    SpreadsheetInfoController,
     GoogleDriveController,
     GoogleSheetController,
-    GPTController
+    
 };
 use App\Http\Middleware\JwtMiddleware;
 
@@ -237,23 +235,24 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::delete('/delete-files', 'deleteFile');
         });
 
-        Route::controller(VersionController::class)->group(function () {
-            Route::post('/versions/getVersion', 'get');
-            Route::post('/versions', 'store');
-            Route::get('/versions/{prodiId}', 'getVersionByProdi');
+        Route::controller(LedDataController::class)->group(function () {
+            Route::post('/ledData', 'store');
+            Route::get('/ledData/{taskId}/all', 'getAll');
+            Route::get('/ledData/{taskId}/latest', 'getLatest');
+            Route::get('/ledData/byProdi/{prodiId}', 'getLedDataByProdi');
             Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
         });
 
         Route::post('/analyze-gpt', [GPTController::class, 'analyze']);
 
-        Route::controller(MatriksController::class)->group(function () {
-            Route::get('/matriks', 'index');
-            Route::post('/matriks', 'store');
-            Route::get('/matriks/{id}', 'show');
-            Route::put('/matriks/{id}', 'update');
-            Route::delete('/matriks/{id}', 'destroy');
-            Route::get('/matriks/{no}/{sub}', 'showNoSub');
-            Route::get('/getMatriksByProdi/{prodiId}', 'getMatriksByProdi');
+        Route::controller(LedItemController::class)->group(function () {
+            Route::get('/ledItem', 'index');
+            Route::get('/ledItem/{id}', 'show');
+            Route::get('/ledItem/{no}/{sub}', 'showNoSub');
+            Route::get('/getLedItemByProdi/{prodiId}', 'getledItemByProdi');
+            Route::post('/ledItem', 'store');
+            Route::put('/ledItem/{id}', 'update');
+            Route::delete('/ledItem/{id}', 'destroy');
         });
 
 

@@ -4,7 +4,8 @@ namespace App\Http\Controllers\Data;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\SpreadsheetInfo;
+use App\Models\Data\SpreadsheetInfo;
+use MongoDB\BSON\ObjectId;
 
 class SpreadsheetInfoController extends Controller
 {
@@ -34,9 +35,12 @@ class SpreadsheetInfoController extends Controller
                 'sheets' => 'required|array',
             ]);
 
+            $lamId = new ObjectId($request->lamId);
+            $strataId = new ObjectId($request->strataId);
+
             $existingData = SpreadsheetInfo::where('name', $request->name)
-                ->where('lamId', $request->lamId)
-                ->where('strataId', $request->strataId)
+                ->where('lamId', $lamId)
+                ->where('strataId', $strataId)
                 ->first();
             if ($existingData) {
                 return response()->json([
@@ -45,7 +49,13 @@ class SpreadsheetInfoController extends Controller
                 ], 400);
             }
 
-            $spreadsheetInfo = SpreadsheetInfo::create($request->all());
+            $spreadsheetInfo = SpreadsheetInfo::create([
+                'name' => $request->name,
+                'lamId' => $lamId,
+                'strataId' => $strataId,
+                'spreadsheetId' => $request->spreadsheetId,
+                'sheets' => $request->sheets,
+            ]);
 
             return response()->json([
                 'status' => 'berhasil disimpan',
