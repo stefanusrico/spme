@@ -69,7 +69,9 @@ Route::prefix('lkps')->group(function () {
     Route::get('/data', [LkpsDataController::class, 'getAllData']);
     Route::get('/data/{tableCode}', [LkpsDataController::class, 'getTableData']);
     Route::post('/data/{tableCode}', [LkpsDataController::class, 'saveTableData']);
+    Route::get('/tables/{tableCode}/task', [LkpsDataController::class, 'getTaskIdForTable']);
     Route::get('/export/{tableCode?}', [LkpsDataController::class, 'exportData']);
+    
 });
 
 Route::get('/score-details', [LkpsDataController::class, 'getScoreDetail']);

@@ -27,6 +27,12 @@ class GoogleSheetController extends Controller
         'blue' => 0.88
     ];
 
+    private $yellowColorRGB = [
+        'red' => 0.97,
+        'green' => 0.90,
+        'blue' => 0.07
+    ];
+
     private $colorTolerance = 0.1;
 
     public function __construct(Request $request = null)
@@ -615,6 +621,9 @@ class GoogleSheetController extends Controller
     /**
      * Get colored cells by sheet name
      */
+    /**
+     * Get colored cells by sheet name
+     */
     private function getColoredCellsBySheetName(Request $request)
     {
         try {
@@ -623,7 +632,8 @@ class GoogleSheetController extends Controller
             $sheetName = $request->input('sheet_name');
             $tableRef = $request->input('table_ref');
 
-            $rangeToCheck = $sheetName . '!A1:O100';
+            // Increase range to check more rows but keep it reasonable
+            $rangeToCheck = $sheetName . '!A1:Z150';
 
             $response = $this->service->spreadsheets->get($this->spreadsheetId, [
                 'includeGridData' => true,
@@ -643,12 +653,22 @@ class GoogleSheetController extends Controller
             $rowData = $data->getRowData();
 
             $coloredCells = [];
+            $yellowCells = []; // Untuk melacak sel berwarna kuning
+            $firstYellowRow = null; // Untuk melacak baris pertama dengan sel kuning
+            $yellowRowsFound = []; // Untuk melacak semua baris dengan sel kuning
             $coloredColumns = [];
             $tableSections = [];
             $currentTableSection = null;
             $tableData = [];
 
-            $isSimilarColor = function ($color1, $color2, $tolerance = 0.1) {
+            // Ketat untuk warna biru, lebih ketat untuk kuning
+            $blueColorTolerance = $this->colorTolerance; // 0.1 default
+            $yellowColorTolerance = 0.05; // Lebih ketat untuk kuning
+
+            $isSimilarColor = function ($color1, $color2, $tolerance) {
+                if (!isset($color1['red']) || !isset($color2['red']))
+                    return false;
+
                 foreach (['red', 'green', 'blue'] as $component) {
                     $val1 = $color1[$component] ?? 0;
                     $val2 = $color2[$component] ?? 0;
@@ -667,6 +687,14 @@ class GoogleSheetController extends Controller
                     (int) ($rgb['blue'] * 255)
                 );
             };
+
+            // Nilai RGB yang lebih tepat untuk warna kuning #f8e613
+            // Dikonversi ke skala 0-1 yang digunakan oleh Google Sheets API
+            $yellowTargetRGB = [
+                'red' => 0.97,    // 248/255
+                'green' => 0.90,  // 230/255
+                'blue' => 0.07    // 19/255
+            ];
 
             foreach ($rowData as $rowIndex => $row) {
                 if (!$row->getValues()) {
@@ -695,6 +723,8 @@ class GoogleSheetController extends Controller
                         }
                     }
                 }
+
+                $rowHasYellowCell = false;
 
                 foreach ($row->getValues() as $colIndex => $cell) {
                     if (!$cell) {
@@ -733,7 +763,8 @@ class GoogleSheetController extends Controller
                         'blue' => $backgroundColor->getBlue() ?? 0
                     ];
 
-                    if ($isSimilarColor($cellColor, $this->targetColorRGB, $this->colorTolerance)) {
+                    // Cek warna biru (functionality yang sudah ada)
+                    if ($isSimilarColor($cellColor, $this->targetColorRGB, $blueColorTolerance)) {
                         $value = $this->getCellValue($cell);
                         $columnLetter = $this->columnIndexToLetter($colIndex + 1);
 
@@ -758,9 +789,38 @@ class GoogleSheetController extends Controller
                             }
                         }
                     }
+
+                    // Cek sel warna kuning dengan toleransi yang lebih ketat
+                    if ($isSimilarColor($cellColor, $yellowTargetRGB, $yellowColorTolerance)) {
+                        $value = $this->getCellValue($cell);
+                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
+
+                        $rowHasYellowCell = true;
+
+                        // Tambahkan ke daftar sel kuning
+                        $yellowCells[] = [
+                            'row' => $rowIndex + 1,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . ($rowIndex + 1),
+                            'value' => $value,
+                            'color' => $toHex($cellColor)
+                        ];
+                    }
+                }
+
+                // Setelah memproses semua sel dalam baris, periksa apakah baris ini memiliki sel kuning
+                if ($rowHasYellowCell) {
+                    $currentRow = $rowIndex + 1;
+                    $yellowRowsFound[] = $currentRow;
+
+                    // Update firstYellowRow jika belum diset atau jika baris ini lebih kecil
+                    if ($firstYellowRow === null || $currentRow < $firstYellowRow) {
+                        $firstYellowRow = $currentRow;
+                    }
                 }
             }
 
+            // Lanjutkan dengan kode yang sudah ada...
             if (empty($tableSections) && !empty($coloredCells)) {
                 $tableSection = [
                     'title' => 'Full Sheet',
@@ -812,6 +872,44 @@ class GoogleSheetController extends Controller
 
             $restructuredData = $this->restructureHierarchicalHeaders($coloredCells);
 
+            // Tentukan data_start_row berdasarkan yellow cells
+            $dataStartRow = null;
+            $headerLastRow = 0;
+
+            // Jika ada restructured_data dengan header_row, gunakan itu sebagai referensi
+            if (!empty($restructuredData) && isset($restructuredData[0]['header_row'])) {
+                $headerLastRow = $restructuredData[0]['header_row'];
+
+                // Jika ada sub-header, gunakan yang lebih besar
+                if (isset($restructuredData[0]['subheader_row']) && $restructuredData[0]['subheader_row'] > $headerLastRow) {
+                    $headerLastRow = $restructuredData[0]['subheader_row'];
+                }
+
+                // Jika ada sub-subheader, gunakan yang lebih besar
+                if (isset($restructuredData[0]['sub_subheader_row']) && $restructuredData[0]['sub_subheader_row'] > $headerLastRow) {
+                    $headerLastRow = $restructuredData[0]['sub_subheader_row'];
+                }
+            }
+
+            // Cek apakah ada baris dengan sel kuning setelah header terakhir
+            if (!empty($yellowRowsFound)) {
+                // Urutkan baris dengan sel kuning
+                sort($yellowRowsFound);
+                foreach ($yellowRowsFound as $yellowRow) {
+                    // Jika baris kuning ini setelah header terakhir, gunakan sebagai data_start_row
+                    if ($yellowRow > $headerLastRow) {
+                        // Gunakan baris kuning ini + 1 sebagai data_start_row
+                        $dataStartRow = $yellowRow + 1;
+                        break;
+                    }
+                }
+            }
+
+            // Jika tidak ada baris kuning setelah header, gunakan header terakhir + 1
+            if ($dataStartRow === null && $headerLastRow > 0) {
+                $dataStartRow = $headerLastRow + 1;
+            }
+
             $response = [
                 'success' => true,
                 'message' => 'Berhasil mendapatkan sel-sel dengan warna biru (#8db3e1/#8db3e2)',
@@ -820,6 +918,11 @@ class GoogleSheetController extends Controller
                 'table_ref' => $tableRef,
                 'target_color' => '#8db3e1',
                 'colored_cells' => $coloredCells,
+                'yellow_cells_count' => count($yellowCells),
+                'yellow_rows_found' => $yellowRowsFound,
+                'first_yellow_row' => $firstYellowRow,
+                'header_last_row' => $headerLastRow,
+                'data_start_row' => $dataStartRow, // Gunakan ini sebagai barisAwalExcel
                 'restructured_data' => $restructuredData,
                 'total_colored_cells_found' => count($coloredCells),
                 'total_tables_found' => count($tableData)
@@ -831,7 +934,8 @@ class GoogleSheetController extends Controller
             return response()->json([
                 'error' => 'Terjadi kesalahan: ' . $e->getMessage(),
                 'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
             ], 500);
         }
     }

@@ -262,9 +262,17 @@ class LkpsSyncCommand extends Command
         $this->successTables = 0;
         $this->failedTables = 0;
 
+        // Hitung jumlah tabel yang akan diproses
+        $totalTables = count($titleMappings);
+        $this->info("Total tabel yang akan diproses: {$totalTables}");
+
+        $currentTableIndex = 0;
         $tableOrder = 1;
+
         foreach ($titleMappings as $title => $sheetCode) {
+            $currentTableIndex++;
             $this->attemptedTables++;
+            $this->info("Memproses tabel {$currentTableIndex} dari {$totalTables}: {$title}");
 
             // Generate unique table code
             $tableCode = $this->generateTableCode($title);
@@ -295,7 +303,17 @@ class LkpsSyncCommand extends Command
                 $this->info("  Menggunakan sheet code sebagai sheet name: $nameSheet");
             }
 
-            // Buat tabel menggunakan nama sheet sebagai kode
+            // Cek apakah tabel sudah ada sebelumnya
+            $existingTable = LkpsTable::where('kode', $nameSheet)->first();
+            if ($existingTable) {
+                $this->info("  Tabel dengan kode {$nameSheet} sudah ada, akan diupdate");
+
+                // Periksa apakah ada kolom yang sebelumnya terkait dengan tabel ini
+                $existingColumnCount = LkpsColumn::where('kodeTabel', $nameSheet)->count();
+                $this->info("  Terdapat {$existingColumnCount} kolom yang terkait dengan tabel ini");
+            }
+
+            // Buat atau update tabel menggunakan nama sheet sebagai kode
             $table = LkpsTable::updateOrCreate(
                 [
                     'kode' => $nameSheet // Gunakan nama sheet sebagai kode tabel
@@ -306,13 +324,59 @@ class LkpsSyncCommand extends Command
                 ]
             );
 
+            // Pastikan tabel berhasil disimpan
+            $table->fresh(); // Refresh model dari database
+
             $this->generatedStructure['tables']++;
             $this->successTables++;
-            $this->info("- Tabel dibuat: {$table->kode} - {$table->judul}");
+            $this->info("- Tabel dibuat/diupdate: {$table->kode} - {$table->judul}");
             $this->info("  Sheet name yang digunakan: $nameSheet");
+
+            // Hapus kolom yang ada sebelum membuat yang baru
+            // Ini untuk menghindari duplikasi jika proses createColumnsForTable tidak sempat menghapus
+            $deletedColumns = LkpsColumn::where('kodeTabel', $nameSheet)->delete();
+            $this->info("  Menghapus {$deletedColumns} kolom lama untuk tabel {$nameSheet} di awal");
 
             // Buat kolom untuk tabel ini
             $this->createColumnsForTable($table, $nameSheet);
+
+            // Verifikasi kolom setelah pembuatan
+            $columnCount = LkpsColumn::where('kodeTabel', $nameSheet)->count();
+            $this->info("  Verifikasi kolom untuk tabel {$nameSheet}: {$columnCount} kolom ditemukan di database");
+
+            if ($columnCount == 0) {
+                $this->warn("  PERINGATAN: Tidak ada kolom yang dibuat untuk tabel {$nameSheet}!");
+                // Coba buat ulang kolom jika tidak ada yang dihasilkan
+                if ($this->debug) {
+                    $this->info("  Mencoba kembali membuat kolom untuk tabel {$nameSheet}...");
+                    $this->createColumnsForTable($table, $nameSheet);
+
+                    // Verifikasi lagi
+                    $columnCount = LkpsColumn::where('kodeTabel', $nameSheet)->count();
+                    $this->info("  Hasil percobaan ulang: {$columnCount} kolom ditemukan di database");
+                }
+            }
+
+            // Beri jeda sebelum proses tabel berikutnya untuk memastikan DB berhasil menyimpan
+            if ($currentTableIndex < $totalTables) {
+                $this->info("Menyelesaikan proses tabel {$currentTableIndex}, bersiap memproses tabel berikutnya...");
+                sleep(1); // Jeda 1 detik
+            }
+        }
+
+        // Tambahkan verifikasi akhir
+        $this->info("Verifikasi akhir semua tabel dan kolom yang tersimpan di database:");
+        $tables = LkpsTable::all();
+        foreach ($tables as $table) {
+            $columnCount = LkpsColumn::where('kodeTabel', $table->kode)->count();
+            $this->info("  Tabel {$table->kode}: {$columnCount} kolom");
+        }
+
+        // Pastikan kita tidak kehilangan kolom-kolom sebelumnya
+        $totalColumns = LkpsColumn::count();
+        $this->info("Total kolom di database: {$totalColumns}");
+        if ($totalColumns < $this->generatedStructure['columns']) {
+            $this->warn("PERINGATAN: Jumlah kolom di database ({$totalColumns}) lebih sedikit dari yang seharusnya dihasilkan ({$this->generatedStructure['columns']})");
         }
     }
 
@@ -395,20 +459,67 @@ class LkpsSyncCommand extends Command
                 return;
             }
 
-            // Update barisAwalExcel jika ditemukan
-            if (isset($headerData['header_row']) && $headerData['header_row'] > 0) {
-                $table->barisAwalExcel = $headerData['header_row'] + 1;
+            // PRIORITAS UTAMA: Gunakan data_start_row jika tersedia
+            if (isset($response->original['data_start_row']) && $response->original['data_start_row'] > 0) {
+                // Tambahkan +1 untuk menyesuaikan dengan posisi Excel sebenarnya
+                $table->barisAwalExcel = $response->original['data_start_row'] + 1;
                 $table->save();
-                $this->info("  Excel start row diupdate menjadi {$table->barisAwalExcel}");
+
+                // Tambahkan log detail
+                $yellowInfo = "";
+                if (isset($response->original['yellow_rows_found'])) {
+                    $yellowInfo = " (baris kuning: " . implode(", ", $response->original['yellow_rows_found']) . ")";
+                }
+
+                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} berdasarkan analisis sel kuning" . $yellowInfo);
+            }
+            // PRIORITAS KEDUA: Jika data_start_row tidak tersedia, gunakan first_yellow_row + 1
+            else if (isset($response->original['first_yellow_row']) && $response->original['first_yellow_row'] > 0) {
+                // Tambahkan +1 untuk menyesuaikan dengan posisi Excel sebenarnya
+                $table->barisAwalExcel = $response->original['first_yellow_row'] + 2;
+                $table->save();
+                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (baris kuning pertama + 2)");
+            }
+            // PRIORITAS KETIGA: Gunakan header_row + 1
+            else if (isset($headerData['header_row']) && $headerData['header_row'] > 0) {
+                // Cari baris header terbesar
+                $lastHeaderRow = $headerData['header_row'];
+
+                if (isset($headerData['subheader_row']) && $headerData['subheader_row'] > $lastHeaderRow) {
+                    $lastHeaderRow = $headerData['subheader_row'];
+                }
+
+                if (isset($headerData['sub_subheader_row']) && $headerData['sub_subheader_row'] > $lastHeaderRow) {
+                    $lastHeaderRow = $headerData['sub_subheader_row'];
+                }
+
+                // Tambahkan +1 untuk menyesuaikan dengan posisi Excel sebenarnya
+                $table->barisAwalExcel = $lastHeaderRow + 2;
+                $table->save();
+                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (header row terakhir + 2)");
             }
 
-            // Hapus kolom yang sudah ada untuk tabel ini
+            // PERBAIKAN: Kosongkan kolom lama sebelum menambahkan yang baru dengan kode tabel yang sesuai
             $deletedColumns = LkpsColumn::where('kodeTabel', $table->kode)->delete();
             $this->info("  Menghapus {$deletedColumns} kolom lama untuk tabel {$table->kode}");
 
-            // Buat kolom baru
+            // Verifikasi kolom benar-benar dihapus
+            $remainingColumns = LkpsColumn::where('kodeTabel', $table->kode)->count();
+            if ($remainingColumns > 0) {
+                $this->warn("  Masih terdapat {$remainingColumns} kolom yang belum terhapus!");
+
+                // Mencoba lagi dengan pendekatan lain jika diperlukan
+                $forceDeleted = LkpsColumn::where('kodeTabel', $table->kode)->forceDelete();
+                $this->info("  Menghapus paksa kolom tersisa: {$forceDeleted}");
+            }
+
+            // Buat kolom baru dengan referensi kodeTabel yang benar
             $columnCount = $this->createColumnsFromHeaderData($table, $headerData['columns']);
             $this->info("  Berhasil membuat {$columnCount} kolom untuk tabel {$table->kode}");
+
+            // Verifikasi kolom benar-benar dibuat
+            $actualColumns = LkpsColumn::where('kodeTabel', $table->kode)->count();
+            $this->info("  Konfirmasi: {$actualColumns} kolom tersimpan di database");
 
         } catch (\Exception $e) {
             $this->error("  Gagal membuat kolom untuk tabel {$table->kode}: {$e->getMessage()}");
@@ -437,9 +548,9 @@ class LkpsSyncCommand extends Command
                 $dataIndex = $this->createDataIndex($column['name']);
                 $hasChildren = !empty($column['children']);
 
-                // Buat kolom
+                // PERBAIKAN: Konsistensi penggunaan kodeTabel
                 $newColumn = LkpsColumn::create([
-                    'kodeTabel' => $table->kode,
+                    'kodeTabel' => $table->kode, // Pastikan menggunakan kode
                     'indeksData' => $dataIndex,
                     'judul' => $column['name'],
                     'type' => $hasChildren ? 'group' : $dataType,

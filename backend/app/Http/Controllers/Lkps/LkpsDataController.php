@@ -83,7 +83,9 @@ class LkpsDataController extends Controller
         $validator = \Validator::make($request->all(), [
             'data' => 'required|array',
             'nilai' => 'nullable|array',
-            'detailNilai' => 'nullable|array'
+            'detailNilai' => 'nullable|array',
+            'taskId' => 'nullable|string',
+            'prodiId' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
@@ -93,17 +95,75 @@ class LkpsDataController extends Controller
         $data = $request->input('data');
         $nilai = $request->input('nilai');
         $detailNilai = $request->input('detailNilai', []);
+        $taskId = $request->input('taskId');
+        $prodiId = $request->input('prodiId');
 
-        $lkpsData = LkpsData::saveData(
-            $tableCode,
-            $data,
-            $nilai,
-            $detailNilai
-        );
+        // If prodiId is not provided, try to get it from the authenticated user
+        if (!$prodiId && auth()->check() && auth()->user()->prodiId) {
+            $prodiId = auth()->user()->prodiId;
+        }
+
+        try {
+            $lkpsData = LkpsData::saveData(
+                $tableCode,
+                $data,
+                $nilai,
+                $detailNilai,
+                $taskId,
+                $prodiId
+            );
+
+            // If we have a task associated with this data
+            $task = null;
+            if ($lkpsData->taskId) {
+                $task = \App\Models\Project\Task::find($lkpsData->taskId);
+            }
+
+            return response()->json([
+                'message' => 'Data saved successfully',
+                'nilai' => $nilai,
+                'taskId' => $lkpsData->taskId,
+                'taskName' => $task ? $task->nama : null
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error saving LKPS data: {$e->getMessage()}", [
+                'tableCode' => $tableCode,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error saving data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getTaskIdForTable(Request $request, $tableCode)
+    {
+        $prodiId = $request->input('prodiId');
+
+        if (!$prodiId && auth()->check() && auth()->user()->prodiId) {
+            $prodiId = auth()->user()->prodiId;
+        }
+
+        if (!$prodiId) {
+            return response()->json([
+                'message' => 'Prodi ID is required'
+            ], 400);
+        }
+
+        $taskId = LkpsData::findTaskIdForTable($tableCode, $prodiId);
+
+        if (!$taskId) {
+            return response()->json([
+                'message' => 'Task not found for this table'
+            ], 404);
+        }
+
+        $task = \App\Models\Project\Task::find($taskId);
 
         return response()->json([
-            'message' => 'Data saved successfully',
-            'nilai' => $nilai
+            'taskId' => $taskId,
+            'taskName' => $task ? $task->nama : null
         ]);
     }
 
@@ -202,7 +262,7 @@ class LkpsDataController extends Controller
      * Create a sheet for a table in the Excel export
      * 
      * @param \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet
-     * @param \App\Models\LkpsTable $table
+     * @param \App\Models\Lkps\LkpsTable $table
      * @param array $data
      */
     private function createTableSheet($sheet, $table, $data)
