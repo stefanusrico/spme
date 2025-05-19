@@ -12,6 +12,7 @@ class LkpsData extends Model
 
     protected $fillable = [
         'kodeTabel',
+        'taskId',
         'data',
         'nilai',
         'detailNilai',
@@ -42,17 +43,23 @@ class LkpsData extends Model
      * @param array $detailNilai Score details
      * @return LkpsData
      */
-    public static function saveData($kodeTabel, $data, $nilai = null, $detailNilai = [])
+    public static function saveData($kodeTabel, $data, $nilai = null, $detailNilai = [], $taskId = null)
     {
+        $updateData = [
+            'data' => $data,
+            'nilai' => $nilai,
+            'detailNilai' => $detailNilai
+        ];
+
+        if ($taskId) {
+            $updateData['taskId'] = $taskId;
+        }
+
         return self::updateOrCreate(
             [
                 'kodeTabel' => $kodeTabel,
             ],
-            [
-                'data' => $data,
-                'nilai' => $nilai,
-                'detailNilai' => $detailNilai
-            ]
+            $updateData
         );
     }
 

@@ -2,7 +2,6 @@
 
 namespace App\Models\Prodi;
 
-use App\Models\Led\Matriks;
 use App\Models\SpreadsheetInfo;
 use MongoDB\Laravel\Eloquent\Model;
 
@@ -14,11 +13,6 @@ class Strata extends Model
     protected $fillable = [
         'name',
     ];
-
-    public function matriks()
-    {
-        return $this->hasMany(Matriks::class, 'strataId', '_id');
-    }
 
     public function spreadsheetInfo()
     {

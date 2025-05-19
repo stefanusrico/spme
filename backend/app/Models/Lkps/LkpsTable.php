@@ -10,9 +10,9 @@ class LkpsTable extends Model
     protected $collection = 'lkps_tables';
 
     protected $fillable = [
-        'kode',          // Unique identifier for the table (e.g., 'kerjasama')
-        'judul',         // Display title for the table
-        'barisAwalExcel', // Which row to start reading from in Excel uploads
+        'kode',
+        'judul',
+        'barisAwalExcel',
     ];
 
     /**

@@ -6,15 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Project\TaskList;
 use App\Models\Project\Task;
 use App\Models\Project\Project;
+use App\Models\Led\LedItem;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
 class TaskListController extends Controller
 {
-    private function generateListName($c)
+    private function generateListName($kriteria)
     {
-        return "Kriteria {$c}";
+        return "Kriteria {$kriteria}";
     }
 
     public function index($projectId)
@@ -28,7 +29,7 @@ class TaskListController extends Controller
             ->orderBy('order', 'asc')
             ->get()
             ->map(function ($taskList) {
-                $taskList['name'] = $this->generateListName($taskList->c);
+                $taskList['name'] = $this->generateListName($taskList->kriteria);
                 return $taskList;
             });
 
@@ -41,7 +42,7 @@ class TaskListController extends Controller
     public function store(Request $request, $projectId)
     {
         $request->validate([
-            'c' => 'required|string|max:255',
+            'kriteria' => 'required|string|max:255',
             'order' => 'nullable|integer'
         ]);
 
@@ -57,11 +58,11 @@ class TaskListController extends Controller
 
         $taskList = TaskList::create([
             'projectId' => $project->_id,
-            'c' => $request->c,
+            'kriteria' => $request->kriteria,
             'order' => $order
         ]);
 
-        $taskList['name'] = $this->generateListName($taskList->c);
+        $taskList['name'] = $this->generateListName($taskList->kriteria);
 
         return response()->json([
             'status' => 'success',
@@ -70,50 +71,57 @@ class TaskListController extends Controller
         ], 201);
     }
 
-    public function storeFromLed(Request $request, $projectId)
+    public function storeFromLedItems(Request $request, $projectId)
     {
         try {
             $project = Project::where('_id', $projectId)->firstOrFail();
+            $prodi = $project->prodi;
 
-            $allData = [];
-            $sheets = config('google.sheets.spreadsheets.sheets');
-
-            foreach ($sheets as $key => $gid) {
-                $jsonPath = storage_path("app/public/led_{$key}.json");
-                if (file_exists($jsonPath)) {
-                    $ledData = json_decode(file_get_contents($jsonPath), true);
-                    $allData = array_merge($allData, $ledData);
-                }
+            if (!$prodi || !$prodi->strataId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Project prodi does not have a valid Strata ID'
+                ], 400);
             }
 
-            $uniqueTasklists = collect($allData)
-                ->unique('c')
-                ->values()
-                ->sortBy('c');
+            $strataId = $prodi->strataId;
+
+            $ledItems = LedItem::where('strataId', $strataId)
+                ->whereNotNull('kriteria')
+                ->get();
+
+            if ($ledItems->isEmpty()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No LedItems found for this Strata'
+                ], 404);
+            }
+
+            $uniqueCriteria = $ledItems->pluck('kriteria')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values();
 
             $maxOrder = TaskList::where('projectId', $project->_id)->max('order') ?? 0;
             $order = $maxOrder + 1;
+            $createdTaskLists = [];
 
-            foreach ($uniqueTasklists as $data) {
-                TaskList::create([
+            foreach ($uniqueCriteria as $kriteria) {
+                $taskList = TaskList::create([
                     'projectId' => $project->_id,
-                    'c' => $data['c'],
+                    'kriteria' => $kriteria,
                     'order' => $order++
                 ]);
-            }
 
-            $tasklists = TaskList::where('projectId', $project->_id)
-                ->orderBy('order', 'asc')
-                ->get()
-                ->map(function ($taskList) {
-                    $taskList['name'] = $this->generateListName($taskList->c);
-                    return $taskList;
-                });
+                $taskList['name'] = $this->generateListName($kriteria);
+                $createdTaskLists[] = $taskList;
+            }
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Task lists created successfully from LED data',
-                'data' => $tasklists
+                'message' => 'Task lists created successfully from LED items',
+                'data' => $createdTaskLists
             ]);
 
         } catch (\Exception $e) {
@@ -131,16 +139,16 @@ class TaskListController extends Controller
             ->firstOrFail();
 
         $request->validate([
-            'c' => 'string|max:255',
+            'kriteria' => 'string|max:255',
             'order' => 'integer'
         ]);
 
         $taskList->update($request->only([
-            'c',
+            'kriteria',
             'order'
         ]));
 
-        $taskList['name'] = $this->generateListName($taskList->c);
+        $taskList['name'] = $this->generateListName($taskList->kriteria);
 
         return response()->json([
             'status' => 'success',

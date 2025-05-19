@@ -2,8 +2,6 @@
 
 namespace App\Providers;
 
-use App\Models\Led\Version;
-use App\Observers\VersionObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -21,6 +19,5 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        Version::observe(VersionObserver::class);
     }
 }

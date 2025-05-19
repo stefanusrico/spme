@@ -17,7 +17,6 @@ class LedItem extends Model
         'lamId',
         'strataId',
         'kriteria',
-
         'details',
         'type', 
         'seq', 
@@ -27,15 +26,6 @@ class LedItem extends Model
     // protected $casts = [
     //     'details' => 'array', 
     // ];
-    public function prodi()
-    {
-        return $this->belongsTo(Prodi::class, 'prodiId', '_id');
-    }
-
-    public function lam()
-    {
-        return $this->belongsTo(Lam::class, 'lamId', '_id');
-    }
 
     public function strata()
     {

@@ -9,12 +9,15 @@ use App\Models\Project\Task;
 use App\Models\Project\TaskList;
 use App\Models\Prodi\Prodi;
 use App\Models\User\User;
+use App\Models\Led\LedItem;
+use App\Models\Lkps\LkpsTable;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\TaskController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
 use App\Services\ProjectTemplateService;
 use App\Notifications\ProjectMemberAddedNotification;
 
@@ -176,184 +179,429 @@ class ProjectController extends Controller
     public function getProjectDetails($projectId)
     {
         try {
-            $project = Project::where('_id', $projectId)
-                ->with(['prodi', 'tasks'])
-                ->firstOrFail();
+            // 1. Use caching to drastically improve response time
+            $cacheKey = "project_details_{$projectId}";
+            $cacheDuration = 5; // minutes
 
-            $allTasks = $project->tasks;
-
-            $tasksByStatus = ['ACTIVE' => [], 'COMPLETED' => [], 'UNASSIGNED' => [], 'CANCELLED' => []];
-            $overdueTasksList = [];
-            $todaysTasksList = [];
-            $taskCountsPerMember = [];
-            $weeklyCompleted = array_fill(0, 7, 0);
-            $weeklyActive = array_fill(0, 7, 0);
-
-            $today = Carbon::today()->startOfDay();
-            $sevenDaysAgo = $today->copy()->subDays(6);
-
-            foreach ($allTasks as $task) {
-                $taskOwnersDetails = collect();
-                $currentTaskOwnerIds = [];
-
-                if (isset($task->owners) && is_array($task->owners)) {
-                    foreach ($task->owners as $ownerId) {
-                        $user = User::select('_id', 'name', 'profile_picture')->find($ownerId);
-
-                        if ($user) {
-                            $userId = $user->_id;
-
-                            $taskOwnersDetails->push([
-                                'id' => $userId,
-                                'name' => $user->name,
-                                'profile_picture' => $user->profile_picture
-                            ]);
-                            $currentTaskOwnerIds[] = (string) $userId;
-
-                            if ($task->status !== 'COMPLETED' && $task->status !== 'CANCELLED') {
-                                $key = (string) $userId;
-                                if (!isset($taskCountsPerMember[$key])) {
-                                    $taskCountsPerMember[$key] = 0;
-                                }
-                                $taskCountsPerMember[$key]++;
-                            }
-                        } else {
-                            Log::warning("User not found for owner ID: {$ownerId} in task ID: {$task->_id}");
-                        }
-                    }
-                }
-
-                $formattedTask = [
-                    'id' => $task->_id,
-                    'taskId' => $task->taskId,
-                    'no' => $task->no,
-                    'sub' => $task->sub,
-                    'name' => $task->name ?? "Butir {$task->no} - {$task->sub}",
-                    'status' => $task->status,
-                    'progress' => $task->progress,
-                    'owners' => $taskOwnersDetails->values()->all(),
-                    'startDate' => $task->startDate ? Carbon::parse($task->startDate)->toDateString() : null,
-                    'endDate' => $task->endDate ? Carbon::parse($task->endDate)->toDateString() : null,
-                ];
-
-                if (isset($tasksByStatus[$task->status])) {
-                    $tasksByStatus[$task->status][] = $formattedTask;
-                } elseif ($task->status === 'CANCELLED') {
-                    $tasksByStatus['CANCELLED'][] = $formattedTask;
-                }
-
-                if ($task->status === 'ACTIVE' && $task->startDate && Carbon::parse($task->startDate)->isSameDay($today)) {
-                    $todaysTasksList[] = $formattedTask;
-                }
-
-                if ($task->status === 'ACTIVE' && $task->endDate && Carbon::parse($task->endDate)->lt($today)) {
-                    $overdueTasksList[] = $formattedTask;
-                }
-
-                try {
-                    $taskDate = Carbon::parse($task->updated_at ?? $task->created_at)->startOfDay();
-                    if ($taskDate->betweenIncluded($sevenDaysAgo, $today)) {
-                        $dayIndex = $today->diffInDays($taskDate);
-                        if ($task->status === 'COMPLETED')
-                            $weeklyCompleted[$dayIndex]++;
-                        if ($task->status === 'ACTIVE')
-                            $weeklyActive[$dayIndex]++;
-                    }
-                } catch (\Exception $e) {
-                    Log::warning("Invalid date format for weekly trend task {$task->_id}");
-                }
+            // Skip cache if refresh is requested
+            if (Cache::has($cacheKey) && !request()->has('refresh')) {
+                return response()->json(Cache::get($cacheKey));
             }
 
-            // Get project members from the ProjectMember collection
-            $projectMembers = ProjectMember::where('projectId', $projectId)->get();
-            $memberIds = $projectMembers->pluck('userId')->unique()->all();
+            // 2. Use projection to limit fields retrieved
+            $project = Project::select(
+                '_id',
+                'projectId',
+                'name',
+                'prodiId',
+                'progress',
+                'startDate',
+                'endDate',
+                'created_at'
+            )
+                ->with(['prodi:_id,name'])
+                ->find($projectId);
 
-            $membersInfo = [];
-            if (!empty($memberIds)) {
-                $membersInfo = User::whereIn('_id', $memberIds)
+            if (!$project) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Project not found'
+                ], 404);
+            }
+
+            // 3. Efficiently get task lists and tasks in a single query
+            $taskLists = TaskList::where('projectId', $project->_id)
+                ->select('_id', 'projectId')
+                ->get();
+
+            $taskListIds = $taskLists->pluck('_id')->toArray();
+
+            // 4. Load tasks with needed fields only
+            $tasks = Task::whereIn('taskListId', $taskListIds)
+                ->select(
+                    '_id',
+                    'taskId',
+                    'no',
+                    'sub',
+                    'nama',
+                    'taskListId',
+                    'status',
+                    'progress',
+                    'startDate',
+                    'endDate',
+                    'owners',
+                    'created_at',
+                    'updated_at',
+                    'ledItemId',
+                    'lkpsTableId'
+                )
+                ->get();
+
+            // 5. Preload all task owners in a single query
+            $ownerIds = $this->collectOwnerIds($tasks);
+            $ownerDetails = $this->preloadUserDetails($ownerIds);
+
+            // 6. Preload reference data if needed
+            $ledItems = $this->preloadTaskReferences($tasks, 'ledItemId', LedItem::class, ['_id', 'no', 'sub']);
+            $lkpsTables = $this->preloadTaskReferences($tasks, 'lkpsTableId', LkpsTable::class, ['_id', 'kode', 'judul']);
+
+            // 7. Preload project members for resource allocation
+            $projectMembers = ProjectMember::where('projectId', $project->_id)
+                ->get(['userId', 'role']);
+
+            $memberIds = $projectMembers->pluck('userId')->unique()->toArray();
+            $membersInfo = !empty($memberIds) ?
+                User::whereIn('_id', $memberIds)
                     ->select('_id', 'name', 'profile_picture')
-                    ->get()->keyBy('_id');
-            }
+                    ->get()
+                    ->keyBy('_id')
+                : collect([]);
 
-            $resourceAllocation = $projectMembers->map(function ($memberData) use ($membersInfo, $taskCountsPerMember) {
-                $userId = $memberData->userId;
-                if (!$userId)
-                    return null;
+            // 8. Process data efficiently
+            $tasksByStatus = $this->organizeTasksByStatus($tasks, $ownerDetails, $ledItems, $lkpsTables);
+            $weeklyTrends = $this->calculateWeeklyTrends($tasks);
+            $resourceAllocation = $this->prepareResourceAllocation($projectMembers, $membersInfo, $tasks);
+            $statistics = $this->calculateStatistics($tasks);
 
-                $userInfo = $membersInfo->get($userId);
-                $taskCount = $taskCountsPerMember[(string) $userId] ?? 0;
-
-                if (!$userInfo) {
-                    return [
-                        'userId' => $userId,
-                        'name' => 'Unknown User',
-                        'profile_picture' => null,
-                        'role' => $memberData->role ?? 'Unknown',
-                        'taskCount' => $taskCount,
-                    ];
-                }
-
-                return [
-                    'userId' => $userInfo->_id,
-                    'name' => $userInfo->name,
-                    'profile_picture' => $userInfo->profile_picture,
-                    'role' => $memberData->role,
-                    'taskCount' => $taskCount,
-                ];
-            })->filter()->values();
-
-            $dayLabels = [];
-            $currentDate = $today->copy();
-            for ($i = 0; $i < 7; $i++) {
-                $dayLabels[] = $currentDate->copy()->subDays(6 - $i)->format('D');
-            }
-            $weeklyTrends = [
-                'labels' => $dayLabels,
-                'datasets' => [
-                    ['label' => 'Completed Tasks', 'data' => array_reverse($weeklyCompleted), 'backgroundColor' => '#4ade80', 'borderColor' => '#16a34a'],
-                    ['label' => 'Active Tasks', 'data' => array_reverse($weeklyActive), 'backgroundColor' => '#38bdf8', 'borderColor' => '#0284c7']
-                ]
-            ];
-
-            $statistics = [
-                'totalTasks' => $allTasks->count(),
-                'completedTasks' => $allTasks->where('status', 'COMPLETED')->count(),
-                'activeTasks' => $allTasks->where('status', 'ACTIVE')->count(),
-                'unassignedTasks' => $allTasks->where('status', 'UNASSIGNED')->count(),
-                'overdueTasks' => count($overdueTasksList),
-                'tasksDueToday' => count($todaysTasksList),
-                'cancelledTasks' => $allTasks->where('status', 'CANCELLED')->count()
-            ];
-
-            $prodiName = $project->prodi->name ?? 'Unknown';
-
-            return response()->json([
+            // 9. Format the result
+            $result = [
                 'status' => 'success',
                 'data' => [
                     'projectId' => $project->projectId,
                     'projectName' => $project->name,
-                    'prodiName' => $prodiName,
+                    'prodiName' => $project->prodi->name ?? 'Unknown',
                     'prodiId' => $project->prodiId,
                     'createdAt' => $project->created_at,
                     'startDate' => $project->startDate ? Carbon::parse($project->startDate)->toDateString() : null,
                     'endDate' => $project->endDate ? Carbon::parse($project->endDate)->toDateString() : null,
                     'statistics' => $statistics,
                     'tasks' => $tasksByStatus,
-                    'todaysTasks' => array_slice($todaysTasksList, 0, 5),
-                    'overdueTasks' => array_slice($overdueTasksList, 0, 5),
+                    'todaysTasks' => array_slice($tasksByStatus['todaysTasks'] ?? [], 0, 5),
+                    'overdueTasks' => array_slice($tasksByStatus['overdueTasks'] ?? [], 0, 5),
                     'weeklyTrends' => $weeklyTrends,
                     'resourceAllocation' => $resourceAllocation,
                 ]
+            ];
+
+            // 10. Cache the result
+            Cache::put($cacheKey, $result, $cacheDuration);
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            Log::error('Error retrieving project details:', [
+                'error' => $e->getMessage(),
+                'projectId' => $projectId,
+                'trace' => $e->getTraceAsString()
             ]);
 
-        } catch (ModelNotFoundException $e) {
-            Log::warning('Project not found:', ['projectId' => $projectId, 'error' => $e->getMessage()]);
-            return response()->json(['status' => 'error', 'message' => 'Project not found'], 404);
-        } catch (\Exception $e) {
-            Log::error('Error retrieving project details:', ['error' => $e->getMessage(), 'projectId' => $projectId, 'trace' => $e->getTraceAsString()]);
-            $message = config('app.debug') ? 'Error retrieving project details: ' . $e->getMessage() : 'An error occurred.';
-            return response()->json(['status' => 'error', 'message' => $message], 500);
+            return response()->json([
+                'status' => 'error',
+                'message' => config('app.debug') ?
+                    'Error retrieving project details: ' . $e->getMessage() :
+                    'An error occurred.'
+            ], 500);
         }
+    }
+
+    /**
+     * Collect all owner IDs from tasks
+     */
+    private function collectOwnerIds($tasks)
+    {
+        $ownerIds = collect();
+
+        foreach ($tasks as $task) {
+            if (isset($task->owners) && is_array($task->owners)) {
+                foreach ($task->owners as $ownerId) {
+                    $ownerIds->push($ownerId);
+                }
+            }
+        }
+
+        return $ownerIds->unique()->values()->all();
+    }
+
+    /**
+     * Preload user details for all owner IDs
+     */
+    private function preloadUserDetails($ownerIds)
+    {
+        if (empty($ownerIds)) {
+            return [];
+        }
+
+        return User::whereIn('_id', $ownerIds)
+            ->select('_id', 'name', 'profile_picture')
+            ->get()
+            ->keyBy('_id')
+            ->all();
+    }
+
+    /**
+     * Preload task references (LedItems or LkpsTables)
+     */
+    private function preloadTaskReferences($tasks, $refField, $modelClass, $fields = ['*'])
+    {
+        $refIds = $tasks->pluck($refField)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($refIds)) {
+            return [];
+        }
+
+        return $modelClass::whereIn('_id', $refIds)
+            ->select($fields)
+            ->get()
+            ->keyBy('_id')
+            ->all();
+    }
+
+    /**
+     * Organize tasks by status
+     */
+    private function organizeTasksByStatus($tasks, $ownerDetails, $ledItems, $lkpsTables)
+    {
+        $today = Carbon::today()->startOfDay();
+        $tasksByStatus = ['ACTIVE' => [], 'COMPLETED' => [], 'UNASSIGNED' => [], 'CANCELLED' => []];
+        $overdueTasksList = [];
+        $todaysTasksList = [];
+
+        foreach ($tasks as $task) {
+            // Populate task name from references if needed
+            $this->populateTaskName($task, $ledItems, $lkpsTables);
+
+            // Get owner details
+            $taskOwnersDetails = $this->getTaskOwnerDetails($task, $ownerDetails);
+
+            // Format the task
+            $formattedTask = [
+                'id' => $task->_id,
+                'taskId' => $task->taskId,
+                'no' => $task->no,
+                'sub' => $task->sub,
+                'name' => $task->nama ?: "Task {$task->taskId}",
+                'status' => $task->status,
+                'progress' => $task->progress,
+                'owners' => $taskOwnersDetails,
+                'startDate' => $task->startDate ? Carbon::parse($task->startDate)->toDateString() : null,
+                'endDate' => $task->endDate ? Carbon::parse($task->endDate)->toDateString() : null,
+            ];
+
+            // Add to appropriate collections
+            if (isset($tasksByStatus[$task->status])) {
+                $tasksByStatus[$task->status][] = $formattedTask;
+            } elseif ($task->status === 'CANCELLED') {
+                $tasksByStatus['CANCELLED'][] = $formattedTask;
+            }
+
+            if ($task->status === 'ACTIVE' && $task->startDate && Carbon::parse($task->startDate)->isSameDay($today)) {
+                $todaysTasksList[] = $formattedTask;
+            }
+
+            if ($task->status === 'ACTIVE' && $task->endDate && Carbon::parse($task->endDate)->lt($today)) {
+                $overdueTasksList[] = $formattedTask;
+            }
+        }
+
+        $tasksByStatus['todaysTasks'] = $todaysTasksList;
+        $tasksByStatus['overdueTasks'] = $overdueTasksList;
+
+        return $tasksByStatus;
+    }
+
+    /**
+     * Populate task name from references if needed
+     */
+    private function populateTaskName($task, $ledItems, $lkpsTables)
+    {
+        // If task already has a name, use it
+        if (!empty($task->nama)) {
+            return;
+        }
+
+        // Try to get name from LED item
+        if (!empty($task->ledItemId) && isset($ledItems[$task->ledItemId])) {
+            $ledItem = $ledItems[$task->ledItemId];
+            $task->no = $ledItem->no;
+            $task->sub = $ledItem->sub;
+            $task->nama = "Butir {$ledItem->no} - {$ledItem->sub}";
+            return;
+        }
+
+        // Try to get name from LKPS table
+        if (!empty($task->lkpsTableId) && isset($lkpsTables[$task->lkpsTableId])) {
+            $lkpsTable = $lkpsTables[$task->lkpsTableId];
+            $task->no = $lkpsTable->kode;
+            $task->sub = "LKPS";
+            $task->nama = "Tabel {$lkpsTable->kode}";
+            return;
+        }
+
+        // Default fallback
+        $task->nama = "Task {$task->taskId}";
+    }
+
+    /**
+     * Get task owner details
+     */
+    private function getTaskOwnerDetails($task, $ownerDetails)
+    {
+        $taskOwnersDetails = collect();
+
+        if (isset($task->owners) && is_array($task->owners)) {
+            foreach ($task->owners as $ownerId) {
+                if (isset($ownerDetails[$ownerId])) {
+                    $user = $ownerDetails[$ownerId];
+                    $taskOwnersDetails->push([
+                        'id' => $user->_id,
+                        'name' => $user->name,
+                        'profile_picture' => $user->profile_picture
+                    ]);
+                }
+            }
+        }
+
+        return $taskOwnersDetails->values()->all();
+    }
+
+    /**
+     * Calculate weekly trends
+     */
+    private function calculateWeeklyTrends($tasks)
+    {
+        $today = Carbon::today()->startOfDay();
+        $sevenDaysAgo = $today->copy()->subDays(6);
+
+        $weeklyCompleted = array_fill(0, 7, 0);
+        $weeklyActive = array_fill(0, 7, 0);
+
+        foreach ($tasks as $task) {
+            try {
+                $taskDate = Carbon::parse($task->updated_at ?? $task->created_at)->startOfDay();
+                if ($taskDate->betweenIncluded($sevenDaysAgo, $today)) {
+                    $dayIndex = $today->diffInDays($taskDate);
+                    if ($task->status === 'COMPLETED')
+                        $weeklyCompleted[$dayIndex]++;
+                    if ($task->status === 'ACTIVE')
+                        $weeklyActive[$dayIndex]++;
+                }
+            } catch (\Exception $e) {
+                // Skip invalid dates
+            }
+        }
+
+        $dayLabels = [];
+        $currentDate = $today->copy();
+        for ($i = 0; $i < 7; $i++) {
+            $dayLabels[] = $currentDate->copy()->subDays(6 - $i)->format('D');
+        }
+
+        return [
+            'labels' => $dayLabels,
+            'datasets' => [
+                ['label' => 'Completed Tasks', 'data' => array_reverse($weeklyCompleted), 'backgroundColor' => '#4ade80', 'borderColor' => '#16a34a'],
+                ['label' => 'Active Tasks', 'data' => array_reverse($weeklyActive), 'backgroundColor' => '#38bdf8', 'borderColor' => '#0284c7']
+            ]
+        ];
+    }
+
+    /**
+     * Prepare resource allocation data
+     */
+    private function prepareResourceAllocation($projectMembers, $membersInfo, $tasks)
+    {
+        $taskCountsPerMember = [];
+
+        // Count active tasks per user
+        foreach ($tasks as $task) {
+            if ($task->status !== 'COMPLETED' && $task->status !== 'CANCELLED' && isset($task->owners) && is_array($task->owners)) {
+                foreach ($task->owners as $ownerId) {
+                    $key = (string) $ownerId;
+                    if (!isset($taskCountsPerMember[$key])) {
+                        $taskCountsPerMember[$key] = 0;
+                    }
+                    $taskCountsPerMember[$key]++;
+                }
+            }
+        }
+
+        return $projectMembers->map(function ($memberData) use ($membersInfo, $taskCountsPerMember) {
+            $userId = $memberData->userId;
+            if (!$userId)
+                return null;
+
+            $userInfo = $membersInfo->get($userId);
+            $taskCount = $taskCountsPerMember[(string) $userId] ?? 0;
+
+            if (!$userInfo) {
+                return [
+                    'userId' => $userId,
+                    'name' => 'Unknown User',
+                    'profile_picture' => null,
+                    'role' => $memberData->role ?? 'Unknown',
+                    'taskCount' => $taskCount,
+                ];
+            }
+
+            return [
+                'userId' => $userInfo->_id,
+                'name' => $userInfo->name,
+                'profile_picture' => $userInfo->profile_picture,
+                'role' => $memberData->role,
+                'taskCount' => $taskCount,
+            ];
+        })->filter()->values();
+    }
+
+    /**
+     * Calculate statistics from tasks
+     */
+    private function calculateStatistics($tasks)
+    {
+        $today = Carbon::today()->startOfDay();
+        $overdueTasks = 0;
+        $tasksDueToday = 0;
+        $cancelled = 0;
+        $completed = 0;
+        $active = 0;
+        $unassigned = 0;
+
+        foreach ($tasks as $task) {
+            // Count by status
+            if ($task->status === 'COMPLETED') {
+                $completed++;
+            } elseif ($task->status === 'ACTIVE') {
+                $active++;
+
+                // Check if overdue
+                if ($task->endDate && Carbon::parse($task->endDate)->lt($today)) {
+                    $overdueTasks++;
+                }
+
+                // Check if due today
+                if ($task->startDate && Carbon::parse($task->startDate)->isSameDay($today)) {
+                    $tasksDueToday++;
+                }
+            } elseif ($task->status === 'UNASSIGNED') {
+                $unassigned++;
+            } elseif ($task->status === 'CANCELLED') {
+                $cancelled++;
+            }
+        }
+
+        return [
+            'totalTasks' => $tasks->count(),
+            'completedTasks' => $completed,
+            'activeTasks' => $active,
+            'unassignedTasks' => $unassigned,
+            'overdueTasks' => $overdueTasks,
+            'tasksDueToday' => $tasksDueToday,
+            'cancelledTasks' => $cancelled
+        ];
     }
 
     public function getProjectDetailsByProdi($prodiId)
@@ -435,135 +683,328 @@ class ProjectController extends Controller
     public function getProjectTaskLists($projectId)
     {
         try {
-            $project = Project::where('_id', $projectId)->firstOrFail();
+            // 1. Add caching for project and task lists
+            $cacheKey = "project_task_lists_{$projectId}";
+            $cacheDuration = 5; // Cache for 5 minutes
 
+            if (Cache::has($cacheKey) && !request()->has('refresh')) {
+                return response()->json(Cache::get($cacheKey));
+            }
+
+            // 2. Use projection to limit fields retrieved
+            $project = Project::select('_id', 'projectId', 'name')->find($projectId);
+
+            if (!$project) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Project not found'
+                ], 404);
+            }
+
+            // 3. Implement pagination if needed
+            $perPage = request('per_page', 50);
+            $page = request('page', 1);
+
+            // 4. Optimize eager loading with specific field selection
             $taskLists = TaskList::where('projectId', $project->_id)
+                ->select('_id', 'kriteria', 'order', 'projectId')
                 ->with([
                     'tasks' => function ($query) {
-                        $query->orderBy('order', 'asc')->with('users:_id,name,profile_picture');
+                        $query->select(
+                            '_id',
+                            'taskId',
+                            'taskListId',
+                            'ledItemId',
+                            'lkpsTableId',
+                            'nama',
+                            'no',
+                            'sub',
+                            'status',
+                            'progress',
+                            'startDate',
+                            'endDate',
+                            'order',
+                            'owners'
+                        )
+                            ->orderBy('order', 'asc');
                     }
                 ])
                 ->orderBy('order', 'asc')
-                ->get()
-                ->map(function ($taskList) {
-                    $listName = $taskList->name ?? "Kriteria {$taskList->c}";
+                ->get();
 
-                    return [
-                        'id' => $taskList->_id,
-                        'c' => $taskList->c,
-                        'name' => $listName,
-                        'order' => $taskList->order,
-                        'tasks' => $taskList->tasks->map(function ($task) {
-                            $carbonStartDate = null;
-                            $formattedStartDate = null;
-                            $carbonEndDate = null;
-                            $formattedEndDate = null;
-                            $duration = 0;
-
-                            if (!empty($task->startDate)) {
-                                try {
-                                    $carbonStartDate = Carbon::parse($task->startDate);
-                                    $formattedStartDate = $carbonStartDate->format('Y-m-d');
-                                } catch (\Exception $e) {
-                                    Log::warning("Failed to parse startDate '{$task->startDate}' for task ID {$task->_id}: " . $e->getMessage());
-                                }
-                            }
-
-                            if (!empty($task->endDate)) {
-                                try {
-                                    $carbonEndDate = Carbon::parse($task->endDate);
-                                    $formattedEndDate = $carbonEndDate->format('Y-m-d');
-                                } catch (\Exception $e) {
-                                    Log::warning("Failed to parse endDate '{$task->endDate}' for task ID {$task->_id}: " . $e->getMessage());
-                                }
-                            }
-
-                            if ($carbonStartDate && $carbonEndDate) {
-                                $today = Carbon::now()->startOfDay();
-                                if ($today->lt($carbonStartDate)) {
-                                    $duration = $carbonStartDate->diffInDays($carbonEndDate);
-                                } else if ($today->lte($carbonEndDate)) {
-                                    $duration = $today->diffInDays($carbonEndDate);
-                                }
-                                $duration = max(0, $duration);
-                            }
-
-                            $owners = collect();
-                            if (isset($task->owners) && is_array($task->owners)) {
-                                $owners = collect($task->owners)->map(function ($ownerId) use ($task) {
-                                    if (empty($ownerId))
-                                        return null;
-
-                                    $user = User::select('_id', 'name', 'profile_picture')->find($ownerId);
-                                    if ($user) {
-                                        return [
-                                            'id' => $user->_id,
-                                            'name' => $user->name,
-                                            'profile_picture' => $user->profile_picture
-                                        ];
-                                    } else {
-                                        Log::warning("User not found for owner ID: {$ownerId} in task ID: {$task->_id} during TaskList generation.");
-                                        return null;
-                                    }
-                                })->filter();
-                            }
-
-                            return [
-                                'id' => $task->_id,
-                                'taskId' => $task->taskId,
-                                'no' => $task->no,
-                                'sub' => $task->sub,
-                                'name' => $task->name,
-                                'status' => $task->status,
-                                'progress' => $task->progress,
-                                'startDate' => $formattedStartDate,
-                                'endDate' => $formattedEndDate,
-                                'duration' => (int) $duration,
-                                'order' => $task->order,
-                                'taskListId' => $task->taskListId,
-                                'owners' => $owners->values()->all()
-                            ];
-                        })
-                    ];
-                });
-
-            $statistics = [
-                'totalTaskLists' => $taskLists->count(),
-                'totalTasks' => $taskLists->sum(function ($taskList) {
-                    return $taskList['tasks']->count();
-                }),
-                'completedTasks' => $taskLists->sum(function ($taskList) {
-                    return collect($taskList['tasks'])->where('status', 'COMPLETED')->count();
-                }),
-                'inProgressTasks' => $taskLists->sum(function ($taskList) {
-                    return collect($taskList['tasks'])->where('status', 'ACTIVE')->count();
-                }),
-                'notStartedTasks' => $taskLists->sum(function ($taskList) {
-                    return collect($taskList['tasks'])->where('status', 'UNASSIGNED')->count();
-                }),
-            ];
-
-            return response()->json([
+            // 5. Batch processing for large collections
+            $result = [
                 'status' => 'success',
                 'data' => [
                     'projectId' => $project->projectId,
                     'projectName' => $project->name,
-                    'taskLists' => $taskLists,
-                    'statistics' => $statistics
+                    'taskLists' => [],
+                    'statistics' => $this->calculateStatistics($taskLists)
                 ]
-            ]);
+            ];
 
-        } catch (ModelNotFoundException $e) {
-            Log::warning("Project not found for TaskLists:", ['projectId' => $projectId, 'error' => $e->getMessage()]);
-            return response()->json(['status' => 'error', 'message' => 'Project not found'], 404);
+            // 6. Preload related data to avoid repeated lookups
+            $taskOwners = $this->preloadTaskOwners($taskLists);
+            $ledItems = $this->preloadLedItems($taskLists);
+            $lkpsTables = $this->preloadLkpsTables($taskLists);
+
+            // 7. Process each task list efficiently
+            foreach ($taskLists as $taskList) {
+                $listName = "Kriteria {$taskList->kriteria}";
+                $processedTasks = [];
+
+                foreach ($taskList->tasks as $task) {
+                    // Use preloaded data instead of making queries inside the loop
+                    $taskDetails = $this->getTaskDetails($task, $ledItems, $lkpsTables);
+                    $ownerDetails = isset($taskOwners[$task->_id]) ? $taskOwners[$task->_id] : [];
+
+                    $processedTasks[] = [
+                        'id' => $task->_id,
+                        'taskId' => $task->taskId,
+                        'no' => $taskDetails['no'],
+                        'sub' => $taskDetails['sub'],
+                        'name' => $taskDetails['name'],
+                        'status' => $task->status,
+                        'progress' => $task->progress,
+                        'startDate' => $this->formatDate($task->startDate),
+                        'endDate' => $this->formatDate($task->endDate),
+                        'duration' => $this->calculateDuration($task->startDate, $task->endDate),
+                        'order' => $task->order,
+                        'taskListId' => $task->taskListId,
+                        'owners' => $ownerDetails
+                    ];
+                }
+
+                $result['data']['taskLists'][] = [
+                    'id' => $taskList->_id,
+                    'kriteria' => $taskList->kriteria,
+                    'name' => $listName,
+                    'order' => $taskList->order,
+                    'tasks' => $processedTasks
+                ];
+            }
+
+            // 8. Cache the result
+            Cache::put($cacheKey, $result, $cacheDuration);
+
+            return response()->json($result);
+
         } catch (\Exception $e) {
             Log::error('Error retrieving project task lists:', [
                 'error' => $e->getMessage(),
                 'projectId' => $projectId,
                 'trace' => $e->getTraceAsString()
             ]);
-            $message = config('app.debug') ? 'Error retrieving project task lists: ' . $e->getMessage() : 'An error occurred.';
-            return response()->json(['status' => 'error', 'message' => $message], 500);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => config('app.debug')
+                    ? 'Error retrieving project task lists: ' . $e->getMessage()
+                    : 'An error occurred.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Preload all task owners in one query
+     */
+    private function preloadTaskOwners($taskLists)
+    {
+        $allTaskIds = collect();
+        $taskOwners = [];
+
+        // Collect all task IDs
+        foreach ($taskLists as $taskList) {
+            foreach ($taskList->tasks as $task) {
+                if (!empty($task->owners)) {
+                    $allTaskIds->push($task->_id);
+                }
+            }
+        }
+
+        if ($allTaskIds->isEmpty()) {
+            return [];
+        }
+
+        // Get all owner IDs
+        $allOwnerIds = Task::whereIn('_id', $allTaskIds)
+            ->get(['_id', 'owners'])
+            ->flatMap(function ($task) {
+                return isset($task->owners) && is_array($task->owners) ? $task->owners : [];
+            })
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($allOwnerIds)) {
+            return [];
+        }
+
+        // Get all owners in one query
+        $users = User::whereIn('_id', $allOwnerIds)
+            ->select('_id', 'name', 'profile_picture')
+            ->get()
+            ->keyBy('_id');
+
+        // Map owners to tasks
+        foreach ($taskLists as $taskList) {
+            foreach ($taskList->tasks as $task) {
+                if (isset($task->owners) && is_array($task->owners)) {
+                    $taskOwners[$task->_id] = collect($task->owners)
+                        ->map(function ($ownerId) use ($users) {
+                            $user = $users->get($ownerId);
+                            if ($user) {
+                                return [
+                                    'id' => $user->_id,
+                                    'name' => $user->name,
+                                    'profile_picture' => $user->profile_picture
+                                ];
+                            }
+                            return null;
+                        })
+                        ->filter()
+                        ->values()
+                        ->all();
+                }
+            }
+        }
+
+        return $taskOwners;
+    }
+
+    /**
+     * Preload all LedItems in one query
+     */
+    private function preloadLedItems($taskLists)
+    {
+        $ledItemIds = collect();
+
+        foreach ($taskLists as $taskList) {
+            foreach ($taskList->tasks as $task) {
+                if ($task->ledItemId) {
+                    $ledItemIds->push($task->ledItemId);
+                }
+            }
+        }
+
+        if ($ledItemIds->isEmpty()) {
+            return [];
+        }
+
+        return \App\Models\Led\LedItem::whereIn('_id', $ledItemIds)
+            ->get(['_id', 'no', 'sub'])
+            ->keyBy('_id')
+            ->all();
+    }
+
+    /**
+     * Preload all LkpsTables in one query
+     */
+    private function preloadLkpsTables($taskLists)
+    {
+        $lkpsTableIds = collect();
+
+        foreach ($taskLists as $taskList) {
+            foreach ($taskList->tasks as $task) {
+                if ($task->lkpsTableId) {
+                    $lkpsTableIds->push($task->lkpsTableId);
+                }
+            }
+        }
+
+        if ($lkpsTableIds->isEmpty()) {
+            return [];
+        }
+
+        return \App\Models\Lkps\LkpsTable::whereIn('_id', $lkpsTableIds)
+            ->get(['_id', 'kode', 'judul'])
+            ->keyBy('_id')
+            ->all();
+    }
+
+    /**
+     * Get task details from preloaded data
+     */
+    private function getTaskDetails($task, $ledItems, $lkpsTables)
+    {
+        // Use existing name/no/sub if available
+        if ($task->nama && $task->no && $task->sub) {
+            return [
+                'name' => $task->nama,
+                'no' => $task->no,
+                'sub' => $task->sub
+            ];
+        }
+
+        // For LED tasks
+        if ($task->ledItemId && isset($ledItems[$task->ledItemId])) {
+            $ledItem = $ledItems[$task->ledItemId];
+            return [
+                'name' => "Butir {$ledItem->no} - {$ledItem->sub}",
+                'no' => $ledItem->no,
+                'sub' => $ledItem->sub
+            ];
+        }
+
+        // For LKPS tasks
+        if ($task->lkpsTableId && isset($lkpsTables[$task->lkpsTableId])) {
+            $lkpsTable = $lkpsTables[$task->lkpsTableId];
+            return [
+                'name' => "Tabel {$lkpsTable->kode}",
+                'no' => $lkpsTable->kode,
+                'sub' => 'LKPS'
+            ];
+        }
+
+        // Default fallback
+        return [
+            'name' => $task->nama ?: "Task {$task->taskId}",
+            'no' => $task->no,
+            'sub' => $task->sub
+        ];
+    }
+
+    /**
+     * Format date for output
+     */
+    private function formatDate($date)
+    {
+        if (empty($date)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($date)->format('Y-m-d');
+        } catch (\Exception $e) {
+            Log::warning("Failed to parse date '{$date}': " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Calculate duration between dates
+     */
+    private function calculateDuration($startDate, $endDate)
+    {
+        if (empty($startDate) || empty($endDate)) {
+            return 0;
+        }
+
+        try {
+            $carbonStartDate = Carbon::parse($startDate);
+            $carbonEndDate = Carbon::parse($endDate);
+            $today = Carbon::now()->startOfDay();
+
+            if ($today->lt($carbonStartDate)) {
+                return $carbonStartDate->diffInDays($carbonEndDate);
+            } else if ($today->lte($carbonEndDate)) {
+                return $today->diffInDays($carbonEndDate);
+            }
+
+            return 0;
+        } catch (\Exception $e) {
+            Log::warning("Failed to calculate duration: " . $e->getMessage());
+            return 0;
         }
     }
 
@@ -1013,5 +1454,34 @@ class ProjectController extends Controller
                 ]
             ]
         ]);
+    }
+
+    private function populateTaskDetails($task)
+    {
+        if ($task->nama && $task->no && $task->sub) {
+            return;
+        }
+
+        if ($task->ledItemId) {
+            $ledItem = \App\Models\Led\LedItem::find($task->ledItemId);
+            if ($ledItem) {
+                $task->no = $ledItem->no;
+                $task->sub = $ledItem->sub;
+                $task->nama = "Butir {$ledItem->no} - {$ledItem->sub}";
+            }
+        }
+
+        if ($task->lkpsTableId) {
+            $lkpsTable = \App\Models\Lkps\LkpsTable::find($task->lkpsTableId);
+            if ($lkpsTable) {
+                $task->no = $lkpsTable->kode;
+                $task->sub = "LKPS";
+                $task->nama = "Tabel - {$lkpsTable->kode}}";
+            }
+        }
+
+        if (!$task->nama) {
+            $task->nama = "Task {$task->taskId}";
+        }
     }
 }

@@ -2,9 +2,7 @@
 
 namespace App\Models\Project;
 
-use App\Models\Led\Version;
 use App\Models\User\User;
-use App\Models\LkpsData;
 use MongoDB\Laravel\Eloquent\Model;
 
 class Task extends Model
@@ -15,17 +13,15 @@ class Task extends Model
     protected $fillable = [
         'taskId',
         'taskListId',
-        'projectId',
-        'sub',
-        'no',
-        'name',
+        'ledItemId',
+        'lkpsTableId',
+        'nama',
         'progress',
-        'owners',
         'status',
         'startDate',
         'endDate',
+        'owners',
         'order',
-        'lkpsDataId'
     ];
 
     protected $casts = [
@@ -42,23 +38,13 @@ class Task extends Model
         return $this->belongsTo(TaskList::class, 'taskListId', '_id');
     }
 
-    public function project()
-    {
-        return $this->belongsTo(Project::class, 'projectId', '_id');
-    }
-
     public function users()
     {
         return $this->belongsToMany(User::class, null, 'owners', '_id');
     }
 
-    public function versions()
+    public function getProject()
     {
-        return $this->hasMany(Version::class, 'taskId', '_id');
-    }
-
-    public function lkpsData()
-    {
-        return $this->belongsTo(LkpsData::class, 'lkpsDataId', '_id');
+        return $this->tasklist ? $this->tasklist->project : null;
     }
 }
