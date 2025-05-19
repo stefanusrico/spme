@@ -32,7 +32,6 @@ const fallbackStructure = [
       },
     ],
   },
-  // ...keep the rest of the fallback structure
 ]
 
 // Helper to determine parent title based on table code and first subtable title

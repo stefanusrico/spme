@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import DashboardProject from "../components/Elements/Projects/Dashboard"
 import Members from "../components/Elements/Projects/Members"
 import Tasks from "../components/Elements/Projects/Tasks"
+import ExportData from "./ExportData"
 import ErrorBoundary from "../components/ErrorBoundary"
 import { useUser } from "../context/userContext"
 import { useProjectDetails } from "../hooks/useProjectDetails"
@@ -46,6 +47,7 @@ const Projects = () => {
       { name: "Dashboard", value: "dashboard" },
       { name: "Tasks", value: "tasks" },
       { name: "Members", value: "members" },
+      { name: "Export", value: "export" },
     ]
 
     return (
@@ -122,6 +124,12 @@ const Projects = () => {
               userRole={userRole}
               onMembersUpdate={handleMembersUpdate}
             />
+          </ErrorBoundary>
+        )
+      case "export":
+        return (
+          <ErrorBoundary>
+            <ExportData key={`export-${projectId}`} projectId={projectId} />
           </ErrorBoundary>
         )
       default:

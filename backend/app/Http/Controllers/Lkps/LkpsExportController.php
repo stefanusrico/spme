@@ -9,6 +9,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
 use MongoDB\Client as MongoClient;
 use MongoDB\BSON\ObjectId;
+use App\Models\Lkps\LkpsData;
+use App\Models\Lkps\LkpsTable;
+use App\Models\Project\Project;
+use App\Models\Project\Task;
+use App\Models\Project\TaskList;
+use Illuminate\Support\Facades\Auth;
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -34,85 +40,172 @@ class LkpsExportController extends Controller
     }
 
     /**
-     * Mendapatkan semua lkpsId untuk prodiId tertentu
-     * Dengan penambahan debug dan fleksibilitas untuk query
+     * Get task IDs directly from a specific project
+     * 
+     * @param string $projectId Project ID
+     * @return array Array of task IDs
      */
-    private function getLkpsIdsForProdi($prodiId)
+    private function getTaskIdsFromProject($projectId)
     {
         try {
-            Log::info('Mencari LKPS untuk prodiId', ['prodiId' => $prodiId]);
+            Log::info('Finding tasks for projectId', [
+                'projectId' => $projectId
+            ]);
 
-            // Query dasar
-            $query = ['prodiId' => $prodiId];
+            $taskIds = [];
 
-            $lkpsCollection = $this->db->selectCollection('lkps');
-            $lkpsList = $lkpsCollection->find($query)->toArray();
-
-            Log::info('Ditemukan LKPS untuk prodiId:', ['count' => count($lkpsList)]);
-
-            // Extract lkpsIds sebagai STRING, bukan sebagai object
-            $lkpsIds = [];
-            foreach ($lkpsList as $lkps) {
-                // Langsung konversi ObjectId ke string
-                $lkpsIds[] = (string) $lkps->_id;
+            $project = Project::find($projectId);
+            if (!$project) {
+                Log::warning("Project not found: {$projectId}");
+                return [];
             }
 
-            // Jika lkpsIds kosong, coba tambahkan lkpsId yang ditemukan di dokumen lkps_data
-            if (empty($lkpsIds)) {
-                $knownLkpsIds = $this->collection->distinct('lkpsId', []);
-                Log::info('LkpsIds yang ditemukan di lkps_data:', ['count' => count($knownLkpsIds)]);
+            $taskList = TaskList::where('projectId', $project->_id)
+                ->where('kriteria', 'LKPS')
+                ->first();
 
-                if (count($knownLkpsIds) > 0) {
-                    foreach ($knownLkpsIds as $id) {
-                        $lkpsIds[] = (string) $id;
-                    }
-                }
+            if (!$taskList) {
+                Log::warning("No LKPS task list found in project {$projectId}");
+                return [];
             }
 
-            Log::info('Total LKPS IDs ditemukan:', ['count' => count($lkpsIds), 'ids' => $lkpsIds]);
-            return $lkpsIds;
+            $tasks = Task::where('taskListId', $taskList->_id)->get();
 
+            foreach ($tasks as $task) {
+                $taskIds[] = (string) $task->_id;
+            }
+
+            Log::info("Found " . count($taskIds) . " task IDs in project {$projectId}");
+            return $taskIds;
         } catch (\Exception $e) {
-            Log::error('Error dalam getLkpsIdsForProdi:', ['error' => $e->getMessage()]);
+            Log::error("Error getting task IDs from project: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return [];
         }
     }
 
     /**
-     * Get Excel template file
+     * Get task IDs from projects associated with a prodi
+     * This allows exporting data from any project, not just active ones
+     * 
+     * @param string $prodiId Prodi ID
+     * @param string|null $projectId Optional specific project ID
+     * @return array Array of task IDs
      */
-    public function getTemplate()
+    private function getTaskIdsFromProdi($prodiId, $projectId = null)
     {
-        Log::info('Template download requested');
+        try {
+            Log::info('Finding tasks for prodiId', [
+                'prodiId' => $prodiId,
+                'projectId' => $projectId ?: 'all'
+            ]);
 
-        $filePath = 'templates/LKPS_template.xlsx';
-        $fullPath = storage_path('app/public/' . $filePath);
+            $taskIds = [];
 
-        if (!file_exists($fullPath)) {
-            Log::error('Template file not found: ' . $fullPath);
-            return response()->json(['message' => 'Template not found'], 404);
+            // If projectId is specified, only get tasks from that project
+            if ($projectId) {
+                $project = Project::find($projectId);
+                if (!$project) {
+                    Log::warning("Project not found: {$projectId}");
+                    return [];
+                }
+
+                // Confirm this project belongs to the specified prodi
+                if ($project->prodiId != $prodiId) {
+                    Log::warning("Project {$projectId} does not belong to prodiId {$prodiId}");
+                    return [];
+                }
+
+                $taskList = TaskList::where('projectId', $project->_id)
+                    ->where('kriteria', 'LKPS')
+                    ->first();
+
+                if (!$taskList) {
+                    Log::warning("No LKPS task list found in project {$projectId}");
+                    return [];
+                }
+
+                $tasks = Task::where('taskListId', $taskList->_id)->get();
+
+                foreach ($tasks as $task) {
+                    $taskIds[] = (string) $task->_id;
+                }
+
+                Log::info("Found " . count($taskIds) . " task IDs in project {$projectId}");
+            }
+            // Otherwise get tasks from all projects for this prodi
+            else {
+                // Get all projects for this prodi, ordered by created_at desc
+                $projects = Project::where('prodiId', $prodiId)
+                    ->orderByDesc('created_at')
+                    ->get();
+
+                Log::info("Found " . $projects->count() . " projects for prodiId {$prodiId}");
+
+                foreach ($projects as $project) {
+                    $taskList = TaskList::where('projectId', $project->_id)
+                        ->where('kriteria', 'LKPS')
+                        ->first();
+
+                    if (!$taskList) {
+                        Log::info("No LKPS task list found in project {$project->_id}");
+                        continue;
+                    }
+
+                    $tasks = Task::where('taskListId', $taskList->_id)->get();
+
+                    foreach ($tasks as $task) {
+                        $taskIds[] = (string) $task->_id;
+                    }
+                }
+
+                Log::info("Found " . count($taskIds) . " task IDs across all projects for prodiId {$prodiId}");
+            }
+
+            return $taskIds;
+        } catch (\Exception $e) {
+            Log::error("Error getting task IDs from prodi: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [];
         }
+    }
 
-        $headers = [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition' => 'attachment; filename=LKPS_template.xlsx',
-            'Cache-Control' => 'no-cache, no-store, must-revalidate',
-            'Pragma' => 'no-cache',
-            'Expires' => '0'
-        ];
+    /**
+     * Get LKPS data IDs from task IDs
+     * 
+     * @param array $taskIds Array of task IDs
+     * @return array Array of LkpsData IDs
+     */
+    private function getLkpsDataIdsFromTasks($taskIds)
+    {
+        try {
+            $lkpsDataIds = [];
 
-        // Tambahkan CORS headers
-        foreach (['Access-Control-Allow-Origin' => '*', 'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers' => 'Content-Type, Authorization'] as $key => $value) {
-            $headers[$key] = $value;
+            if (empty($taskIds)) {
+                return $lkpsDataIds;
+            }
+
+            // Get LkpsData records for these tasks
+            $lkpsDataRecords = LkpsData::whereIn('taskId', $taskIds)->get();
+
+            foreach ($lkpsDataRecords as $record) {
+                $lkpsDataIds[] = (string) $record->_id;
+            }
+
+            Log::info("Found " . count($lkpsDataIds) . " LkpsData IDs from " . count($taskIds) . " tasks");
+
+            return $lkpsDataIds;
+        } catch (\Exception $e) {
+            Log::error("Error getting LkpsData IDs from tasks: " . $e->getMessage());
+            return [];
         }
-
-        return response()->download($fullPath, 'LKPS_template.xlsx', $headers);
     }
 
     /**
      * Export data using uploaded template with all sheets
-     * Now supports multiple sections based on request
-     * Added support for direct lkpsId and debug_mode
+     * Now supports multiple sections based on request and finding data through task IDs
      */
     public function exportData(Request $request)
     {
@@ -125,46 +218,90 @@ class LkpsExportController extends Controller
             Log::info('Initial memory usage: ' . round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB');
 
             // Get parameters
-            $prodiId = $request->input('prodiId');
-            $specificLkpsId = $request->input('lkpsId');
+            $projectId = $request->input('projectId');
+            $prodiId = Auth::user()->prodiId ?? $request->input('prodiId');
             $debugMode = $request->input('debug_mode', false);
 
-            // Log all parameters
+            // Log all parameters with auth info
             Log::info('Export data requested', [
+                'project_id' => $projectId,
                 'prodi_id' => $prodiId,
-                'lkps_id' => $specificLkpsId,
+                'user_id' => Auth::id() ?? null,
+                'table_code' => $request->input('table_code'),
                 'debug_mode' => $debugMode
             ]);
 
-            // Pastikan prodiId atau lkpsId tersedia
-            if (empty($prodiId) && empty($specificLkpsId) && !$debugMode) {
-                Log::error('Baik prodiId maupun lkpsId tidak tersedia');
-                return response()->json(['message' => 'ProdiId atau lkpsId diperlukan'], 400);
+            // Pastikan prodiId tersedia
+            if (empty($projectId) && empty($prodiId) && !$debugMode) {
+                Log::error('Required parameters not provided and no prodiId in auth user');
+                return response()->json(['message' => 'ProdiId is required and not found in authenticated user'], 400);
             }
 
-            // Get array of section codes to export
-            $sectionCodes = $request->input('sections', ['1-1']); // Default to 1-1 if not provided
-
-            if (!is_array($sectionCodes)) {
-                $sectionCodes = [$sectionCodes]; // Convert to array if single value
+            // Jika hanya projectId yang diberikan, ambil prodiId dari project
+            if (!empty($projectId) && empty($prodiId) && !$debugMode) {
+                $project = Project::find($projectId);
+                if (!$project) {
+                    Log::error("Project not found: {$projectId}");
+                    return response()->json(['message' => 'Project not found'], 404);
+                }
+                $prodiId = $project->prodiId;
+                Log::info("Retrieved prodiId {$prodiId} from project {$projectId}");
             }
 
-            Log::info('Sections to export:', ['section_codes' => $sectionCodes]);
+            // Get array of table codes to export, support both 'sections' and 'table_code' parameters
+            $tableCodes = [];
 
-            // Get LKPS IDs based on request
-            $lkpsIds = [];
+            if ($request->has('table_code')) {
+                // Bisa string tunggal atau array
+                $tableCode = $request->input('table_code');
 
-            // Prioritas: 1. specificLkpsId, 2. getLkpsIdsForProdi, 3. debugMode tanpa filter
-            if (!empty($specificLkpsId)) {
-                $lkpsIds = [$specificLkpsId];
-                Log::info('Using specific lkpsId provided in request', ['lkpsId' => $specificLkpsId]);
-            } elseif (!empty($prodiId) && !$debugMode) {
-                $lkpsIds = $this->getLkpsIdsForProdi($prodiId);
-                Log::info('Using lkpsIds from prodiId', ['count' => count($lkpsIds)]);
+                if (is_array($tableCode)) {
+                    // Jika sudah berupa array, gunakan langsung
+                    $tableCodes = $tableCode;
+                    Log::info('Processing multiple tables: ' . implode(', ', $tableCodes));
+                } else {
+                    // Jika string tunggal
+                    $tableCodes = [$tableCode];
+                    Log::info('Processing single table: ' . $tableCode);
+                }
+            } else if ($request->has('sections')) {
+                // Backward compatibility
+                $sections = $request->input('sections');
+                $tableCodes = is_array($sections) ? $sections : [$sections];
+                Log::info('Using sections parameter: ' . implode(', ', $tableCodes));
+            } else {
+                // Default jika tidak ada parameter yang diberikan
+                $tableCodes = ['1-1']; // Default ke tabel 1-1
+                Log::info('No table specified, defaulting to: 1-1');
             }
 
-            if (empty($lkpsIds) && !$debugMode) {
-                Log::warning('Tidak ada LKPS yang ditemukan. Menggunakan template kosong.');
+            // Get task IDs and LkpsData IDs
+            $taskIds = [];
+            $lkpsDataIds = [];
+
+            if (!$debugMode) {
+                if (!empty($projectId)) {
+                    // Jika projectId diberikan, gunakan metode getTaskIdsFromProject
+                    $taskIds = $this->getTaskIdsFromProject($projectId);
+
+                    if (empty($taskIds)) {
+                        Log::warning("No task IDs found for project {$projectId}");
+                    }
+                } else {
+                    // Jika hanya prodiId yang diberikan, gunakan metode getTaskIdsFromProdi
+                    $taskIds = $this->getTaskIdsFromProdi($prodiId);
+
+                    if (empty($taskIds)) {
+                        Log::warning("No task IDs found for prodi {$prodiId}");
+                    }
+                }
+
+                // Get LkpsData IDs from tasks
+                $lkpsDataIds = $this->getLkpsDataIdsFromTasks($taskIds);
+
+                if (empty($lkpsDataIds)) {
+                    Log::warning("No LkpsData IDs found for the tasks");
+                }
             }
 
             // Path to template
@@ -188,48 +325,40 @@ class LkpsExportController extends Controller
             // Process each requested section
             $processedSections = [];
 
-            foreach ($sectionCodes as $sectionCode) {
-                // Prepare query based on mode
+            foreach ($tableCodes as $tableCode) {
+                // Build query based on mode and available IDs
                 if ($debugMode) {
-                    // Debug mode: ignore lkpsId filter
-                    $query = ['section_code' => $sectionCode];
-                    Log::info("Running in debug mode for section {$sectionCode} - ignoring lkpsId filter");
+                    // Debug mode: just filter by section code
+                    $query = ['kodeTabel' => $tableCode];
+                    Log::info("Running in debug mode for table {$tableCode}");
+                } else if (!empty($taskIds)) {
+                    // Filter by taskIds for most precise results
+                    $query = [
+                        'kodeTabel' => $tableCode,
+                        'taskId' => ['$in' => $taskIds]
+                    ];
+                    Log::info("Using taskId filter for table {$tableCode}");
                 } else {
-                    // Normal mode: use lkpsId filter
-                    $query = ['section_code' => $sectionCode];
-
-                    // Add lkpsId filter if we have lkpsIds
-                    if (!empty($lkpsIds)) {
-                        $query['lkpsId'] = ['$in' => $lkpsIds];
-                    }
+                    // Fallback to basic section filter
+                    $query = ['kodeTabel' => $tableCode];
+                    Log::info("Using basic filter for table {$tableCode}");
                 }
 
                 // Debug: Log the final query
-                Log::info("Query for section {$sectionCode}:", ['query' => $query]);
+                Log::info("Query for table {$tableCode}:", ['query' => json_encode($query)]);
 
+                // Execute the query
                 $documents = $this->collection->find($query)->toArray();
 
-                Log::info("Found " . count($documents) . " documents for section {$sectionCode}");
+                Log::info("Found " . count($documents) . " documents for table {$tableCode}");
 
                 if (empty($documents)) {
                     // Debug: try to find documents with just section_code
-                    $simpleQuery = ['section_code' => $sectionCode];
+                    $simpleQuery = ['kodeTabel' => $tableCode];
                     $allDocs = $this->collection->find($simpleQuery)->toArray();
-                    Log::info("Total documents with section_code {$sectionCode} (without lkpsId filter):", ['count' => count($allDocs)]);
+                    Log::info("Total documents with kodeTabel {$tableCode} (without filters):", ['count' => count($allDocs)]);
 
-                    if (count($allDocs) > 0) {
-                        // Find all lkpsIds for these documents
-                        $existingLkpsIds = [];
-                        foreach ($allDocs as $doc) {
-                            $docArray = json_decode(json_encode($doc), true);
-                            if (isset($docArray['lkpsId']) && !in_array($docArray['lkpsId'], $existingLkpsIds)) {
-                                $existingLkpsIds[] = $docArray['lkpsId'];
-                            }
-                        }
-                        Log::info("LkpsIds in database for section {$sectionCode}:", ['ids' => $existingLkpsIds]);
-                    }
-
-                    Log::warning("No data found for section {$sectionCode}, skipping");
+                    Log::warning("No data found for table {$tableCode}, skipping");
                     continue;
                 }
 
@@ -240,35 +369,36 @@ class LkpsExportController extends Controller
                 $docArray = json_decode(json_encode($doc), true);
 
                 // Debug: Log the document structure
-                Log::info("Document keys for section {$sectionCode}: " . implode(', ', array_keys($docArray)));
+                Log::info("Document keys for table {$tableCode}: " . implode(', ', array_keys($docArray)));
 
                 // Check if data exists and is valid
                 if (!isset($docArray['data']) || !is_array($docArray['data']) || empty($docArray['data'])) {
-                    Log::warning("No valid data found for section {$sectionCode}, skipping");
+                    Log::warning("No valid data found for table {$tableCode}, skipping");
                     continue;
                 }
 
                 $data = $docArray['data'];
 
-                // Debug: Log the first data item structure
-                if (count($data) > 0) {
-                    Log::info("First data item keys for section {$sectionCode}: " . implode(', ', array_keys($data[0])));
-                }
+                // Debug: Log data structure sample
+                Log::debug("Data structure for table {$tableCode}:", [
+                    'sample_row' => isset($data[0]) ? json_encode($data[0]) : 'No data',
+                    'total_rows' => count($data)
+                ]);
 
                 // Find the corresponding sheet
                 $sheet = null;
 
                 // Try exact match first
-                if ($spreadsheet->sheetNameExists($sectionCode)) {
-                    $sheet = $spreadsheet->getSheetByName($sectionCode);
-                    Log::info("Found exact sheet match for section {$sectionCode}");
+                if ($spreadsheet->sheetNameExists($tableCode)) {
+                    $sheet = $spreadsheet->getSheetByName($tableCode);
+                    Log::info("Found exact sheet match for table {$tableCode}");
                 } else {
                     // Try alternative naming patterns
                     foreach ($availableSheets as $sheetName) {
                         // Check for various formats like "Tabel 1 Bagian-1" that might match section code "1-1"
-                        if (strpos(strtolower($sheetName), strtolower(str_replace('-', ' ', $sectionCode))) !== false) {
+                        if (strpos(strtolower($sheetName), strtolower(str_replace('-', ' ', $tableCode))) !== false) {
                             $sheet = $spreadsheet->getSheetByName($sheetName);
-                            Log::info("Found matching sheet: {$sheetName} for section: {$sectionCode}");
+                            Log::info("Found matching sheet: {$sheetName} for table: {$tableCode}");
                             break;
                         }
                     }
@@ -276,23 +406,23 @@ class LkpsExportController extends Controller
 
                 // If still no match, skip this section
                 if (!$sheet) {
-                    Log::warning("No matching sheet found for section {$sectionCode}, skipping");
+                    Log::warning("No matching sheet found for table {$tableCode}, skipping");
                     continue;
                 }
 
                 // Get sheet name for logging
                 $sheetName = $sheet->getTitle();
-                Log::info("Using sheet: {$sheetName} for data from section: {$sectionCode}");
+                Log::info("Using sheet: {$sheetName} for data from table: {$tableCode}");
 
                 // Determine start row from database
-                $startRow = $this->getStartRowForSection($sectionCode);
+                $startRow = $this->getStartRowForSection($tableCode);
 
                 // Fill the data
                 Log::info("Processing " . count($data) . " rows of data for sheet {$sheetName}");
                 $rowCount = 0;
 
                 // Get column mappings for this section from database
-                $columnMapping = $this->getColumnMappingForSection($sectionCode);
+                $columnMapping = $this->getColumnMappingForSection($tableCode);
 
                 foreach ($data as $rowIndex => $rowData) {
                     $currentRow = $startRow + $rowIndex;
@@ -302,17 +432,17 @@ class LkpsExportController extends Controller
                         $this->fillRowData($sheet, $currentRow, $rowData, $columnMapping);
                         $rowCount++;
                     } catch (\Exception $e) {
-                        Log::error("Error processing row {$rowIndex} for section {$sectionCode}: " . $e->getMessage());
+                        Log::error("Error processing row {$rowIndex} for table {$tableCode}: " . $e->getMessage());
                         // Continue to next row if there's an error
                     }
                 }
 
-                Log::info("Successfully filled {$rowCount} rows in sheet {$sheetName} for section {$sectionCode}");
-                $processedSections[] = $sectionCode;
+                Log::info("Successfully filled {$rowCount} rows in sheet {$sheetName} for table {$tableCode}");
+                $processedSections[] = $tableCode;
             }
 
             // Log summary
-            Log::info("Processed sections: " . implode(', ', $processedSections));
+            Log::info("Processed tables: " . implode(', ', $processedSections));
 
             // Save to temporary file
             $tempFileName = 'LKPS_Export_' . uniqid() . '.xlsx';
@@ -365,20 +495,20 @@ class LkpsExportController extends Controller
     /**
      * Get the starting row for a specific section from lkps_tables collection
      */
-    private function getStartRowForSection($sectionCode)
+    private function getStartRowForSection($tableCode)
     {
         try {
             // Find the table associated with this section code
-            $table = $this->lkpsTableCollection->findOne(['section_code' => $sectionCode]);
+            $table = $this->lkpsTableCollection->findOne(['kode' => $tableCode]);
 
             if ($table) {
                 // Convert MongoDB document to PHP array
                 $tableArray = json_decode(json_encode($table), true);
 
                 // Use excel_start_row value if available
-                if (isset($tableArray['excel_start_row'])) {
-                    Log::info("Found start row for section {$sectionCode}: {$tableArray['excel_start_row']}");
-                    return (int) $tableArray['excel_start_row'];
+                if (isset($tableArray['barisAwalExcel'])) {
+                    Log::info("Found start row for table {$tableCode}: {$tableArray['barisAwalExcel']}");
+                    return (int) $tableArray['barisAwalExcel'];
                 }
             }
 
@@ -392,15 +522,22 @@ class LkpsExportController extends Controller
                 '2a3' => 7,
                 '2a4' => 7,
                 '2b' => 12,
+                '3a1' => 7,
+                '3a2' => 7,
+                '3a3' => 7,
+                '3a4' => 7,
+                '3a5' => 7,
+                '3b1' => 7,
+                '3b2' => 7
             ];
 
-            $startRow = $defaultStartRows[$sectionCode] ?? 12;
-            Log::info("Using default start row for section {$sectionCode}: {$startRow}");
+            $startRow = $defaultStartRows[$tableCode] ?? 12;
+            Log::info("Using default start row for table {$tableCode}: {$startRow}");
 
             return $startRow;
 
         } catch (\Exception $e) {
-            Log::error("Error getting start row for section {$sectionCode}: " . $e->getMessage());
+            Log::error("Error getting start row for table {$tableCode}: " . $e->getMessage());
             return 12; // Default fallback value
         }
     }
@@ -424,25 +561,29 @@ class LkpsExportController extends Controller
     /**
      * Get column mapping for a specific section from lkps_columns collection
      */
-    private function getColumnMappingForSection($sectionCode)
+    private function getColumnMappingForSection($tableCode)
     {
         try {
-            // First, find the table code associated with this section code
-            $table = $this->lkpsTableCollection->findOne(['section_code' => $sectionCode]);
+            Log::info("Getting column mapping for table {$tableCode}");
 
-            if (!$table) {
-                Log::warning("No table found for section {$sectionCode}");
+            // Find all columns for this table code directly
+            $columns = $this->lkpsColumnCollection->find(['kodeTabel' => $tableCode])->toArray();
+
+            if (empty($columns)) {
+                Log::warning("No columns found in database for kodeTabel {$tableCode}");
+
+                // Get data to analyze structure
+                $document = $this->collection->findOne(['kodeTabel' => $tableCode]);
+                if ($document && isset($document['data']) && is_array($document['data']) && !empty($document['data'])) {
+                    $sampleData = $document['data'][0] ?? [];
+
+                    if (!empty($sampleData)) {
+                        return $this->generateMappingFromData($sampleData);
+                    }
+                }
+
                 return [];
             }
-
-            // Convert MongoDB document to PHP array
-            $tableArray = json_decode(json_encode($table), true);
-            $tableCode = $tableArray['code'];
-
-            Log::info("Found table code for section {$sectionCode}: {$tableCode}");
-
-            // Now find all columns for this table code
-            $columns = $this->lkpsColumnCollection->find(['table_code' => $tableCode])->toArray();
 
             $columnMapping = [];
 
@@ -450,39 +591,39 @@ class LkpsExportController extends Controller
                 // Convert MongoDB document to PHP array
                 $columnArray = json_decode(json_encode($column), true);
 
-                if (isset($columnArray['data_index']) && isset($columnArray['excel_index'])) {
-                    // Convert numeric excel_index to letter (0 -> A, 1 -> B, etc)
-                    $excelColumn = $this->convertToColumnLetter($columnArray['excel_index']);
-                    $columnMapping[$columnArray['data_index']] = $excelColumn;
+                if (isset($columnArray['indeksData']) && isset($columnArray['indeksExcel'])) {
+                    // Convert numeric indeksExcel to letter (0 -> A, 1 -> B, etc)
+                    $excelColumn = $this->convertToColumnLetter($columnArray['indeksExcel']);
+                    $columnMapping[$columnArray['indeksData']] = $excelColumn;
+                    Log::debug("Mapped column {$columnArray['indeksData']} to Excel column {$excelColumn}");
                 }
             }
 
-            Log::info("Found " . count($columnMapping) . " column mappings for section {$sectionCode}");
-
+            Log::info("Found " . count($columnMapping) . " column mappings for table {$tableCode}");
             return $columnMapping;
 
         } catch (\Exception $e) {
-            Log::error("Error getting column mapping for section {$sectionCode}: " . $e->getMessage());
-
-            // Default fallback mappings
-            $fallbackMappings = [
-                // '1-1' => [
-                //     'no' => 'A',
-                //     'lembaga_mitra' => 'B',
-                //     'internasional' => 'C',
-                //     'nasional' => 'D',
-                //     'lokal_wilayah' => 'E',
-                //     'judul_kegiatan_kerjasama' => 'F',
-                //     'manfaat_bagi_ps_yang_diakreditasi' => 'G',
-                //     'tanggal_awal_kerjasama_hh_bb_tttt' => 'H',
-                //     'tanggal_akhir_kerjasama_hh_bb_tttt' => 'I',
-                //     'bukti_kerjasama' => 'L',
-                // ],
-                // Add more fallback mappings as needed
-            ];
-
-            return $fallbackMappings[$sectionCode] ?? [];
+            Log::error("Error getting column mapping for table {$tableCode}: " . $e->getMessage());
+            return [];
         }
+    }
+
+    private function generateMappingFromData($sampleData)
+    {
+        Log::info("Generating dynamic column mapping from data structure");
+        $columnMapping = [];
+        $column = 'A'; // Start from column A
+
+        // Check if data is an array with numeric indexes
+        $isNumericArray = array_keys($sampleData) === range(0, count($sampleData) - 1);
+
+        foreach (array_keys($sampleData) as $field) {
+            $columnMapping[$field] = $column++;
+            Log::info("Auto-mapped field '{$field}' to column '{$columnMapping[$field]}'");
+        }
+
+        Log::info("Generated " . count($columnMapping) . " column mappings from data structure");
+        return $columnMapping;
     }
 
     /**
@@ -490,21 +631,44 @@ class LkpsExportController extends Controller
      */
     private function fillRowData($sheet, $currentRow, $rowData, $columnMapping)
     {
+        // Debug log struktur data
+        Log::debug("Processing row at position {$currentRow}");
+
+        // Jika column mapping kosong, coba buat otomatis
+        if (empty($columnMapping) && !empty($rowData)) {
+            Log::info("No mapping available, creating mapping from row data");
+            $columnMapping = $this->generateMappingFromData($rowData);
+        }
+
+        if (empty($columnMapping)) {
+            Log::warning("No column mapping available, data will not be written to Excel");
+            return;
+        }
+
         // Process each field according to mapping
         foreach ($columnMapping as $field => $column) {
             if (isset($rowData[$field])) {
                 $value = $rowData[$field];
 
-                // Handle boolean values
+                // Handle different value types
                 if (is_bool($value)) {
                     $value = $value ? 'V' : '';
                 } else if ($value === true) {
                     $value = 'V';
                 } else if ($value === false) {
                     $value = '';
+                } else if (is_array($value) || is_object($value)) {
+                    // Convert to string representation
+                    $value = json_encode($value);
                 }
 
-                $sheet->setCellValue("{$column}{$currentRow}", $value);
+                // Set cell value
+                try {
+                    $sheet->setCellValue("{$column}{$currentRow}", $value);
+                    Log::debug("Set cell {$column}{$currentRow}");
+                } catch (\Exception $e) {
+                    Log::error("Error setting cell {$column}{$currentRow}: " . $e->getMessage());
+                }
             }
         }
     }
