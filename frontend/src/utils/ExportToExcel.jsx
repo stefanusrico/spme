@@ -14,13 +14,10 @@ import {
 } from "antd"
 import { DownloadOutlined, FileExcelOutlined } from "@ant-design/icons"
 import axiosInstance from "./axiosConfig"
-import { fetchSectionStructure } from "../constants/sectionStructure" // Import the fetch function
+import { fetchTableStructure } from "../constants/tableStructure"
 
 const { Title, Text, Paragraph } = Typography
 
-/**
- * Component untuk mengekspor data LKPS ke Excel
- */
 const ExportToExcel = ({ userData, sectionCode }) => {
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -38,7 +35,7 @@ const ExportToExcel = ({ userData, sectionCode }) => {
         setFetchingData(true)
 
         // Fetch sections from API
-        const structure = await fetchSectionStructure()
+        const structure = await fetchTableStructure()
 
         // Transform the structure into a flat list for the checkboxes
         const flattenedSections = []

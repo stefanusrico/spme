@@ -1,11 +1,11 @@
 import axiosInstance from "./axiosConfig"
 
-export const fetchScoreDetails = async (prodiId, sectionCode) => {
+export const fetchScoreDetails = async (prodiId, tableCode) => {
   try {
     const response = await axiosInstance.get("score-details", {
       params: {
         prodiId,
-        section_code: sectionCode,
+        tableCode: tableCode,
       },
     })
 

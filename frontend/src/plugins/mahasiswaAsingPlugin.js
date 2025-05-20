@@ -1,3 +1,6 @@
+/**
+ * Plugin khusus untuk section Mahasiswa Asing (international students)
+ */
 import { processExcelDataBase } from "../utils/tableUtils"
 
 const MahasiswaAsingPlugin = {
@@ -155,9 +158,9 @@ const MahasiswaAsingPlugin = {
     return {
       scores: [
         {
-          butir: 14,
-          nilai: score,
-        },
+          butir : 14,
+          nilai : score
+        }
       ],
       scoreDetail: {
         totalStudents,

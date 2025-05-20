@@ -391,6 +391,7 @@ class LkpsDataController extends Controller
     public function getScoreDetail(Request $request)
     {
         $validated = $request->validate([
+            'prodiId' => 'required|string',
             'tableCode' => 'required|string',
         ]);
 

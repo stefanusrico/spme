@@ -10,7 +10,7 @@ use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListCon
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController};
 use App\Http\Controllers\Data\{SpreadsheetInfoController};
-use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController};
+use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController};
 
 use App\Http\Controllers\{
     NotificationController,
@@ -42,6 +42,7 @@ Route::post('/chat/{session}/message', [GeminiController::class, 'sendChatMessag
 
 Route::get('/test-gemini', [GeminiTestController::class, 'testPrompt']);
 Route::post('/test-image-analysis', [GeminiFileTestController::class, 'testImageAnalysis']);
+Route::post('/data-mapping', [GeminiDataMappingController::class, 'mappingData']);
 
 Route::post('users', [UserController::class, 'store']);
 

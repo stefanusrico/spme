@@ -2,6 +2,7 @@
  * Plugin khusus untuk section Lulusan Terlacak yang Bekerja
  */
 import { processExcelDataBase } from "../utils/tableUtils"
+import { cekStrata } from "./checkStrata"
 
 const LulusanTerlacakPlugin = {
   getInfo() {
@@ -178,6 +179,10 @@ const LulusanTerlacakPlugin = {
       return tahun === "TS-4" || tahun === "TS-3" || tahun === "TS-2"
     })
 
+    //Cek strata
+    const strata = cekStrata()
+    const butir = strata === "D-3" ? 61 : 67
+
     // Perhitungan total dari semua lulusan dalam 3 tahun terakhir
     let NL = 0 // Jumlah lulusan total
     let NJ = 0 // Jumlah lulusan yang terlacak
@@ -251,7 +256,7 @@ const LulusanTerlacakPlugin = {
     return {
       scores: [
         {
-          butir: 61,
+          butir: butir,
           nilai: skorAkhir.toFixed(2),
         },
       ],

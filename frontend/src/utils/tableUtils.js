@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx"
 import { message } from "antd"
-import stringSimilarity from "string-similarity"
+import axiosInstance from "../utils/axiosConfig"
 
 export const extractColumns = (tableConfig) => {
   let columns = []
@@ -17,7 +17,6 @@ export const extractColumns = (tableConfig) => {
     )
   }
 
-  // Debug: Show columns extracted from config
   console.log(
     `[DEBUG] Extracted ${columns.length} columns from table config:`,
     columns.map((c) => ({
@@ -30,448 +29,46 @@ export const extractColumns = (tableConfig) => {
   return columns
 }
 
-export const findColumnIndexByHeader = (headers, possibleNames, column) => {
-  if (!headers || !Array.isArray(headers)) return -1
-
-  const dataIndex =
-    possibleNames.length > 0 ? possibleNames[possibleNames.length - 1] : ""
-
-  // Debug: Show what we're trying to match
-  console.log(
-    `\n[DEBUG] Trying to match field '${dataIndex}' using possible names:`,
-    possibleNames
-  )
-
-  // Add hierarchical information to debugging if available
-  if (column && column.parentTitle) {
-    if (column.grandparentTitle) {
-      console.log(
-        `[DEBUG] This is a nested column: ${column.grandparentTitle} > ${column.parentTitle} > ${column.judul}`
-      )
-    } else {
-      console.log(
-        `[DEBUG] This is a child column: ${column.parentTitle} > ${column.judul}`
-      )
-    }
-  }
-
-  // Transform headers to string for comparison
-  const processedHeaders = headers.map((h) => {
-    return String(h || "")
-      .toLowerCase()
-      .trim()
-  })
-
-  // Log all headers to diagnose the issue
-  console.log("Available Excel headers:", processedHeaders)
-
-  // Get all possible variants of the field name
-  const fieldVariants = []
-
-  // Add original dataIndex
-  fieldVariants.push(dataIndex)
-
-  // Add dataIndex with underscores replaced by spaces
-  fieldVariants.push(dataIndex.replace(/_/g, " "))
-
-  // Add all possibleNames
-  possibleNames.forEach((name) => {
-    if (name && !fieldVariants.includes(name)) {
-      fieldVariants.push(name)
-    }
-  })
-
-  console.log(`[DEBUG] Using field variants for matching:`, fieldVariants)
-
-  // Extract TS info from the dataIndex
-  const tsInfo = extractTSInfo(dataIndex)
-
-  // Handle min/max/rata-rata specifically
-  const isMin = dataIndex.includes("min_")
-  const isMax = dataIndex.includes("maks_")
-  const isAverage = dataIndex.includes("rata_rata_")
-
-  // Check for specific contexts in dataIndex
-  const isPadaPsLainDiPt = dataIndex.includes("pada_ps_lain_di_pt")
-  const isPadaPsYangDiakreditasi = dataIndex.includes(
-    "pada_ps_yang_diakreditasi"
-  )
-
-  // Calculate scores for all headers against all field variants
-  const columnScores = []
-
-  for (let i = 0; i < processedHeaders.length; i++) {
-    const header = processedHeaders[i]
-    if (!header) continue
-
-    let bestScore = 0
-    let matchDetails = []
-
-    // Check for hierarchical headers (with " - " delimiter)
-    if (header.includes(" - ")) {
-      const headerParts = header.split(" - ").map((p) => p.trim())
-
-      // Context-based checks for program type
-      if (isPadaPsLainDiPt && !header.includes("pada ps lain di pt")) {
-        bestScore -= 0.9 // Strong penalty for context mismatch
-        matchDetails.push(
-          "CONTEXT MISMATCH: Expected 'pada ps lain di pt' but not found"
-        )
-        continue // Skip this header entirely
-      }
-
-      if (
-        isPadaPsYangDiakreditasi &&
-        !header.includes("pada ps yang diakreditasi")
-      ) {
-        bestScore -= 0.9 // Strong penalty for context mismatch
-        matchDetails.push(
-          "CONTEXT MISMATCH: Expected 'pada ps yang diakreditasi' but not found"
-        )
-        continue // Skip this header entirely
-      }
-
-      // Boost scores for correct context matches
-      if (isPadaPsLainDiPt && header.includes("pada ps lain di pt")) {
-        bestScore += 0.3 // Bonus for correct context
-        matchDetails.push("CONTEXT MATCH: Found 'pada ps lain di pt'")
-      }
-
-      if (
-        isPadaPsYangDiakreditasi &&
-        header.includes("pada ps yang diakreditasi")
-      ) {
-        bestScore += 0.3 // Bonus for correct context
-        matchDetails.push("CONTEXT MATCH: Found 'pada ps yang diakreditasi'")
-      }
-
-      // Extract TS info from the last header part specifically
-      const lastHeaderPart = headerParts[headerParts.length - 1]
-      const headerTsInfo = extractTSInfo(lastHeaderPart)
-
-      // STRONG TS NUMBER MATCHING - with improved logic
-      if (tsInfo.hasTS && headerTsInfo.hasTS) {
-        // Case 1: dataIndex has plain "ts" without number
-        if (!tsInfo.hasNumber && headerTsInfo.hasNumber) {
-          // Plain TS should match to header with current year (TS)
-          // Lower score if it's matching to TS-1 or TS-2
-          bestScore -= 0.9 // Severe penalty for matching plain TS to numbered TS
-          matchDetails.push(
-            `MISMATCH: Plain TS field matching to numbered TS-${headerTsInfo.number}`
-          )
-          continue // Skip this header entirely
-        }
-        // Case 2: Both have numbers, and they must match
-        else if (tsInfo.hasNumber && headerTsInfo.hasNumber) {
-          if (tsInfo.number === headerTsInfo.number) {
-            bestScore += 0.6 // Strong bonus for exact TS number match
-            matchDetails.push(`EXACT TS MATCH: both have TS-${tsInfo.number}`)
-          } else {
-            bestScore -= 0.9 // Very strong penalty for TS number mismatch
-            matchDetails.push(
-              `TS MISMATCH: expected TS-${tsInfo.number} but found TS-${headerTsInfo.number}`
-            )
-            continue // Skip this header entirely
-          }
-        }
-        // Case 3: dataIndex has number but header doesn't
-        else if (tsInfo.hasNumber && !headerTsInfo.hasNumber) {
-          bestScore -= 0.7 // Strong penalty
-          matchDetails.push(
-            `TS MISMATCH: expected TS-${tsInfo.number} but found plain TS`
-          )
-          continue // Skip this header
-        }
-        // Case 4: Both have plain TS (without number)
-        else if (!tsInfo.hasNumber && !headerTsInfo.hasNumber) {
-          bestScore += 0.4 // Bonus for plain TS match
-          matchDetails.push("Both contain plain TS (without number)")
-        }
-      }
-
-      // Critical check for min/max/average mismatches in indicator type
-      if (
-        (isMin &&
-          (lastHeaderPart.includes("rata-rata") ||
-            lastHeaderPart.includes("maks") ||
-            lastHeaderPart.includes("max"))) ||
-        (isMax &&
-          (lastHeaderPart.includes("rata-rata") ||
-            lastHeaderPart.includes("min"))) ||
-        (isAverage &&
-          (lastHeaderPart.includes("maks") ||
-            lastHeaderPart.includes("max") ||
-            lastHeaderPart.includes("min")))
-      ) {
-        bestScore -= 0.95 // Critical penalty for indicator type mismatch
-        matchDetails.push(
-          "CRITICAL SEMANTIC MISMATCH: min/max/rata-rata contradiction!"
-        )
-        continue // Skip this header entirely due to critical mismatch
-      }
-
-      // Special handling for min/max/rata-rata in hierarchical headers
-      if (isMin || isMax || isAverage) {
-        // Check if the last part indicates min/max/average
-        if (
-          isMin &&
-          (lastHeaderPart === "min" ||
-            lastHeaderPart === "min." ||
-            lastHeaderPart === "minimum")
-        ) {
-          bestScore += 0.5
-          matchDetails.push("MIN indicator match")
-        } else if (
-          isMax &&
-          (lastHeaderPart === "maks" ||
-            lastHeaderPart === "maks." ||
-            lastHeaderPart === "max" ||
-            lastHeaderPart === "max." ||
-            lastHeaderPart === "maksimum" ||
-            lastHeaderPart === "maximum")
-        ) {
-          bestScore += 0.5
-          matchDetails.push("MAX indicator match")
-        } else if (
-          isAverage &&
-          (lastHeaderPart === "rata-rata" ||
-            lastHeaderPart === "rata rata" ||
-            lastHeaderPart === "average" ||
-            lastHeaderPart === "mean")
-        ) {
-          bestScore += 0.5
-          matchDetails.push("AVERAGE indicator match")
-        }
-      }
-
-      // Compare each field variant with each header part
-      for (const variant of fieldVariants) {
-        // Get best similarity across all header parts
-        let bestPartSimilarity = 0
-        let bestPartIndex = -1
-
-        for (let partIndex = 0; partIndex < headerParts.length; partIndex++) {
-          const similarity = stringSimilarity.compareTwoStrings(
-            variant,
-            headerParts[partIndex]
-          )
-
-          if (similarity > bestPartSimilarity) {
-            bestPartSimilarity = similarity
-            bestPartIndex = partIndex
-          }
-        }
-
-        // Weight more if it matches the last part (most specific)
-        const weightedScore =
-          bestPartSimilarity *
-          (bestPartIndex === headerParts.length - 1
-            ? 0.9
-            : 0.7 - 0.1 * bestPartIndex)
-
-        if (weightedScore > bestScore) {
-          bestScore = weightedScore
-          matchDetails = [
-            `Similarity with hierarchical header part ${bestPartIndex + 1}: ${(
-              bestPartSimilarity * 100
-            ).toFixed(2)}%`,
-          ]
-        }
-      }
-    } else {
-      // For regular non-hierarchical headers
-      for (const variant of fieldVariants) {
-        // Using the stringSimilarity library
-        const similarity = stringSimilarity.compareTwoStrings(variant, header)
-
-        if (similarity > bestScore) {
-          bestScore = similarity
-          matchDetails = [`Similarity score: ${(similarity * 100).toFixed(2)}%`]
-        }
-      }
-
-      // Apply context penalties for non-hierarchical headers too
-      if (isPadaPsLainDiPt && !header.includes("pada ps lain di pt")) {
-        bestScore -= 0.8 // Penalty for context mismatch
-        matchDetails.push(
-          "Non-hierarchical context mismatch: Expected 'pada ps lain di pt'"
-        )
-      }
-
-      if (
-        isPadaPsYangDiakreditasi &&
-        !header.includes("pada ps yang diakreditasi")
-      ) {
-        bestScore -= 0.8 // Penalty for context mismatch
-        matchDetails.push(
-          "Non-hierarchical context mismatch: Expected 'pada ps yang diakreditasi'"
-        )
-      }
-    }
-
-    // Additional scoring based on keyword matches
-    if (
-      dataIndex.includes("mahasiswa_aktif") &&
-      header.toLowerCase().includes("aktif")
-    ) {
-      bestScore += 0.1
-      matchDetails.push('Header contains "Aktif" keyword')
-    }
-
-    if (
-      (dataIndex.includes("penuh_waktu") || dataIndex.includes("full_time")) &&
-      (header.toLowerCase().includes("penuh") ||
-        header.toLowerCase().includes("full"))
-    ) {
-      bestScore += 0.1
-      matchDetails.push("Time type match: full/penuh")
-    }
-
-    if (
-      (dataIndex.includes("paruh_waktu") || dataIndex.includes("part_time")) &&
-      (header.toLowerCase().includes("paruh") ||
-        header.toLowerCase().includes("part"))
-    ) {
-      bestScore += 0.1
-      matchDetails.push("Time type match: part/paruh")
-    }
-
-    // Strong penalties for specific mismatches
-    if (
-      (dataIndex.includes("min_") &&
-        (header.includes("maks") ||
-          header.includes("max") ||
-          header.includes("rata-rata"))) ||
-      (dataIndex.includes("maks_") &&
-        (header.includes("min") || header.includes("rata-rata"))) ||
-      (dataIndex.includes("rata_rata_") &&
-        (header.includes("maks") ||
-          header.includes("max") ||
-          header.includes("min")))
-    ) {
-      bestScore -= 0.95 // Critical penalty
-      matchDetails.push(
-        "CRITICAL SEMANTIC MISMATCH: min/max/rata-rata contradiction!"
-      )
-      continue // Skip this header entirely
-    }
-
-    // Check TS suffix match for non-hierarchical headers too
-    if (tsInfo.hasTS && header.includes("ts")) {
-      const headerTsInfo = extractTSInfo(header)
-
-      // Check for plain TS matching to numbered TS headers
-      if (!tsInfo.hasNumber && headerTsInfo.hasNumber) {
-        bestScore -= 0.9 // Strong penalty
-        matchDetails.push(
-          `MISMATCH: Plain TS field matching to numbered TS-${headerTsInfo.number}`
-        )
-        continue // Skip this header
-      }
-
-      if (tsInfo.hasNumber && headerTsInfo.hasNumber) {
-        if (tsInfo.number === headerTsInfo.number) {
-          bestScore += 0.3 // Bonus for matching TS number
-          matchDetails.push(`Matching TS number: ${tsInfo.number}`)
-        } else {
-          bestScore -= 0.9 // Stronger penalty for mismatched TS number
-          matchDetails.push(
-            `TS NUMBER MISMATCH: expected ${tsInfo.number}, found ${headerTsInfo.number}`
-          )
-          continue // Skip this header entirely
-        }
-      }
-    }
-
-    // Add to scores if it's good enough
-    if (bestScore > 0.2) {
-      // Lower threshold to 0.2 for debugging purposes to see more potential matches
-      // Note: In production, keep this at 0.5, but for debugging it's useful to see more options
-      columnScores.push({
-        index: i,
-        header: headers[i],
-        score: bestScore,
-        matches: matchDetails,
-        originalHeader: header,
-      })
-    }
-  }
-
-  // Sort by score (highest first)
-  columnScores.sort((a, b) => b.score - a.score)
-
-  // Debug information - show ALL potential matches with their scores
-  console.log(`[DEBUG] Match candidates for "${dataIndex}":`)
-  if (columnScores.length > 0) {
-    columnScores.forEach((score, idx) => {
-      console.log(
-        `  ${idx + 1}. "${score.header}" [score: ${score.score.toFixed(
-          2
-        )}] - ${score.matches.join(", ")}`
-      )
-    })
+// New function to use GeminiDataMappingController for column mapping
+export const mapColumnsUsingAI = async (dbColumns, excelHeaders) => {
+  try {
+    console.log("[DEBUG] Sending mapping request to AI service...")
     console.log(
-      `  ✅ BEST MATCH: "${
-        columnScores[0].header
-      }" (score: ${columnScores[0].score.toFixed(2)})`
+      `[DEBUG] Mapping ${dbColumns.length} DB columns to ${excelHeaders.length} Excel headers`
     )
-  } else {
-    console.log(`  ❌ NO MATCHES FOUND`)
+
+    // Format database columns for API
+    const formattedDbColumns = dbColumns.map((column) => ({
+      indeksData: column.indeksData,
+      title: column.judul,
+    }))
+
+    // Filter out empty headers
+    const filteredHeaders = excelHeaders.filter(
+      (header) =>
+        header !== null && header !== undefined && String(header).trim() !== ""
+    )
+
+    // Send request to the API
+    const response = await axiosInstance.post("/data-mapping", {
+      database_columns: formattedDbColumns,
+      excel_headers: filteredHeaders,
+    })
+
+    if (response.data && response.data.success && response.data.mapping) {
+      console.log("[DEBUG] AI mapping successful")
+      return response.data.mapping
+    } else {
+      console.error(
+        "[ERROR] AI mapping failed:",
+        response.data?.error || "Unknown error"
+      )
+      return null
+    }
+  } catch (error) {
+    console.error("[ERROR] Error calling AI mapping service:", error)
+    return null
   }
-
-  return columnScores.length > 0 ? columnScores[0].index : -1
-}
-
-// Helper function to extract TS information - improved version
-function extractTSInfo(text) {
-  const result = {
-    hasTS: false,
-    hasNumber: false,
-    number: null,
-    isPlainTS: false,
-  }
-
-  const lowerText = String(text).toLowerCase()
-
-  if (lowerText.includes("ts")) {
-    result.hasTS = true
-
-    // Check for TS-2 pattern
-    if (lowerText.includes("ts-2") || lowerText.includes("ts_2")) {
-      result.hasNumber = true
-      result.number = "2"
-    }
-    // Check for TS-1 pattern
-    else if (lowerText.includes("ts-1") || lowerText.includes("ts_1")) {
-      result.hasNumber = true
-      result.number = "1"
-    }
-    // Plain TS without number
-    else if (
-      lowerText === "ts" ||
-      lowerText.endsWith("_ts") ||
-      lowerText.endsWith("-ts")
-    ) {
-      result.isPlainTS = true
-    }
-    // Fallback to regex for more complex patterns
-    else {
-      const tsPattern = /ts[-_]?(\d+)/i
-      const tsMatch = lowerText.match(tsPattern)
-
-      if (tsMatch) {
-        result.hasNumber = true
-        result.number = tsMatch[1]
-      } else if (
-        lowerText === "ts" ||
-        (lowerText.startsWith("ts") && !lowerText.match(/ts\d/))
-      ) {
-        result.isPlainTS = true
-      }
-    }
-  }
-
-  return result
 }
 
 export const extractAllColumnsFromConfig = (tableConfig) => {
@@ -480,7 +77,7 @@ export const extractAllColumnsFromConfig = (tableConfig) => {
 
   if (!tableConfig) {
     console.log("[ERROR] Table config is null or undefined!")
-    return { allColumns, dataColumns }
+    return { allColumns: [], dataColumns: [] }
   }
 
   // Debug the incoming config structure
@@ -811,130 +408,94 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
 
     // Function to build a hierarchical header from multiple rows
     function buildHierarchicalHeader(colIndex) {
-      const headerParts = []
-      let lastNonEmptyHeader = null
+      // Store header values from each level with proper context
+      const headerLevels = []
 
+      // First pass: collect direct values and merged cell values
       for (let rowIndex = 0; rowIndex < headerRows.length; rowIndex++) {
-        const headerRow = headerRows[rowIndex]
-        const cellValue = String(headerRow[colIndex] || "").trim()
+        const directValue = String(headerRows[rowIndex][colIndex] || "").trim()
 
-        if (cellValue !== "") {
-          // Direct cell value
-          headerParts.push(cellValue)
-          lastNonEmptyHeader = cellValue
-        } else {
-          // Check if this cell is part of a merged cell
-          const mergeKey = `${colIndex}`
-          if (mergedCellMap.has(mergeKey)) {
-            const mergeInfo = mergedCellMap.get(mergeKey)
-            const mergedValue = String(
+        // Check for merged cells
+        let mergedValue = null
+        const mergeKey = `${colIndex}`
+        if (mergedCellMap.has(mergeKey)) {
+          const mergeInfo = mergedCellMap.get(mergeKey)
+          if (
+            headerRowIndex + rowIndex >= mergeInfo.rowStart &&
+            headerRowIndex + rowIndex <= mergeInfo.rowEnd
+          ) {
+            mergedValue = String(
               jsonData[mergeInfo.rowStart][mergeInfo.colStart] || ""
             ).trim()
+          }
+        }
 
-            if (
-              mergedValue !== "" &&
-              (headerParts.length === 0 ||
-                headerParts[headerParts.length - 1] !== mergedValue)
-            ) {
-              headerParts.push(mergedValue)
-              lastNonEmptyHeader = mergedValue
-            }
-          } else if (rowIndex > 0) {
-            // Check if we should inherit from previous row
-            // Find the last non-empty header above this cell
-            for (let prevRow = rowIndex - 1; prevRow >= 0; prevRow--) {
-              const prevValue = String(
-                headerRows[prevRow][colIndex] || ""
-              ).trim()
-              if (prevValue !== "") {
-                // Check if this value is already in our headerParts
-                if (!headerParts.includes(prevValue)) {
-                  headerParts.push(prevValue)
-                }
+        // Also check if this cell is a target of a horizontal merge
+        for (const [key, mergeInfo] of mergedCellMap.entries()) {
+          if (
+            headerRowIndex + rowIndex >= mergeInfo.rowStart &&
+            headerRowIndex + rowIndex <= mergeInfo.rowEnd &&
+            colIndex >= mergeInfo.colStart &&
+            colIndex <= mergeInfo.colEnd
+          ) {
+            mergedValue = String(
+              jsonData[mergeInfo.rowStart][mergeInfo.colStart] || ""
+            ).trim()
+            break
+          }
+        }
+
+        // Store the value (prefer merged value over direct value)
+        headerLevels[rowIndex] = mergedValue || directValue
+      }
+
+      // Second pass: inherit horizontally for each row level
+      for (let rowIndex = 0; rowIndex < headerRows.length; rowIndex++) {
+        if (headerLevels[rowIndex] === "") {
+          // Try to inherit from left for horizontal merged structure
+          for (let prevCol = colIndex - 1; prevCol >= 0; prevCol--) {
+            // Check if we're part of the same horizontal merge group
+            let isPartOfSameMerge = false
+            for (const [key, mergeInfo] of mergedCellMap.entries()) {
+              if (
+                headerRowIndex + rowIndex >= mergeInfo.rowStart &&
+                headerRowIndex + rowIndex <= mergeInfo.rowEnd &&
+                prevCol >= mergeInfo.colStart &&
+                prevCol <= mergeInfo.colEnd &&
+                colIndex >= mergeInfo.colStart &&
+                colIndex <= mergeInfo.colEnd
+              ) {
+                isPartOfSameMerge = true
+                headerLevels[rowIndex] = String(
+                  jsonData[mergeInfo.rowStart][mergeInfo.colStart] || ""
+                ).trim()
                 break
               }
             }
+
+            if (isPartOfSameMerge) break
           }
         }
       }
 
-      // Special handling for Tingkat headers
-      const hasLevelInfo = headerParts.some(
-        (part) =>
-          part.toLowerCase() === "tingkat" ||
-          ((part.toLowerCase().includes("internasional") ||
-            part.toLowerCase().includes("nasional") ||
-            part.toLowerCase().includes("lokal")) &&
-            !headerParts.some(
-              (p) =>
-                p.toLowerCase().includes("bekerja") ||
-                p.toLowerCase().includes("lulusan") ||
-                p.toLowerCase().includes("kerja") ||
-                p.toLowerCase().includes("berwirausaha")
-            ))
-      )
+      // Build the hierarchy respecting structural patterns
+      let headerParts = []
 
-      if (hasLevelInfo) {
-        // Only apply the "Tingkat -" prefix if the context is about achievement levels
-        // not about workplace location
-        const isTingkatContext = headerParts.some(
-          (part) => part.toLowerCase() === "tingkat"
-        )
-
-        const isWorkplaceContext = headerParts.some(
-          (part) =>
-            part.toLowerCase().includes("bekerja") ||
-            part.toLowerCase().includes("lulusan") ||
-            part.toLowerCase().includes("kerja") ||
-            part.toLowerCase().includes("berwirausaha")
-        )
-
-        // If it's clearly not about workplace, proceed with level detection
-        if (!isWorkplaceContext) {
-          const levelType = headerParts.find(
-            (part) =>
-              part.toLowerCase().includes("internasional") ||
-              part.toLowerCase() === "ln" ||
-              part.toLowerCase() === "int" ||
-              part.toLowerCase().includes("nasional") ||
-              part.toLowerCase() === "n" ||
-              part.toLowerCase() === "dn" ||
-              part.toLowerCase().includes("lokal") ||
-              part.toLowerCase().includes("wilayah") ||
-              part.toLowerCase() === "l"
-          )
-
-          if (levelType) {
-            const lowerLevelType = levelType.toLowerCase()
-            if (
-              lowerLevelType.includes("internasional") ||
-              lowerLevelType === "ln" ||
-              lowerLevelType === "int"
-            ) {
-              return isTingkatContext
-                ? "Tingkat - Internasional"
-                : "Internasional"
-            } else if (
-              lowerLevelType.includes("nasional") ||
-              lowerLevelType === "n" ||
-              lowerLevelType === "dn"
-            ) {
-              return isTingkatContext ? "Tingkat - Nasional" : "Nasional"
-            } else if (
-              lowerLevelType.includes("lokal") ||
-              lowerLevelType.includes("wilayah") ||
-              lowerLevelType === "l"
-            ) {
-              return isTingkatContext
-                ? "Tingkat - Lokal/Wilayah"
-                : "Lokal/Wilayah"
-            }
-          }
+      // Add non-empty values preserving order
+      for (let i = 0; i < headerLevels.length; i++) {
+        if (headerLevels[i] && !headerParts.includes(headerLevels[i])) {
+          headerParts.push(headerLevels[i])
         }
       }
 
-      // Return combined hierarchical header
-      return headerParts.length > 0 ? headerParts.join(" - ") : ""
+      // Join parts with a separator
+      let headerText = headerParts.join(" - ")
+
+      // Standardize "ps" to "PS" for better readability
+      headerText = headerText.replace(/pada ps yang/i, "pada PS yang")
+      headerText = headerText.replace(/pada ps lain/i, "pada PS Lain")
+
+      return headerText || ""
     }
 
     // Build hierarchical headers for each column
@@ -972,7 +533,6 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
     )
 
     // Extract all columns from the config
-    // Extract all columns from the config
     const { allColumns, dataColumns } = extractAllColumnsFromConfig(tableConfig)
 
     // Create a mapping of indeksData to column config - ONLY using data columns
@@ -1006,7 +566,8 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
       Object.keys(columnMap).map((key) => `${key}: ${columnMap[key].judul}`)
     )
 
-    console.log(`\n[DEBUG] Starting column mapping process...`)
+    // ---------- NEW AI-BASED MAPPING ----------
+    console.log(`\n[DEBUG] Starting AI-based column mapping process...`)
     console.log(
       `[DEBUG] Finding matches for ${
         Object.keys(columnMap).length
@@ -1024,43 +585,112 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
       console.log("[ERROR] Raw config:", tableConfig)
     }
 
-    // Detect indices for each column
+    // Initialize detected indices
     const detectedIndices = {}
     const unmatchedColumns = []
 
-    Object.entries(columnMap).forEach(([dataIndex, column]) => {
-      if (!column.judul) {
-        console.log(`[WARNING] Column ${dataIndex} has no judul defined!`)
-        return
-      }
-
-      const possibleNames = [
-        column.judul,
-        dataIndex.replace(/_/g, " "),
-        dataIndex,
-      ]
-
-      console.log(
-        `\n[DEBUG] Processing column "${column.judul}" (${dataIndex})`
+    try {
+      // Use AI mapping to match columns
+      const aiMapping = await mapColumnsUsingAI(
+        Object.values(columnMap),
+        combinedHeaders
       )
 
-      const index = findColumnIndexByHeader(
-        combinedHeaders,
-        possibleNames,
-        column
-      )
-      if (index !== -1) {
-        detectedIndices[dataIndex] = index
-        console.log(
-          `  ✅ MATCHED to Excel column ${index + 1}: "${
-            combinedHeaders[index]
-          }"`
-        )
+      if (aiMapping) {
+        // Process the AI mapping results
+        Object.entries(columnMap).forEach(([dataIndex, column]) => {
+          if (aiMapping[dataIndex]) {
+            const { excelIndex, excelHeader } = aiMapping[dataIndex]
+            detectedIndices[dataIndex] = excelIndex
+            console.log(
+              `  ✅ MATCHED "${column.judul}" (${dataIndex}) to Excel column ${
+                excelIndex + 1
+              }: "${excelHeader}"`
+            )
+          } else {
+            unmatchedColumns.push({
+              indeksData: dataIndex,
+              judul: column.judul,
+            })
+            console.log(
+              `  ❌ NO MATCH FOUND for "${column.judul}" (${dataIndex})`
+            )
+          }
+        })
       } else {
-        unmatchedColumns.push({ indeksData: dataIndex, judul: column.judul })
-        console.log(`  ❌ NO MATCH FOUND in Excel headers`)
+        console.log("[ERROR] Failed to get AI mapping, using fallback matching")
+        // If AI mapping fails, use basic matching as fallback
+        Object.entries(columnMap).forEach(([dataIndex, column]) => {
+          // Very simple direct matching as fallback
+          const index = basicColumnMatching(combinedHeaders, column)
+          if (index !== -1) {
+            detectedIndices[dataIndex] = index
+            console.log(
+              `  ✅ MATCHED (fallback) "${
+                column.judul
+              }" (${dataIndex}) to Excel column ${index + 1}: "${
+                combinedHeaders[index]
+              }"`
+            )
+          } else {
+            unmatchedColumns.push({
+              indeksData: dataIndex,
+              judul: column.judul,
+            })
+            console.log(
+              `  ❌ NO MATCH FOUND for "${column.judul}" (${dataIndex})`
+            )
+          }
+        })
       }
-    })
+    } catch (error) {
+      console.error("[ERROR] Error during column mapping:", error)
+      // Use basic matching as fallback
+      Object.entries(columnMap).forEach(([dataIndex, column]) => {
+        const index = basicColumnMatching(combinedHeaders, column)
+        if (index !== -1) {
+          detectedIndices[dataIndex] = index
+          console.log(
+            `  ✅ MATCHED (fallback) "${
+              column.judul
+            }" (${dataIndex}) to Excel column ${index + 1}: "${
+              combinedHeaders[index]
+            }"`
+          )
+        } else {
+          unmatchedColumns.push({ indeksData: dataIndex, judul: column.judul })
+          console.log(
+            `  ❌ NO MATCH FOUND for "${column.judul}" (${dataIndex})`
+          )
+        }
+      })
+    }
+
+    // Basic fallback matching function if AI fails
+    function basicColumnMatching(headers, column) {
+      for (let i = 0; i < headers.length; i++) {
+        const header = String(headers[i] || "")
+          .toLowerCase()
+          .trim()
+        const columnTitle = column.judul.toLowerCase().trim()
+
+        // Very basic exact match or contains match
+        if (header === columnTitle || header.includes(columnTitle)) {
+          return i
+        }
+
+        // If column has parent title, check for hierarchical match
+        if (column.parentTitle) {
+          const parentTitle = column.parentTitle.toLowerCase().trim()
+          const combined = `${parentTitle} - ${columnTitle}`
+
+          if (header === combined || header.includes(combined)) {
+            return i
+          }
+        }
+      }
+      return -1
+    }
 
     // Debug summary of all column mappings
     console.log(`\n==================================================`)
@@ -1100,6 +730,50 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
     Object.entries(detectedIndices).forEach(([indeksData, excelIndex]) => {
       const paddedIndeksData = indeksData.padEnd(30, " ")
       console.log(`  ${paddedIndeksData} ->  ${combinedHeaders[excelIndex]}`)
+    })
+
+    // Add a comprehensive comparison between Excel headers and DB columns
+    console.log(`\n==================================================`)
+    console.log(`COMPREHENSIVE EXCEL vs DATABASE COLUMN COMPARISON`)
+    console.log(`==================================================`)
+
+    console.log(`\n[EXCEL HEADERS] All Excel headers found in the file:`)
+    combinedHeaders.forEach((header, idx) => {
+      console.log(`  ${idx + 1}. "${header}"`)
+    })
+
+    console.log(`\n[DATABASE COLUMNS] All database columns from configuration:`)
+    Object.entries(columnMap).forEach(([indeksData, column], idx) => {
+      if (column.parentTitle) {
+        if (column.grandparentTitle) {
+          console.log(
+            `  ${idx + 1}. ${column.grandparentTitle} > ${
+              column.parentTitle
+            } > ${column.judul} (${indeksData})`
+          )
+        } else {
+          console.log(
+            `  ${idx + 1}. ${column.parentTitle} > ${
+              column.judul
+            } (${indeksData})`
+          )
+        }
+      } else {
+        console.log(`  ${idx + 1}. ${column.judul} (${indeksData})`)
+      }
+    })
+
+    console.log(`\n[MAPPING STATUS] Status of each database column:`)
+    Object.entries(columnMap).forEach(([indeksData, column], idx) => {
+      const matched = detectedIndices[indeksData] !== undefined
+      const matchedToHeader = matched
+        ? combinedHeaders[detectedIndices[indeksData]]
+        : "NOT MATCHED"
+      console.log(
+        `  ${idx + 1}. ${column.judul} (${indeksData}): ${
+          matched ? "✅ MATCHED" : "❌ NOT MATCHED"
+        } -> ${matchedToHeader}`
+      )
     })
     console.log(`==================================================\n`)
 
