@@ -10,6 +10,7 @@ use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListCon
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController};
 use App\Http\Controllers\Data\{SpreadsheetInfoController};
+use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController};
 
 use App\Http\Controllers\{
     NotificationController,
@@ -22,7 +23,7 @@ use App\Http\Controllers\{
     ColorController,
     GoogleDriveController,
     GoogleSheetController,
-    
+
 };
 use App\Http\Middleware\JwtMiddleware;
 
@@ -33,6 +34,14 @@ Route::get('test', function () {
         'path' => request()->path()
     ]);
 });
+
+Route::post('/generate-text', [GeminiController::class, 'generateText']);
+Route::post('/analyze-image', [GeminiController::class, 'analyzeImage']);
+Route::post('/chat', [GeminiController::class, 'startChat']);
+Route::post('/chat/{session}/message', [GeminiController::class, 'sendChatMessage']);
+
+Route::get('/test-gemini', [GeminiTestController::class, 'testPrompt']);
+Route::post('/test-image-analysis', [GeminiFileTestController::class, 'testImageAnalysis']);
 
 Route::post('users', [UserController::class, 'store']);
 
@@ -71,7 +80,7 @@ Route::prefix('lkps')->group(function () {
     Route::post('/data/{tableCode}', [LkpsDataController::class, 'saveTableData']);
     Route::get('/tables/{tableCode}/task', [LkpsDataController::class, 'getTaskIdForTable']);
     Route::get('/export/{tableCode?}', [LkpsDataController::class, 'exportData']);
-    
+
 });
 
 Route::get('/score-details', [LkpsDataController::class, 'getScoreDetail']);
