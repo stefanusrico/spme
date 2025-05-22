@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Jurusan;
 use App\Models\Prodi;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -23,6 +24,8 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        $adminRoleName = 'Admin';
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email',
@@ -31,8 +34,15 @@ class UserController extends Controller
             'role' => 'required|string',
             'profile_picture' => 'nullable|string|max:255',
             'phone_number' => 'required|unique:users,phone_number|string',
-            'jurusanId' => 'required|exists:jurusans,_id',
-            'prodiId' => 'required|exists:prodis,_id',
+            'jurusanId' => 'nullable|exists:jurusans,_id',
+            'prodiId' => [
+
+                'nullable',
+                Rule::requiredIf(function () use ($request, $adminRoleName ){
+                    return $request->input('role') !== $adminRoleName;
+                }),
+                'exists:prodis,_id'
+            ],
             'projects' => 'nullable|array',
         ]);
 
