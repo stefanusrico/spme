@@ -9,7 +9,9 @@ const SelectColor = ({ isLoading, dataColors, width, height }) => {
   const [isLoadingSave, setIsLoadingSave] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  useEffect(() => { fetchColor(); }, []);
+  useEffect(() => {
+    fetchColor();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('colorRangeData', JSON.stringify(colors));
@@ -27,16 +29,22 @@ const SelectColor = ({ isLoading, dataColors, width, height }) => {
   };
 
   const onColorChange = (idx, colorValue) => {
-    const next = [...colors]; next[idx].value = colorValue; setColors(next);
+    const next = [...colors];
+    next[idx].value = colorValue;
+    setColors(next);
   };
 
   const onRangeChange = (idx, field, val) => {
-    const next = [...colors]; next[idx][field] = Number(val); setColors(next);
+    const next = [...colors];
+    next[idx][field] = Number(val);
+    setColors(next);
   };
 
   const handleSave = async () => {
     setIsLoadingSave(true);
-    for (let c of colors) { await axiosInstance.put(`/colors/${c.id}`, c); }
+    for (let c of colors) {
+      await axiosInstance.put(`/colors/${c.id}`, c);
+    }
     setOriginalColors(colors);
     setEditable(false);
     setDropdownOpen(false);
@@ -46,36 +54,40 @@ const SelectColor = ({ isLoading, dataColors, width, height }) => {
   return (
     <Select
       placeholder="Pilih Warna & Rentang"
-      style={{ width, height, zIndex: 1000 }}                // tambahan zIndex pada select container
+      style={{ width, height }}
       open={dropdownOpen}
-      onDropdownVisibleChange={setDropdownOpen}
-      dropdownMatchSelectWidth={false}
-      dropdownStyle={{ overflow: 'visible', zIndex: 1100 }} // zIndex untuk dropdown content
-      dropdownRender={() => (
-        <div style={{ padding: 12, overflow: 'visible' }}>
+      onOpenChange={setDropdownOpen}
+      popupRender={() => (
+        <div style={{ padding: 12 }}>
           {isLoading ? (
             <div style={{ textAlign: 'center' }}>Loading...</div>
           ) : (
             <Space direction="vertical" style={{ width: '100%' }}>
               {colors.map((c, idx) => (
-                <Space key={c.id} align="center" style={{ position: 'relative', overflow: 'visible' }}>
+                <Space key={c.id} align="center" style={{ position: 'relative' }}>
+                  {/* Antd ColorPicker with popup container to body and higher z-index */}
                   <ColorPicker
-                    trigger="click"
                     value={c.value}
                     onChange={(color) => onColorChange(idx, color.toHexString())}
                     disabled={!editable}
                     getPopupContainer={() => document.body}
-                    popupStyle={{ position: 'absolute', zIndex: 2000 }}     // zIndex untuk popup color picker
+                    popupStyle={{ zIndex: 1050 }}
                   />
+
+                  {/* Range Inputs */}
                   <InputNumber
-                    min={0} max={4} value={c.rangeStart}
+                    min={0}
+                    max={4}
+                    value={c.rangeStart}
                     disabled={!editable}
                     onChange={(v) => onRangeChange(idx, 'rangeStart', v)}
                     style={{ width: 70 }}
                   />
                   <span>–</span>
                   <InputNumber
-                    min={0} max={4} value={c.rangeEnd}
+                    min={0}
+                    max={4}
+                    value={c.rangeEnd}
                     disabled={!editable}
                     onChange={(v) => onRangeChange(idx, 'rangeEnd', v)}
                     style={{ width: 70 }}
@@ -84,10 +96,12 @@ const SelectColor = ({ isLoading, dataColors, width, height }) => {
               ))}
 
               <Space style={{ marginTop: 12, width: '100%', justifyContent: 'space-between' }}>
-                <Button onClick={() => {
-                  if (editable) setColors(originalColors);
-                  setEditable(!editable);
-                }}>
+                <Button
+                  onClick={() => {
+                    if (editable) setColors(originalColors);
+                    setEditable(!editable);
+                  }}
+                >
                   {editable ? 'Cancel' : 'Edit'}
                 </Button>
                 {editable && (
@@ -101,7 +115,7 @@ const SelectColor = ({ isLoading, dataColors, width, height }) => {
         </div>
       )}
       options={[]}
-      showArrow={false}
+      suffixIcon={false}
     />
   );
 };

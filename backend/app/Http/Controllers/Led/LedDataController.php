@@ -8,6 +8,7 @@ use App\Models\Led\LedData;
 use App\Models\Project\Task;
 use App\Models\User\User;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Exception;
 
 class LedDataController extends Controller
@@ -70,28 +71,39 @@ class LedDataController extends Controller
     public function getLedDataByProdi($prodiId)
     {
         try {
-            $ledData = LedData::with(['task.ledItem'])
-                ->whereHas('task.taskList.project', function ($query) use ($prodiId) {
-                    $query->where('prodiId', $prodiId);
-                })
+            $ledData = LedData::with(['task.ledItem', 'task.tasklist.project'])
                 ->orderBy('created_at', 'desc')
                 ->get();
 
-            foreach ($ledData as $ld) {
-                $user = User::findOrFail($ld->userId);
-                $ld->username = $user->name;
-            }
+            $filteredLedData = $ledData->filter(function ($item) use ($prodiId) {
+                return $item->task && $item->task->tasklist &&
+                    $item->task->tasklist->project &&
+                    $item->task->tasklist->project->prodiId === $prodiId &&
+                    $item->task->tasklist->project->status === 'ACTIVE';
+            });
 
-            if (!$ledData->isEmpty()) {
+            if ($filteredLedData->isEmpty()) {
+                Log::warning("LED not found :", [
+                    'prodiId' => $prodiId,
+                    'count' => $ledData->count(),
+                    // 'led data 1' => $ledData->task->tasklist->project
+                    // 'led data sebelum filter' => $ledData,
+                ]);
                 return response()->json([
                     'status' => 'error',
                     'message' => 'No data found',
                 ], 404);
             }
 
+            foreach ($filteredLedData as $ld) {
+                $user = User::find($ld->userId);
+                $ld->username = $user ? $user->name : null;
+            }
+
             return response()->json([
                 'status' => 'success',
-                'data' => $ledData,
+                'count data' => $filteredLedData->count(),
+                'data' => $filteredLedData->values(), // reset index
             ], 200);
         } catch (Exception $e) {
             return response()->json([

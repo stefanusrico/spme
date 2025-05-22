@@ -60,7 +60,7 @@ const JsonGenerator = () => {
         strataOptions.find((strata) => strata.id === selectedStrata)?.name ||
         "Unknown Strata"
 
-      const responsePost = await axiosInstance.post("/spreadsheet-info", {
+      const responsePost = await axiosInstance.post("/save-json", {
         name: `${lamName} ${strataName}`, // Gabungkan nama LAM dan Strata
         strataId: selectedStrata,
         lamId: selectedLAM,

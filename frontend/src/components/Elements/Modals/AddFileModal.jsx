@@ -46,7 +46,8 @@ const AddFileModal = ({
 
   const handleFileChange = ({ fileList }) => {
     console.log("file yang mau disimpan : ", fileList)
-    const key = selectedDetails[0].Seq // Gunakan Seq sebagai kategori unik
+    if (!selectedDetails[0]) return
+    const key = selectedDetails[0].seq  // Gunakan seq sebagai kategori unik
     const existingFiles = new Set(
       (selectedFilesMap[key] || []).map((file) => file.name)
     ) // File dari state
@@ -67,8 +68,9 @@ const AddFileModal = ({
   }
 
   useEffect(() => {
-    if (!selectedDetails.length || !dataIsian?.details) return // Error handling
-    const key = selectedDetails[0].Seq
+    if (!selectedDetails.length || !dataIsian?.details || !selectedDetails[0]) return // Error handling
+    
+    const key = selectedDetails[0].seq
     const currentFiles = selectedFilesMap[key] || []
     const storedFiles =
       dataIsian.details.find((item) => item.seq === key)?.data_pendukung || []
@@ -96,15 +98,17 @@ const AddFileModal = ({
   }, [selectedFilesMap, selectedDetails])
 
   useEffect(() => {
-    setSelectedFilesMap((prev) => ({
-      ...prev,
-      [selectedDetails[0].Seq]: [], // Reset file untuk kategori baru
-    }))
+    if (selectedDetails[0]) {
+      setSelectedFilesMap((prev) => ({
+        ...prev,
+        [selectedDetails[0].seq]: [],
+      }))
+    }
   }, [selectedDetails])
 
   const handleClick = (index) => {
-    console.log("helo", selectedDetails[0]?.["Data Pendukung"][index])
-    setFiles([selectedDetails[0]?.["Data Pendukung"][index]])
+    console.log("helo", selectedDetails[0]?.dataPendukung[index])
+    setFiles([selectedDetails[0]?.dataPendukung[index]])
   }
 
   const handleDelete = async ({ fileId }) => {
@@ -213,7 +217,7 @@ const AddFileModal = ({
                   // disabled={type === "readOnly" || isLoadingCheck}
                   no={dataIsian.task.no}
                   sub={dataIsian.task.sub}
-                  kriteria={selectedDetails[0].Seq}
+                  kriteria={selectedDetails[0].seq}
                   // uploadedFiles={selectedDetails?.Details?.[currentPage - 1]?.['Data Pendukung'] ?? []}
                   dataPendukung={selectedDetails[0]?.["Data Pendukung"] ?? []}
                   handleClick={handleClick}

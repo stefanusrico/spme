@@ -15,7 +15,7 @@ class LedData extends Model
         'taskId',
         'userId',
         'commit',
-        'seq',
+        
         'reference',
         'isianAsesi',
         'dataPendukung',
