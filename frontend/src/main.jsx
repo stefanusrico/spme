@@ -131,12 +131,6 @@ const router = createBrowserRouter(
         { path: "user-management/user/add", element: <AddUser /> },
         { path: "user-management/role/add", element: <AddPermission /> },
         { path: "section", element: <Section1 /> },
-        { path: "lkps", element: <Navigate to="/lkps/1-1" replace /> },
-        { path: "lkps/:tableCode", element: <DynamicLkpsComponent /> },
-        {
-          path: "pengisian-matriks-led/:no?/:sub?",
-          element: <PengisianLed />,
-        },
       ],
     },
     {
@@ -151,6 +145,30 @@ const router = createBrowserRouter(
         //   path: "/pengisian-matriks-led/:no?/:sub?",
         //   element: <PengisianMatrikLed />,
         // },
+      ],
+    },
+    {
+      element: (
+        <UserProvider>
+          <RoleBasedRoute
+            allowedRoles={[
+              "Admin",
+              "Koordinator Program Studi",
+              "Tim Penyusun Akreditasi",
+            ]}
+          />
+        </UserProvider>
+      ),
+      children: [
+        { path: "projects/:projectId", element: <Projects /> },
+        {
+          path: "projects/:projectId/pengisian-matriks-led/:no/:sub",
+          element: <PengisianLed />,
+        },
+        {
+          path: "projects/:projectId/lkps/:tableCode",
+          element: <DynamicLkpsComponent />,
+        },
       ],
     },
   ],

@@ -43,7 +43,7 @@ const { Title, Paragraph, Text } = Typography
 const { confirm } = Modal
 
 const DynamicLkpsContainer = () => {
-  const { tableCode } = useParams()
+  const { projectId, tableCode } = useParams()
   const navigate = useNavigate()
   const { userData, isLoading: userLoading } = useUser()
 
@@ -65,8 +65,12 @@ const DynamicLkpsContainer = () => {
     next,
     handlePrev,
     handleNext,
-    handleTableChange,
+    handleTableChange: originalHandleTableChange,
   } = useTable(tableCode, navigate)
+
+  const handleTableChange = (newTableCode) => {
+    navigate(`/projects/${projectId}/lkps/${newTableCode}`)
+  }
 
   const { config, setConfig, loading, error } = useTableConfig(
     tableCode,
@@ -90,8 +94,6 @@ const DynamicLkpsContainer = () => {
     setLkpsId,
     lkpsInfo,
     setLkpsInfo,
-    showCreateModal,
-    setShowCreateModal,
     editingKey,
     setEditingKey,
     showSelectionMode,
@@ -102,7 +104,7 @@ const DynamicLkpsContainer = () => {
     fixAllExistingData,
     calculateScoreData,
     plugin,
-  } = useTableData(tableCode, config, userData)
+  } = useTableData(tableCode, config, userData, projectId)
 
   const {
     handleToggleSelection,
@@ -141,11 +143,7 @@ const DynamicLkpsContainer = () => {
     plugin
   )
 
-  const {
-    saving,
-    handleSave: saveData,
-    handleLkpsCreated,
-  } = useSaveData(
+  const { saving, handleSave: saveData } = useSaveData(
     tableCode,
     userData,
     tableData,
@@ -155,8 +153,10 @@ const DynamicLkpsContainer = () => {
     setSavedTables,
     setScore,
     setScoreDetail,
-    setShowCreateModal,
-    plugin
+    plugin,
+    projectId,
+    scoreDetail,
+    calculateScoreData
   )
 
   const columnsGenerator = useColumnsGenerator(
@@ -170,17 +170,13 @@ const DynamicLkpsContainer = () => {
     console.log("Passing table structure to header:", tableStructure)
   }, [tableStructure])
 
-  // Updated handleSave to bypass LKPS check
+  // Updated handleSave function
   const handleSave = () => {
     if (!config) return
 
-    // Simply save the data without checking for LKPS ID
+    // Set editing key to null and save data with config
     setEditingKey(null)
     saveData(config)
-  }
-
-  const handleLkpsCreatedWrapper = (lkps) => {
-    handleLkpsCreated(lkps, setLkpsId, setLkpsInfo)
   }
 
   const handleFilterChange = (e) => {

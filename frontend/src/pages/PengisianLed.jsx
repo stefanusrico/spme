@@ -26,10 +26,10 @@ import "react-toastify/dist/ReactToastify.css"
 
 const PengisianLed = () => {
   const navigate = useNavigate()
+  const { projectId, no = "", sub = "" } = useParams()
   const [tasks, setTasks] = useState([])
   const [prodi, setProdi] = useState([])
   const [colors, setColors] = useState([])
-  const { no = "", sub = "" } = useParams()
   const [isLoading, setIsLoading] = useState(true)
   const [isVersion, setIsVersion] = useState(false)
   const [user, setUser] = useState({})
@@ -261,7 +261,7 @@ const PengisianLed = () => {
   }
 
   const changeNoSub = (newNo, newSub) => {
-    navigate(`/pengisian-matriks-led/${newNo}/${newSub}`)
+    navigate(`/projects/${projectId}/pengisian-matriks-led/${newNo}/${newSub}`)
   }
 
   const updateDataIsian = (updateDataIsian) => {
