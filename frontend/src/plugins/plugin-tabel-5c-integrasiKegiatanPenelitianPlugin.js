@@ -131,10 +131,10 @@ const integrasiKegiatanPenelitianPlugin = {
     const jumlahMK = data.length
     let nilai = 0
 
-    if (jumlahMK >= 5) nilai = 4
-    else if (jumlahMK >= 4) nilai = 3
-    else if (jumlahMK >= 3) nilai = 2
-    else if (jumlahMK >= 1) nilai = 1
+    if (jumlahMK >= 3) nilai = 4
+    else if ( jumlahMK >= 2 || jumlahMK <= 3) nilai = 3
+    else if (jumlahMK = 1) nilai = 2
+    else if (jumlahMK < 1) nilai = 0
 
     return {
       scores: [
