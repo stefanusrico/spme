@@ -15,7 +15,7 @@ class LkpsData extends Model
     protected $collection = 'lkps_data';
 
     protected $fillable = [
-        'kodeTabel',
+        'lkpsTableId',
         'taskId',
         'data',
         'nilai',
@@ -27,7 +27,7 @@ class LkpsData extends Model
      */
     public function tabel()
     {
-        return $this->belongsTo(LkpsTable::class, 'kodeTabel', 'kode');
+        return $this->belongsTo(LkpsTable::class, 'lkpsTableId', '_id');
     }
 
     /**
@@ -121,21 +121,22 @@ class LkpsData extends Model
      * @param float|null $nilai Score
      * @param array $detailNilai Score details
      * @param string|null $taskId Task ID (optional)
-     * @param string|null $prodiId Prodi ID (optional)
-     * @return LkpsData
+     * @return LkpsData|null
      */
-    public static function saveData($kodeTabel, $data, $nilai = null, $detailNilai = [], $taskId = null, $prodiId = null)
+    public static function saveData($kodeTabel, $data, $nilai = null, $detailNilai = [], $taskId = null)
     {
+        // Get the table ID from the code
+        $table = LkpsTable::where('kode', $kodeTabel)->first();
+        if (!$table) {
+            return null;
+        }
+
         $updateData = [
             'data' => $data,
             'nilai' => $nilai,
-            'detailNilai' => $detailNilai
+            'detailNilai' => $detailNilai,
+            'lkpsTableId' => $table->_id 
         ];
-
-        // If taskId is not provided, try to find it from the active project
-        if (!$taskId) {
-            $taskId = self::findTaskIdForTable($kodeTabel, $prodiId);
-        }
 
         if ($taskId) {
             $updateData['taskId'] = $taskId;
@@ -143,7 +144,7 @@ class LkpsData extends Model
 
         $lkpsData = self::updateOrCreate(
             [
-                'kodeTabel' => $kodeTabel,
+                'lkpsTableId' => $table->_id,
             ],
             $updateData
         );
@@ -164,7 +165,12 @@ class LkpsData extends Model
      */
     public static function getData($kodeTabel)
     {
-        $record = self::where('kodeTabel', $kodeTabel)->first();
+        $table = LkpsTable::where('kode', $kodeTabel)->first();
+        if (!$table) {
+            return null;
+        }
+
+        $record = self::where('lkpsTableId', $table->_id)->first();
         return $record ? $record->data : null;
     }
 
@@ -178,7 +184,7 @@ class LkpsData extends Model
         $records = self::all();
 
         return $records->map(function ($record) {
-            $tabel = LkpsTable::where('kode', $record->kodeTabel)->first();
+            $tabel = $record->tabel;  // Use the relationship
             $record->tableTitle = $tabel ? $tabel->judul : null;
             return $record;
         });

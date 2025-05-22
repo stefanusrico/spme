@@ -38,7 +38,7 @@ class LkpsTable extends Model
      */
     public function data()
     {
-        return $this->hasMany(LkpsData::class, 'kodeTabel', 'kode');
+        return $this->hasMany(LkpsData::class, 'lkpsTableId', '_id');
     }
 
     /**
