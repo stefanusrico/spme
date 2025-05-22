@@ -125,22 +125,6 @@ class ProjectTemplateService
     return $createdTaskLists;
   }
 
-  private function generateTaskId($projectId)
-  {
-    $lastTask = Task::where('projectId', $projectId)
-      ->orderBy('created_at', 'desc')
-      ->first();
-
-    if (!$lastTask) {
-      return 'TSK-001';
-    }
-
-    $lastId = $lastTask->taskId;
-    $number = intval(substr($lastId, 4)) + 1;
-
-    return 'TSK-' . str_pad($number, 3, '0', STR_PAD_LEFT);
-  }
-
   private function createTasksFromLedItems($projectId, $strataId)
   {
     $project = Project::find($projectId);
@@ -194,7 +178,6 @@ class ProjectTemplateService
         $taskName = "Butir {$item->no} - {$item->sub}";
 
         Task::create([
-          'taskId' => $this->generateTaskId($projectId),
           'taskListId' => $taskList->_id,
           'ledItemId' => $item->_id,
           'nama' => $taskName,
@@ -208,33 +191,93 @@ class ProjectTemplateService
     }
   }
 
+  private function getLkpsTableMapping()
+  {
+    return [
+      // Tata Pamong, Tata Kelola dan Kerjasama
+      '1-1' => 'C2',
+      '1-2' => 'C2',
+      '1-3' => 'C2',
+
+      // Mahasiswa
+      '2a1' => 'C3',
+      '2b' => 'C3',
+
+      // Sumber Daya Manusia
+      '3a1' => 'C4',
+      '3a2' => 'C4',
+      '3a3' => 'C4',
+      '3a4' => 'C4',
+      '3a5' => 'C4',
+      '3b1' => 'C4',
+      '3b2' => 'C4',
+      '3b3' => 'C4',
+      '3b5' => 'C4',
+      '3b6' => 'C4',
+      '3b7' => 'C4',
+      '3b8-1' => 'C4',
+      '3b8-2' => 'C4',
+      '3b8-3' => 'C4',
+      '3b8-4' => 'C4',
+      '3c' => 'C4',
+
+      // Keuangan, Sarana, dan Prasarana
+
+      '4a' => 'C5',
+      '4b' => 'C5',
+      '4c' => 'C5',
+
+      // Pendidikan
+      '5a-1' => 'C6',
+      '5a-2' => 'C6',
+      '5a-3' => 'C6',
+      '5a-4' => 'C6',
+      '5b-1' => 'C6',
+      '5b-2' => 'C6',
+      '5b-3' => 'C6',
+      '5c' => 'C6',
+      '5d' => 'C6',
+
+      // Penelitian
+      '6a' => 'C7',
+
+      // Pengabdian kepada Masyarakat
+      '7' => 'C8',
+
+      // Luaran dan Capaian Tridharma
+      '8a' => 'C9',
+      '8b1' => 'C9',
+      '8b2' => 'C9',
+      '8c' => 'C9',
+      '8d1' => 'C9',
+      '8d2' => 'C9',
+      '8e1' => 'C9',
+      '8e2' => 'C9',
+      '8f2' => 'C9',
+      '8f4' => 'C9',
+      '8f5-1' => 'C9',
+      '8f5-2' => 'C9',
+      '8f5-3' => 'C9',
+      '8f5-4' => 'C9',
+
+      // Penjaminan Mutu
+      '9a' => 'D',
+      '9b' => 'D',
+
+      'default' => 'Undefined'
+    ];
+  }
+
   private function createLkpsTaskListAndTasks($projectId)
   {
-    \Log::info("Creating LKPS Task List and Tasks for project ID: {$projectId}");
+    \Log::info("Creating LKPS Tasks for project ID: {$projectId}");
 
     $project = Project::find($projectId);
     if (!$project) {
       throw new \Exception("Project not found");
     }
 
-    $lkpsTaskList = TaskList::where('projectId', $projectId)
-      ->where('kriteria', 'LKPS')
-      ->first();
-
-    if (!$lkpsTaskList) {
-      $order = TaskList::where('projectId', $projectId)->max('order') + 1 ?? 1;
-
-      \Log::info("Creating new LKPS Task List with order: {$order}");
-
-      $lkpsTaskList = TaskList::create([
-        'projectId' => $projectId,
-        'kriteria' => 'LKPS',
-        'order' => $order
-      ]);
-    }
-
     $lkpsTables = LkpsTable::orderBy('kode')->get();
-
     \Log::info("Found " . $lkpsTables->count() . " LKPS tables");
 
     if ($lkpsTables->isEmpty()) {
@@ -242,31 +285,76 @@ class ProjectTemplateService
       return;
     }
 
-    $order = 1;
+    $tableMapping = $this->getLkpsTableMapping();
 
+    $existingTaskLists = TaskList::where('projectId', $projectId)->get()->keyBy('kriteria');
+
+    $newCriteria = [];
+
+    $tablesByKriteria = [];
     foreach ($lkpsTables as $table) {
-      $taskName = "Tabel - {$table->kode}";
+      $mappedKriteria = $tableMapping[$table->kode] ?? $tableMapping['default'];
 
-      $existingTask = Task::where('taskListId', $lkpsTaskList->_id)
-        ->where('lkpsTableId', $table->_id)
-        ->first();
+      if (!isset($tablesByKriteria[$mappedKriteria])) {
+        $tablesByKriteria[$mappedKriteria] = [];
+      }
+      $tablesByKriteria[$mappedKriteria][] = $table;
 
-      if (!$existingTask) {
-        \Log::info("Creating new LKPS task: {$taskName}");
+      if (!$existingTaskLists->has($mappedKriteria)) {
+        $newCriteria[$mappedKriteria] = true;
+      }
+    }
 
-        Task::create([
-          'taskId' => $this->generateTaskId($projectId),
-          'taskListId' => $lkpsTaskList->_id,
-          'lkpsTableId' => $table->_id,
-          'nama' => $taskName,
-          'progress' => 0,
-          'status' => 'UNASSIGNED',
-          'order' => $order++,
-          'startDate' => null,
-          'endDate' => null
-        ]);
-      } else {
-        \Log::info("Task for table {$table->kode} already exists");
+    $nextOrder = TaskList::where('projectId', $projectId)->max('order') + 1 ?? 1;
+    foreach ($newCriteria as $kriteria => $value) {
+      \Log::info("Creating new TaskList for criteria: {$kriteria}");
+
+      $newTaskList = TaskList::create([
+        'projectId' => $projectId,
+        'kriteria' => $kriteria,
+        'order' => $nextOrder++
+      ]);
+
+      $existingTaskLists[$kriteria] = $newTaskList;
+    }
+
+    foreach ($tablesByKriteria as $kriteria => $tables) {
+      $taskList = $existingTaskLists->get($kriteria);
+
+      if (!$taskList) {
+        \Log::warning("TaskList for criteria '{$kriteria}' not found. Skipping related tables.");
+        continue;
+      }
+
+      \Log::info("Adding " . count($tables) . " LKPS tables to criteria: {$kriteria}");
+
+      $maxOrder = Task::where('taskListId', $taskList->_id)->max('order') ?? 0;
+      $order = $maxOrder + 1;
+
+      foreach ($tables as $table) {
+        $taskName = "Tabel {$table->kode}";
+
+        $existingTask = Task::where('taskListId', $taskList->_id)
+          ->where('lkpsTableId', $table->_id)
+          ->first();
+
+        if (!$existingTask) {
+          \Log::info("Creating new LKPS task: {$taskName} in criteria: {$kriteria}");
+
+          Task::create([
+            'taskListId' => $taskList->_id,
+            'lkpsTableId' => $table->_id,
+            'projectId' => $projectId,
+            'nama' => $taskName,
+            'progress' => 0,
+            'status' => 'UNASSIGNED',
+            'order' => $order++,
+            'startDate' => null,
+            'endDate' => null
+          ]);
+        } else {
+          \Log::info("Task for table {$table->kode} already exists in criteria: {$kriteria}");
+        }
       }
     }
 
