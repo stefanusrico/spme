@@ -7,8 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
-use MongoDB\Client as MongoClient;
-use MongoDB\BSON\ObjectId;
 use App\Models\Lkps\LkpsData;
 use App\Models\Lkps\LkpsTable;
 use App\Models\Project\Project;
@@ -22,370 +20,137 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class LkpsExportController extends Controller
 {
-    protected $collection;
-    protected $db;
-    protected $lkpsColumnCollection;
-    protected $lkpsTableCollection;
-
-    public function __construct()
-    {
-        // Connect to MongoDB
-        $client = new MongoClient(env('MONGODB_URI'));
-        $this->db = $client->selectDatabase(env('MONGODB_DATABASE'));
-        $this->collection = $this->db->selectCollection('lkps_data');
-
-        // Add collections for lkps_column and lkps_table
-        $this->lkpsColumnCollection = $this->db->selectCollection('lkps_columns');
-        $this->lkpsTableCollection = $this->db->selectCollection('lkps_tables');
-    }
-
-    /**
-     * Get task IDs directly from a specific project
-     * 
-     * @param string $projectId Project ID
-     * @return array Array of task IDs
-     */
-    private function getTaskIdsFromProject($projectId)
-    {
-        try {
-            Log::info('Finding tasks for projectId', [
-                'projectId' => $projectId
-            ]);
-
-            $taskIds = [];
-
-            $project = Project::find($projectId);
-            if (!$project) {
-                Log::warning("Project not found: {$projectId}");
-                return [];
-            }
-
-            $taskList = TaskList::where('projectId', $project->_id)
-                ->where('kriteria', 'LKPS')
-                ->first();
-
-            if (!$taskList) {
-                Log::warning("No LKPS task list found in project {$projectId}");
-                return [];
-            }
-
-            $tasks = Task::where('taskListId', $taskList->_id)->get();
-
-            foreach ($tasks as $task) {
-                $taskIds[] = (string) $task->_id;
-            }
-
-            Log::info("Found " . count($taskIds) . " task IDs in project {$projectId}");
-            return $taskIds;
-        } catch (\Exception $e) {
-            Log::error("Error getting task IDs from project: " . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Get task IDs from projects associated with a prodi
-     * This allows exporting data from any project, not just active ones
-     * 
-     * @param string $prodiId Prodi ID
-     * @param string|null $projectId Optional specific project ID
-     * @return array Array of task IDs
-     */
-    private function getTaskIdsFromProdi($prodiId, $projectId = null)
-    {
-        try {
-            Log::info('Finding tasks for prodiId', [
-                'prodiId' => $prodiId,
-                'projectId' => $projectId ?: 'all'
-            ]);
-
-            $taskIds = [];
-
-            // If projectId is specified, only get tasks from that project
-            if ($projectId) {
-                $project = Project::find($projectId);
-                if (!$project) {
-                    Log::warning("Project not found: {$projectId}");
-                    return [];
-                }
-
-                // Confirm this project belongs to the specified prodi
-                if ($project->prodiId != $prodiId) {
-                    Log::warning("Project {$projectId} does not belong to prodiId {$prodiId}");
-                    return [];
-                }
-
-                $taskList = TaskList::where('projectId', $project->_id)
-                    ->where('kriteria', 'LKPS')
-                    ->first();
-
-                if (!$taskList) {
-                    Log::warning("No LKPS task list found in project {$projectId}");
-                    return [];
-                }
-
-                $tasks = Task::where('taskListId', $taskList->_id)->get();
-
-                foreach ($tasks as $task) {
-                    $taskIds[] = (string) $task->_id;
-                }
-
-                Log::info("Found " . count($taskIds) . " task IDs in project {$projectId}");
-            }
-            // Otherwise get tasks from all projects for this prodi
-            else {
-                // Get all projects for this prodi, ordered by created_at desc
-                $projects = Project::where('prodiId', $prodiId)
-                    ->orderByDesc('created_at')
-                    ->get();
-
-                Log::info("Found " . $projects->count() . " projects for prodiId {$prodiId}");
-
-                foreach ($projects as $project) {
-                    $taskList = TaskList::where('projectId', $project->_id)
-                        ->where('kriteria', 'LKPS')
-                        ->first();
-
-                    if (!$taskList) {
-                        Log::info("No LKPS task list found in project {$project->_id}");
-                        continue;
-                    }
-
-                    $tasks = Task::where('taskListId', $taskList->_id)->get();
-
-                    foreach ($tasks as $task) {
-                        $taskIds[] = (string) $task->_id;
-                    }
-                }
-
-                Log::info("Found " . count($taskIds) . " task IDs across all projects for prodiId {$prodiId}");
-            }
-
-            return $taskIds;
-        } catch (\Exception $e) {
-            Log::error("Error getting task IDs from prodi: " . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Get LKPS data IDs from task IDs
-     * 
-     * @param array $taskIds Array of task IDs
-     * @return array Array of LkpsData IDs
-     */
-    private function getLkpsDataIdsFromTasks($taskIds)
-    {
-        try {
-            $lkpsDataIds = [];
-
-            if (empty($taskIds)) {
-                return $lkpsDataIds;
-            }
-
-            // Get LkpsData records for these tasks
-            $lkpsDataRecords = LkpsData::whereIn('taskId', $taskIds)->get();
-
-            foreach ($lkpsDataRecords as $record) {
-                $lkpsDataIds[] = (string) $record->_id;
-            }
-
-            Log::info("Found " . count($lkpsDataIds) . " LkpsData IDs from " . count($taskIds) . " tasks");
-
-            return $lkpsDataIds;
-        } catch (\Exception $e) {
-            Log::error("Error getting LkpsData IDs from tasks: " . $e->getMessage());
-            return [];
-        }
-    }
-
     /**
      * Export data using uploaded template with all sheets
-     * Now supports multiple sections based on request and finding data through task IDs
+     * Uses EXACT SAME LOGIC as getTableData for consistency
      */
     public function exportData(Request $request)
     {
         try {
-            // Tingkatkan batas waktu eksekusi dan memori
+            // Set higher execution time and memory limits
             set_time_limit(900); // 15 minutes
             ini_set('memory_limit', '1G');
 
-            // Log memori awal untuk debugging
+            // Log initial memory for debugging
             Log::info('Initial memory usage: ' . round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB');
 
             // Get parameters
             $projectId = $request->input('projectId');
-            $prodiId = Auth::user()->prodiId ?? $request->input('prodiId');
             $debugMode = $request->input('debug_mode', false);
 
-            // Log all parameters with auth info
+            // Log request info
             Log::info('Export data requested', [
                 'project_id' => $projectId,
-                'prodi_id' => $prodiId,
                 'user_id' => Auth::id() ?? null,
                 'table_code' => $request->input('table_code'),
                 'debug_mode' => $debugMode
             ]);
 
-            // Pastikan prodiId tersedia
-            if (empty($projectId) && empty($prodiId) && !$debugMode) {
-                Log::error('Required parameters not provided and no prodiId in auth user');
-                return response()->json(['message' => 'ProdiId is required and not found in authenticated user'], 400);
+            // Validate projectId is provided (unless in debug mode)
+            if (empty($projectId) && !$debugMode) {
+                Log::error('Project ID not provided');
+                return response()->json(['message' => 'Project ID is required'], 400);
             }
 
-            // Jika hanya projectId yang diberikan, ambil prodiId dari project
-            if (!empty($projectId) && empty($prodiId) && !$debugMode) {
+            // Verify project exists (same as getTableData)
+            if (!$debugMode) {
                 $project = Project::find($projectId);
                 if (!$project) {
-                    Log::error("Project not found: {$projectId}");
                     return response()->json(['message' => 'Project not found'], 404);
                 }
-                $prodiId = $project->prodiId;
-                Log::info("Retrieved prodiId {$prodiId} from project {$projectId}");
             }
 
-            // Get array of table codes to export, support both 'sections' and 'table_code' parameters
+            // Get array of table codes to export
             $tableCodes = [];
 
             if ($request->has('table_code')) {
-                // Bisa string tunggal atau array
                 $tableCode = $request->input('table_code');
-
-                if (is_array($tableCode)) {
-                    // Jika sudah berupa array, gunakan langsung
-                    $tableCodes = $tableCode;
-                    Log::info('Processing multiple tables: ' . implode(', ', $tableCodes));
-                } else {
-                    // Jika string tunggal
-                    $tableCodes = [$tableCode];
-                    Log::info('Processing single table: ' . $tableCode);
-                }
+                $tableCodes = is_array($tableCode) ? $tableCode : [$tableCode];
+                Log::info('Processing tables: ' . implode(', ', $tableCodes));
             } else if ($request->has('sections')) {
-                // Backward compatibility
                 $sections = $request->input('sections');
                 $tableCodes = is_array($sections) ? $sections : [$sections];
                 Log::info('Using sections parameter: ' . implode(', ', $tableCodes));
             } else {
-                // Default jika tidak ada parameter yang diberikan
-                $tableCodes = ['1-1']; // Default ke tabel 1-1
+                $tableCodes = ['1-1']; // Default
                 Log::info('No table specified, defaulting to: 1-1');
             }
 
-            // Get task IDs and LkpsData IDs
-            $taskIds = [];
-            $lkpsDataIds = [];
-
-            if (!$debugMode) {
-                if (!empty($projectId)) {
-                    // Jika projectId diberikan, gunakan metode getTaskIdsFromProject
-                    $taskIds = $this->getTaskIdsFromProject($projectId);
-
-                    if (empty($taskIds)) {
-                        Log::warning("No task IDs found for project {$projectId}");
-                    }
-                } else {
-                    // Jika hanya prodiId yang diberikan, gunakan metode getTaskIdsFromProdi
-                    $taskIds = $this->getTaskIdsFromProdi($prodiId);
-
-                    if (empty($taskIds)) {
-                        Log::warning("No task IDs found for prodi {$prodiId}");
-                    }
-                }
-
-                // Get LkpsData IDs from tasks
-                $lkpsDataIds = $this->getLkpsDataIdsFromTasks($taskIds);
-
-                if (empty($lkpsDataIds)) {
-                    Log::warning("No LkpsData IDs found for the tasks");
-                }
-            }
-
-            // Path to template
+            // Load template
             $templatePath = storage_path('app/public/templates/LKPS_template.xlsx');
             if (!file_exists($templatePath)) {
                 Log::error('Template file not found: ' . $templatePath);
                 return response()->json(['message' => 'Template not found'], 404);
             }
 
-            // PENTING: Load template dengan SEMUA sheet
+            // Load spreadsheet with all sheets
             $reader = IOFactory::createReader('Xlsx');
-            $reader->setReadDataOnly(false); // Pastikan format dan styling dipertahankan
-
-            Log::info('Loading template with ALL sheets');
+            $reader->setReadDataOnly(false); // Preserve formatting and styles
             $spreadsheet = $reader->load($templatePath);
 
-            // Log info tentang sheets yang ada
+            // Log available sheets
             $availableSheets = $spreadsheet->getSheetNames();
-            Log::info('Template loaded with ' . count($availableSheets) . ' sheets: ' . implode(', ', $availableSheets));
+            Log::info('Template loaded with ' . count($availableSheets) . ' sheets');
 
             // Process each requested section
             $processedSections = [];
 
             foreach ($tableCodes as $tableCode) {
-                // Build query based on mode and available IDs
-                if ($debugMode) {
-                    // Debug mode: just filter by section code
-                    $query = ['kodeTabel' => $tableCode];
-                    Log::info("Running in debug mode for table {$tableCode}");
-                } else if (!empty($taskIds)) {
-                    // Filter by taskIds for most precise results
-                    $query = [
-                        'kodeTabel' => $tableCode,
-                        'taskId' => ['$in' => $taskIds]
-                    ];
-                    Log::info("Using taskId filter for table {$tableCode}");
-                } else {
-                    // Fallback to basic section filter
-                    $query = ['kodeTabel' => $tableCode];
-                    Log::info("Using basic filter for table {$tableCode}");
+                // ✅ EXACT SAME LOGIC AS getTableData
+
+                // 1. Find the table (same validation as getTableData)
+                $table = LkpsTable::where('kode', $tableCode)->first();
+                if (!$table) {
+                    Log::warning("Table not found: {$tableCode}, skipping");
+                    continue;
                 }
 
-                // Debug: Log the final query
-                Log::info("Query for table {$tableCode}:", ['query' => json_encode($query)]);
+                // 2. Find the task (EXACT SAME LOGIC as getTableData)
+                $taskId = null;
+                $taskLists = TaskList::where('projectId', $projectId)->get();
 
-                // Execute the query
-                $documents = $this->collection->find($query)->toArray();
+                if (!$taskLists->isEmpty()) {
+                    $taskListIds = $taskLists->pluck('_id')->toArray();
 
-                Log::info("Found " . count($documents) . " documents for table {$tableCode}");
+                    $task = Task::whereIn('taskListId', $taskListIds)
+                        ->where('lkpsTableId', $table->_id)
+                        ->first();
 
-                if (empty($documents)) {
-                    // Debug: try to find documents with just section_code
-                    $simpleQuery = ['kodeTabel' => $tableCode];
-                    $allDocs = $this->collection->find($simpleQuery)->toArray();
-                    Log::info("Total documents with kodeTabel {$tableCode} (without filters):", ['count' => count($allDocs)]);
+                    if ($task) {
+                        $taskId = $task->_id;
+                        Log::info("Found task {$taskId} for table {$tableCode} in project {$projectId}");
+                    } else {
+                        Log::warning("No task found for table {$tableCode} in any task list of project {$projectId}");
+                    }
+                }
 
+                // 3. Get the LkpsData (EXACT SAME LOGIC as getTableData)
+                if (!$taskId) {
+                    Log::warning("No task found for table {$tableCode} in the project, skipping");
+                    continue;
+                }
+
+                $lkpsData = LkpsData::where('lkpsTableId', $table->_id)
+                    ->where('taskId', $taskId)
+                    ->first();
+
+                if (!$lkpsData) {
+                    Log::info("No LkpsData found for table {$tableCode} and task {$taskId} in project {$projectId}");
                     Log::warning("No data found for table {$tableCode}, skipping");
                     continue;
                 }
 
-                // Process the first document for this section
-                $doc = $documents[0];
+                // 4. Extract data (same as getTableData response)
+                $data = $lkpsData->data ?? [];
 
-                // Convert MongoDB document to PHP array
-                $docArray = json_decode(json_encode($doc), true);
-
-                // Debug: Log the document structure
-                Log::info("Document keys for table {$tableCode}: " . implode(', ', array_keys($docArray)));
-
-                // Check if data exists and is valid
-                if (!isset($docArray['data']) || !is_array($docArray['data']) || empty($docArray['data'])) {
+                if (empty($data)) {
                     Log::warning("No valid data found for table {$tableCode}, skipping");
                     continue;
                 }
 
-                $data = $docArray['data'];
+                Log::info("Found " . count($data) . " rows for table {$tableCode}");
 
-                // Debug: Log data structure sample
-                Log::debug("Data structure for table {$tableCode}:", [
-                    'sample_row' => isset($data[0]) ? json_encode($data[0]) : 'No data',
-                    'total_rows' => count($data)
-                ]);
-
-                // Find the corresponding sheet
+                // 5. Find the corresponding Excel sheet
                 $sheet = null;
 
                 // Try exact match first
@@ -414,15 +179,12 @@ class LkpsExportController extends Controller
                 $sheetName = $sheet->getTitle();
                 Log::info("Using sheet: {$sheetName} for data from table: {$tableCode}");
 
-                // Determine start row from database
+                // 6. Fill Excel data
                 $startRow = $this->getStartRowForSection($tableCode);
+                $columnMapping = $this->getColumnMappingForSection($tableCode);
 
-                // Fill the data
                 Log::info("Processing " . count($data) . " rows of data for sheet {$sheetName}");
                 $rowCount = 0;
-
-                // Get column mappings for this section from database
-                $columnMapping = $this->getColumnMappingForSection($tableCode);
 
                 foreach ($data as $rowIndex => $rowData) {
                     $currentRow = $startRow + $rowIndex;
@@ -439,6 +201,12 @@ class LkpsExportController extends Controller
 
                 Log::info("Successfully filled {$rowCount} rows in sheet {$sheetName} for table {$tableCode}");
                 $processedSections[] = $tableCode;
+            }
+
+            // Check if we processed any sections
+            if (empty($processedSections)) {
+                Log::warning("No data was processed for any requested tables");
+                return response()->json(['message' => 'No data found for the requested tables'], 404);
             }
 
             // Log summary
@@ -493,23 +261,17 @@ class LkpsExportController extends Controller
     }
 
     /**
-     * Get the starting row for a specific section from lkps_tables collection
+     * Get the starting row for a specific section from database
      */
     private function getStartRowForSection($tableCode)
     {
         try {
-            // Find the table associated with this section code
-            $table = $this->lkpsTableCollection->findOne(['kode' => $tableCode]);
+            // Use Eloquent instead of raw MongoDB
+            $table = LkpsTable::where('kode', $tableCode)->first();
 
-            if ($table) {
-                // Convert MongoDB document to PHP array
-                $tableArray = json_decode(json_encode($table), true);
-
-                // Use excel_start_row value if available
-                if (isset($tableArray['barisAwalExcel'])) {
-                    Log::info("Found start row for table {$tableCode}: {$tableArray['barisAwalExcel']}");
-                    return (int) $tableArray['barisAwalExcel'];
-                }
+            if ($table && isset($table->barisAwalExcel)) {
+                Log::info("Found start row for table {$tableCode}: {$table->barisAwalExcel}");
+                return (int) $table->barisAwalExcel;
             }
 
             // Default fallback values if not found in database
@@ -521,14 +283,57 @@ class LkpsExportController extends Controller
                 '2a2' => 7,
                 '2a3' => 7,
                 '2a4' => 7,
-                '2b' => 12,
-                '3a1' => 7,
-                '3a2' => 7,
-                '3a3' => 7,
-                '3a4' => 7,
+                '2b' => 7,
+                '3a1' => 14,
+                '3a2' => 9,
+                '3a3' => 11,
+                '3a4' => 14,
                 '3a5' => 7,
-                '3b1' => 7,
-                '3b2' => 7
+                '3b1' => 11,
+                '3b2' => 9,
+                '3b3' => 10,
+                '3b4' => 7,
+                '3b5' => 7,
+                '3b6' => 6,
+                '3b7' => 6,
+                '3b8-1' => 6,
+                '3b8-2' => 6,
+                '3b8-3' => 15,
+                '3b8-4' => 6,
+                '3c' => 8,
+                '4a' => 6,
+                '4b' => 9,
+                '4c' => 9,
+                '5a-1' => 10,
+                '5a-2' => 10,
+                '5a-3' => 9,
+                '5a-4' => 9,
+                '5b-1' => 15,
+                '5b-2' => 16,
+                '5b-3' => 14,
+                '5c' => 13,
+                '5d' => 6,
+                '6a' => 11,
+                '6b' => 6,
+                '7' => 6,
+                '8a' => 6,
+                '8b1' => 10,
+                '8b2' => 11,
+                '8c' => 7,
+                '8d1' => 7,
+                '8d2' => 7,
+                '8e1' => 7,
+                '8e2' => 7,
+                '8f1' => 7,
+                '8f2' => 7,
+                '8f3' => 6,
+                '8f4' => 6,
+                '8f5-1' => 11,
+                '8f5-2' => 7,
+                '8f5-3' => 17,
+                '8f5-4' => 7,
+                '9a' => 7,
+                '9b' => 5
             ];
 
             $startRow = $defaultStartRows[$tableCode] ?? 12;
@@ -559,48 +364,28 @@ class LkpsExportController extends Controller
     }
 
     /**
-     * Get column mapping for a specific section from lkps_columns collection
+     * Get column mapping for a specific section from database
      */
     private function getColumnMappingForSection($tableCode)
     {
         try {
             Log::info("Getting column mapping for table {$tableCode}");
 
-            // Find all columns for this table code directly
-            $columns = $this->lkpsColumnCollection->find(['kodeTabel' => $tableCode])->toArray();
+            // Use Eloquent instead of raw MongoDB - assuming you have LkpsColumn model
+            // If you don't have this model, you can create it or use raw queries as fallback
 
-            if (empty($columns)) {
-                Log::warning("No columns found in database for kodeTabel {$tableCode}");
+            // For now, let's use a simple approach - generate mapping from sample data
+            $lkpsData = LkpsData::where('kodeTabel', $tableCode)->first();
 
-                // Get data to analyze structure
-                $document = $this->collection->findOne(['kodeTabel' => $tableCode]);
-                if ($document && isset($document['data']) && is_array($document['data']) && !empty($document['data'])) {
-                    $sampleData = $document['data'][0] ?? [];
-
-                    if (!empty($sampleData)) {
-                        return $this->generateMappingFromData($sampleData);
-                    }
-                }
-
-                return [];
-            }
-
-            $columnMapping = [];
-
-            foreach ($columns as $column) {
-                // Convert MongoDB document to PHP array
-                $columnArray = json_decode(json_encode($column), true);
-
-                if (isset($columnArray['indeksData']) && isset($columnArray['indeksExcel'])) {
-                    // Convert numeric indeksExcel to letter (0 -> A, 1 -> B, etc)
-                    $excelColumn = $this->convertToColumnLetter($columnArray['indeksExcel']);
-                    $columnMapping[$columnArray['indeksData']] = $excelColumn;
-                    Log::debug("Mapped column {$columnArray['indeksData']} to Excel column {$excelColumn}");
+            if ($lkpsData && !empty($lkpsData->data)) {
+                $sampleData = $lkpsData->data[0] ?? [];
+                if (!empty($sampleData)) {
+                    return $this->generateMappingFromData($sampleData);
                 }
             }
 
-            Log::info("Found " . count($columnMapping) . " column mappings for table {$tableCode}");
-            return $columnMapping;
+            Log::warning("No column mapping available for table {$tableCode}");
+            return [];
 
         } catch (\Exception $e) {
             Log::error("Error getting column mapping for table {$tableCode}: " . $e->getMessage());
@@ -608,18 +393,24 @@ class LkpsExportController extends Controller
         }
     }
 
+    /**
+     * Generate column mapping from data structure
+     */
     private function generateMappingFromData($sampleData)
     {
         Log::info("Generating dynamic column mapping from data structure");
         $columnMapping = [];
-        $column = 'A'; // Start from column A
-
-        // Check if data is an array with numeric indexes
-        $isNumericArray = array_keys($sampleData) === range(0, count($sampleData) - 1);
+        $columnIndex = 0;
 
         foreach (array_keys($sampleData) as $field) {
-            $columnMapping[$field] = $column++;
-            Log::info("Auto-mapped field '{$field}' to column '{$columnMapping[$field]}'");
+            // Skip metadata fields
+            if (in_array($field, ['key', 'selected', '_timestamp', 'rowIndex'])) {
+                continue;
+            }
+
+            $columnMapping[$field] = $this->convertToColumnLetter($columnIndex);
+            $columnIndex++;
+            Log::debug("Auto-mapped field '{$field}' to column '{$columnMapping[$field]}'");
         }
 
         Log::info("Generated " . count($columnMapping) . " column mappings from data structure");
@@ -665,7 +456,7 @@ class LkpsExportController extends Controller
                 // Set cell value
                 try {
                     $sheet->setCellValue("{$column}{$currentRow}", $value);
-                    Log::debug("Set cell {$column}{$currentRow}");
+                    Log::debug("Set cell {$column}{$currentRow} = {$value}");
                 } catch (\Exception $e) {
                     Log::error("Error setting cell {$column}{$currentRow}: " . $e->getMessage());
                 }

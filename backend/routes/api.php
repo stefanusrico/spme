@@ -35,6 +35,7 @@ Route::get('test', function () {
     ]);
 });
 
+
 Route::post('/generate-text', [GeminiController::class, 'generateText']);
 Route::post('/analyze-image', [GeminiController::class, 'analyzeImage']);
 Route::post('/chat', [GeminiController::class, 'startChat']);
@@ -76,8 +77,10 @@ Route::prefix('lkps')->group(function () {
     Route::get('/tables/{tableCode}/columns', [LkpsColumnController::class, 'getColumns']);
 
     // Data routes
-    Route::get('/data', [LkpsDataController::class, 'getAllData']);
-    Route::get('/data/{tableCode}', [LkpsDataController::class, 'getTableData']);
+    // Route::get('/data', [LkpsDataController::class, 'getAllData']);
+    Route::get('/data', [LkpsDataController::class, 'getTableData']);
+
+
     Route::post('/data/{tableCode}', [LkpsDataController::class, 'saveTableData']);
     Route::get('/tables/{tableCode}/task', [LkpsDataController::class, 'getTaskIdForTable']);
     Route::get('/export/{tableCode?}', [LkpsDataController::class, 'exportData']);

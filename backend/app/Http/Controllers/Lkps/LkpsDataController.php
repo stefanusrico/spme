@@ -47,21 +47,73 @@ class LkpsDataController extends Controller
      * @param string $tableCode
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getTableData($tableCode)
+    public function getTableData(Request $request)
     {
+        $validator = \Validator::make($request->all(), [
+            'projectId' => 'required|string',
+            'tableCode' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $tableCode = $request->input('tableCode');
+        $projectId = $request->input('projectId');
+
+        // Find the table
         $table = LkpsTable::where('kode', $tableCode)->first();
 
         if (!$table) {
             return response()->json(['message' => 'Table not found'], 404);
         }
 
-        $data = LkpsData::where('kodeTabel', $tableCode)->first();
+        // Verify project exists
+        $project = \App\Models\Project\Project::find($projectId);
+
+        if (!$project) {
+            return response()->json(['message' => 'Project not found'], 404);
+        }
+
+        // Find the task
+        $taskId = null;
+        $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
+
+        if (!$taskLists->isEmpty()) {
+            $taskListIds = $taskLists->pluck('_id')->toArray();
+
+            $task = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
+                ->where('lkpsTableId', $table->_id)
+                ->first();
+
+            if ($task) {
+                $taskId = $task->_id;
+                Log::info("Found task {$taskId} for table {$tableCode} in project {$projectId}");
+            } else {
+                Log::warning("No task found for table {$tableCode} in any task list of project {$projectId}");
+            }
+        }
+
+        // Get the LkpsData - hanya jika ada taskId
+        if (!$taskId) {
+            return response()->json(['message' => 'No task found for this table in the project'], 404);
+        }
+
+        $lkpsData = LkpsData::where('lkpsTableId', $table->_id)
+            ->where('taskId', $taskId)
+            ->first();
+
+        if (!$lkpsData) {
+            Log::info("No LkpsData found for table {$tableCode} and task {$taskId} in project {$projectId}");
+            return response()->json(['message' => 'No score details found for this table in the project'], 404);
+        }
 
         return response()->json([
             'tableCode' => $tableCode,
-            'data' => $data ? $data->data : [],
-            'nilai' => $data ? $data->nilai : null,
-            'detailNilai' => $data ? $data->detailNilai : null
+            'taskId' => $taskId,
+            'data' => $lkpsData->data ?? [],
+            'nilai' => $lkpsData->nilai ?? [],
+            'detailNilai' => $lkpsData->detailNilai ?? []
         ]);
     }
 
@@ -84,8 +136,7 @@ class LkpsDataController extends Controller
             'data' => 'required|array',
             'nilai' => 'nullable|array',
             'detailNilai' => 'nullable|array',
-            'taskId' => 'nullable|string',
-            'prodiId' => 'nullable|string'
+            'projectId' => 'required|string'
         ]);
 
         if ($validator->fails()) {
@@ -95,12 +146,46 @@ class LkpsDataController extends Controller
         $data = $request->input('data');
         $nilai = $request->input('nilai');
         $detailNilai = $request->input('detailNilai', []);
-        $taskId = $request->input('taskId');
-        $prodiId = $request->input('prodiId');
+        $projectId = $request->input('projectId');
 
-        // If prodiId is not provided, try to get it from the authenticated user
-        if (!$prodiId && auth()->check() && auth()->user()->prodiId) {
-            $prodiId = auth()->user()->prodiId;
+        // Optional taskId (will be looked up if not provided)
+        $taskId = $request->input('taskId');
+
+        // Cek apakah project ada
+        $project = \App\Models\Project\Project::find($projectId);
+
+        if (!$project) {
+            return response()->json(['message' => 'Project not found'], 404);
+        }
+
+        // Cek status project
+        if ($project->status !== 'ACTIVE') {
+            return response()->json(['message' => 'Tidak dapat menyimpan data untuk project yang inactive'], 403);
+        }
+
+        // If taskId is not provided, try to find it
+        if (!$taskId) {
+            // First, find all taskLists associated with this project
+            $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
+
+            if ($taskLists->isEmpty()) {
+                Log::warning("No task lists found for project {$projectId}");
+            } else {
+                // Get all taskList IDs
+                $taskListIds = $taskLists->pluck('_id')->toArray();
+
+                // Now find a task that belongs to one of these task lists and has the correct lkpsTableId
+                $task = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
+                    ->where('lkpsTableId', $table->_id)
+                    ->first();
+
+                if ($task) {
+                    $taskId = $task->_id;
+                    Log::info("Found task {$task->_id} for table {$tableCode} in project {$projectId}");
+                } else {
+                    Log::warning("No task found for table {$tableCode} in any task list of project {$projectId}");
+                }
+            }
         }
 
         try {
@@ -109,11 +194,10 @@ class LkpsDataController extends Controller
                 $data,
                 $nilai,
                 $detailNilai,
-                $taskId,
-                $prodiId
+                $taskId
             );
 
-            // If we have a task associated with this data
+            // Get task details if we have a taskId
             $task = null;
             if ($lkpsData->taskId) {
                 $task = \App\Models\Project\Task::find($lkpsData->taskId);
@@ -128,6 +212,7 @@ class LkpsDataController extends Controller
         } catch (\Exception $e) {
             Log::error("Error saving LKPS data: {$e->getMessage()}", [
                 'tableCode' => $tableCode,
+                'projectId' => $projectId,
                 'trace' => $e->getTraceAsString()
             ]);
 
@@ -390,40 +475,69 @@ class LkpsDataController extends Controller
 
     public function getScoreDetail(Request $request)
     {
-        $validated = $request->validate([
-            'prodiId' => 'required|string',
+        $validator = \Validator::make($request->all(), [
+            'projectId' => 'required|string',
             'tableCode' => 'required|string',
         ]);
 
-        $tableCode = $validated['tableCode'];
-
-        $pipeline = [
-            [
-                '$match' => [
-                    'kodeTabel' => $tableCode,
-                ]
-            ],
-            [
-                '$project' => [
-                    'detailNilai' => 1,
-                ]
-            ],
-        ];
-
-        Log::info('Pipeline: ', $pipeline);
-
-        $result = LkpsData::raw(function ($collection) use ($pipeline) {
-            return $collection->aggregate($pipeline);
-        });
-
-        $data = iterator_to_array($result);
-
-        Log::info('Mongo Result: ', $data);
-
-        if (empty($data)) {
-            return response()->json(['message' => 'Score Detail not found'], 404);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        return response()->json($data[0]['detailNilai']);
+        $tableCode = $request->input('tableCode');
+        $projectId = $request->input('projectId');
+
+        // Find the table
+        $table = LkpsTable::where('kode', $tableCode)->first();
+
+        if (!$table) {
+            return response()->json(['message' => 'Table not found'], 404);
+        }
+
+        // Verify project exists
+        $project = \App\Models\Project\Project::find($projectId);
+
+        if (!$project) {
+            return response()->json(['message' => 'Project not found'], 404);
+        }
+
+        // Find the task
+        $taskId = null;
+        $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
+
+        if (!$taskLists->isEmpty()) {
+            $taskListIds = $taskLists->pluck('_id')->toArray();
+
+            $task = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
+                ->where('lkpsTableId', $table->_id)
+                ->first();
+
+            if ($task) {
+                $taskId = $task->_id;
+                Log::info("Found task {$taskId} for table {$tableCode} in project {$projectId}");
+            } else {
+                Log::warning("No task found for table {$tableCode} in any task list of project {$projectId}");
+            }
+        }
+
+        // Get the LkpsData - hanya jika ada taskId
+        if (!$taskId) {
+            return response()->json(['message' => 'No task found for this table in the project'], 404);
+        }
+
+        $lkpsData = LkpsData::where('lkpsTableId', $table->_id)
+            ->where('taskId', $taskId)
+            ->first();
+
+        if (!$lkpsData) {
+            Log::info("No LkpsData found for table {$tableCode} and task {$taskId} in project {$projectId}");
+            return response()->json(['message' => 'No score details found for this table in the project'], 404);
+        }
+
+        return response()->json([
+            'tableCode' => $tableCode,
+            'taskId' => $taskId,
+            'detailNilai' => $lkpsData->detailNilai ?? []
+        ]);
     }
 }
