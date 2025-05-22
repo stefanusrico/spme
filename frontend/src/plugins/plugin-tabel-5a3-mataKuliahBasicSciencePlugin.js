@@ -6,7 +6,7 @@ import { processExcelDataBase } from "../utils/tableUtils"
 const mataKuliahBasicSciencePlugin = {
   getInfo() {
     return {
-      code: "5a4",
+      code: "5a3",
       name: "Capstone Design Proses Pembelajaran Plugin",
       description: "Plugin untuk tracking capstone design dalam proses pembelajaran",
     }
