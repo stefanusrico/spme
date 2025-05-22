@@ -145,11 +145,11 @@ const kesesuaianBidangKerjaPlugin = {
 
     // Skor awal
     let skor = 0
-    if (PBS >= 80) {
+    if (PBS >= 60) {
       skor = 4
     } else {
       // Jika PBS < 80%, maka Skor = 5 x PBS (dalam desimal)
-      skor = 5 * (PBS / 100)
+      skor = (20 * (PBS / 100)) / 3
     }
 
     // Hitung Prmin

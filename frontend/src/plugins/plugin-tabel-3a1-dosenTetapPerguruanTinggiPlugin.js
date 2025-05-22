@@ -169,14 +169,28 @@ const DosenTetapPerguruanTinggiPlugin = {
 
   async calculateScore(data, config, additionalData = {}) {
     console.log("Calculating dosen tetap score with data:", data)
-    console.log("ini additional", additionalData)
+    console.log("Additional data:", additionalData)
+
     const NM = additionalData.jumlahMahasiswa || 0
-    const scoreDetailsResponse = await fetchScoreDetails(
-      additionalData.userData.prodi.id,
-      "3a4"
-    )
-    // Mengubah dari const menjadi let agar bisa diubah nilainya
-    let NDTT = scoreDetailsResponse?.NDTT || 0
+    let NDTT = 0
+
+    try {
+      if (additionalData.projectId) {
+        const scoreDetailsResponse = await fetchScoreDetails(
+          "3a4",
+          additionalData.projectId
+        )
+
+        // Extract NDTT from score details if available
+        NDTT = scoreDetailsResponse?.NDTT || 0
+        console.log("Fetched NDTT from 3a4:", NDTT)
+      } else {
+        console.warn("No projectId provided, using default NDTT value")
+      }
+    } catch (error) {
+      console.warn("Failed to fetch score details:", error)
+      // Continue with default values
+    }
 
     // 1. Hitung NDT = Jumlah seluruh dosen tetap
     const NDT = data.filter(
@@ -289,7 +303,6 @@ const DosenTetapPerguruanTinggiPlugin = {
     }).length
 
     // 6. Hitung jumlah dosen tidak tetap (dari additionalData)
-    // Tidak perlu reassign karena NDTT sudah diubah menjadi let
     // Jika nilai NDTT tidak valid, pastikan nilai default-nya adalah 0
     if (NDTT === undefined || NDTT === null || isNaN(NDTT)) {
       NDTT = 0
@@ -313,7 +326,7 @@ const DosenTetapPerguruanTinggiPlugin = {
 
     // 9. Hitung skor untuk masing-masing komponen sesuai matriks penilaian
 
-    // Skor untuk Kecukupan jumlah DTPS (No. 15)
+    // Skor untuk Kecukupan jumlah DTPS (No. 16)
     let skorKecukupan = 0
     if (NDTPS >= 12 && PDTT <= 10) {
       skorKecukupan = 4
@@ -325,17 +338,17 @@ const DosenTetapPerguruanTinggiPlugin = {
       skorKecukupan = 0
     }
 
-    // Skor untuk Kualifikasi akademik DTPS (No. 16)
+    // Skor untuk Kualifikasi akademik DTPS (No. 17)
     let skorKualifikasi = 0
-    if (PDS3 >= 10) {
+    if (PDS3 >= 15) {
       skorKualifikasi = 4
-    } else if (PDS3 < 10) {
-      skorKualifikasi = 2 + (20 * PDS3) / 100
+    } else if (PDS3 < 15) {
+      skorKualifikasi = 2 + (4 * PDS3) / 1.5
     } else {
       skorKualifikasi = 2 // Minimal skor 2
     }
 
-    // Skor untuk Sertifikasi kompetensi/profesi (No. 17)
+    // Skor untuk Sertifikasi kompetensi/profesi (No. 18)
     let skorSertifikasi = 0
     if (PDSK >= 50) {
       skorSertifikasi = 4
@@ -345,36 +358,27 @@ const DosenTetapPerguruanTinggiPlugin = {
       skorSertifikasi = 1 // Minimal skor 1
     }
 
-    // Skor untuk Jabatan akademik DTPS (No. 18)
+    // Skor untuk Jabatan akademik DTPS (No. 19)
     let skorJabatan = 0
-    if (PGBLKL >= 40) {
+    if (PGBLKL >= 50) {
       skorJabatan = 4
-    } else if (PGBLKL < 40) {
-      skorJabatan = 2 + (20 * PGBLKL) / 40
+    } else if (PGBLKL < 50) {
+      skorJabatan = 2 + (20 * PGBLKL) / 5
     } else {
       skorJabatan = 2 // Minimal skor 2
     }
 
-    // Skor untuk Rasio mahasiswa-dosen (No. 19)
+    // Skor untuk Rasio mahasiswa-dosen (No. 20)
     let skorRasio = 0
-    if (RMD >= 10 && RMD <= 20) {
+    if (RMD >= 15 && RMD <= 25) {
       skorRasio = 4
-    } else if (RMD < 10) {
-      skorRasio = (2 * RMD) / 5
-    } else if (RMD > 20 && RMD <= 30) {
-      skorRasio = (60 - 2 * RMD) / 5
-    } else {
+    } else if (RMD < 15) {
+      skorRasio = (4 * RMD) / 15
+    } else if (RMD > 25 && RMD <= 35) {
+      skorRasio = (70 - 2 * RMD) / 5
+    } else if (RMD >= 35) {
       skorRasio = 0
     }
-
-    // 10. Hitung skor rata-rata untuk keseluruhan indikator
-    const rataRata =
-      (skorKecukupan +
-        skorKualifikasi +
-        skorSertifikasi +
-        skorJabatan +
-        skorRasio) /
-      5
 
     // Log untuk debugging
     console.log("Hasil perhitungan skor dosen tetap:", {
@@ -396,32 +400,16 @@ const DosenTetapPerguruanTinggiPlugin = {
       skorSertifikasi,
       skorJabatan,
       skorRasio,
-      rataRata,
     })
 
+    // Return consistent format with both scores array and score property
     return {
-      // score: rataRata,
       scores: [
-        {
-          butir: 15,
-          nilai: skorKecukupan.toFixed(2),
-        },
-        {
-          butir: 16,
-          nilai: skorKualifikasi.toFixed(2),
-        },
-        {
-          butir: 17,
-          nilai: skorSertifikasi.toFixed(2),
-        },
-        {
-          butir: 18,
-          nilai: skorJabatan.toFixed(2),
-        },
-        {
-          butir: 19,
-          nilai: skorRasio.toFixed(2),
-        },
+        { butir: 16, nilai: skorKecukupan.toFixed(2) },
+        { butir: 17, nilai: skorKualifikasi.toFixed(2) },
+        { butir: 18, nilai: skorSertifikasi.toFixed(2) },
+        { butir: 19, nilai: skorJabatan.toFixed(2) },
+        { butir: 20, nilai: skorRasio.toFixed(2) },
       ],
       scoreDetail: {
         NDT,

@@ -1,21 +1,21 @@
 /**
- * Plugin khusus untuk bagian Penggunaan Dana
+ * Plugin untuk mentrack beban total paket MBKM
  */
 import { processExcelDataBase } from "../utils/tableUtils"
 
-const penggunaanDanaPlugin = {
+const bebanTotalPaket40SKSPlugin = {
   getInfo() {
     return {
-      code: "4a",
-      name: "Penggunaan Dana Plugin",
-      description: "Plugin for processing budget usage data in LKPS Table 4.a",
+      code: "5b2",
+      name: "Beban Total Paket MBKM Plugin",
+      description: "Plugin untuk mentrack beban total paket kegiatan MBKM",
     }
   },
 
   configureSection(config) {
     return {
       ...config,
-      isPenggunaanDanaSection: true,
+      isBebanTotalPaketSection: true,
     }
   },
 
@@ -70,22 +70,24 @@ const penggunaanDanaPlugin = {
         key: `excel-${index + 1}-${Date.now()}`,
         no: index + 1,
         selected: false,
-        jenis_penggunaan: "",
-        ts_2_unit_pengelola_program_studi_rupiah: 0,
-        ts_1_unit_pengelola_program_studi_rupiah: 0,
-        ts_unit_pengelola_program_studi_rupiah: 0,
-        rata_rata_unit_pengelola_program_studi_rupiah: 0,
-        ts_2_program_studi_rupiah: 0,
-        ts_1_program_studi_rupiah: 0,
-        ts_program_studi_rupiah: 0,
-        rata_rata_program_studi_rupiah: 0,
+        kode_mata_kuliah: row[1] || 0,
+        nama_mata_kuliah: row[2] || "",
+        posisi_semester_kurikulum: row[3] || 0,
+        beban_sks: row[4] || 0,
+        jenis_kegiatan_mbkm_yang_disetarakan: row[5] || "",
+        
       }
 
-      Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
+    Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
         if (colIndex === undefined || colIndex < 0) return
+
         const value = row[colIndex]
 
-        if (fieldName === "jenis_penggunaan") {
+        if (
+          fieldName === "nama_mata_kuliah" ||
+          fieldName === "kode_mata_kuliah" ||
+          fieldName === "no"
+        ) {
           item[fieldName] = value ? String(value).trim() : ""
         } else {
           const num = parseFloat(value)
@@ -108,7 +110,16 @@ const penggunaanDanaPlugin = {
     if (config && config.tables) {
       config.tables.forEach((table) => {
         const tableCode = typeof table === "object" ? table.code : table
-        initialTableData[tableCode] = existingData[tableCode] || []
+
+        if (
+          existingData &&
+          existingData[tableCode] &&
+          existingData[tableCode].length > 0
+        ) {
+          initialTableData[tableCode] = existingData[tableCode]
+        } else {
+          initialTableData[tableCode] = []
+        }
       })
     }
 
@@ -116,46 +127,60 @@ const penggunaanDanaPlugin = {
   },
 
   calculateScore(data) {
-    console.log("=== DEBUG: No score calculation for Penggunaan Dana ===")
+    if (!data || data.length === 0) {
+      return {
+        scores: [
+          {
+            butir: 60,
+            nilai: 0,
+          },
+        ],
+        scoreDetail: {},
+      }
+    }
+
+    // Contoh asumsinya: satu baris = satu mahasiswa mengikuti MBKM dengan jumlah SKS tertera
+    const totalMahasiswa = data.length
+    const totalSKS = data.reduce((acc, row) => acc + (parseFloat(row.sks) || 0), 0)
+    const mahasiswaMBKM = totalMahasiswa // jika semua mengikuti, bisa diubah kalau ada field terpisah
+
+    let nilai = 0
+    if (mahasiswaMBKM / totalMahasiswa >= 0.25 && totalSKS / totalMahasiswa >= 20) nilai = 4
+    else if (mahasiswaMBKM / totalMahasiswa >= 0.25) nilai = 3
+    else if (mahasiswaMBKM / totalMahasiswa > 0) nilai = 2
+    else nilai = 1
+
     return {
       scores: [
         {
-          butir: 47, // Misalnya butir 47 adalah penggunaan dana, sesuaikan dengan dokumen aslinya
-          nilai: 0,
+          butir: 60,
+          nilai,
         },
       ],
       scoreDetail: {
-        note: "Tidak ada perhitungan skor otomatis untuk bagian ini.",
+        totalMahasiswa,
+        mahasiswaMBKM,
+        totalSKS,
+        sksPerMahasiswa: (totalSKS / totalMahasiswa).toFixed(2),
       },
     }
   },
 
   normalizeData(data) {
-    return data.map((item) => {
-      const result = { ...item }
-
-      result.ts2 = !isNaN(parseFloat(result.ts2)) ? Math.max(0, parseFloat(result.ts2)) : 0
-      result.ts1 = !isNaN(parseFloat(result.ts1)) ? Math.max(0, parseFloat(result.ts1)) : 0
-      result.ts = !isNaN(parseFloat(result.ts)) ? Math.max(0, parseFloat(result.ts)) : 0
-
-      return result
-    })
+    return data.map((item) => ({
+      ...item,
+      semester: parseInt(item.semester) || 0,
+      sks: parseFloat(item.sks) || 0,
+    }))
   },
 
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.jenis_penggunaan || item.jenis_penggunaan.trim() === "") {
-        errors.push(`Row ${index + 1}: Jenis Penggunaan harus diisi`)
+      if (!item.kode_mk || !item.nama_mk || !item.jenis_kegiatan_mbkm) {
+        errors.push(`Row ${index + 1}: Kode MK, Nama MK, dan Jenis Kegiatan wajib diisi`)
       }
-
-      ["ts2", "ts1", "ts"].forEach((field) => {
-        const val = parseFloat(item[field])
-        if (isNaN(val) || val < 0) {
-          errors.push(`Row ${index + 1}: Nilai ${field.toUpperCase()} tidak valid`)
-        }
-      })
     })
 
     return {
@@ -165,15 +190,13 @@ const penggunaanDanaPlugin = {
   },
 
   prepareDataForSaving(data) {
-    return data.map((item, index) => {
-      return {
-        ...item,
-        no: index + 1,
-        _timestamp: new Date().getTime(),
-        selected: true,
-      }
-    })
+    return data.map((item, index) => ({
+      ...item,
+      no: index + 1,
+      _timestamp: new Date().getTime(),
+      selected: true,
+    }))
   },
 }
 
-export default penggunaanDanaPlugin
+export default bebanTotalPaket40SKSPlugin

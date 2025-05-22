@@ -13,7 +13,6 @@ export const fetchScoreDetails = async (tableCode, projectId) => {
     return response.data.detailNilai || {}
   } catch (error) {
     console.error(`Error fetching score details for table ${tableCode}:`, error)
-    // Return empty object instead of throwing
     return {}
   }
 }

@@ -1,20 +1,23 @@
+/**
+ * Plugin khusus untuk section produk / jasa yang dihasilkan mahasiswa yang diadopsi oleh industri / masyarakat
+ */
 import { processExcelDataBase } from "../utils/tableUtils"
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
 import { cekStrata } from "./checkStrata"
 
-const DosenTidakTetap = {
+const DosenIndustriPraktisi = {
   getInfo() {
     return {
-      code: "3a4",
-      name: "Dosen Tidak Tetap",
-      Description: "Plugin for processing Non-Permanent Lecturers",
+      code: "3a5",
+      name: "Dosen Industri/Praktisi",
+      Description: "Plugin for processing Practitioner/Industry Lecturer",
     }
   },
 
   configureSection(config) {
     return {
       ...config,
-      isDosenTidakTetap: true,
+      isDosenIndustriPraktisi: true,
     }
   },
 
@@ -65,17 +68,15 @@ const DosenTidakTetap = {
         key: `excel-${index + 1}-${Date.now()}`,
         no: index + 1,
         selected: true,
-        nama_dosen: "",
-        nidn_nidk: "",
-        magister_magister_terapan_pendidikan_pasca_sarjana: "",
-        doktor_doktor_terapan_pendidikan_pasca_sarjana: "",
+        nama_dosen_industri_praktisi: "",
+        nidk: "",
+        perusahaan_industri: "",
+        pendidikan_tertinggi: "",
         bidang_keahlian: "",
-        jabatan_akademik: "",
-        nomor_sertifikat_pendidik_profesional: "",
-        bidang_sertifikasi_sertifikat_kompetensi_profesi_industri: "",
-        lembaga_penerbit_sertifikat_kompetensi_profesi_industri: "",
-        mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi: "",
-        kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu: "",
+        bidang_sertifikasi_sertifikat_profesi_kompetensi_industri: "",
+        lembaga_penerbit_sertifikat_profesi_kompetensi_industri: "",
+        mata_kuliah_yang_diampu: "",
+        bobot_kredit_sks: "",
       }
 
       Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
@@ -83,29 +84,15 @@ const DosenTidakTetap = {
 
         const value = row[colIndex]
 
-        if (fieldName === "no" || fieldName === "nama_dosen") {
+        if (
+          fieldName === "no" ||
+          fieldName === "nama_dosen_industri_praktisi"
+        ) {
           item[fieldName] =
             value !== undefined && value !== null ? String(value).trim() : ""
-        } else if (
-          fieldName === "bidang_keahlian_dengan_mata_kuliah_yang_diampu"
-        ) {
-          const strVal = String(value || "")
-            .toLowerCase()
-            .trim()
-          item[fieldName] = [
-            "yes",
-            "ya",
-            "ada",
-            "v",
-            "√",
-            "✓",
-            "1",
-            "true",
-          ].includes(strVal)
-            ? "V"
-            : ["no", "tidak", "0", "false"].includes(strVal)
-            ? "Tidak"
-            : strVal
+        } else if (fieldName === "bobot_kredit_sks") {
+          const num = parseFloat(value)
+          item[fieldName] = !isNaN(num) ? Math.max(0, num) : 0
         } else {
           item[fieldName] = value ? String(value).trim() : ""
         }
@@ -143,72 +130,70 @@ const DosenTidakTetap = {
   },
 
   async calculateScore(data, config, additionalData = {}) {
-    let NDTT = 0
+    // MKKI = Jumlah mata kuliah kompetensi yang diampu oleh dosen industri/praktisi.
+    let uniqueMatkul = new Set()
 
     //Cek strata
     const strata = cekStrata()
-    const butir = strata === "D-3" ? 22 : 23
+    const butir = strata === "D-3" ? 23 : 24
 
-    // NDT =  Jumlah dosen tetap yang ditugaskan sebagai pengampu mata kuliah di program studi yang diakreditasi.
-    const responseScoreDetail = await fetchScoreDetails("3a1")
+    data.forEach((item) => {
+      const matkul = item.mata_kuliah_yang_diampu
+      if (matkul && matkul.trim() !== "") {
+        uniqueMatkul.add(matkul.trim())
+      }
+    })
+
+    const MKKI = uniqueMatkul.size
+
+    // MKK = Jumlah mata kuliah kompetensi
+    const responseScoreDetail = await fetchScoreDetails(
+      "5a-1",
+      additionalData.projectId
+    )
 
     if (!responseScoreDetail) {
-      console.warn('fetchScoreDetails("3a1") did not return any data')
+      console.warn('fetchScoreDetails("5a-1") did not return any data')
       return {
         scores: [
           {
-            butir: butir,
+            butir: 24,
             nilai: 0,
           },
         ],
         scoreDetail: {},
       }
     }
+    const MKK = responseScoreDetail?.jumlah_mata_kuliah_kompetensi || 0
 
-    let NDT = responseScoreDetail?.NDT || 0
-
-    // PDTT = (NDTT / (NDT + NDTT)) x 100%
-    let PDTT = 0
-
-    // Fungsi pengecekan isi field
-    data.forEach((item) => {
-      if (
-        item.nama_dosen !== null &&
-        item.nama_dosen !== undefined &&
-        item.nama_dosen !== ""
-      ) {
-        NDTT += 1
-      }
-    })
-
-    PDTT = (NDTT / (NDT + NDTT)) * 100
+    // PMKI = (MKKI / MKK) x 100%
+    const PMKI = (MKKI / MKK) * 100
 
     // Hitung skor
     let score = 0
-    if (PDTT === 0 && responseScoreDetail.NDTPS >= 5) {
+    if (PMKI >= 20) {
       score = 4
-    } else if (PDTT > 0 && PDTT <= 40 && responseScoreDetail.NDTPS >= 5) {
-      score = 4 - (5 * PDTT) / 100
-    } else if (PDTT > 40 && PDTT <= 60 && responseScoreDetail.NDTPS >= 5) {
-      score = 1
+    } else if (PMKI < 20) {
+      score = 2 + (10 * PMKI) / 100
     }
 
     score = Math.round(score * 100) / 100
 
     // Logging untuk debugging
-    console.log("Hasil PDTT :", PDTT, "%")
+    console.log("Hasil PMKI :", PMKI, "%")
     console.log("Score : ", score)
 
     return {
       scores: [
         {
-          butir: butir,
+          butir: 24,
           nilai: score,
         },
       ],
       scoreDetail: {
-        PDTT,
-        NDTT,
+        MKK,
+        MKKI,
+        PMKI,
       },
     }
   },
@@ -218,17 +203,14 @@ const DosenTidakTetap = {
       const result = { ...item }
 
       const textFields = [
-        "nama_dosen",
-        "nidn_nidk",
-        "magister_magister_terapan_pendidikan_pasca_sarjana",
-        "doktor_doktor_terapan_pendidikan_pasca_sarjana",
+        "nama_dosen_industri_praktisi",
+        "nidk",
+        "perusahaan_industri",
+        "pendidikan_tertinggi",
         "bidang_keahlian",
-        "jabatan_akademik",
-        "nomor_sertifikat_pendidik_profesional",
-        "bidang_sertifikasi_sertifikat_kompetensi_profesi_industri",
-        "lembaga_penerbit_sertifikat_kompetensi_profesi_industri",
-        "mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi",
-        "kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu",
+        "bidang_sertifikasi_sertifikat_profesi_kompetensi_industri",
+        "lembaga_penerbit_sertifikat_profesi_kompetensi_industri",
+        "mata_kuliah_yang_diampu",
       ]
 
       textFields.forEach((field) => {
@@ -241,6 +223,9 @@ const DosenTidakTetap = {
         }
       })
 
+      // Pastikan bobot_kredit_sks adalah angka
+      result.bobot_kredit_sks = parseFloat(result.bobot_kredit_sks) || 0
+
       return result
     })
   },
@@ -249,58 +234,51 @@ const DosenTidakTetap = {
     const errors = []
 
     data.forEach((item, index) => {
-      // Daftar field wajib isi
       const requiredFields = [
         {
-          field: item.nama_dosen,
+          field: item.nama_dosen_industri_praktisi,
           message: `Row ${index + 1}: Nama dosen harus diisi`,
         },
+        { field: item.nidk, message: `Row ${index + 1}: NIDK harus diisi` },
         {
-          field: item.nidn_nidk,
-          message: `Row ${index + 1}: NIDN/NIDK harus diisi`,
+          field: item.perusahaan_industri,
+          message: `Row ${index + 1}: Perusahaan industri harus diisi`,
         },
         {
-          field: item.magister_magister_terapan_pendidikan_pasca_sarjana,
-          message: `Row ${index + 1}: Magister harus diisi`,
-        },
-        {
-          field: item.doktor_doktor_terapan_pendidikan_pasca_sarjana,
-          message: `Row ${index + 1}: Doktor harus diisi`,
+          field: item.pendidikan_tertinggi,
+          message: `Row ${index + 1}: Pendidikan tertinggi harus diisi`,
         },
         {
           field: item.bidang_keahlian,
           message: `Row ${index + 1}: Bidang keahlian harus diisi`,
         },
         {
-          field: item.jabatan_akademik,
-          message: `Row ${index + 1}: Jabatan akademik harus diisi`,
-        },
-        {
-          field: item.nomor_sertifikat_pendidik_profesional,
-          message: `Row ${index + 1}: Nomor sertifikat pendidik harus diisi`,
-        },
-        {
-          field: item.bidang_sertifikasi_sertifikat_kompetensi_profesi_industri,
+          field: item.bidang_sertifikasi_sertifikat_profesi_kompetensi_industri,
           message: `Row ${index + 1}: Bidang sertifikasi harus diisi`,
         },
         {
-          field: item.lembaga_penerbit_sertifikat_kompetensi_profesi_industri,
+          field: item.lembaga_penerbit_sertifikat_profesi_kompetensi_industri,
           message: `Row ${index + 1}: Lembaga penerbit sertifikat harus diisi`,
         },
         {
-          field: item.mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi,
-          message: `Row ${index + 1}: Mata kuliah yang diampu harus diisi`,
-        },
-        {
-          field: item.kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu,
-          message: `Row ${index + 1}: Kesesuaian bidang keahlian harus diisi`,
+          field: item.mata_kuliah_yang_diampu,
+          message: `Row ${index + 1}: Mata kuliah harus diisi`,
         },
       ]
 
-      // Cek field wajib isi
       requiredFields.forEach(({ field, message }) => {
-        if (!field) errors.push(message)
+        if (!field || field.trim() === "") errors.push(message)
       })
+
+      if (
+        item.bobot_kredit_sks === undefined ||
+        item.bobot_kredit_sks === null ||
+        item.bobot_kredit_sks === 0
+      ) {
+        errors.push(
+          `Row ${index + 1}: Bobot kredit SKS harus diisi dan tidak boleh 0`
+        )
+      }
     })
 
     return {
@@ -332,4 +310,4 @@ const DosenTidakTetap = {
   },
 }
 
-export default DosenTidakTetap
+export default DosenIndustriPraktisi

@@ -1,22 +1,20 @@
-/**
- * Plugin khusus untuk section produk / jasa yang dihasilkan mahasiswa yang diadopsi oleh industri / masyarakat
- */
 import { processExcelDataBase } from "../utils/tableUtils"
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { cekStrata } from "./checkStrata"
 
-const PengakuanRekognisiDtps = {
+const DosenTidakTetap = {
   getInfo() {
     return {
-      code: "3b1",
-      name: "Pengakuan/Rekognisi DTPS",
-      Description: "Plugin for processing ",
+      code: "3a4",
+      name: "Dosen Tidak Tetap",
+      Description: "Plugin for processing Non-Permanent Lecturers",
     }
   },
 
   configureSection(config) {
     return {
       ...config,
-      isPengakuanRekognisiDtps: true,
+      isDosenTidakTetap: true,
     }
   },
 
@@ -65,16 +63,19 @@ const PengakuanRekognisiDtps = {
     const processedData = filteredData.map((row, index) => {
       const item = {
         key: `excel-${index + 1}-${Date.now()}`,
-        no: "",
-        selected: true,s
+        no: index + 1,
+        selected: true,
         nama_dosen: "",
+        nidn_nidk: "",
+        magister_magister_terapan_pendidikan_pasca_sarjana: "",
+        doktor_doktor_terapan_pendidikan_pasca_sarjana: "",
         bidang_keahlian: "",
-        rekognisi_rekognisi_dan_bukti_pendukung: "",
-        bukti_pendukung_rekognisi_dan_bukti_pendukung: "",
-        tingkat_wilayah: "",
-        tingkat_nasional: "",
-        tingkat_interna_sional: "",
-        tahun_yyyy: "",
+        jabatan_akademik: "",
+        nomor_sertifikat_pendidik_profesional: "",
+        bidang_sertifikasi_sertifikat_kompetensi_profesi_industri: "",
+        lembaga_penerbit_sertifikat_kompetensi_profesi_industri: "",
+        mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi: "",
+        kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu: "",
       }
 
       Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
@@ -86,9 +87,7 @@ const PengakuanRekognisiDtps = {
           item[fieldName] =
             value !== undefined && value !== null ? String(value).trim() : ""
         } else if (
-          fieldName === "tingkat_wilayah" ||
-          (fieldName === "tingkat_nasional" &&
-            fieldName === "tingkat_interna_sional")
+          fieldName === "bidang_keahlian_dengan_mata_kuliah_yang_diampu"
         ) {
           const strVal = String(value || "")
             .toLowerCase()
@@ -144,63 +143,57 @@ const PengakuanRekognisiDtps = {
   },
 
   async calculateScore(data, config, additionalData = {}) {
-    // NRD = Jumlah pengakuan atas prestasi/kinerja DTPS yang relevan dengan bidang keahlian dalam 3 tahun terakhir.
-    let NRD = 0
+    let NDTT = 0
+
+    const responseScoreDetail = await fetchScoreDetails(
+      "3a1",
+      additionalData.projectId
+    )
+
+    let NDT = responseScoreDetail?.NDT || 0
+
+    // PDTT = (NDTT / (NDT + NDTT)) x 100%
+    let PDTT = 0
+
+    // Fungsi pengecekan isi field
     data.forEach((item) => {
       if (
-        item.nama_dosen?.trim() &&
-        item.rekognisi_rekognisi_dan_bukti_pendukung?.trim()
+        item.nama_dosen !== null &&
+        item.nama_dosen !== undefined &&
+        item.nama_dosen !== ""
       ) {
-        NRD += 1
+        NDTT += 1
       }
     })
 
-    // NDTPS = Jumlah dosen tetap yang ditugaskan sebagai pengampu mata kuliah dengan bidang keahlian yang sesuai dengan kompetensi inti program studi yang diakreditasi.
-    const responseScoreDetail = await fetchScoreDetails("3a1")
-
-    if (!responseScoreDetail) {
-      console.warn('fetchScoreDetails("3a1") did not return any data')
-      return {
-        scores: [
-          {
-            butir: 24,
-            nilai: 0,
-          },
-        ],
-        scoreDetail: {},
-      }
-    }
-
-    const NDTPS = responseScoreDetail?.NDTPS || 0
-    // RRD = NRD / NDTPS
-    let RRD = NRD / NDTPS
+    PDTT = (NDTT / (NDT + NDTT)) * 100
 
     // Hitung skor
     let score = 0
-    if (RRD >= 0.25) {
+    if (PDTT === 0 && responseScoreDetail.NDTPS >= 5) {
       score = 4
-    } else if (RRD < 0.25) {
-      score = 2 + 8 * RRD
+    } else if (PDTT > 0 && PDTT <= 40 && responseScoreDetail.NDTPS >= 5) {
+      score = 4 - (5 * PDTT) / 100
+    } else if (PDTT > 40 && PDTT <= 60 && responseScoreDetail.NDTPS >= 5) {
+      score = 1
     }
 
     score = Math.round(score * 100) / 100
-    RRD = Math.round(RRD * 100) / 100
 
     // Logging untuk debugging
-    console.log("Hasil RRD : ", RRD)
+    console.log("Hasil PDTT :", PDTT, "%")
     console.log("Score : ", score)
 
     return {
       scores: [
         {
-          butir: 24,
+          butir: 23,
           nilai: score,
         },
       ],
       scoreDetail: {
-        RRD,
-        NRD,
-        NDTPS,
+        PDTT,
+        NDTT,
       },
     }
   },
@@ -211,13 +204,16 @@ const PengakuanRekognisiDtps = {
 
       const textFields = [
         "nama_dosen",
+        "nidn_nidk",
+        "magister_magister_terapan_pendidikan_pasca_sarjana",
+        "doktor_doktor_terapan_pendidikan_pasca_sarjana",
         "bidang_keahlian",
-        "rekognisi_rekognisi_dan_bukti_pendukung",
-        "bukti_pendukung_rekognisi_dan_bukti_pendukung",
-        "tingkat_wilayah",
-        "tingkat_nasional",
-        "tingkat_interna_sional",
-        "tahun_yyyy",
+        "jabatan_akademik",
+        "nomor_sertifikat_pendidik_profesional",
+        "bidang_sertifikasi_sertifikat_kompetensi_profesi_industri",
+        "lembaga_penerbit_sertifikat_kompetensi_profesi_industri",
+        "mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi",
+        "kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu",
       ]
 
       textFields.forEach((field) => {
@@ -238,63 +234,58 @@ const PengakuanRekognisiDtps = {
     const errors = []
 
     data.forEach((item, index) => {
+      // Daftar field wajib isi
       const requiredFields = [
         {
           field: item.nama_dosen,
           message: `Row ${index + 1}: Nama dosen harus diisi`,
         },
         {
+          field: item.nidn_nidk,
+          message: `Row ${index + 1}: NIDN/NIDK harus diisi`,
+        },
+        {
+          field: item.magister_magister_terapan_pendidikan_pasca_sarjana,
+          message: `Row ${index + 1}: Magister harus diisi`,
+        },
+        {
+          field: item.doktor_doktor_terapan_pendidikan_pasca_sarjana,
+          message: `Row ${index + 1}: Doktor harus diisi`,
+        },
+        {
           field: item.bidang_keahlian,
           message: `Row ${index + 1}: Bidang keahlian harus diisi`,
         },
         {
-          field: item.rekognisi_rekognisi_dan_bukti_pendukung,
-          message: `Row ${index + 1}: Rekognisi harus diisi`,
+          field: item.jabatan_akademik,
+          message: `Row ${index + 1}: Jabatan akademik harus diisi`,
         },
         {
-          field: item.bukti_pendukung_rekognisi_dan_bukti_pendukung,
-          message: `Row ${index + 1}: Bukti pendukung harus diisi`,
+          field: item.nomor_sertifikat_pendidik_profesional,
+          message: `Row ${index + 1}: Nomor sertifikat pendidik harus diisi`,
         },
         {
-          field: item.tingkat_wilayah,
-          message: `Row ${index + 1}: Tingkat wilayah harus diisi`,
+          field: item.bidang_sertifikasi_sertifikat_kompetensi_profesi_industri,
+          message: `Row ${index + 1}: Bidang sertifikasi harus diisi`,
         },
         {
-          field: item.tingkat_nasional,
-          message: `Row ${index + 1}: Tingkat nasional harus diisi`,
+          field: item.lembaga_penerbit_sertifikat_kompetensi_profesi_industri,
+          message: `Row ${index + 1}: Lembaga penerbit sertifikat harus diisi`,
         },
         {
-          field: item.tingkat_interna_sional,
-          message: `Row ${index + 1}: Tingkat internasional harus diisi`,
+          field: item.mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi,
+          message: `Row ${index + 1}: Mata kuliah yang diampu harus diisi`,
         },
         {
-          field: item.tahun_yyyy,
-          message: `Row ${index + 1}: Tahun harus diisi`,
+          field: item.kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu,
+          message: `Row ${index + 1}: Kesesuaian bidang keahlian harus diisi`,
         },
       ]
 
+      // Cek field wajib isi
       requiredFields.forEach(({ field, message }) => {
-        if (!field || String(field).trim() === "") errors.push(message)
+        if (!field) errors.push(message)
       })
-
-      const tingkat = [
-        item.tingkat_wilayah,
-        item.tingkat_nasional,
-        item.tingkat_interna_sional,
-      ]
-
-      const validYes = ["v", "ya", "yes", "ada", "✓", "√", "1", "true"]
-      const hasOneTingkat = tingkat.some((val) =>
-        validYes.includes(String(val || "").toLowerCase())
-      )
-
-      if (!hasOneTingkat) {
-        errors.push(
-          `Row ${
-            index + 1
-          }: Minimal salah satu tingkat (wilayah/nasional/internasional) harus terisi dengan valid`
-        )
-      }
     })
 
     return {
@@ -326,4 +317,4 @@ const PengakuanRekognisiDtps = {
   },
 }
 
-export default PengakuanRekognisiDtps
+export default DosenTidakTetap
