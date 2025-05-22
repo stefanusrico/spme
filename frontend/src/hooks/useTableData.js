@@ -7,7 +7,7 @@ import {
   shouldHaveDefaultAcademicYears,
 } from "../utils/studentUtils"
 
-export const useTableData = (tableCode, config, userData) => {
+export const useTableData = (tableCode, config, userData, projectId) => {
   const { plugin, loading: pluginLoading } = useTablePlugin(tableCode)
 
   const [tableData, setTableData] = useState({})
@@ -282,31 +282,16 @@ export const useTableData = (tableCode, config, userData) => {
     if (!config || !userData || !plugin) return
 
     try {
-      // Update this to use the new data endpoint
-      const response = await axiosInstance.get(`/lkps/data/${tableCode}`, {
-        params: { prodiId },
+      const response = await axiosInstance.get(`lkps/data`, {
+        params: {
+          projectId,
+          tableCode,
+        },
       })
 
       if (response.data) {
-        let processedLkpsId = null
-        if (response.data.lkpsId) {
-          if (
-            typeof response.data.lkpsId === "object" &&
-            response.data.lkpsId.$oid
-          ) {
-            processedLkpsId = response.data.lkpsId.$oid
-          } else {
-            processedLkpsId = response.data.lkpsId
-          }
-        }
-
-        setLkpsId(processedLkpsId)
-        setLkpsInfo(response.data.lkpsInfo || null)
-
-        // Process data from response
         const savedData = {}
-        if (response.data.data) {
-          // Assuming data is already in the right format
+        if (response.data.data && Array.isArray(response.data.data)) {
           savedData[tableCode] = plugin.normalizeData(response.data.data)
         }
 
@@ -317,7 +302,6 @@ export const useTableData = (tableCode, config, userData) => {
           savedData
         )
 
-        // Merge saved data with initialized data
         Object.keys(savedData).forEach((tableCode) => {
           if (
             savedData[tableCode] &&
@@ -329,7 +313,6 @@ export const useTableData = (tableCode, config, userData) => {
           }
         })
 
-        // Handle student table defaults
         if (shouldHaveDefaultAcademicYears(tableCode)) {
           const defaultData = initializeStudentTableData(
             tableCode,
@@ -371,19 +354,23 @@ export const useTableData = (tableCode, config, userData) => {
 
         setTableData(initializedData)
 
-        // Initialize selection data
         const initialSelectionData = {}
         Object.keys(initializedData).forEach((tableCode) => {
           initialSelectionData[tableCode] = []
         })
         setSelectionData(initialSelectionData)
 
-        // Set score if available
-        if (response.data.nilai !== null && response.data.nilai !== undefined) {
+        if (response.data.nilai && Array.isArray(response.data.nilai)) {
           setScore(response.data.nilai)
+        } else if (
+          response.data.nilai !== null &&
+          response.data.nilai !== undefined
+        ) {
+          setScore([{ butir: null, nilai: response.data.nilai }])
+        } else {
+          setScore(null)
         }
 
-        // Set score details if available
         if (response.data.detailNilai) {
           setScoreDetail(response.data.detailNilai)
         }
@@ -392,12 +379,21 @@ export const useTableData = (tableCode, config, userData) => {
       console.error("Error fetching data:", err)
 
       if (err.response?.status === 404) {
-        // Create new data if needed
-        if (err.response?.data?.create_new) {
-          setShowCreateModal(true)
-        }
+        const errorMessage = err.response?.data?.message || ""
 
-        // Initialize empty data
+        if (errorMessage.includes("No task found")) {
+          message.warning("No task found for this table in the current project")
+        } else if (errorMessage.includes("Project not found")) {
+          message.error("Project not found")
+          return
+        } else if (errorMessage.includes("Table not found")) {
+          message.error("Table configuration not found")
+          return
+        } else {
+          if (err.response?.data?.create_new) {
+            setShowCreateModal(true)
+          }
+        }
         const initializedData = plugin.initializeData(
           config,
           prodiName,
@@ -434,13 +430,20 @@ export const useTableData = (tableCode, config, userData) => {
         setSelectionData(initialSelectionData)
       }
     }
-  }, [config, tableCode, prodiId, prodiName, userData, plugin])
+  }, [config, tableCode, projectId, prodiName, userData, plugin])
 
   useEffect(() => {
-    if (config && userData && plugin && !config.isLoading && !pluginLoading) {
+    if (
+      config &&
+      userData &&
+      plugin &&
+      !config.isLoading &&
+      !pluginLoading &&
+      projectId
+    ) {
       fetchTableData()
     }
-  }, [config, fetchTableData, userData, plugin, pluginLoading])
+  }, [config, fetchTableData, userData, plugin, pluginLoading, projectId])
 
   useEffect(() => {
     if (shouldHaveDefaultAcademicYears(tableCode) && plugin && config) {

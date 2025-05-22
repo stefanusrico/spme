@@ -1,222 +1,149 @@
 import { useState, useCallback } from "react"
 import { message } from "antd"
+import { toast } from "react-toastify"
 import axiosInstance from "../utils/axiosConfig"
 
 export const useSaveData = (
-  sectionCode,
+  tableCode,
   userData,
   tableData,
   score,
   lkpsId,
-  savedSections,
-  setSavedSections,
+  savedTables,
+  setSavedTables,
   setScore,
   setScoreDetail,
-  setShowCreateModal,
-  plugin
+  plugin,
+  projectId
 ) => {
   const [saving, setSaving] = useState(false)
 
-  const handleSave = useCallback(
-    async (config) => {
-      if (!userData) {
-        message.error("User information not found")
-        return
-      }
-
-      setSaving(true)
-      const loadingKey = "saveData"
-      message.loading({
-        content: "Saving data...",
-        key: loadingKey,
-        duration: 0,
+  const handleSave = async (config) => {
+    setSaving(true)
+    try {
+      // Prepare your data for saving
+      const tables = config.tables.map((table) => {
+        // Get the actual table code
+        const actualTableCode =
+          typeof table === "string" ? table : table.code || table.kode
+        return {
+          tableCode: actualTableCode,
+          data: tableData[actualTableCode] || [],
+        }
       })
 
-      const payload = {
-        data: [],
-        nilai: null,
-        detailNilai: {},
-      }
+      // Save each table with API calls
+      const savePromises = tables.map(async (tableInfo) => {
+        const { tableCode: code, data } = tableInfo
 
-      let hasData = false
-      try {
-        // Prepare data for each table
-        for (const tableConfig of config.tables) {
-          const tableCode =
-            typeof tableConfig === "string" ? tableConfig : tableConfig.code
-
-          console.log("Ini tabel yang disave: ", tableCode)
-          const tableRows = tableData[tableCode] || []
-
-          if (tableRows.length > 0) {
-            hasData = true
-            // Use the table data directly - our backend expects this format
-            payload.data = plugin?.prepareDataForSaving
-              ? plugin.prepareDataForSaving(tableRows, userData)
-              : tableRows.map((row, index) => ({
-                  ...row,
-                  no: index + 1,
-                  _timestamp: new Date().getTime(),
-                }))
-          }
+        // Initialize payload with basic structure
+        let payload = {
+          data,
+          nilai: score, // Start with current score
+          detailNilai: {},
+          projectId,
+          tableCode: code,
         }
 
-        if (!hasData) {
-          message.warning({ content: "No data to save", key: loadingKey })
-          setSaving(false)
-          return
-        }
-
-        // Calculate score if needed
-        let calculatedScores = null
+        // Calculate score if plugin supports it
         if (plugin?.calculateScore) {
           try {
-            const firstTableCode =
-              typeof config.tables[0] === "string"
-                ? config.tables[0]
-                : config.tables[0]?.code
-            console.log("Ini table code untuk save: ", firstTableCode)
-            const data = tableData[firstTableCode] || []
-
-            message.loading({
-              content: "Calculating score...",
-              key: loadingKey,
-              duration: 0,
-            })
-
             const result = await plugin.calculateScore(data, config, {
               userData,
               currentConfig: config,
               forcedCalculation: true,
+              projectId,
+              NDTPS: 0,
             })
 
+            console.log("ini result dari plugincaclculatescore", result)
+
             if (result) {
-              // Handle scores array from plugin
-              if (
-                result.scores &&
-                Array.isArray(result.scores) &&
-                result.scores.length > 0
-              ) {
-                // Save the full scores array directly in the nilai field
-                calculatedScores = result.scores
-                payload.nilai = result.scores
-
-                // For UI display, set the array
+              // Update payload with calculated values
+              if (result.scores !== undefined && result.scores !== null) {
+                payload.nilai = result.scores // Use 'nilai' for API
                 setScore(result.scores)
-                console.log("Setting UI scores array:", result.scores)
               }
-              // Fallback to single score value if present
-              else if (result.score !== undefined && result.score !== null) {
-                const numericScore = parseFloat(result.score) || 0
-                calculatedScores = [{ butir: 1, nilai: numericScore }]
-                payload.nilai = calculatedScores
-                setScore(calculatedScores)
-                console.log("Setting single score as array:", calculatedScores)
-              }
-
               if (result.scoreDetail) {
-                payload.detailNilai = result.scoreDetail
+                payload.detailNilai = result.scoreDetail // Use 'detailNilai' for API
                 setScoreDetail(result.scoreDetail)
-                console.log("Setting score details:", result.scoreDetail)
               }
             }
           } catch (error) {
-            console.error("Error calculating score:", error)
+            console.error(`Error calculating score for section ${code}:`, error)
           }
         }
 
-        // Save data using the new API endpoint
-        const response = await axiosInstance.post(
-          `/lkps/data/${sectionCode}`,
-          payload
-        )
-
-        if (response.data || response.status === 200) {
-          // Format scores for display in the success message
-          let scoreMessage = ""
-          if (calculatedScores && Array.isArray(calculatedScores)) {
-            scoreMessage = calculatedScores
-              .map((s) => `${s.butir}: ${parseFloat(s.nilai).toFixed(2)}`)
-              .join(", ")
-          }
-
-          message.success({
-            content: `Data saved successfully${
-              scoreMessage ? `. Score: ${scoreMessage}` : ""
-            }`,
-            key: loadingKey,
-          })
-
-          if (Array.isArray(savedSections)) {
-            if (!savedSections.includes(sectionCode)) {
-              setSavedSections([...savedSections, sectionCode])
-            }
-          } else {
-            setSavedSections([sectionCode])
-          }
-
-          // After successful save, update state with response data
-          if (response.data) {
-            // If the server returned scores, update them
-            if (response.data.nilai !== undefined) {
-              setScore(response.data.nilai)
-            }
-
-            // Update score details if available
-            if (response.data.detailNilai !== undefined) {
-              setScoreDetail(response.data.detailNilai)
-            }
-          }
-        } else {
-          message.error({
-            content: `Failed to save data: ${
-              response.data?.message || "Unknown error"
-            }`,
-            key: loadingKey,
-          })
+        // If you have a task ID from existing data
+        if (lkpsId) {
+          payload.taskId = lkpsId
         }
-      } catch (error) {
-        console.error("Error saving data:", error)
-        message.error({
-          content: `Error saving data: ${
-            error.response?.data?.message || error.message || "Unknown error"
-          }`,
-          key: loadingKey,
+
+        console.log("Final payload being sent:", {
+          ...payload,
+          data: `[${payload.data.length} items]`, // Don't log full data
         })
-      } finally {
-        setSaving(false)
-      }
-    },
-    [
-      sectionCode,
-      tableData,
-      userData,
-      score,
-      savedSections,
-      setSavedSections,
-      setScore,
-      setScoreDetail,
-      plugin,
-    ]
-  )
 
-  const handleLkpsCreated = useCallback((lkps, setLkpsId, setLkpsInfo) => {
-    if (lkps && lkps._id) {
-      const newLkpsId =
-        typeof lkps._id === "object" && lkps._id.$oid ? lkps._id.$oid : lkps._id
-      setLkpsId(newLkpsId)
-      setLkpsInfo({
-        periode: lkps.periode,
-        tahunAkademik: lkps.tahunAkademik,
-        status: lkps.status || "draft",
+        try {
+          const response = await axiosInstance.post(
+            `/lkps/data/${code}`,
+            payload
+          )
+          return response.data
+        } catch (error) {
+          console.error(`Error saving table ${code}:`, error)
+          throw error
+        }
       })
-      message.success("LKPS created successfully. You can now save data.")
-    }
-  }, [])
 
-  return {
-    saving,
-    handleSave,
-    handleLkpsCreated,
+      const results = await Promise.all(savePromises)
+
+      // Update UI based on save results
+      setSavedTables([...savedTables, tableCode])
+
+      // Update score if returned from API
+      if (results[0]) {
+        if (results[0].nilai !== undefined && results[0].nilai !== null) {
+          setScore(results[0].nilai)
+        }
+        if (results[0].detailNilai) {
+          setScoreDetail(results[0].detailNilai)
+        }
+      }
+
+      toast.success("Data saved successfully!")
+    } catch (error) {
+      console.error("Error saving data:", error)
+
+      // Better error handling for specific error cases
+      if (error.response) {
+        // Handle specific HTTP error responses
+        if (
+          error.response.status === 404 &&
+          error.response.data.message.includes("Project not found")
+        ) {
+          toast.error(
+            "Project not found. Please make sure you are working in a valid project."
+          )
+        } else if (
+          error.response.status === 403 &&
+          error.response.data.message.includes("inactive")
+        ) {
+          toast.error(
+            "Cannot save data for inactive projects. Please contact your administrator."
+          )
+        } else {
+          toast.error(
+            `Error: ${error.response.data.message || "Unknown error occurred"}`
+          )
+        }
+      } else {
+        toast.error(`Error saving data: ${error.message}`)
+      }
+    } finally {
+      setSaving(false)
+    }
   }
+
+  return { saving, handleSave }
 }
