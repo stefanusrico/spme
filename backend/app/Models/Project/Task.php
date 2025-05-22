@@ -11,7 +11,6 @@ class Task extends Model
     protected $collection = 'tasks';
 
     protected $fillable = [
-        'taskId',
         'taskListId',
         'ledItemId',
         'lkpsTableId',

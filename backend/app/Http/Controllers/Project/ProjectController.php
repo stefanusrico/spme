@@ -380,10 +380,9 @@ class ProjectController extends Controller
             // Format the task
             $formattedTask = [
                 'id' => $task->_id,
-                'taskId' => $task->taskId,
                 'no' => $task->no,
                 'sub' => $task->sub,
-                'name' => $task->nama ?: "Task {$task->taskId}",
+                'name' => $task->nama ?: "Task " . $task->_id,
                 'status' => $task->status,
                 'progress' => $task->progress,
                 'owners' => $taskOwnersDetails,
@@ -418,7 +417,6 @@ class ProjectController extends Controller
      */
     private function populateTaskName($task, $ledItems, $lkpsTables)
     {
-        // If task already has a name, use it
         if (!empty($task->nama)) {
             return;
         }
@@ -442,7 +440,7 @@ class ProjectController extends Controller
         }
 
         // Default fallback
-        $task->nama = "Task {$task->taskId}";
+        $task->nama = "Task {$task->_id}";
     }
 
     /**
@@ -632,9 +630,9 @@ class ProjectController extends Controller
             $tasks = $sortedTasks->map(function ($task) {
                 return [
                     'id' => $task->_id,
-                    'taskId' => $task->taskId,
-                    'no' => $task->no,
-                    'sub' => $task->sub,
+                    'taskListId' => $task->taskListid,
+                    'ledItemId' => $task->ledItemId,
+                    'lkpsTableId' => $task->lkpsTableId,
                     'name' => "Butir {$task->no} - {$task->sub}",
                     'progress' => $task->progress,
                     'owners' => $task->users->map(function ($user) {
@@ -645,7 +643,7 @@ class ProjectController extends Controller
                         ];
                     }),
                     'startDate' => $task->startDate,
-                    'endDate' => $task->endDate
+                    'endDate' => $task->endDate,
                 ];
             })->toArray();
 
@@ -712,7 +710,6 @@ class ProjectController extends Controller
                     'tasks' => function ($query) {
                         $query->select(
                             '_id',
-                            'taskId',
                             'taskListId',
                             'ledItemId',
                             'lkpsTableId',
@@ -760,9 +757,8 @@ class ProjectController extends Controller
 
                     $processedTasks[] = [
                         'id' => $task->_id,
-                        'taskId' => $task->taskId,
-                        'no' => $taskDetails['no'],
-                        'sub' => $taskDetails['sub'],
+                        'ledItemId' => $task->ledItemId,
+                        'lkpsTableId' => $task->lkpsTableId,
                         'name' => $taskDetails['name'],
                         'status' => $task->status,
                         'progress' => $task->progress,
@@ -1481,7 +1477,7 @@ class ProjectController extends Controller
         }
 
         if (!$task->nama) {
-            $task->nama = "Task {$task->taskId}";
+            $task->nama = "Task " . $task->_id;
         }
     }
 }
