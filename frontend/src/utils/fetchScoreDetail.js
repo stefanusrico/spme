@@ -1,17 +1,19 @@
 import axiosInstance from "./axiosConfig"
 
-export const fetchScoreDetails = async (prodiId, tableCode) => {
+export const fetchScoreDetails = async (tableCode, projectId) => {
   try {
-    const response = await axiosInstance.get("score-details", {
+    const response = await axiosInstance.get("/score-details", {
       params: {
-        prodiId,
-        tableCode: tableCode,
+        projectId,
+        tableCode,
       },
     })
 
-    return response.data
+    console.log(`Fetched score details for table ${tableCode}:`, response.data)
+    return response.data.detailNilai || {}
   } catch (error) {
-    console.error("Terjadi kesalahan saat mengambil score-details:", error)
-    throw error
+    console.error(`Error fetching score details for table ${tableCode}:`, error)
+    // Return empty object instead of throwing
+    return {}
   }
 }
