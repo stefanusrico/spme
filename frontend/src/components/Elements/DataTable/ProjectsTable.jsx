@@ -132,7 +132,10 @@ const ProjectsTable = ({ isCollapsed }) => {
           const className =
             status === "ACTIVE"
               ? "text-green bg-green_badge"
-              : "bg-red_badge text-red"
+              : status === "IN PROGRESS"
+              ? "bg-yellow-100 text-yellow-800 border-yellow-200"
+              : "text-red bg-red_badge"
+
           return (
             <span
               className={`text-sm text-center font-semibold rounded-lg px-2 py-1 ${className}`}
@@ -329,7 +332,6 @@ const ProjectsTable = ({ isCollapsed }) => {
 
   useEffect(() => {
     fetchProjects()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Dependency array kosong agar hanya dijalankan sekali saat mount
 
   // Render JSX sisanya tetap sama
