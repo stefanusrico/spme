@@ -113,6 +113,72 @@ class LedDataController extends Controller
         }
     }
 
+    public function getSkorPerButir($prodiId)
+    {
+        try {
+            $ledData = LedData::orderBy('created_at', 'desc')
+                ->get();
+
+            $filteredLedData = $ledData->filter(function ($item) use ($prodiId) {
+                return $item->task && $item->task->tasklist &&
+                    $item->task->tasklist->project &&
+                    $item->task->tasklist->project->prodiId === $prodiId &&
+                    $item->task->tasklist->project->status === 'ACTIVE';
+            });         
+
+            if ($filteredLedData->isEmpty()) {
+                Log::warning("LED not found :", [
+                    'prodiId' => $prodiId,
+                    'count' => $ledData->count(),
+                ]);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No data found',
+                ], 404);
+            }
+
+            $uniqueByTaskId = $filteredLedData
+                ->groupBy('taskId')
+                ->map(function ($group) {
+                    return $group->sortByDesc('created_at')->first(); // Ambil yang terbaru
+                })
+                ->values();
+
+            $result = $uniqueByTaskId->map(function ($item) {
+                return [
+                    'no' => $item->task && $item->task->ledItem ? $item->task->ledItem->no : null,
+                    'nilai' => isset($item->details[0]) ? $item->details[0]['nilai'] : null,
+                ];
+            });
+
+
+           $grouped = $result->groupBy('no');
+
+            // Hitung rata-rata nilai jika ada lebih dari 1 sub dengan no yang sama
+            $finalResult = $grouped->map(function ($items, $no) {
+                $average = $items->map(function ($i) {
+                    return is_numeric($i['nilai']) ? (float) $i['nilai'] : 0;
+                })->avg();
+
+                return [
+                    'no' => $no,
+                    'nilai' => number_format($average, 2), // string dengan 2 desimal
+                ];
+            })->values();
+
+            return response()->json([
+                'status' => 'success',
+                'count data' => $finalResult->count(),
+                'data' => $finalResult, // reset index
+            ], 200);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function getScorePerNoSubByProdi()
     {
         try {

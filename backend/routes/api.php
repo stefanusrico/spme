@@ -256,6 +256,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/ledData/{taskId}/all', 'getAll');
             Route::get('/ledData/{taskId}/latest', 'getLatest');
             Route::get('/ledData/byProdi/{prodiId}', 'getLedDataByProdi');
+            Route::get('/ledData/getSkorPerButir/{prodiId}', 'getSkorPerButir');
             Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
         });
 
