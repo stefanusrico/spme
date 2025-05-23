@@ -20,54 +20,55 @@ const dataPelaksanaanKegiatanMBKMPlugin = {
   },
 
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
+    // ... (kode processExcelData seperti sebelumnya)
     const { rawData, detectedIndices } = await processExcelDataBase(
       workbook,
       tableCode,
       config,
       prodiName
-    )
+    );
 
-    console.log("=== DEBUG: Detected Indices ===")
-    console.table(detectedIndices)
+    console.log("=== DEBUG: Detected Indices ===");
+    console.table(detectedIndices);
 
-    console.log("=== DEBUG: Raw Data ===")
-    console.table(rawData)
+    console.log("=== DEBUG: Raw Data ===");
+    console.table(rawData);
 
-    if (rawData.length === 0) return { allRows: [] }
+    if (rawData.length === 0) return { allRows: [] };
 
     const filteredData = rawData.filter((row) => {
-      if (!row || row.length === 0) return false
+      if (!row || row.length === 0) return false;
 
       const nonEmptyValues = row.filter(
         (val) => val !== undefined && val !== null && val !== ""
-      )
-      if (nonEmptyValues.length <= 1) return false
+      );
+      if (nonEmptyValues.length <= 1) return false;
 
       const isSequentialNumbersRow = nonEmptyValues.every((val, idx) => {
-        const num = parseInt(val)
-        return !isNaN(num) && num === idx + 1
-      })
-      if (isSequentialNumbersRow) return false
+        const num = parseInt(val);
+        return !isNaN(num) && num === idx + 1;
+      });
+      if (isSequentialNumbersRow) return false;
 
       const hasSummaryLabel = row.some((cell) => {
-        if (typeof cell !== "string") return false
-        const normalized = String(cell).toLowerCase().trim()
+        if (typeof cell !== "string") return false;
+        const normalized = String(cell).toLowerCase().trim();
         return (
           normalized === "jumlah" ||
           normalized === "total" ||
           normalized === "sum" ||
           normalized === "rata-rata" ||
           normalized === "average"
-        )
-      })
-      if (hasSummaryLabel) return false
+        );
+      });
+      if (hasSummaryLabel) return false;
 
-      return true
-    })
+      return true;
+    });
 
     const processedData = filteredData.map((row, index) => {
       return {
-        key: `excel-${index + 1}-${Date.now()}`,
+        key: `excel-<span class="math-inline">\{index \+ 1\}\-</span>{Date.now()}`,
         no: index + 1,
         selected: false,
         nama_kegiatan: row[1] || "",
@@ -75,16 +76,16 @@ const dataPelaksanaanKegiatanMBKMPlugin = {
         jenis_kegiatan_mbkm: row[3] || 0,
         mata_kuliah_yang_setara_kode_nama: row[4] || 0,
         sks_mk_yang_setara: row[5] || 0,
-        jumlah_mahasiswa_ps_yang_mengikuti: row[6] || 0,
+        jumlah_mahasiswa_ps_yang_mengikuti: parseInt(row[6]) || 0,
         nama_lembaga_mitra: row[7] || "",
-        nama_dtps_yang_menjadi_pembimbing:  row[8] || "",
-      }
-    })
+        nama_dtps_yang_menjadi_pembimbing:  row[8] || "",
+      };
+    });
 
     return {
       allRows: processedData,
       shouldReplaceExisting: true,
-    }
+    };
   },
 
   initializeData(config, prodiName, sectionCode, existingData = {}) {
@@ -114,46 +115,37 @@ const dataPelaksanaanKegiatanMBKMPlugin = {
       return {
         scores: [
           {
-            butir: 60,
+            butir: 49,
             nilai: 0,
           },
         ],
-        scoreDetail: {},
+        scoreDetail: {
+          jumlah_total_mahasiswa_mengikuti_mbkm: 0,
+        },
       }
     }
 
-    let totalSangatBaik = 0
-    let totalResponden = 0
+    let jumlahTotalMahasiswaMengikutiMBKM = 0;
+    data.forEach(item => {
+      jumlahTotalMahasiswaMengikutiMBKM += item.jumlah_mahasiswa_ps_yang_mengikuti;
+    });
 
-    data.forEach((row) => {
-      const sangatBaik = Number(row.tingkat_sangat_baik || 0)
-      const baik = Number(row.tingkat_baik || 0)
-      const cukup = Number(row.tingkat_cukup || 0)
-      const kurang = Number(row.tingkat_kurang || 0)
-
-      totalSangatBaik += sangatBaik
-      totalResponden += sangatBaik + baik + cukup + kurang
-    })
-
-    const persentase = totalResponden > 0 ? (totalSangatBaik / totalResponden) * 100 : 0
-    let nilai = 0
-
-    if (persentase >= 60) nilai = 4
-    else if (persentase >= 45) nilai = 3
-    else if (persentase >= 30) nilai = 2
-    else if (persentase >= 15) nilai = 1
+    let nilai = 0;
+    // Penilaian sangat kasar berdasarkan jumlah mahasiswa, perlu disesuaikan dengan % total mhs
+    // if (jumlahTotalMahasiswaMengikutiMBKM >= 25) nilai = 4;
+    // else if (jumlahTotalMahasiswaMengikutiMBKM >= 40) nilai = 3;
+    // else if (jumlahTotalMahasiswaMengikutiMBKM >= 20) nilai = 2;
+    // else if (jumlahTotalMahasiswaMengikutiMBKM > 0) nilai = 1;
 
     return {
       scores: [
         {
-          butir: 60,
+          butir: 49,
           nilai,
         },
       ],
       scoreDetail: {
-        totalSangatBaik,
-        totalResponden,
-        persentase: persentase.toFixed(2),
+        
       },
     }
   },
@@ -162,10 +154,10 @@ const dataPelaksanaanKegiatanMBKMPlugin = {
     return data.map((item) => {
       return {
         ...item,
-        sangat_baik: parseInt(item.tingkat_sangat_baik) || 0,
-        baik: parseInt(item.tingkat_baik) || 0,
-        cukup: parseInt(item.tingkat_cukup) || 0,
-        kurang: parseInt(item.tingkat_kurang) || 0,
+        periode_pelaksanaan_durasi: parseInt(item.periode_pelaksanaan_durasi) || 0,
+        jenis_kegiatan_mbkm: parseInt(item.jenis_kegiatan_mbkm) || 0,
+        sks_mk_yang_setara: parseInt(item.sks_mk_yang_setara) || 0,
+        jumlah_mahasiswa_ps_yang_mengikuti: parseInt(item.jumlah_mahasiswa_ps_yang_mengikuti) || 0,
       }
     })
   },

@@ -121,7 +121,7 @@ const dataPrasaranaUPPSPlugin = {
           },
         ],
         scoreDetail: {
-          note: "Silakan isi penilaian indikator secara manual berdasarkan kondisi sarana prasarana.",
+          
         },
       }
     },

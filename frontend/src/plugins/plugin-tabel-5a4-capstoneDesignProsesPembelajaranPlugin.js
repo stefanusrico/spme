@@ -83,64 +83,15 @@ const capstoneDesignProsesPembelajaranPlugin = {
   },
 
   calculateScore(data) {
-    if (!data || data.length === 0) {
-      return {
-        scores: [
-          {
-            butir: 54, // asumsi butirnya 54, bisa disesuaikan
-            nilai: 0,
-          },
-        ],
-        scoreDetail: {
-          jumlah_mk: 0,
-          distribusi_aspek: {
-            aspek_1: 0,
-            aspek_2: 0,
-            aspek_3: 0,
-            aspek_4: 0,
-          },
-        },
-      }
-    }
-
-    const aspekCounter = { aspek_1: 0, aspek_2: 0, aspek_3: 0, aspek_4: 0 }
-
-    data.forEach((item) => {
-      for (let i = 1; i <= 4; i++) {
-        if (item[`aspek_${i}`]) aspekCounter[`aspek_${i}`] += 1
-      }
-    })
-
-    const allAspek = Object.values(aspekCounter).map(Boolean)
-    const hasAspek = (n) => {
-      const checklist = [1, 2, 3, 4].map(i => aspekCounter[`aspek_${i}`] > 0)
-      const trueCount = checklist.filter(Boolean).length
-      return trueCount >= n
-    }
-
-    let nilai = 0
-    if (hasAspek(4)) {
-      nilai = 4
-    } else if (hasAspek(3)) {
-      nilai = 3
-    } else if (hasAspek(2)) {
-      nilai = 2
-    } else if (hasAspek(1)) {
-      nilai = 1
-    }
-
     return {
       scores: [
         {
-          butir: 54,
-          nilai,
+          butir: 48, // Butir sementara
+          nilai: 0,
         },
       ],
-      scoreDetail: {
-        jumlah_mk: data.length,
-        distribusi_aspek: aspekCounter,
-      },
-    }
+      scoreDetail: {}, // Score detail sementara dikosongkan
+    };
   },
 
   normalizeData(data) {

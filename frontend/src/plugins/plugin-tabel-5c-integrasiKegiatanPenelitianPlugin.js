@@ -36,34 +36,34 @@ const integrasiKegiatanPenelitianPlugin = {
     if (rawData.length === 0) return { allRows: [] }
 
     const filteredData = rawData.filter((row) => {
-        if (!row || row.length === 0) return false
-  
-        const nonEmptyValues = row.filter(
-          (val) => val !== undefined && val !== null && val !== ""
-        )
-        if (nonEmptyValues.length <= 1) return false
-  
-        const isSequentialNumbersRow = nonEmptyValues.every((val, idx) => {
-          const num = parseInt(val)
-          return !isNaN(num) && num === idx + 1
-        })
-        if (isSequentialNumbersRow) return false
-  
-        const hasSummaryLabel = row.some((cell) => {
-          if (typeof cell !== "string") return false
-          const normalized = String(cell).toLowerCase().trim()
-          return (
-            normalized === "jumlah" ||
-            normalized === "total" ||
-            normalized === "sum" ||
-            normalized === "rata-rata" ||
-            normalized === "average"
-          )
-        })
-        if (hasSummaryLabel) return false
-  
-        return true
+      if (!row || row.length === 0) return false
+
+      const nonEmptyValues = row.filter(
+        (val) => val !== undefined && val !== null && val !== ""
+      )
+      if (nonEmptyValues.length <= 1) return false
+
+      const isSequentialNumbersRow = nonEmptyValues.every((val, idx) => {
+        const num = parseInt(val)
+        return !isNaN(num) && num === idx + 1
       })
+      if (isSequentialNumbersRow) return false
+
+      const hasSummaryLabel = row.some((cell) => {
+        if (typeof cell !== "string") return false
+        const normalized = String(cell).toLowerCase().trim()
+        return (
+          normalized === "jumlah" ||
+          normalized === "total" ||
+          normalized === "sum" ||
+          normalized === "rata-rata" ||
+          normalized === "average"
+        )
+      })
+      if (hasSummaryLabel) return false
+
+      return true
+    })
 
     const processedData = filteredData.map((row, index) => {
       return {
@@ -120,31 +120,33 @@ const integrasiKegiatanPenelitianPlugin = {
       return {
         scores: [
           {
-            butir: 57,
+            butir: 50, // Mengikuti butir pada gambar
             nilai: 0,
           },
         ],
-        scoreDetail: {},
+        scoreDetail: {
+          NMKI: 0,
+        },
       }
     }
 
-    const jumlahMK = data.length
+    const NMKI = data.length
     let nilai = 0
 
-    if (jumlahMK >= 3) nilai = 4
-    else if ( jumlahMK >= 2 || jumlahMK <= 3) nilai = 3
-    else if (jumlahMK = 1) nilai = 2
-    else if (jumlahMK < 1) nilai = 0
+    if (NMKI > 3) nilai = 4
+    else if (NMKI >= 2 && NMKI <= 3) nilai = 3
+    else if (NMKI === 1) nilai = 2
+    else nilai = 0 // Tidak ada skor kurang dari 2, jadi kita asumsikan 0 untuk tidak ada
 
     return {
       scores: [
         {
-          butir: 57,
+          butir: 50,
           nilai,
         },
       ],
       scoreDetail: {
-        jumlahMK,
+        NMKI,
       },
     }
   },
