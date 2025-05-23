@@ -27,6 +27,7 @@ import RegisterPage from "./pages/register"
 import UserManagement from "./pages/userManagement"
 import { isTokenExpired } from "./utils/axiosConfig"
 import DynamicLkpsComponent from "./components/Lkps/DynamicLkpsComponent"
+import Syarat from "./pages/syarat.jsx"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +95,7 @@ const router = createBrowserRouter(
               account: Account,
               notifications: Notifications,
               projects: Projects,
+              syarat: Syarat,
             }}
           />
         </UserProvider>
@@ -102,6 +104,7 @@ const router = createBrowserRouter(
         { path: "account", element: null },
         { path: "notifications", element: null },
         { path: "projects/:projectId", element: <Projects /> },
+        { path: "syarat", element: null },
       ],
     },
     {
