@@ -159,7 +159,7 @@ class LkpsDataController extends Controller
         }
 
         // Cek status project
-        if ($project->status !== 'ACTIVE') {
+        if ($project->status === 'ACTIVE') {
             return response()->json(['message' => 'Tidak dapat menyimpan data untuk project yang inactive'], 403);
         }
 
@@ -197,17 +197,31 @@ class LkpsDataController extends Controller
                 $taskId
             );
 
-            // Get task details if we have a taskId
+            // Get task details if we have a taskId and update progress/status
             $task = null;
             if ($lkpsData->taskId) {
                 $task = \App\Models\Project\Task::find($lkpsData->taskId);
+
+                // Update task progress and status
+                if ($task) {
+                    $task->progress = 100;
+                    $task->status = 'COMPLETED';
+                    $task->save();
+
+                    Log::info("Updated task {$task->_id} progress to 100% and status to COMPLETED");
+
+                    // Update project progress
+                    $this->updateProjectProgress($projectId);
+                }
             }
 
             return response()->json([
                 'message' => 'Data saved successfully',
                 'nilai' => $nilai,
                 'taskId' => $lkpsData->taskId,
-                'taskName' => $task ? $task->nama : null
+                'taskName' => $task ? $task->nama : null,
+                'taskProgress' => $task ? $task->progress : null,
+                'taskStatus' => $task ? $task->status : null
             ]);
         } catch (\Exception $e) {
             Log::error("Error saving LKPS data: {$e->getMessage()}", [
@@ -219,6 +233,80 @@ class LkpsDataController extends Controller
             return response()->json([
                 'message' => 'Error saving data: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Update project progress based on task completion
+     */
+    private function updateProjectProgress($projectId)
+    {
+        try {
+            // Find the project
+            $project = \App\Models\Project\Project::find($projectId);
+
+            if (!$project) {
+                Log::error("Project not found for progress update: {$projectId}");
+                return 0;
+            }
+
+            // Get all task lists for this project
+            $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
+
+            if ($taskLists->isEmpty()) {
+                Log::warning("No task lists found for project: {$projectId}");
+                return 0;
+            }
+
+            $taskListIds = $taskLists->pluck('_id')->toArray();
+
+            // Count all tasks
+            $totalTasks = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)->count();
+
+            if ($totalTasks === 0) {
+                Log::warning("No tasks found for project: {$projectId}");
+                return 0;
+            }
+
+            // Count completed tasks
+            $completedTasks = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
+                ->where('status', 'COMPLETED')
+                ->count();
+
+            Log::info("Tasks: {$completedTasks} completed out of {$totalTasks} total");
+
+            // Calculate progress percentage
+            $progress = round(($completedTasks / $totalTasks) * 100, 2);
+
+            // Use direct update query instead of model to avoid fillable issues
+            $result = \App\Models\Project\Project::where('_id', $projectId)
+                ->update([
+                    'progress' => $progress,
+                    'status' => 'IN PROGRESS',
+                    'updated_at' => now()
+                ]);
+
+            // If all tasks completed, update project status to COMPLETED
+            if ($completedTasks === $totalTasks) {
+                \App\Models\Project\Project::where('_id', $projectId)
+                    ->update([
+                        'status' => 'COMPLETED',
+                        'updated_at' => now()
+                    ]);
+
+                Log::info("All tasks completed - Project {$projectId} status set to COMPLETED");
+            }
+
+            Log::info("Updated project {$projectId} progress to {$progress}%, update result: {$result}");
+
+            return $progress;
+        } catch (\Exception $e) {
+            Log::error('Error updating project progress', [
+                'projectId' => $projectId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return 0;
         }
     }
 
@@ -538,6 +626,203 @@ class LkpsDataController extends Controller
             'tableCode' => $tableCode,
             'taskId' => $taskId,
             'detailNilai' => $lkpsData->detailNilai ?? []
+        ]);
+    }
+
+    /**
+     * Get all task scores (nilai) for an active project
+     * 
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProjectScores(Request $request)
+    {
+        $validator = \Validator::make($request->all(), [
+            'projectId' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $projectId = $request->input('projectId');
+
+        // Verify project exists and is active
+        $project = \App\Models\Project\Project::find($projectId);
+
+        if (!$project) {
+            return response()->json(['message' => 'Project not found'], 404);
+        }
+
+        // Check if project is active
+        if ($project->status !== 'ACTIVE') {
+            return response()->json(['message' => 'Project is not active'], 403);
+        }
+
+        // Find all task lists for this project
+        $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
+
+        if ($taskLists->isEmpty()) {
+            Log::warning("No task lists found for active project {$projectId}");
+            return response()->json(['message' => 'No task lists found for this project'], 404);
+        }
+
+        // Get all task list IDs
+        $taskListIds = $taskLists->pluck('_id')->toArray();
+
+        // Find all tasks with lkpsTableId in these task lists
+        $tasks = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
+            ->whereNotNull('lkpsTableId')
+            ->get();
+
+        if ($tasks->isEmpty()) {
+            Log::warning("No tasks with lkpsTableId found in active project {$projectId}");
+            return response()->json(['message' => 'No LKPS tasks found for this project'], 404);
+        }
+
+        $projectScores = [];
+
+        foreach ($tasks as $task) {
+            // Get the table information
+            $table = LkpsTable::find($task->lkpsTableId);
+
+            if (!$table) {
+                Log::warning("Table not found for task {$task->_id}");
+                continue;
+            }
+
+            // Get the TaskList information for this task
+            $taskList = $taskLists->firstWhere('_id', $task->taskListId);
+
+            // Get the LkpsData for this task
+            $lkpsData = LkpsData::where('lkpsTableId', $task->lkpsTableId)
+                ->where('taskId', $task->_id)
+                ->first();
+
+            $scoreData = [
+                'taskId' => $task->_id,
+                'tableCode' => $table->kode,
+                'tableTitle' => $table->judul,
+                'nilai' => null,
+                'taskList' => [
+                    'taskListId' => $taskList ? $taskList->_id : null,
+                    'kriteria' => $taskList ? $taskList->kriteria : 'Unknown',
+                ],
+            ];
+
+            if ($lkpsData) {
+                // Keep the original nilai format (array or numeric)
+                $scoreData['nilai'] = $lkpsData->nilai;
+                $scoreData['hasData'] = !empty($lkpsData->data);
+            }
+
+            $projectScores[] = $scoreData;
+        }
+
+        // Group scores by criteria (task list) with enhanced information
+        $scoresByTaskList = [];
+        foreach ($taskLists as $taskList) {
+            $taskListScores = collect($projectScores)->where('taskList.taskListId', $taskList->_id)->values();
+
+            if ($taskListScores->isNotEmpty()) {
+                // Extract numeric values from nilai (whether array or numeric)
+                $numericScores = [];
+                $totalRawScore = 0;
+
+                foreach ($taskListScores as $taskScore) {
+                    $nilai = $taskScore['nilai'];
+
+                    if (is_array($nilai)) {
+                        // Check if it's an array of objects with 'nilai' property
+                        foreach ($nilai as $scoreItem) {
+                            if (is_array($scoreItem) && isset($scoreItem['nilai'])) {
+                                // Handle array format: [{"butir": 16, "nilai": 3.9047619047619047}]
+                                if (is_numeric($scoreItem['nilai'])) {
+                                    $numericScores[] = (float) $scoreItem['nilai'];
+                                    $totalRawScore += (float) $scoreItem['nilai'];
+                                }
+                            } elseif (is_numeric($scoreItem)) {
+                                // Handle simple array format: [4.0, 3.5]
+                                $numericScores[] = (float) $scoreItem;
+                                $totalRawScore += (float) $scoreItem;
+                            }
+                        }
+                    } elseif (is_numeric($nilai)) {
+                        // If nilai is already numeric
+                        $numericScores[] = (float) $nilai;
+                        $totalRawScore += (float) $nilai;
+                    }
+                }
+
+                // Get the weight for this TaskList (bobot should be in percentage)
+                $bobot = $taskList->bobot ?? 1; // Default weight is 1 if not set
+
+                // Calculate NA contribution using CUMULATIVE approach: NA = Σ(Total_Score × Bobot/100)
+                // This is the CORRECT method based on BAN-PT NA range (0-400)
+                $naContribution = round($totalRawScore * ($bobot / 100), 4);
+
+                // Calculate average score for reference only
+                $averageScore = count($numericScores) > 0 ?
+                    round($totalRawScore / count($numericScores), 4) : 0;
+
+                $scoresByTaskList[] = [
+                    'taskListId' => $taskList->_id,
+                    'kriteria' => $taskList->kriteria,
+                    'order' => $taskList->order,
+                    'bobot' => $bobot,
+                    'totalTasks' => $taskListScores->count(),
+                    'tasksWithData' => $taskListScores->where('hasData', true)->count(),
+                    'tasksWithScores' => count($numericScores),
+                    'totalRawScore' => round($totalRawScore, 4), // Sum of all scores in this TaskList
+                    'averageScore' => $averageScore, // Average score for reference
+                    'naContribution' => $naContribution, // Contribution to final NA (CUMULATIVE)
+                    'tasks' => $taskListScores->toArray()
+                ];
+            }
+        }
+
+        // Calculate overall NA (Nilai Akreditasi) = Σ(Total_Score × Bobot/100)
+        $totalNA = array_sum(array_column($scoresByTaskList, 'naContribution'));
+        $totalWeight = array_sum(array_column($scoresByTaskList, 'bobot'));
+
+        // Determine peringkat based on BAN-PT standards
+        $peringkat = 'TMSP';
+        if ($totalNA >= 361) {
+            $peringkat = 'Unggul';
+        } elseif ($totalNA >= 301) {
+            $peringkat = 'Baik Sekali';
+        } elseif ($totalNA >= 200) {
+            $peringkat = 'Baik';
+        }
+
+        // Validation: Total weight should equal 100 for proper NA calculation
+        $weightValidation = [
+            'totalWeight' => $totalWeight,
+            'isValid' => $totalWeight == 100,
+            'message' => $totalWeight == 100 ? 'Weight distribution is valid' : 'Warning: Total weight should equal 100'
+        ];
+
+        // Sort by order
+        usort($scoresByTaskList, function ($a, $b) {
+            return ($a['order'] ?? 999) <=> ($b['order'] ?? 999);
+        });
+
+        Log::info("Retrieved scores for " . count($projectScores) . " tasks in active project {$projectId}");
+        Log::info("Calculated NA: {$totalNA} with peringkat: {$peringkat}");
+
+        return response()->json([
+            'projectId' => $projectId,
+            'projectName' => $project->nama,
+            'projectStatus' => $project->status,
+            'totalTasks' => count($projectScores),
+            'totalTaskLists' => count($scoresByTaskList),
+            'nilaiAkreditasi' => round($totalNA, 2),
+            'peringkat' => $peringkat,
+            'maxPossibleNA' => 400,
+            'naPercentage' => round(($totalNA / 400) * 100, 2),
+            'weightValidation' => $weightValidation,
+            'scores' => $projectScores,
+            'scoresByTaskList' => $scoresByTaskList,
         ]);
     }
 }

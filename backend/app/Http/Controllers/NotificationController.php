@@ -7,7 +7,7 @@ use App\Notifications\GeneralNotification;
 use Illuminate\Http\Request;
 use App\Notifications\TestNotification;
 use App\Models\DatabaseNotification;
-use App\Models\Project;
+use App\Models\Project\Project;
 
 class NotificationController extends Controller
 {
@@ -133,7 +133,7 @@ class NotificationController extends Controller
     public function sendWhatsAppNotification($phone, $message)
     {
         $token = "ZkK0zVOscvjh06bDeGopbr7QFgqeRWGFCf2DUFJfUJZ3qvsrqUqGdEJ";
-        $secret = "QHksVMKw";
+        $secret = "WdaAKbJS";
 
         $curl = curl_init();
 

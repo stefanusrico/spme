@@ -12,7 +12,8 @@ class TaskList extends Model
     protected $fillable = [
         'projectId',
         'kriteria',
-        'order'
+        'order',
+        'bobot'
     ];
 
     public function tasks()

@@ -35,7 +35,7 @@ Route::get('test', function () {
     ]);
 });
 
-
+Route::get('/lkps/project-scores', [LkpsDataController::class, 'getProjectScores']);
 Route::post('/generate-text', [GeminiController::class, 'generateText']);
 Route::post('/analyze-image', [GeminiController::class, 'analyzeImage']);
 Route::post('/chat', [GeminiController::class, 'startChat']);

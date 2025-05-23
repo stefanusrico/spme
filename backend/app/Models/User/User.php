@@ -9,6 +9,7 @@ use MongoDB\Laravel\Eloquent\Model;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Prodi\Prodi;
+use App\Models\DatabaseNotification;
 use App\Models\Jurusan\Jurusan;
 use App\Models\Project\Project;
 
