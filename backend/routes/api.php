@@ -9,8 +9,9 @@ use App\Http\Controllers\Prodi\{ProdiController, StrataController};
 use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController};
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController};
-use App\Http\Controllers\Data\{SpreadsheetInfoController};
-use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController};
+use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController};
+use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
+
 
 use App\Http\Controllers\{
     NotificationController,
@@ -21,7 +22,6 @@ use App\Http\Controllers\{
     SectionController,
     JsonController,
     ColorController,
-    GoogleDriveController,
     GoogleSheetController,
 
 };
@@ -44,6 +44,7 @@ Route::post('/chat/{session}/message', [GeminiController::class, 'sendChatMessag
 Route::get('/test-gemini', [GeminiTestController::class, 'testPrompt']);
 Route::post('/test-image-analysis', [GeminiFileTestController::class, 'testImageAnalysis']);
 Route::post('/data-mapping', [GeminiDataMappingController::class, 'mappingData']);
+Route::post('/scoring-led', [GeminiScoringLedController::class, 'scoringLed']);
 
 Route::post('users', [UserController::class, 'store']);
 
@@ -154,8 +155,8 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
     Route::get('tasks', [TaskController::class, 'myTasks']);
-    Route::patch('tasks/updateOwner/{no}/{sub}', [TaskController::class, 'updateOwners']);
-
+    Route::patch('tasks/updateOwner/{no}/{sub}/{prodi}', [TaskController::class, 'updateOwners']);
+    Route::get('allTaskByProdi/{prodiId}', [TaskController::class, 'getAllTaskByProdi']);
 
     Route::controller(JurusanController::class)->group(function () {
         Route::get('jurusan', 'index');
@@ -255,6 +256,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/ledData/{taskId}/all', 'getAll');
             Route::get('/ledData/{taskId}/latest', 'getLatest');
             Route::get('/ledData/byProdi/{prodiId}', 'getLedDataByProdi');
+            Route::get('/ledData/getSkorPerButir/{prodiId}', 'getSkorPerButir');
             Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
         });
 

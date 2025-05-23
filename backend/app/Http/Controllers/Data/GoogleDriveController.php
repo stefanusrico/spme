@@ -92,11 +92,15 @@ class GoogleDriveController extends Controller
                 'fields' => 'id, name, webViewLink'
             ]);
 
+            // Upload juga ke storage lokal
+            $localUrl = $this->uploadToLocalStorage($file, $subFolderName, $noSub, $noKriteria);
+
             // Simpan informasi file yang diunggah
             $uploadedFiles[] = [
                 'file_id' => $fileDetails->id,
                 'file_name' => $fileDetails->name,
                 'file_url' => $fileDetails->webViewLink,
+                'local_url' => $localUrl,
                 // 'folder_id' => $noKriteriaId,
             ];
         }
@@ -106,6 +110,34 @@ class GoogleDriveController extends Controller
             'files' => $uploadedFiles,
         ]);
     }
+
+    private function uploadToLocalStorage($file, $subFolderName, $noSub, $noKriteria)
+    {
+        try {
+            // Buat nama file unik
+            $fileName = time() . '-' . $file->getClientOriginalName();
+
+            // Buat path penyimpanan
+            $path = "uploads/{$subFolderName}/{$noSub}/{$noKriteria}";
+
+            // Simpan file ke storage publik
+            $storedPath = $file->storeAs($path, $fileName, 'public');
+
+            if (!$storedPath) {
+                throw new \Exception("Gagal menyimpan file ke storage lokal.");
+            }
+
+            // Return full URL
+            return asset('storage/' . $storedPath);
+        } catch (\Exception $e) {
+            // Log error untuk debugging
+            \Log::error('Upload ke local storage gagal: ' . $e->getMessage());
+
+            // Lempar kembali error untuk ditangani oleh pemanggil
+            throw new \Exception("Upload ke local storage gagal: " . $e->getMessage());
+        }
+    }
+
 
     public function getFiles(Request $request)
     {

@@ -5,7 +5,7 @@ import { ContentState } from "draft-js"
 import { EditorState, convertToRaw, convertFromRaw } from "draft-js"
 import "react-draft-wysiwyg/dist/react-draft-wysiwyg.css"
 import { Label } from "@/components/ui/label"
-import { fetchMasukanAndScoreFromGPT } from "../../../pages/PengisianLed"
+import { fetchMasukanAndScoreFromAI } from "../../../pages/PengisianLed"
 import Button from "../Button"
 import Pagination from "@mui/material/Pagination"
 import PaginationItem from "@mui/material/PaginationItem"
@@ -15,6 +15,8 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward"
 import AddFileModal from "../Modals/AddFileModal"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
+import { Spin } from "antd"
+import axiosInstance from "../../../utils/axiosConfig"
 
 function PengisianLedTableNew({
   dataKriteriaIndikator,
@@ -23,6 +25,7 @@ function PengisianLedTableNew({
   updateDataIsian,
   type,
   prodi,
+  noSub
 }) {
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
@@ -46,42 +49,21 @@ function PengisianLedTableNew({
     console.log("update detail : ", selectedDetails)
   }, [selectedDetails])
 
-  // useEffect(() => {
-  //     console.log("data isian :", dataIsian)
-  //     if (!dataKriteriaIndikator) return;
-
-  //     const filteredDetails = dataKriteriaIndikator.details?.filter(detail => detail.Type === "K") || [];
-  //     const updatedDetails = filteredDetails
-  //         .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-  //         .map(detail => {
-  //             const dataIsianItem = dataIsian?.details?.find(item => item.seq === detail.Seq);
-  //             return {
-  //                 ...detail,
-  //                 "Isian Asesi": dataIsianItem ? dataIsianItem.isian_asesi : "",
-  //                 Nilai: dataIsianItem ? dataIsianItem.nilai : "-",
-  //                 Masukan: dataIsianItem ? dataIsianItem.masukan : "",
-  //                 "Data Pendukung": dataIsianItem ? dataIsianItem.data_pendukung : ""
-  //             };
-  //         });
-
-  //     setSelectedDetails(updatedDetails);
-  // }, [dataKriteriaIndikator, dataIsian, currentPage]);
-
   useEffect(() => {
     console.log("data isian :", dataIsian)
     if (!dataKriteriaIndikator) return
     if (initialized) return
 
     const filteredDetails =
-      dataKriteriaIndikator.details?.filter((detail) => detail.Type === "K") ||
+      dataKriteriaIndikator.details?.filter((detail) => detail.type === "K") ||
       []
     const updatedDetails = filteredDetails
       .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
       .map((detail) => {
         const dataIsianItem = dataIsian?.details?.find(
-          (item) => item.seq === detail.Seq
+          (item) => item.seq === detail.seq
         )
-        const rawContent = dataIsianItem?.isian_asesi
+        const rawContent = dataIsianItem?.isianAsesi || ""
 
         console.log("raw content : ", rawContent)
         let editorState = EditorState.createEmpty()
@@ -109,8 +91,8 @@ function PengisianLedTableNew({
         return {
           ...detail,
           editorState,
-          Nilai: dataIsianItem ? dataIsianItem.nilai : "-",
-          Masukan: dataIsianItem ? dataIsianItem.masukan : "",
+          nilai: dataIsianItem ? dataIsianItem.nilai : "-",
+          masukan: dataIsianItem ? dataIsianItem.masukan : "",
           "Data Pendukung": dataIsianItem ? dataIsianItem.data_pendukung : "",
         }
       })
@@ -130,30 +112,55 @@ function PengisianLedTableNew({
   const handleButtonCheck = async (seq, index) => {
     try {
       const toInt = parseInt(seq, 10) - 1
-      const data = await fetchMasukanAndScoreFromGPT(
-        dataKriteriaIndikator,
-        dataIsian.details[toInt]
-      )
 
-      if (!data || !data.nilai || !data.masukan) {
-        throw new Error("Data dari GPT tidak lengkap!")
+      if (!dataIsian.details || !dataIsian.details[toInt]) {
+        toast.error("DataIsian belum lengkap atau indeks tidak ditemukan")
+        return
       }
 
-      const updatedDetails = [...selectedDetails]
-      updatedDetails[index]["Nilai"] = data.nilai
-      updatedDetails[index]["Masukan"] = data.masukan
+      const data = await fetchMasukanAndScoreFromAI(
+        dataKriteriaIndikator,
+        // dataIsian.details[toInt]
+        dataIsian.details
+      )
+
+      // if (!data || !data.nilai || !data.masukan) {
+      //   throw new Error("Data dari GPT tidak lengkap!")
+      // }
+
+      console.log("hasil dari prompting", data)
+      toast.info("skor prompting", data.nilai)
+
+      const updatedDetails = selectedDetails.map((item) => ({
+        ...item,
+        nilai: data.nilai,
+        masukan: data.masukan,
+      }));
+
+      // updateDataIsian(updatedDetails)
+      const updatedDataIsian = {
+        ...dataIsian,
+        details: dataIsian.details.map((item) => ({
+          ...item,
+          nilai: data.nilai,
+          masukan: data.masukan,
+        }))
+      };
+
+      updateDataIsian(updatedDataIsian);
       setSelectedDetails(updatedDetails)
-      console.log("data respon gpt : ", data)
-      toast.success("Berhasil prompting gpt", data)
+      console.log("data respon  : ", )
+      toast.success("Berhasil prompting ", )
     } catch (error) {
-      toast.error("Gagal prompting gpt")
+      toast.info("skor prompting",)
+      toast.error("Gagal prompting ")
     }
   }
 
   const handleEditorChange = (index, newEditorState) => {
     setSelectedDetails((prevDetails) => {
       const updated = [...prevDetails]
-      const seq = updated[index].Seq
+      const seq = updated[index].seq
 
       // Langsung simpan ke state duluan
       updated[index] = {
@@ -162,12 +169,19 @@ function PengisianLedTableNew({
       }
 
       // Setelah state update, baru update dataIsian
-      const plainText = newEditorState.getCurrentContent().getPlainText()
+      // const plainText = newEditorState.getCurrentContent().getPlainText()
+      const rawContent = convertToRaw(newEditorState.getCurrentContent());
+
+      if (!dataIsian || !dataIsian.details) {
+        toast.error("Data belum siap!");
+        return;
+      }
 
       const updatedDataIsian = {
         ...dataIsian,
-        details: dataIsian.details.map((item) =>
-          item.seq === seq ? { ...item, isian_asesi: plainText } : item
+        details: (dataIsian.details || []).map((item) =>
+          // item.seq === seq ? { ...item, isianAsesi: plainText } : item
+          item.seq === seq ? { ...item, isianAsesi: JSON.stringify(rawContent) } : item
         ),
       }
 
@@ -176,52 +190,102 @@ function PengisianLedTableNew({
     })
   }
 
-  const uploadImageCallBack = (file) => {
-    return new Promise((resolve, reject) => {
-      // Upload logic here, bisa pakai fetch/axios ke server kamu
-      const reader = new FileReader()
-      reader.onload = () => {
-        resolve({ data: { link: reader.result } }) // base64 fallback
+  const uploadImageCallBack = async (file, seq) => {
+    const userLocalhost = localStorage.getItem("user");
+    const jsonUserLocalhost = JSON.parse(userLocalhost);
+    const currentProdiName = jsonUserLocalhost.prodi.name;
+
+    const formData = new FormData();
+    formData.append("file[]", file);
+    formData.append("noKriteria[]", seq);
+    formData.append("subFolder", currentProdiName);
+    formData.append("noSub", noSub);
+
+    try {
+      const response = await axiosInstance.post("/upload-to-drive", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      const uploaded = response.data.files?.[0];
+      if (!uploaded) throw new Error("Upload gagal");
+
+      //update dataisian
+      const relatedEditor = selectedDetails.find((item) => item.seq === seq);
+      if (relatedEditor && relatedEditor.editorState) {
+        const rawContent = convertToRaw(relatedEditor.editorState.getCurrentContent());
+
+        const updatedDataIsian = {
+          ...dataIsian,
+          details: (dataIsian.details || []).map((item) =>
+            item.seq === seq ? { 
+              ...item, 
+              isianAsesi: JSON.stringify(rawContent),
+              dataPendukung: [...(item.dataPendukung || []), uploaded],
+            } : item,
+              
+          ),
+        };
+
+        updateDataIsian(updatedDataIsian);
       }
-      reader.readAsDataURL(file)
-    })
-  }
 
-  const handleInputChange = (seq, key, value, index) => {
-    const updatedDetails = [...selectedDetails]
-    updatedDetails[index]["Isian Asesi"] = value
-    setSelectedDetails(updatedDetails)
-
-    const updatedDataIsian = {
-      ...dataIsian,
-      details: dataIsian.details.map((item) =>
-        item.seq === seq ? { ...item, [key]: value } : item
-      ),
+      console.log(uploaded.local_url)
+      return {
+        data: {
+          link: uploaded.local_url,
+        },
+      };
+    } catch (error) {
+      console.error("Upload gambar gagal:", error);
+      return Promise.reject(error);
     }
-    updateDataIsian(updatedDataIsian)
-    // Update dataIsian agar sinkron dengan perubahan
-    // if (updateDataIsian) {
-    //     updateDataIsian(updatedDetails[index].Seq, value);
-    // }
-  }
+  };
 
   const toastContainerStyle = {
     zIndex: 20000,
   }
   
   if (isLoading) {
-    return <div className="text-center py-4">Loading...</div>
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "300px",
+        }}
+      >
+        <Spin tip="Loading data..." size="large" />
+      </div>
+    )
   }
 
   const totalPages = Math.ceil(
     (
-      dataKriteriaIndikator?.details?.filter((detail) => detail.Type === "K") ||
+      dataKriteriaIndikator?.details?.filter((detail) => detail.type === "K") ||
       []
     ).length / itemsPerPage
   )
 
   return (
     <div className="border p-4 rounded">
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+        style={toastContainerStyle}
+        className="toast-container-custom"
+      />
+
       <AddFileModal
         isOpen={isOpenModalUploadFile}
         onClose={() => setIsOpenModalUploadFile(false)}
@@ -238,7 +302,7 @@ function PengisianLedTableNew({
           Program Studi Referensi : {prodi.name}
         </h1>
       )}
-
+      
       <Stack spacing={2} className="mb-4 center-stack">
         <Pagination
           count={totalPages || 1}
@@ -258,29 +322,12 @@ function PengisianLedTableNew({
         <div key={index} className="mb-6">
           <div className="pb-4 flex">
             <div className="font-semibold h-10 mr-4 flex items-center justify-center">
-              {detail.Seq}. Kriteria Indikator: {detail.Reference || ""}
+              {detail.seq}. Kriteria Indikator: {detail.reference || ""}
             </div>
             <Button className="bg-primary w-auto text-sm py-0" disabled={true}>
-              Score: {detail.Nilai || "-"}
+              Score: {detail.nilai || "-"}
             </Button>
           </div>
-
-          {/* <div className="w-full items-center gap-1.5">
-                        <Label htmlFor={`isian_asesi_${index}`}>Isian Asesi</Label>
-                        <textarea
-                            id={`isian_asesi_${index}`}
-                            placeholder="Isian Asesi"
-                            className="w-full p-2 border rounded-md min-h-[40px] resize-none"
-                            value={detail["Isian Asesi"] || ""}
-                            readOnly={type === "readonly" || type === "readonlyVersion"}
-                            onChange={(e) => handleInputChange(detail.Seq, 'isian_asesi' ,e.target.value, index)}
-                            onInput={(e) => {
-                                e.target.style.height = "40px";
-                                e.target.style.height = `${e.target.scrollHeight}px`;
-                            }}
-                        ></textarea>
-                    </div> */}
-          <img src="https://drive.google.com/uc?export=view&id=1CaOXresv4JELY5_FxmM8kqYN-Wu_1rsm" />
 
           <div className="w-full items-center gap-1.5">
             <Label htmlFor={`isian_asesi_${index}`}>Isian Asesi</Label>
@@ -292,7 +339,7 @@ function PengisianLedTableNew({
               }`}
             >
               <Editor
-                key={detail.Seq}
+                key={detail.seq}
                 editorState={detail.editorState}
                 onEditorStateChange={(editorState) =>
                   handleEditorChange(index, editorState)
@@ -307,7 +354,9 @@ function PengisianLedTableNew({
                 toolbar={{
                   image: {
                     urlEnabled: true,
-                    uploadEnabled: false, // karena kita pakai URL
+                    uploadEnabled: true, // karena kita pakai URL
+                    uploadCallback: (file) => uploadImageCallBack(file, detail.seq),
+                    alt: { present: true, mandatory: false },
                     alignmentEnabled: true,
                     previewImage: true,
                     inputAccept:
@@ -334,7 +383,7 @@ function PengisianLedTableNew({
             <Button
               className="bg-primary w-40 hover:bg-white hover:text-black"
               aria-label="Check"
-              onClick={() => handleButtonCheck(detail.Seq, index)}
+              onClick={() => handleButtonCheck(detail.seq, index)}
               disabled={type === "readonly" || type === "readonlyVersion"}
             >
               Check
@@ -347,7 +396,7 @@ function PengisianLedTableNew({
               id={`masukan_${index}`}
               placeholder="Masukan dari GPT"
               className="w-full p-2 border rounded-md min-h-[40px] resize-none"
-              value={detail.Masukan || ""}
+              value={detail.masukan || ""}
               readOnly
               onInput={(e) => {
                 e.target.style.height = "40px"

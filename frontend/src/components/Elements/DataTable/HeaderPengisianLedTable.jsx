@@ -7,10 +7,10 @@ function HeaderPengisianLedTable({ headerData }) {
             <h4 className="font-semibold">Guidance</h4>
             <div>
               {headerData?.details
-                ?.filter((detail) => detail.Type === "G")
+                ?.filter((detail) => detail.type === "G")
                 .map((detail, index) => (
                   <div key={index}>
-                    <p>{detail.Reference ? detail.Reference : "-"}</p>
+                    <p>{detail.reference ? detail.reference : "-"}</p>
                   </div>
                 ))}
             </div>
@@ -21,10 +21,10 @@ function HeaderPengisianLedTable({ headerData }) {
             <h4 className="font-semibold">Indikator</h4>
             <div>
               {headerData?.details
-                ?.filter((detail) => detail.Type === "I")
+                ?.filter((detail) => detail.type === "I")
                 .map((detail, index) => (
                   <div key={index}>
-                    <p>{detail.Reference ? detail.Reference : "-"}</p>
+                    <p>{detail.reference ? detail.reference : "-"}</p>
                   </div>
                 ))}
             </div>
@@ -32,12 +32,12 @@ function HeaderPengisianLedTable({ headerData }) {
           <td className="border w-[33%]">
             <h4 className="font-semibold">Deskripsi</h4>
             <div>
-              {headerData?.details?.some((detail) => detail.Type === "D") ? (
+              {headerData?.details?.some((detail) => detail.type === "D") ? (
                 headerData.details
-                  .filter((detail) => detail.Type === "D")
+                  .filter((detail) => detail.type === "D")
                   .map((detail, index) => (
                     <div key={index}>
-                      <p>{detail.Reference ? detail.Reference : "-"}</p>
+                      <p>{detail.reference ? detail.reference : "-"}</p>
                     </div>
                   ))
               ) : (
@@ -49,10 +49,10 @@ function HeaderPengisianLedTable({ headerData }) {
             <h4 className="font-semibold">Elemen</h4>
             <div>
               {headerData?.details
-                ?.filter((detail) => detail.Type === "E")
+                ?.filter((detail) => detail.type === "E")
                 .map((detail, index) => (
                   <div key={index}>
-                    <p>{detail.Reference ? detail.Reference : "-"}</p>
+                    <p>{detail.reference ? detail.reference : "-"}</p>
                   </div>
                 ))}
             </div>

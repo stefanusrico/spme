@@ -3,6 +3,7 @@
 namespace App\Models\Project;
 
 use App\Models\User\User;
+use App\Models\led\ledItem;
 use MongoDB\Laravel\Eloquent\Model;
 
 class Task extends Model
@@ -45,5 +46,10 @@ class Task extends Model
     public function getProject()
     {
         return $this->tasklist ? $this->tasklist->project : null;
+    }
+
+    public function ledItem()
+    {
+        return $this->belongsTo(LedItem::class, 'ledItemId');
     }
 }

@@ -4,13 +4,13 @@ import {
   fetchAllTaskByProdi,
   updateUserTask,
   changeNoSub,
-  fetchVersionByProdi,
-  fetchMatriksByProdi,
-  storeVersion,
-  fetchVersionProdiReference,
+  fetchLedDataByProdi,
+  fetchLedItemByProdi,
+  storeLedData,
+  fetchLedDataProdiReference,
   addPreviewToFiles,
 } from "./PengisianLed"
-import { useState, useEffect, version } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import ScrollableTabs from "../components/Elements/Tabs"
 import Button from "../components/Elements/Button"
@@ -23,234 +23,193 @@ import VerticalLinearStepper from "../components/Elements/Stepper"
 import { ToastContainer, toast } from "react-toastify"
 import { FormToast } from "../components/Elements/FormToast"
 import "react-toastify/dist/ReactToastify.css"
+import MySelectComponent from "../components/Elements/Select"
+import SelectColor from "../components/Elements/Select/SelectColor"
+import { Spin } from "antd"
+import { useUser } from "../context/userContext"
 
 const PengisianLed = () => {
   const navigate = useNavigate()
-  const { projectId, no = "", sub = "" } = useParams()
+  const { userData } = useUser()
   const [tasks, setTasks] = useState([])
   const [prodi, setProdi] = useState([])
   const [colors, setColors] = useState([])
+  const { no = "", sub = "" } = useParams()
   const [isLoading, setIsLoading] = useState(true)
   const [isVersion, setIsVersion] = useState(false)
   const [user, setUser] = useState({})
   const [allDataTasks, setAllDataTasks] = useState([])
   const [isDataReady, setIsDataReady] = useState(false)
   const [isReference, setIsReference] = useState(false)
-  const [allDataVersion, setAllDataVersion] = useState([])
-  const [allDataMatriks, setAllDataMatriks] = useState([])
-  const [versionSelected, setVersionSelected] = useState("")
+  const [allLedData, setAllLedData] = useState([])
+  const [allDataLedItem, setAllDataLedItem] = useState([])
+  const [ledDataSelected, setLedDataSelected] = useState("")
   const [viewAllVersion, setViewAllVersion] = useState(false)
   const [isTaskAvailable, setIsTaskAvailable] = useState(true)
   const [isLoadingVersion, setIsLoadingVersion] = useState(false)
   const [dataVersionHistory, setDataVersionHistory] = useState([])
-  const [filteredDataMatriks, setFilteredDataMatriks] = useState([])
-  const [filteredDataVersion, setFilteredDataVersion] = useState([])
+  const [filteredDataLedItem, setFilteredDataLedItem] = useState([])
+  const [filteredLedData, setFilteredLedData] = useState([])
   const [filteredDataHistory, setFilteredDataHistory] = useState([])
   const [dataVersionReference, setDataVersionReference] = useState([])
   const [filteredDataReference, setFilteredDataReference] = useState([])
   const [selectedProdi, setSelectedProdi] = useState({ name: "", id: "" })
 
-  const [dataMatriks, setDataMatriks] = useState({
-    C: "",
-    "No.": "",
-    Sub: "",
-    Details: [],
+  const [dataLedItem, setDataLedItem] = useState({
+    kriteria: "",
+    no: "",
+    sub: "",
+    details: [],
   })
 
   // Mengambil data program studi
   useEffect(() => {
-    const userLocalhost = localStorage.getItem("user")
-    const jsonUserLocalhost = JSON.parse(userLocalhost)
-    const currentUserProdiId = jsonUserLocalhost.prodiId
-
-    console.log(jsonUserLocalhost)
-    setUser(jsonUserLocalhost)
-
-    const getAllProdi = async () => {
+    const fetchInitialData = async () => {
       try {
-        const data = await fetchAllProdi()
-        setProdi(data)
-        toast.success("Berhasil fetch Prodi")
+        if (!userData) return;
+        console.log("userData :", userData)
+        const [prodiData, userTasks, allTasks, ledData, ledItems] = await Promise.all([
+          fetchAllProdi(),
+          fetchUserTask(),
+          fetchAllTaskByProdi(userData?.prodiId),
+          fetchLedDataByProdi(userData?.prodiId),
+          fetchLedItemByProdi(userData?.prodiId)
+        ]);
+
+        setProdi(prodiData);
+        setTasks(userTasks);
+        setAllDataTasks(allTasks);
+        setAllLedData(ledData);
+        setAllDataLedItem(ledItems);
+
+        toast.success("Berhasil fetch data awal");
       } catch (error) {
-        toast.error("Gagal fetch Prodi")
+        toast.error("Gagal fetch data awal");
       }
-    }
+    };
 
-    const getUserTask = async () => {
-      try {
-        const data = await fetchUserTask()
-        setTasks(data)
-        toast.success("Berhasil fetch Task")
-      } catch (error) {
-        toast.error("Gagal fetch Task")
-      }
-    }
+    fetchInitialData();
+  }, [userData]);
 
-    const getAllDataTasks = async () => {
-      try {
-        const data = await fetchAllTaskByProdi(currentUserProdiId)
-        setAllDataTasks(data)
-        toast.success("berhasil fetch semua data task")
-      } catch (error) {
-        toast.error("gagal fetch semua data tasks")
-      }
-    }
-
-    const getAllVersionByProdi = async () => {
-      try {
-        const data = await fetchVersionByProdi(currentUserProdiId)
-        console.log("all data version : ", data)
-        setAllDataVersion(data)
-      } catch (error) {
-        toast.error("gagal fetch semua data version")
-      }
-    }
-
-    const getAllDataMatriks = async () => {
-      try {
-        const data = await fetchMatriksByProdi(currentUserProdiId)
-        console.log("data matriks :", data)
-        setAllDataMatriks(data)
-      } catch (error) {}
-    }
-
-    getAllVersionByProdi() //untuk warna tab
-    getAllDataMatriks() //untuk header, diambil semua biar sekali aja
-    getUserTask() //untuk tab
-    getAllDataTasks() //untuk menambahkan tab task
-    getAllProdi() //untuk dropdown piilih referensi
-  }, [])
 
   useEffect(() => {
-    const getLatestVersion = (dataArray) => {
-      if (!Array.isArray(dataArray)) return null
-
-      const filteredByParams = dataArray.filter(
-        (item) => String(item.task?.no) === no && String(item.task?.sub) === sub
-      )
-
-      console.log("filtered By param:", filteredByParams)
-
-      const latestVersions = filteredByParams.reduce((acc, current) => {
-        const key = `${current.task?.no}-${current.task?.sub}`
-
-        if (
-          !acc[key] ||
-          new Date(current.created_at) > new Date(acc[key].created_at)
-        ) {
-          acc[key] = current
-        }
-
-        return acc
-      }, {})
-
-      return Object.values(latestVersions)[0] || null
+    if (!no || !sub) {
+      const firstTask = tasks[0] || allDataTasks[0];
+      if (firstTask) {
+        navigate(`/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`, { replace: true });
+      }
     }
+  }, [no, sub, tasks, allDataTasks, navigate]);
 
-    if (Array.isArray(allDataMatriks)) {
-      const filtered =
-        allDataMatriks.find((item) => item.no === no && item.sub === sub) ||
-        null
-      setFilteredDataMatriks(filtered)
-      console.log("filtered data:", filtered)
+  const getLatestLedData = (dataArray) => {
+    if (!Array.isArray(dataArray)) return null
+
+    const filtered = dataArray.filter(
+      (item) =>
+        item.task.led_item?.no === no &&
+        item.task?.led_item?.sub === sub
+    );
+
+    return filtered.reduce((latest, current) => {
+      if (!latest || new Date(current.created_at) > new Date(latest.created_at)) {
+        return current;
+      }
+      return latest;
+    }, null);
+  };
+
+  useEffect(() => {
+    // Ambil data LED terbaru dan data referensi
+    console.log("All Led Data :", allLedData)
+    const latestLedData = getLatestLedData(allLedData);
+    setFilteredLedData(latestLedData);
+    
+    const latestRefData = getLatestLedData(dataVersionReference);
+
+    
+    setFilteredDataReference(latestRefData);
+
+    // Filter data history
+    const history = dataVersionHistory.filter(
+      (item) => String(item.task?.led_item?.no) === no && String(item.task?.led_item?.sub) === sub
+    );
+    setFilteredDataHistory(history);
+    setLedDataSelected(history.length > 1 ? "1" : "0");
+
+    // Temukan LED item terkait
+    const foundItem = allDataLedItem.find((item) => item.no === no && item.sub === sub);
+    setFilteredDataLedItem(foundItem || null);
+
+    // Jika data LED tidak ditemukan, buat default
+    if (!latestLedData && allDataLedItem.length && allDataTasks.length && userData?.id){
+      const matchedLedItem = allDataLedItem.find(item => item.no === no && item.sub === sub);
+      const matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
+      console.log("MASUK SINI")
+      if (matchedLedItem && matchedTask) {
+        const detailsArray = (matchedLedItem.details || [])
+          .filter(item => item.type === "K")
+          .map(item => ({
+            dataPendukung: [],
+            isianAsesi: null,
+            masukan: null,
+            nilai: null,
+            reference: item.reference || null,
+            seq: item.seq || null,
+          }));
+
+        const defaultLedData = {
+          commit: "",
+          details: detailsArray,
+          taskId: matchedTask.id,
+          userId: userData.id,
+        };
+
+        setFilteredLedData(defaultLedData);
+      }
     }
-
-    if (Array.isArray(dataVersionHistory)) {
-      const filtered = dataVersionHistory.filter(
-        (item) =>
-          String(item.task.no) === String(no) &&
-          String(item.task.sub) === String(sub)
-      )
-
-      setFilteredDataHistory(filtered)
-      console.log("filtered data history:", filtered)
-
-      setVersionSelected(filtered.length > 1 ? "1" : "0")
-    }
-
-    setFilteredDataVersion(getLatestVersion(allDataVersion))
-    setFilteredDataReference(getLatestVersion(dataVersionReference))
   }, [
-    no,
-    sub,
-    allDataMatriks,
-    allDataVersion,
-    dataVersionReference,
-    dataVersionHistory,
-  ])
+    no, sub, allLedData, dataVersionReference, dataVersionHistory,
+    allDataLedItem, allDataTasks, userData
+  ]);
 
+  
   useEffect(() => {
-    console.log(filteredDataMatriks)
+    const foundItem = allDataLedItem.find(
+      (item) => item.no === no && item.sub === sub
+    );
 
-    if (!filteredDataVersion) {
-      const detailsArray = (filteredDataMatriks?.details || [])
-        .filter((item) => item.Type === "K") // Filter hanya Type "K"
-        .map((item) => ({
-          data_pendukung: item["Data Pendukung"] || null,
-          isian_asesi: item["Isian Asesi"] || null,
-          masukan: item["Masukan"] || null,
-          nilai: item["Nilai"] || null,
-          reference: item["Reference"] || null,
-          seq: item.Seq,
-          type: item.Type,
-        }))
-
-      // Jika filteredDataVersion null, buat template JSON default
-      const defaultVersion = {
-        c: filteredDataMatriks?.c || "",
-        commit: "",
-        details: detailsArray,
-        komentar: null,
-        prodiId: user.prodiId,
-        task: {
-          taskId: "TSK-001",
-          projectId: "",
-          taskListId: "",
-          no: 0,
-          sub: "",
-        },
-        taskId: "gaming",
-        user_id: user.id,
-      }
-
-      setFilteredDataVersion(defaultVersion)
+    if (foundItem && filteredLedData) {
+      setIsDataReady(true);
+      setIsLoading(false);
     }
+  }, [filteredLedData, allDataLedItem]);
 
-    if (filteredDataMatriks && filteredDataVersion) {
-      setIsDataReady(true)
-      setIsLoading(false)
+  useEffect(() => {
+    if (ledDataSelected) {
+      setIsVersion(true);
     }
-  }, [filteredDataMatriks])
+  }, [ledDataSelected]);
 
   useEffect(() => {
-    console.log("Version selected: ", versionSelected)
-    setIsVersion(true)
-  }, [versionSelected, filteredDataHistory])
-
-  useEffect(() => {
-    if (
-      filteredDataReference &&
-      Object.keys(filteredDataReference).length > 0
-    ) {
-      console.log("data reference : ", filteredDataReference)
-      setIsReference(true)
+    if (filteredDataReference && Object.keys(filteredDataReference).length > 0) {
+      setIsReference(true);
     }
-  }, [filteredDataReference])
+  }, [filteredDataReference]);
 
   useEffect(() => {
-    console.log("prodi reference", selectedProdi)
-    const getAllVersionByProdi = async () => {
+    const fetchReferenceData = async () => {
+      if (!selectedProdi.id) return;
+
       try {
-        const data = await fetchVersionByProdi(selectedProdi.id)
-        console.log("all data version reference : ", data)
-        setDataVersionReference(data)
+        const data = await fetchLedDataByProdi(selectedProdi.id);
+        setDataVersionReference(data);
       } catch (error) {
-        toast.error("gagal fetch semua data version reference")
+        toast.error("Gagal fetch data version reference");
       }
-    }
+    };
 
-    getAllVersionByProdi()
-  }, [selectedProdi])
+    fetchReferenceData();
+  }, [selectedProdi]);
 
   const toastContainerStyle = {
     zIndex: 20000,
@@ -261,45 +220,55 @@ const PengisianLed = () => {
   }
 
   const changeNoSub = (newNo, newSub) => {
-    navigate(`/projects/${projectId}/pengisian-matriks-led/${newNo}/${newSub}`)
+    navigate(`/pengisian-matriks-led/${newNo}/${newSub}`)
+  }
+
+  const updateUserTaskPlus = async(no, sub) => {
+      try {
+          const data = await updateUserTask(no, sub, userData.prodiId, userData.id)
+          console.log("data user task setelah update :", data)
+          setTasks(data);
+          toast.success("Berhasil update Task");
+      } catch (error) {
+          throw new Error("Gagal update user task");
+          toast.error("Gagal update Task");
+      }
   }
 
   const updateDataIsian = (updateDataIsian) => {
     console.log("update data isian parent :", updateDataIsian)
-    console.log("filtered data verison parent : ", filteredDataVersion)
-    setFilteredDataVersion(updateDataIsian)
+    console.log("filtered data verison parent : ", filteredLedData)
+    setFilteredLedData(updateDataIsian)
     // setDataIsian(updatedData);
   }
 
   const updateDataIsianReference = (updateDataIsian) => {
     console.log("update data isian parent :", updateDataIsian)
-    console.log("filtered data verison parent : ", filteredDataVersion)
+    console.log("filtered data verison parent : ", filteredLedData)
     // setDataIsian(updatedData);
   }
 
   const handleClickVersion = () => {
-    const getAllVersionByProdi = async () => {
+    const getAllLedDataByProdi = async () => {
       try {
-        const data = await fetchVersionByProdi(user.prodiId)
-        console.log("all data version reference : ", data)
-        setDataVersionHistory(data)
+        setDataVersionHistory(allLedData)
       } catch (error) {
         toast.error("gagal fetch semua data version history")
       }
     }
 
-    getAllVersionByProdi()
+    getAllLedDataByProdi()
   }
 
   const handleShowToast = () => {
     toast(
       <FormToast
         closeToast={() => toast.dismiss()}
-        dataIsian={filteredDataVersion}
+        dataIsian={filteredLedData}
         noSub={`${no}${sub}`}
         title="Versi Baru Dibuat"
         message="Tambahkan pesan untuk perubahan"
-        onSubmit={storeVersion}
+        onSubmit={storeLedData}
       />,
       {
         position: "bottom-right", // Posisi toast
@@ -311,7 +280,22 @@ const PengisianLed = () => {
   }
 
   const handleVersionChange = (newIndex) => {
-    setVersionSelected(newIndex.toString())
+    setLedDataSelected(newIndex.toString())
+  }
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "300px",
+        }}
+      >
+        <Spin tip="Loading data..." size="large" />
+      </div>
+    )
   }
 
   return (
@@ -333,32 +317,44 @@ const PengisianLed = () => {
 
       {/*Untuk Prodi, progress, dan color*/}
       <div className="flex justify-center space-x-4 mt-4 mb-4">
-        <DropdownWithSearch
+        <MySelectComponent
           name="prodi"
           options={prodi.map((prodi) => ({
             id: prodi.id,
             value: prodi.name,
             label: prodi.name,
           }))}
-          value={selectedProdi.name}
+          placeholder= "Pilih Program Studi"
+          width={200}
+          height={50}
           onChange={(newValue) =>
             setSelectedProdi({ name: newValue?.value || "", id: newValue.id })
           }
-          sizeSelect="w-60 h-18"
-          placeholder={
-            selectedProdi.name ? selectedProdi.name : "Pilih Program Studi"
-          }
         />
-        <BarProgress progress={"60"} />
-        <ColorRangeDropdown isLoading={false} dataColors={updateColor} />
-      </div>
 
-      {/*Untuk tab matriks, referensi, pengisian matriks sekarang, version */}
+        <BarProgress
+          progress={10}     
+          width={200}
+          height={50}
+        />
+
+        <SelectColor isLoading={false} dataColors={updateColor} width={200} height={50}/>
+        {/* <ColorRangeDropdown isLoading={false} dataColors={updateColor} /> */}
+      </div>
+      
+      {/*Untuk tab LedItem, referensi, pengisian matriks sekarang, version */}
       {isTaskAvailable ? (
         <>
           {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-normal font-semibold">Loading...</p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                height: "300px",
+              }}
+            >
+              <Spin tip="Loading data..." size="large" />
             </div>
           ) : (
             <>
@@ -367,22 +363,23 @@ const PengisianLed = () => {
                   no={no}
                   sub={sub}
                   tabsData={tasks}
-                  allDataNoSub={allDataTasks}
-                  updateUserTask={updateUserTask}
+                  allDataTasks={allDataTasks}
+                  updateUserTask={updateUserTaskPlus}
                   onClick={changeNoSub}
                   dataColor={colors}
-                  allDataVersion={allDataVersion}
+                  allLedData={allLedData}
                 />
 
                 {/*Header table, berisi guidance, indikator, deskripsi, dan Elemen*/}
-                <HeaderPengisianLedTable headerData={filteredDataMatriks} />
+                <HeaderPengisianLedTable headerData={filteredDataLedItem} />
               </div>
 
               {/*Referensi */}
               {isReference && (
                 <div className="mt-5 mx-[30px] mb-[0px] bg-[pink] rounded-lg">
                   <PengisianLedTableNew
-                    dataKriteriaIndikator={filteredDataMatriks}
+                    key={`${no}-${sub}`}
+                    dataKriteriaIndikator={filteredDataLedItem}
                     dataIsian={filteredDataReference}
                     // handleClickButton={handleClickButton}
                     updateDataIsian={updateDataIsianReference}
@@ -393,17 +390,18 @@ const PengisianLed = () => {
               )}
 
               {/* Matriks Isian */}
-              {isDataReady && (
+              {/* {isDataReady && ( */}
                 <div className="mt-5 mx-[30px] mb-[0px]">
                   <PengisianLedTableNew
-                    dataKriteriaIndikator={filteredDataMatriks}
-                    dataIsian={filteredDataVersion}
-                    // handleClickButton={handleClickButton}
+                    key={`${no}-${sub}`}
+                    dataKriteriaIndikator={filteredDataLedItem}
+                    dataIsian={filteredLedData}
                     updateDataIsian={updateDataIsian}
                     type="editable"
+                    noSub = {`${no}${sub}`}
                   />
                 </div>
-              )}
+              {/* )} */}
 
               {/* History Version */}
               {isVersion && filteredDataHistory ? (
@@ -421,17 +419,9 @@ const PengisianLed = () => {
                           <>
                             <h1 className="text-xl font-bold">
                               Commit :{" "}
-                              {filteredDataHistory[parseInt(versionSelected)]
+                              {filteredDataHistory[parseInt(ledDataSelected)]
                                 ?.commit || "Data commit tidak tersedia"}
                             </h1>
-                            {/* <h3>
-                                                            Diperbarui pada {new Intl.DateTimeFormat("en-GB", { 
-                                                                day: "2-digit", 
-                                                                month: "long", 
-                                                                year: "numeric"
-                                                            }).format(new Date(filteredDataHistory[parseInt(versionSelected)].created_at))}, 
-                                                            oleh {filteredDataHistory[parseInt(versionSelected)].user_name}
-                                                        </h3> */}
                           </>
                         )}
                       </div>
@@ -449,15 +439,16 @@ const PengisianLed = () => {
                     {viewAllVersion ? (
                       <VerticalLinearStepper
                         dataSteps={filteredDataHistory}
-                        paramActiveStep={versionSelected}
+                        paramActiveStep={ledDataSelected}
                         onStepChange={handleVersionChange}
                       />
                     ) : (
                       <div className="mt-5 mx-[30px] mb-[0px]">
                         <PengisianLedTableNew
-                          dataKriteriaIndikator={filteredDataMatriks}
+                          key={`${no}-${sub}`}
+                          dataKriteriaIndikator={filteredDataLedItem}
                           dataIsian={
-                            filteredDataHistory[parseInt(versionSelected)]
+                            filteredDataHistory[parseInt(ledDataSelected)]
                           }
                           // handleClickButton={handleClickButton}
                           updateDataIsian={updateDataIsian}
