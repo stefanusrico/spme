@@ -3,7 +3,6 @@
  */
 import { processExcelDataBase } from "../utils/tableUtils"
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
-import { cekStrata } from "./checkStrata"
 
 const DosenIndustriPraktisi = {
   getInfo() {
@@ -132,10 +131,6 @@ const DosenIndustriPraktisi = {
   async calculateScore(data, config, additionalData = {}) {
     // MKKI = Jumlah mata kuliah kompetensi yang diampu oleh dosen industri/praktisi.
     let uniqueMatkul = new Set()
-
-    //Cek strata
-    const strata = cekStrata()
-    const butir = strata === "D-3" ? 23 : 24
 
     data.forEach((item) => {
       const matkul = item.mata_kuliah_yang_diampu

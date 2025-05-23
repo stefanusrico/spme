@@ -1,9 +1,5 @@
-/**
- * Plugin khusus untuk section produk / jasa yang dihasilkan mahasiswa yang diadopsi oleh industri / masyarakat
- */
 import { processExcelDataBase } from "../utils/tableUtils"
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
-import { cekStrata } from "./checkStrata"
 
 const PenelitianDtps = {
   getInfo() {

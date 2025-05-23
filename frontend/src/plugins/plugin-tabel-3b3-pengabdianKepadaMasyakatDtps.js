@@ -1,6 +1,5 @@
 import { createPluginHandler } from "./core-plugin"
 import { fetchScoreDetails } from "../utils/fetchScoreDetail"
-import { cekStrata } from "./checkStrata"
 
 const PengabdianKepadaMasyarakatDtpsPlugin = createPluginHandler({
   info: {

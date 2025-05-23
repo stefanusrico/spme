@@ -405,11 +405,11 @@ const DosenTetapPerguruanTinggiPlugin = {
     // Return consistent format with both scores array and score property
     return {
       scores: [
-        { butir: 16, nilai: skorKecukupan.toFixed(2) },
-        { butir: 17, nilai: skorKualifikasi.toFixed(2) },
-        { butir: 18, nilai: skorSertifikasi.toFixed(2) },
-        { butir: 19, nilai: skorJabatan.toFixed(2) },
-        { butir: 20, nilai: skorRasio.toFixed(2) },
+        { butir: 16, nilai: skorKecukupan },
+        { butir: 17, nilai: skorKualifikasi },
+        { butir: 18, nilai: skorSertifikasi },
+        { butir: 19, nilai: skorJabatan },
+        { butir: 20, nilai: skorRasio },
       ],
       scoreDetail: {
         NDT,
@@ -420,11 +420,11 @@ const DosenTetapPerguruanTinggiPlugin = {
         NDLK,
         NDL,
         NDTT,
-        PDS3: PDS3.toFixed(2) + "%",
-        PDSK: PDSK.toFixed(2) + "%",
-        PGBLKL: PGBLKL.toFixed(2) + "%",
-        PDTT: PDTT.toFixed(2) + "%",
-        RMD: RMD.toFixed(2),
+        PDS3: PDS3 + "%",
+        PDSK: PDSK + "%",
+        PGBLKL: PGBLKL + "%",
+        PDTT: PDTT + "%",
+        RMD: RMD,
       },
     }
   },
