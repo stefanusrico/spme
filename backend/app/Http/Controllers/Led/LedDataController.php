@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Led\LedData;
 use App\Models\Project\Task;
+use App\Models\Project\Project;
 use App\Models\User\User;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
@@ -116,15 +117,25 @@ class LedDataController extends Controller
     public function getSkorPerButir($prodiId)
     {
         try {
+            $project = Project::where('prodiId', $prodiId)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (!$project) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No active project found for this prodi',
+                ], 404);
+            }
+
             $ledData = LedData::orderBy('created_at', 'desc')
                 ->get();
 
-            $filteredLedData = $ledData->filter(function ($item) use ($prodiId) {
-                return $item->task && $item->task->tasklist &&
-                    $item->task->tasklist->project &&
-                    $item->task->tasklist->project->prodiId === $prodiId &&
-                    $item->task->tasklist->project->status === 'ACTIVE';
-            });         
+            $filteredLedData = $ledData->filter(function ($item) use ($project) {
+                return $item->task &&
+                    $item->task->tasklist &&
+                    $item->task->tasklist->projectId === $project->id;
+            });       
 
             if ($filteredLedData->isEmpty()) {
                 Log::warning("LED not found :", [
