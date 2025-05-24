@@ -38,6 +38,7 @@ const generateColumns = (
     key: "rowIndex",
     width: 60,
     align: "center",
+    fillable: false, // No. column is never fillable
     render: (text, record, index) => index + 1,
   }
 
@@ -77,7 +78,10 @@ const generateColumns = (
   }
 
   // Function to handle cell click for editing
-  const handleCellClick = (record) => {
+  const handleCellClick = (record, isFillable = true) => {
+    // Only allow editing if column is fillable
+    if (!isFillable) return
+
     if (record.key === editingKey) {
       setEditingKey(null)
     } else {
@@ -92,17 +96,22 @@ const generateColumns = (
     tooltip,
     onClick,
     style = {},
+    isFillable = true,
   }) => {
+    const isClickable = editable && isFillable
+
     const cell = (
       <div
-        onClick={onClick}
+        onClick={isClickable ? onClick : undefined}
         style={{
-          cursor: editable ? "pointer" : "default",
+          cursor: isClickable ? "pointer" : "default",
           width: "100%",
           padding: "4px 8px",
-          border: editable ? "1px dashed #d9d9d9" : "none",
+          border: isClickable ? "1px dashed #d9d9d9" : "none",
           borderRadius: "2px",
           transition: "all 0.3s",
+          backgroundColor: !isFillable ? "#f5f5f5" : "transparent",
+          color: !isFillable ? "#666" : undefined,
           ...style,
         }}
       >
@@ -110,7 +119,10 @@ const generateColumns = (
       </div>
     )
 
-    return tooltip ? <Tooltip title={tooltip}>{cell}</Tooltip> : cell
+    // Modify tooltip based on fillable status
+    const finalTooltip = !isFillable ? "Kolom ini tidak dapat diedit" : tooltip
+
+    return finalTooltip ? <Tooltip title={finalTooltip}>{cell}</Tooltip> : cell
   }
 
   const processColumn = (column) => {
@@ -122,6 +134,9 @@ const generateColumns = (
     const columnAlign = column.align || "center"
     const isGroup = column.is_group || column.isGroup || false
     const childColumns = column.children || []
+
+    // Get fillable status - default to true if not specified
+    const isFillable = column.fillable !== false
 
     // Skip if it's a No. column - we'll add our own
     if (
@@ -158,6 +173,7 @@ const generateColumns = (
       key: key,
       width: columnWidth,
       align: columnAlign,
+      fillable: isFillable, // Pass fillable status to column
     }
 
     if (isGroup && childColumns && childColumns.length > 0) {
@@ -190,7 +206,7 @@ const generateColumns = (
         const isEditing = record.key === editingKey
         const isChecked = text === true
 
-        return isEditing ? (
+        return isEditing && isFillable ? (
           <Checkbox
             checked={isChecked}
             onChange={(e) => {
@@ -232,8 +248,9 @@ const generateColumns = (
         ) : (
           <EditableCell
             editable={true}
-            tooltip="Klik untuk mengedit"
-            onClick={() => handleCellClick(record)}
+            tooltip={isFillable ? "Klik untuk mengedit" : undefined}
+            onClick={() => handleCellClick(record, isFillable)}
+            isFillable={isFillable}
           >
             {isChecked ? "✅" : "❌"}
           </EditableCell>
@@ -242,7 +259,7 @@ const generateColumns = (
     } else if (columnType === "boolean") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
-        return isEditing ? (
+        return isEditing && isFillable ? (
           <Checkbox
             checked={Boolean(text)}
             onChange={(e) =>
@@ -257,8 +274,9 @@ const generateColumns = (
         ) : (
           <EditableCell
             editable={true}
-            tooltip="Klik untuk mengedit"
-            onClick={() => handleCellClick(record)}
+            tooltip={isFillable ? "Klik untuk mengedit" : undefined}
+            onClick={() => handleCellClick(record, isFillable)}
+            isFillable={isFillable}
           >
             {text === true ? "✅" : text === false ? "❌" : "-"}
           </EditableCell>
@@ -269,7 +287,7 @@ const generateColumns = (
         const isEditing = record.key === editingKey
         const formattedDate = text ? dayjs(text).format("D/M/YYYY") : "-"
 
-        return isEditing ? (
+        return isEditing && isFillable ? (
           <DatePicker
             defaultValue={text ? dayjs(text) : null}
             format="D/M/YYYY"
@@ -288,8 +306,9 @@ const generateColumns = (
         ) : (
           <EditableCell
             editable={true}
-            tooltip="Klik untuk mengedit tanggal"
-            onClick={() => handleCellClick(record)}
+            tooltip={isFillable ? "Klik untuk mengedit tanggal" : undefined}
+            onClick={() => handleCellClick(record, isFillable)}
+            isFillable={isFillable}
           >
             {formattedDate}
           </EditableCell>
@@ -300,7 +319,7 @@ const generateColumns = (
         const isEditing = record.key === editingKey
         const isValidLink = text && isValidUrl(text)
 
-        return isEditing ? (
+        return isEditing && isFillable ? (
           <Input
             defaultValue={text}
             onChange={(e) =>
@@ -322,18 +341,19 @@ const generateColumns = (
         ) : (
           <EditableCell
             editable={true}
-            tooltip="Klik untuk menambahkan URL"
-            onClick={() => handleCellClick(record)}
-            style={{ color: "#1890ff" }}
+            tooltip={isFillable ? "Klik untuk menambahkan URL" : undefined}
+            onClick={() => handleCellClick(record, isFillable)}
+            isFillable={isFillable}
+            style={{ color: isFillable ? "#1890ff" : "#666" }}
           >
-            {text || "Masukkan Link"}
+            {text || (isFillable ? "Masukkan Link" : "-")}
           </EditableCell>
         )
       }
     } else if (columnType === "number") {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
-        return isEditing ? (
+        return isEditing && isFillable ? (
           <InputNumber
             defaultValue={text !== null && text !== undefined ? text : 0}
             onChange={(value) => {
@@ -354,8 +374,9 @@ const generateColumns = (
         ) : (
           <EditableCell
             editable={true}
-            tooltip="Klik untuk mengedit"
-            onClick={() => handleCellClick(record)}
+            tooltip={isFillable ? "Klik untuk mengedit" : undefined}
+            onClick={() => handleCellClick(record, isFillable)}
+            isFillable={isFillable}
           >
             {text !== undefined && text !== null ? text : "-"}
           </EditableCell>
@@ -366,7 +387,7 @@ const generateColumns = (
         const isEditing = record.key === editingKey
         const percentage = text !== undefined && text !== null ? text : 0
 
-        return isEditing ? (
+        return isEditing && isFillable ? (
           <InputNumber
             defaultValue={percentage}
             onChange={(value) => {
@@ -388,8 +409,9 @@ const generateColumns = (
         ) : (
           <EditableCell
             editable={true}
-            tooltip="Klik untuk mengedit persentase"
-            onClick={() => handleCellClick(record)}
+            tooltip={isFillable ? "Klik untuk mengedit persentase" : undefined}
+            onClick={() => handleCellClick(record, isFillable)}
+            isFillable={isFillable}
           >
             {`${percentage}%`}
           </EditableCell>
@@ -398,7 +420,7 @@ const generateColumns = (
     } else {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
-        return isEditing ? (
+        return isEditing && isFillable ? (
           <Input
             defaultValue={text}
             onChange={(e) =>
@@ -415,8 +437,9 @@ const generateColumns = (
         ) : (
           <EditableCell
             editable={true}
-            tooltip="Klik untuk mengedit"
-            onClick={() => handleCellClick(record)}
+            tooltip={isFillable ? "Klik untuk mengedit" : undefined}
+            onClick={() => handleCellClick(record, isFillable)}
+            isFillable={isFillable}
           >
             {text !== undefined && text !== null && text !== "" ? text : "-"}
           </EditableCell>
@@ -471,6 +494,7 @@ const generateColumns = (
           width: tableConfig.lebar || 150,
           align: tableConfig.align || "center",
           is_group: tableConfig.isGroup || false,
+          fillable: tableConfig.fillable !== false, // Add fillable field
         })
       }
 
