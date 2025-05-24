@@ -15,10 +15,12 @@ import TabelMatriksAkreditasi from "./TabelMatriksAkreditasi"
 import { LoadingScreen } from "./LoadingSpinner"
 import axiosInstance from "../utils/axiosConfig"
 
+// Konfigurasi skor yang diperlukan berdasarkan requirement baru
 const SKOR_YANG_DIPERLUKAN = [
+  // Syarat Perlu Akreditasi (semua harus >= 2.0)
   {
-    section_code: "3a1",
-    butir: "15",
+    butir: 16,
+    tableCode: "3a1",
     tipe: "syaratPerluAkreditasi",
     kunci: "jabatanAkademikDTPS",
     deskripsi: "Jabatan Akademik DTPS",
@@ -26,17 +28,51 @@ const SKOR_YANG_DIPERLUKAN = [
     syaratUnggul: 3.5,
     syaratBaikSekali: 3.0,
   },
-  //butir LED
   {
-    section_code: "3a1",
-    butir: "38",
+    butir: 38,
+    tableCode: "kurikulum", // placeholder, sesuaikan dengan data aktual
     tipe: "syaratPerluAkreditasi",
     kunci: "kurikulum",
     deskripsi: "Kurikulum",
   },
   {
-    section_code: "8d1",
-    butir: "59",
+    butir: "penjaminanMutu", // placeholder untuk penjaminan mutu
+    tableCode: "sistem",
+    tipe: "syaratPerluAkreditasi",
+    kunci: "penjaminanMutu",
+    deskripsi:
+      "Penjaminan Mutu (keterlaksanaan Sistem Penjaminan Mutu Internal)",
+  },
+  {
+    butir: "basicScience", // placeholder untuk basic science
+    tableCode: "basic",
+    tipe: "syaratPerluAkreditasi",
+    kunci: "basicScience",
+    deskripsi: "Basic Science dan Matematika",
+  },
+
+  // Syarat Perlu Unggul Diploma 4
+  {
+    butir: 16,
+    tableCode: "3a1",
+    tipe: "syaratPeringkatUnggul",
+    kunci: "jabatanAkademikDTPS",
+    deskripsi: "Jabatan Akademik DTPS",
+    syaratUnggul: 3.5,
+    syaratBaikSekali: 3.0,
+  },
+  {
+    butir: 19,
+    tableCode: "3a1",
+    tipe: "syaratPeringkatUnggul",
+    kunci: "kualifikasiAkademikDTPS",
+    deskripsi: "Kualifikasi Akademik DTPS",
+    syaratUnggul: 3.5,
+    syaratBaikSekali: 3.0,
+  },
+  {
+    butir: 65,
+    tableCode: "8d1",
     tipe: "syaratPeringkatUnggul",
     kunci: "waktuTunggu",
     deskripsi: "Waktu Tunggu",
@@ -44,11 +80,20 @@ const SKOR_YANG_DIPERLUKAN = [
     syaratBaikSekali: 3.0,
   },
   {
-    section_code: "8d2",
-    butir: "60",
+    butir: 66,
+    tableCode: "8d2",
     tipe: "syaratPeringkatUnggul",
     kunci: "kesesuaianBidang",
     deskripsi: "Kesesuaian Bidang Kerja",
+    syaratUnggul: 3.5,
+    syaratBaikSekali: 3.0,
+  },
+  {
+    butir: 47,
+    tableCode: "5a3",
+    tipe: "syaratPeringkatUnggul",
+    kunci: "basicScience",
+    deskripsi: "Basic Science dan Matematika",
     syaratUnggul: 3.5,
     syaratBaikSekali: 3.0,
   },
@@ -75,45 +120,84 @@ const dataProgramAwal = {
       lulus: true,
       deskripsi: "Kurikulum",
     },
+    basicScience: {
+      skor: 3.5,
+      lulus: true,
+      deskripsi: "Basic Science dan Matematika",
+    },
   },
   syaratPeringkatUnggul: {
+    kualifikasiAkademikDTPS: {
+      skor: 0,
+      syarat: 3.5,
+      lulus: false,
+      deskripsi: "Kualifikasi Akademik DTPS",
+      isDummy: false,
+    },
     jabatanAkademikDTPS: {
       skor: 0,
       syarat: 3.5,
       lulus: false,
       deskripsi: "Jabatan Akademik DTPS",
+      isDummy: false,
     },
     waktuTunggu: {
       skor: 0,
       syarat: 3.5,
       lulus: false,
       deskripsi: "Waktu Tunggu",
+      isDummy: false,
     },
     kesesuaianBidang: {
       skor: 0,
       syarat: 3.5,
       lulus: false,
       deskripsi: "Kesesuaian Bidang Kerja",
+      isDummy: false,
+    },
+    basicScience: {
+      skor: 3.5,
+      syarat: 3.5,
+      lulus: false,
+      deskripsi: "Basic Science dan Matematika",
+      isDummy: true,
     },
   },
   syaratPeringkatBaikSekali: {
+    kualifikasiAkademikDTPS: {
+      skor: 0,
+      syarat: 3.0,
+      lulus: false,
+      deskripsi: "Kualifikasi Akademik DTPS",
+      isDummy: false,
+    },
     jabatanAkademikDTPS: {
       skor: 0,
       syarat: 3.0,
       lulus: false,
       deskripsi: "Jabatan Akademik DTPS",
+      isDummy: false,
     },
     waktuTunggu: {
       skor: 0,
       syarat: 3.0,
       lulus: false,
       deskripsi: "Waktu Tunggu",
+      isDummy: false,
     },
     kesesuaianBidang: {
       skor: 0,
       syarat: 3.0,
       lulus: false,
       deskripsi: "Kesesuaian Bidang Kerja",
+      isDummy: false,
+    },
+    basicScience: {
+      skor: 3.5,
+      syarat: 3.0,
+      lulus: false,
+      deskripsi: "Basic Science dan Matematika",
+      isDummy: true,
     },
   },
 }
@@ -138,6 +222,14 @@ const AccreditationStatus = () => {
   const [sedangMemuatSkor, setSedangMemuatSkor] = useState(true)
   const [error, setError] = useState(null)
 
+  // State untuk admin prodi selection
+  const [prodiList, setProdiList] = useState([])
+  const [selectedProdiId, setSelectedProdiId] = useState(null)
+  const [loadingProdiList, setLoadingProdiList] = useState(false)
+
+  // Cek apakah user adalah admin
+  const isAdmin = userData?.role === "Admin"
+
   // Fungsi untuk memetakan peringkat akreditasi
   const petakanPeringkat = (peringkat) => {
     const petaPeringkat = {
@@ -148,36 +240,47 @@ const AccreditationStatus = () => {
     return petaPeringkat[peringkat] || peringkat || "Tidak Terakreditasi"
   }
 
-  // Fungsi untuk mengambil skor butir dari API dengan penanganan error yang lebih baik
-  const ambilSkorButir = async (section_code, butir) => {
+  // Fungsi untuk mengambil semua skor dari endpoint baru
+  const ambilSemuaSkorButir = async (prodiId) => {
     try {
-      console.log(`Fetching score for section ${section_code}, butir ${butir}`)
-      const response = await axiosInstance.get("/lkps/score/butir", {
-        params: { section_code, butir },
+      console.log(`Fetching all scores for prodi ID: ${prodiId}`)
+      const response = await axiosInstance.get(`/lkps/score-syarat-perlu`, {
+        params: { prodiId },
       })
 
-      if (response.data && response.data.nilai !== undefined) {
-        console.log(
-          `Received score for section ${section_code}, butir ${butir}:`,
-          response.data.nilai
-        )
-        return response.data
+      if (response.data && response.data.nilaiItems) {
+        console.log("Received score data:", response.data)
+        return response.data.nilaiItems
       } else {
-        console.warn(
-          `No score data found for section ${section_code}, butir ${butir}`
-        )
-        return null
+        console.warn("No score data found in response")
+        return []
       }
     } catch (error) {
-      console.error(
-        `Error fetching score for section ${section_code}, butir ${butir}:`,
-        error
-      )
-      return null
+      console.error("Error fetching scores:", error)
+      throw error
     }
   }
 
-  // Mengambil data skor saat komponen dimuat - kode ini diperbaiki untuk menghindari duplikasi permintaan API
+  // Fetch prodi list untuk admin
+  useEffect(() => {
+    const fetchProdiList = async () => {
+      if (!isAdmin || isLoading) return
+
+      setLoadingProdiList(true)
+      try {
+        const response = await axiosInstance.get("/prodi")
+        setProdiList(response.data)
+      } catch (error) {
+        console.error("Error fetching prodi list:", error)
+      } finally {
+        setLoadingProdiList(false)
+      }
+    }
+
+    fetchProdiList()
+  }, [isAdmin, isLoading])
+
+  // Mengambil data skor saat komponen dimuat dengan endpoint baru
   useEffect(() => {
     const ambilSemuaSkor = async () => {
       if (isLoading) return // Tunggu userData selesai dimuat
@@ -186,85 +289,53 @@ const AccreditationStatus = () => {
       setError(null)
 
       try {
+        // Tentukan prodi ID yang akan digunakan
+        let prodiId = userData?.prodi?.id
+
+        // Jika admin dan telah memilih prodi, gunakan yang dipilih
+        if (isAdmin && selectedProdiId) {
+          prodiId = selectedProdiId
+        }
+
+        if (!prodiId) {
+          console.warn("No prodi ID available")
+          setSedangMemuatSkor(false)
+          return
+        }
+
         // Buat data program baru berdasarkan template
         const dataProgramBaru = JSON.parse(JSON.stringify(dataProgramAwal))
 
-        // Ciptakan objek untuk menyimpan hasil API agar tidak memanggil API yang sama berulang kali
-        const hasilAPI = {}
+        // Ambil semua skor dari endpoint baru
+        const nilaiItems = await ambilSemuaSkorButir(prodiId)
 
-        // Dapatkan semua skor yang diperlukan
-        for (const konfigurasiSkor of SKOR_YANG_DIPERLUKAN) {
-          // Buat kunci unik untuk setiap kombinasi section_code dan butir
-          const kunciAPI = `${konfigurasiSkor.section_code}-${konfigurasiSkor.butir}`
+        // Buat map untuk mempermudah pencarian skor berdasarkan butir dan tableCode
+        const skorMap = new Map()
+        nilaiItems.forEach((item) => {
+          const key = `${item.butir}-${item.tableCode}`
+          skorMap.set(key, item.nilai)
+        })
 
-          // Cek apakah sudah ada hasil untuk kombinasi ini
-          if (!hasilAPI[kunciAPI]) {
-            // Jika belum, panggil API dan simpan hasilnya
-            const dataSkor = await ambilSkorButir(
-              konfigurasiSkor.section_code,
-              konfigurasiSkor.butir
-            )
-            hasilAPI[kunciAPI] = dataSkor
-          }
+        // Update data program berdasarkan konfigurasi
+        SKOR_YANG_DIPERLUKAN.forEach((konfigurasiSkor) => {
+          const kunciSkor = `${konfigurasiSkor.butir}-${konfigurasiSkor.tableCode}`
+          const skor = skorMap.get(kunciSkor) || 0
 
-          // Ambil hasil API dari cache
-          const dataSkor = hasilAPI[kunciAPI]
+          console.log(`Processing ${konfigurasiSkor.kunci}: ${skor}`)
 
-          if (dataSkor && dataSkor.nilai !== undefined) {
-            const skor = parseFloat(dataSkor.nilai)
+          if (konfigurasiSkor.tipe === "syaratPerluAkreditasi") {
+            // Syarat perlu akreditasi
+            if (dataProgramBaru.syaratPerluAkreditasi[konfigurasiSkor.kunci]) {
+              dataProgramBaru.syaratPerluAkreditasi[
+                konfigurasiSkor.kunci
+              ].skor = skor
+              dataProgramBaru.syaratPerluAkreditasi[
+                konfigurasiSkor.kunci
+              ].lulus = skor >= 2.0
+            }
 
-            // Update data program sesuai dengan tipe
-            if (konfigurasiSkor.tipe === "syaratPerluAkreditasi") {
-              // Syarat perlu akreditasi
-              if (
-                dataProgramBaru.syaratPerluAkreditasi[konfigurasiSkor.kunci]
-              ) {
-                dataProgramBaru.syaratPerluAkreditasi[
-                  konfigurasiSkor.kunci
-                ].skor = skor
-                dataProgramBaru.syaratPerluAkreditasi[
-                  konfigurasiSkor.kunci
-                ].lulus = skor >= 2.0
-                dataProgramBaru.syaratPerluAkreditasi[
-                  konfigurasiSkor.kunci
-                ].deskripsi = konfigurasiSkor.deskripsi
-              }
-
-              // Jika juga digunakan untuk peringkat Unggul dan Baik Sekali
-              if (
-                konfigurasiSkor.juga_untuk_unggul &&
-                dataProgramBaru.syaratPeringkatUnggul[konfigurasiSkor.kunci]
-              ) {
-                // Syarat peringkat Unggul
-                dataProgramBaru.syaratPeringkatUnggul[
-                  konfigurasiSkor.kunci
-                ].skor = skor
-                dataProgramBaru.syaratPeringkatUnggul[
-                  konfigurasiSkor.kunci
-                ].syarat = konfigurasiSkor.syaratUnggul
-                dataProgramBaru.syaratPeringkatUnggul[
-                  konfigurasiSkor.kunci
-                ].lulus = skor >= konfigurasiSkor.syaratUnggul
-                dataProgramBaru.syaratPeringkatUnggul[
-                  konfigurasiSkor.kunci
-                ].deskripsi = konfigurasiSkor.deskripsi
-
-                // Syarat peringkat Baik Sekali
-                dataProgramBaru.syaratPeringkatBaikSekali[
-                  konfigurasiSkor.kunci
-                ].skor = skor
-                dataProgramBaru.syaratPeringkatBaikSekali[
-                  konfigurasiSkor.kunci
-                ].syarat = konfigurasiSkor.syaratBaikSekali
-                dataProgramBaru.syaratPeringkatBaikSekali[
-                  konfigurasiSkor.kunci
-                ].lulus = skor >= konfigurasiSkor.syaratBaikSekali
-                dataProgramBaru.syaratPeringkatBaikSekali[
-                  konfigurasiSkor.kunci
-                ].deskripsi = konfigurasiSkor.deskripsi
-              }
-            } else if (konfigurasiSkor.tipe === "syaratPeringkatUnggul") {
-              // Syarat peringkat Unggul
+            // Jika juga digunakan untuk peringkat Unggul dan Baik Sekali
+            if (konfigurasiSkor.juga_untuk_unggul) {
               if (
                 dataProgramBaru.syaratPeringkatUnggul[konfigurasiSkor.kunci]
               ) {
@@ -277,12 +348,8 @@ const AccreditationStatus = () => {
                 dataProgramBaru.syaratPeringkatUnggul[
                   konfigurasiSkor.kunci
                 ].lulus = skor >= konfigurasiSkor.syaratUnggul
-                dataProgramBaru.syaratPeringkatUnggul[
-                  konfigurasiSkor.kunci
-                ].deskripsi = konfigurasiSkor.deskripsi
               }
 
-              // Syarat peringkat Baik Sekali
               if (
                 dataProgramBaru.syaratPeringkatBaikSekali[konfigurasiSkor.kunci]
               ) {
@@ -295,13 +362,38 @@ const AccreditationStatus = () => {
                 dataProgramBaru.syaratPeringkatBaikSekali[
                   konfigurasiSkor.kunci
                 ].lulus = skor >= konfigurasiSkor.syaratBaikSekali
-                dataProgramBaru.syaratPeringkatBaikSekali[
-                  konfigurasiSkor.kunci
-                ].deskripsi = konfigurasiSkor.deskripsi
               }
             }
+          } else if (konfigurasiSkor.tipe === "syaratPeringkatUnggul") {
+            // Syarat peringkat Unggul
+            if (dataProgramBaru.syaratPeringkatUnggul[konfigurasiSkor.kunci]) {
+              dataProgramBaru.syaratPeringkatUnggul[
+                konfigurasiSkor.kunci
+              ].skor = skor
+              dataProgramBaru.syaratPeringkatUnggul[
+                konfigurasiSkor.kunci
+              ].syarat = konfigurasiSkor.syaratUnggul
+              dataProgramBaru.syaratPeringkatUnggul[
+                konfigurasiSkor.kunci
+              ].lulus = skor >= konfigurasiSkor.syaratUnggul
+            }
+
+            // Syarat peringkat Baik Sekali
+            if (
+              dataProgramBaru.syaratPeringkatBaikSekali[konfigurasiSkor.kunci]
+            ) {
+              dataProgramBaru.syaratPeringkatBaikSekali[
+                konfigurasiSkor.kunci
+              ].skor = skor
+              dataProgramBaru.syaratPeringkatBaikSekali[
+                konfigurasiSkor.kunci
+              ].syarat = konfigurasiSkor.syaratBaikSekali
+              dataProgramBaru.syaratPeringkatBaikSekali[
+                konfigurasiSkor.kunci
+              ].lulus = skor >= konfigurasiSkor.syaratBaikSekali
+            }
           }
-        }
+        })
 
         // Debug: log data program yang telah diperbarui
         console.log("Data program setelah update:", dataProgramBaru)
@@ -317,7 +409,7 @@ const AccreditationStatus = () => {
     }
 
     ambilSemuaSkor()
-  }, [isLoading])
+  }, [isLoading, selectedProdiId])
 
   if (isLoading || sedangMemuatSkor) {
     return <LoadingScreen />
@@ -339,8 +431,17 @@ const AccreditationStatus = () => {
     )
   }
 
-  // Menggunakan data dari user untuk informasi program studi
-  const dataProdi = userData?.prodi || null
+  // Determine which prodi to use
+  let dataProdi = userData?.prodi || null
+
+  // If admin and has selected a prodi, use the selected one
+  if (isAdmin && selectedProdiId) {
+    const selectedProdi = prodiList.find((p) => p.id === selectedProdiId)
+    if (selectedProdi) {
+      dataProdi = selectedProdi
+    }
+  }
+
   const dataAkreditasi = dataProdi?.akreditasi || null
 
   // Menentukan data program yang akan ditampilkan
@@ -400,6 +501,44 @@ const AccreditationStatus = () => {
       <h1 className="text-2xl font-bold text-center mb-6">
         Status Akreditasi Program Studi
       </h1>
+
+      {/* Admin Prodi Selection */}
+      {isAdmin && (
+        <Card className="mb-6 bg-gray-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Pilih Program Studi</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <label htmlFor="prodi-select" className="text-sm font-medium">
+                Program Studi:
+              </label>
+              <select
+                id="prodi-select"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={selectedProdiId || userData?.prodi?.id || ""}
+                onChange={(e) => setSelectedProdiId(e.target.value)}
+                disabled={loadingProdiList}
+              >
+                <option value="">
+                  {loadingProdiList
+                    ? "Loading..."
+                    : "-- Pilih Program Studi --"}
+                </option>
+                {prodiList.map((prodi) => (
+                  <option key={prodi.id} value={prodi.id}>
+                    {prodi.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Sebagai Admin, Anda dapat melihat status akreditasi dari semua
+              program studi.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* BAGIAN 1: INFORMASI AKREDITASI SAAT INI */}
       <div className="mb-8">
@@ -502,6 +641,25 @@ const AccreditationStatus = () => {
           akreditasi resmi yang berlaku saat ini.
         </p>
 
+        {/* Info tentang data dummy */}
+        <div className="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-yellow-800">Informasi Data</p>
+              <p className="text-yellow-700 mt-1">
+                Beberapa data ditandai dengan label{" "}
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                  DUMMY
+                </span>{" "}
+                menggunakan nilai sementara untuk keperluan simulasi dan
+                testing. Data ini akan diganti dengan nilai aktual setelah
+                implementasi endpoint yang sesuai.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Required Conditions Section */}
         <div className="w-full mb-6">
           <div className="flex items-center gap-2 mb-4">
@@ -525,7 +683,19 @@ const AccreditationStatus = () => {
                 {Object.values(program.syaratPerluAkreditasi).map(
                   (item, index) => (
                     <TableRow key={index}>
-                      <TableCell>{item.deskripsi}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {item.deskripsi}
+                          {item.isDummy && (
+                            <Badge
+                              variant="outline"
+                              className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs"
+                            >
+                              DUMMY
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center font-medium">
                         {item.skor.toFixed(1)}
                       </TableCell>
@@ -567,7 +737,7 @@ const AccreditationStatus = () => {
             </h2>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Butir penilaian untuk mendapatkan peringkat Unggul
+            Butir penilaian untuk mendapatkan peringkat Unggul (Diploma 4)
           </p>
 
           <div className="w-full overflow-x-auto bg-white rounded-lg">
@@ -583,7 +753,19 @@ const AccreditationStatus = () => {
                 {Object.values(program.syaratPeringkatUnggul).map(
                   (item, index) => (
                     <TableRow key={index}>
-                      <TableCell>{item.deskripsi}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {item.deskripsi}
+                          {item.isDummy && (
+                            <Badge
+                              variant="outline"
+                              className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs"
+                            >
+                              DUMMY
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">
                           <span className="font-medium">
@@ -653,7 +835,19 @@ const AccreditationStatus = () => {
                 {Object.values(program.syaratPeringkatBaikSekali).map(
                   (item, index) => (
                     <TableRow key={index}>
-                      <TableCell>{item.deskripsi}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {item.deskripsi}
+                          {item.isDummy && (
+                            <Badge
+                              variant="outline"
+                              className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs"
+                            >
+                              DUMMY
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">
                           <span className="font-medium">
