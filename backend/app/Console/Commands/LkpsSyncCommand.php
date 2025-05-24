@@ -423,9 +423,6 @@ class LkpsSyncCommand extends Command
         return trim($clean);
     }
 
-    /**
-     * Buat kolom untuk tabel
-     */
     private function createColumnsForTable($table, $nameSheet)
     {
         $this->info("  Menganalisis dan membuat kolom untuk tabel {$table->kode}...");
@@ -459,47 +456,64 @@ class LkpsSyncCommand extends Command
                 return;
             }
 
-            // PRIORITAS UTAMA: Gunakan data_start_row jika tersedia
-            if (isset($response->original['data_start_row']) && $response->original['data_start_row'] > 0) {
-                // Tambahkan +1 untuk menyesuaikan dengan posisi Excel sebenarnya
-                $table->barisAwalExcel = $response->original['data_start_row'] + 1;
+            // PRIORITAS UTAMA: Gunakan first_yellow_row (baris pertama dengan sel kuning)
+            if (isset($response->original['first_yellow_row']) && $response->original['first_yellow_row'] > 0) {
+                // Langsung gunakan first_yellow_row tanpa penambahan
+                $table->barisAwalExcel = $response->original['first_yellow_row'];
                 $table->save();
 
-                // Tambahkan log detail
                 $yellowInfo = "";
                 if (isset($response->original['yellow_rows_found'])) {
-                    $yellowInfo = " (baris kuning: " . implode(", ", $response->original['yellow_rows_found']) . ")";
+                    $yellowInfo = " (semua baris kuning: " . implode(", ", $response->original['yellow_rows_found']) . ")";
                 }
 
-                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} berdasarkan analisis sel kuning" . $yellowInfo);
+                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (baris pertama dengan sel kuning){$yellowInfo}");
             }
-            // PRIORITAS KEDUA: Jika data_start_row tidak tersedia, gunakan first_yellow_row + 1
-            else if (isset($response->original['first_yellow_row']) && $response->original['first_yellow_row'] > 0) {
-                // Tambahkan +1 untuk menyesuaikan dengan posisi Excel sebenarnya
-                $table->barisAwalExcel = $response->original['first_yellow_row'] + 2;
+            // PRIORITAS KEDUA: Jika tidak ada yellow row, gunakan data_start_row jika tersedia
+            else if (isset($response->original['data_start_row']) && $response->original['data_start_row'] > 0) {
+                $table->barisAwalExcel = $response->original['data_start_row'];
                 $table->save();
-                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (baris kuning pertama + 2)");
+                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} berdasarkan data_start_row (tidak ada sel kuning ditemukan)");
             }
-            // PRIORITAS KETIGA: Gunakan header_row + 1
+            // PRIORITAS KETIGA: Gunakan header_row + 1 sebagai fallback
             else if (isset($headerData['header_row']) && $headerData['header_row'] > 0) {
                 // Cari baris header terbesar
                 $lastHeaderRow = $headerData['header_row'];
-
                 if (isset($headerData['subheader_row']) && $headerData['subheader_row'] > $lastHeaderRow) {
                     $lastHeaderRow = $headerData['subheader_row'];
                 }
-
                 if (isset($headerData['sub_subheader_row']) && $headerData['sub_subheader_row'] > $lastHeaderRow) {
                     $lastHeaderRow = $headerData['sub_subheader_row'];
                 }
-
-                // Tambahkan +1 untuk menyesuaikan dengan posisi Excel sebenarnya
-                $table->barisAwalExcel = $lastHeaderRow + 2;
+                $table->barisAwalExcel = $lastHeaderRow + 1;
                 $table->save();
-                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (header row terakhir + 2)");
+                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (header row terakhir + 1, tidak ada sel kuning)");
+            }
+            // DEFAULT: Jika tidak ada informasi sama sekali
+            else {
+                $table->barisAwalExcel = 2; // Default ke baris 2
+                $table->save();
+                $this->warn("  barisAwalExcel menggunakan default 2 (tidak ada informasi header atau sel kuning)");
             }
 
-            // PERBAIKAN: Kosongkan kolom lama sebelum menambahkan yang baru dengan kode tabel yang sesuai
+            // Proses yellow columns untuk menentukan kolom mana yang fillable
+            $yellowColumns = [];
+            if (isset($response->original['yellow_columns']) && is_array($response->original['yellow_columns'])) {
+                $yellowColumns = array_keys($response->original['yellow_columns']);
+
+                if ($this->debug) {
+                    $this->info("  Kolom kuning yang terdeteksi: " . implode(", ", $yellowColumns));
+                }
+            }
+
+            // Log jumlah yellow columns yang ditemukan
+            if (!empty($yellowColumns)) {
+                $this->info("  Ditemukan " . count($yellowColumns) . " kolom berwarna kuning yang akan di-set fillable");
+            } else {
+                $this->info("  Tidak ada kolom kuning ditemukan - semua kolom akan di-set tidak fillable");
+            }
+
+            // Hapus kolom lama
             $deletedColumns = LkpsColumn::where('kodeTabel', $table->kode)->delete();
             $this->info("  Menghapus {$deletedColumns} kolom lama untuk tabel {$table->kode}");
 
@@ -507,15 +521,19 @@ class LkpsSyncCommand extends Command
             $remainingColumns = LkpsColumn::where('kodeTabel', $table->kode)->count();
             if ($remainingColumns > 0) {
                 $this->warn("  Masih terdapat {$remainingColumns} kolom yang belum terhapus!");
-
-                // Mencoba lagi dengan pendekatan lain jika diperlukan
                 $forceDeleted = LkpsColumn::where('kodeTabel', $table->kode)->forceDelete();
                 $this->info("  Menghapus paksa kolom tersisa: {$forceDeleted}");
             }
 
-            // Buat kolom baru dengan referensi kodeTabel yang benar
-            $columnCount = $this->createColumnsFromHeaderData($table, $headerData['columns']);
+            // Buat kolom baru dengan referensi kodeTabel yang benar dan informasi yellow columns
+            $columnCount = $this->createColumnsFromHeaderDataWithFillable($table, $headerData['columns'], null, 0, $yellowColumns);
             $this->info("  Berhasil membuat {$columnCount} kolom untuk tabel {$table->kode}");
+
+            // Hitung kolom fillable dan non-fillable
+            $fillableCount = LkpsColumn::where('kodeTabel', $table->kode)->where('fillable', true)->count();
+            $nonFillableCount = LkpsColumn::where('kodeTabel', $table->kode)->where('fillable', false)->count();
+
+            $this->info("  Kolom fillable (kuning): {$fillableCount}, Non-fillable: {$nonFillableCount}");
 
             // Verifikasi kolom benar-benar dibuat
             $actualColumns = LkpsColumn::where('kodeTabel', $table->kode)->count();
@@ -533,10 +551,10 @@ class LkpsSyncCommand extends Command
     }
 
     /**
-     * Buat kolom dari data header yang sudah distrukturisasi
-     * Implementasi dasar untuk membuat kolom, tanpa mengatur indeksData berdasarkan parent
+     * Helper method untuk create columns dengan fillable support
+     * Fillable = true HANYA untuk kolom berwarna kuning
      */
-    private function createColumnsFromHeaderData($table, $columns, $parentId = null, $parentOrder = 0)
+    private function createColumnsFromHeaderDataWithFillable($table, $columns, $parentId = null, $parentOrder = 0, $yellowColumns = [])
     {
         $columnCount = 0;
         $order = 0;
@@ -548,25 +566,95 @@ class LkpsSyncCommand extends Command
                 $dataIndex = $this->createDataIndex($column['name']);
                 $hasChildren = !empty($column['children']);
 
+                // Cek apakah kolom ini berwarna kuning (fillable)
+                // HANYA kolom kuning yang fillable = true
+                $isFillable = in_array($column['column'], $yellowColumns);
+
                 // PERBAIKAN: Konsistensi penggunaan kodeTabel
                 $newColumn = LkpsColumn::create([
-                    'kodeTabel' => $table->kode, // Pastikan menggunakan kode
+                    'kodeTabel' => $table->kode,
                     'indeksData' => $dataIndex,
                     'judul' => $column['name'],
                     'type' => $hasChildren ? 'group' : $dataType,
-                    'lebar' => 150, // Default
-                    'indeksExcel' => $this->columnLetterToIndex($column['column']) - 1, // Konversi ke 0-based
+                    'lebar' => 150,
+                    'indeksExcel' => $this->columnLetterToIndex($column['column']) - 1,
                     'order' => $parentId ? $order : $parentOrder + $order,
                     'align' => 'left',
                     'isGroup' => $hasChildren,
-                    'parentId' => $parentId
+                    'parentId' => $parentId,
+                    'fillable' => $isFillable // Set fillable berdasarkan warna kuning
                 ]);
 
                 $columnCount++;
                 $this->generatedStructure['columns']++;
 
                 if ($this->debug) {
-                    $this->info("    Kolom dibuat: {$column['name']} (type: " . ($hasChildren ? 'group' : $dataType) . ")");
+                    $fillableStatus = $isFillable ? 'FILLABLE (yellow cell)' : 'not fillable';
+                    $this->info("    Kolom dibuat: {$column['name']} [Column: {$column['column']}] (type: " . ($hasChildren ? 'group' : $dataType) . ", {$fillableStatus})");
+                }
+
+                // Rekursif untuk child columns
+                if ($hasChildren) {
+                    $childCount = $this->createColumnsFromHeaderDataWithFillable(
+                        $table,
+                        $column['children'],
+                        $newColumn->_id,
+                        $order,
+                        $yellowColumns // Pass yellow columns info ke children
+                    );
+                    $columnCount += $childCount;
+                }
+
+                $order++;
+            } catch (\Exception $e) {
+                $this->error("    Gagal membuat kolom '{$column['name']}': {$e->getMessage()}");
+                Log::error("Error creating column '{$column['name']}': {$e->getMessage()}");
+            }
+        }
+
+        return $columnCount;
+    }
+
+    /**
+     * Buat kolom dari data header yang sudah distrukturisasi
+     * Implementasi dasar untuk membuat kolom, tanpa mengatur indeksData berdasarkan parent
+     */
+    private function createColumnsFromHeaderData($table, $columns, $parentId = null, $parentOrder = 0, $greenCells = [])
+    {
+        $columnCount = 0;
+        $order = 0;
+
+        foreach ($columns as $column) {
+            try {
+                // Tentukan tipe data dan index
+                $dataType = $this->determineColumnType($column['name']);
+                $dataIndex = $this->createDataIndex($column['name']);
+                $hasChildren = !empty($column['children']);
+
+                // Cek apakah kolom ini berwarna hijau
+                $isFillable = !isset($greenCells[$column['column']]);
+
+                // PERBAIKAN: Konsistensi penggunaan kodeTabel
+                $newColumn = LkpsColumn::create([
+                    'kodeTabel' => $table->kode,
+                    'indeksData' => $dataIndex,
+                    'judul' => $column['name'],
+                    'type' => $hasChildren ? 'group' : $dataType,
+                    'lebar' => 150,
+                    'indeksExcel' => $this->columnLetterToIndex($column['column']) - 1,
+                    'order' => $parentId ? $order : $parentOrder + $order,
+                    'align' => 'left',
+                    'isGroup' => $hasChildren,
+                    'parentId' => $parentId,
+                    'fillable' => $isFillable // Set fillable berdasarkan warna
+                ]);
+
+                $columnCount++;
+                $this->generatedStructure['columns']++;
+
+                if ($this->debug) {
+                    $fillableInfo = $isFillable ? 'fillable' : 'not fillable';
+                    $this->info("    Kolom dibuat: {$column['name']} (type: " . ($hasChildren ? 'group' : $dataType) . ", {$fillableInfo})");
                 }
 
                 // Rekursif untuk child columns
@@ -575,7 +663,8 @@ class LkpsSyncCommand extends Command
                         $table,
                         $column['children'],
                         $newColumn->_id,
-                        $order
+                        $order,
+                        $greenCells // Pass green cells info ke children
                     );
                     $columnCount += $childCount;
                 }

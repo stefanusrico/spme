@@ -11,16 +11,17 @@ class LkpsColumn extends Model
     protected $collection = 'lkps_columns';
 
     protected $fillable = [
-        'kodeTabel',    // Reference to the table this column belongs to
-        'indeksData',   // Field name in the data object (e.g., 'lembagamitra')
-        'judul',        // Display title for the column
-        'type',         // Data type: 'text', 'number', 'boolean', 'date', 'url', 'group'
-        'lebar',        // Column width (for UI display)
-        'indeksExcel',  // Column index in Excel file (0-based)
-        'order',        // Display order within the table or parent group
-        'align',        // Text alignment: 'left', 'center', 'right'
-        'isGroup',      // Whether this is a group column with child columns
-        'parentId'      // Reference to parent column if this is a child column
+        'kodeTabel',
+        'indeksData',
+        'judul',
+        'type',
+        'lebar',
+        'indeksExcel',
+        'order',
+        'fillable',
+        'align',
+        'isGroup',
+        'parentId'
     ];
 
     /**
