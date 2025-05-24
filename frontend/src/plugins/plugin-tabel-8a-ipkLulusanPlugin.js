@@ -59,11 +59,14 @@ const ipkLulusanPlugin = {
 
     const processedData = filteredData.map((row, index) => {
       const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
+        key: `excel-<span class="math-inline">\{index \+ 1\}\-</span>{Date.now()}`,
         no: index + 1,
         selected: true,
         tahun_lulus: "",
         jumlah_lulusan: 0,
+        min_indeks_prestasi_kumulatif: 0,
+        rata_rata_indeks_prestasi_kumulatif: 0,
+        maks_indeks_prestasi_kumulatif: 0,
       }
 
       Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
@@ -124,13 +127,12 @@ const ipkLulusanPlugin = {
       return {
         scores: [
           {
-            butir: 52,
+            butir: 58,
             nilai: 0,
           },
         ],
         scoreDetail: {
-          averageIPK: 0,
-          ipkPoints: 0,
+          RIPK: 0,
         },
       }
     }
@@ -141,37 +143,36 @@ const ipkLulusanPlugin = {
 
     data.forEach((item) => {
       const graduates = parseFloat(item.jumlah_lulusan || 0)
-      const avgIPK = parseFloat(item.indeks_prestasi_kumulatif_rata_rata || 0)
+      const avgIPK = parseFloat(item.rata_rata_indeks_prestasi_kumulatif || 0)
 
-      if (graduates > 0 && avgIPK > 0) {
+      if (graduates > 0 && avgIPK >= 2.00 && avgIPK <= 4.00) {
         totalWeightedIPK += avgIPK * graduates
         totalGraduates += graduates
       }
     })
 
-    const averageIPK =
+    const RIPK =
       totalGraduates > 0 ? totalWeightedIPK / totalGraduates : 0
 
-    // Scoring formula based on average IPK
-    let score
-    if (averageIPK >= 3.25) {
-      score = 4
-    } else if (averageIPK >= 3.0) {
-      score = 3 + (averageIPK - 3.0) / 0.25
-    } else if (averageIPK >= 2.75) {
-      score = 2 + (averageIPK - 2.75) / 0.25
-    } else if (averageIPK >= 2.5) {
-      score = 1 + (averageIPK - 2.5) / 0.25
+    // Scoring formula based on RIPK
+    let nilai = 0
+    if (RIPK >= 3.25) {
+      nilai = 4
+    } else if (RIPK >= 2.00 && RIPK < 3.25) {
+      nilai = ((8 * RIPK) - 6) / 5
     } else {
-      score = averageIPK / 2.5
+      nilai = 0 // Tidak ada skor kurang dari 2, jadi jika RIPK < 2, skor 0
     }
 
     return {
-      score: Math.min(4, Math.max(0, score)),
+      scores: [
+        {
+          butir: 58,
+          nilai: Math.max(0, Math.min(4, parseFloat(nilai.toFixed(2)))),
+        },
+      ],
       scoreDetail: {
-        averageIPK: averageIPK.toFixed(2),
-        totalGraduates,
-        ipkPoints: score.toFixed(2),
+        RIPK: RIPK.toFixed(2),
       },
     }
   },
@@ -180,9 +181,9 @@ const ipkLulusanPlugin = {
     return data.map((item) => {
       const numericFields = [
         "jumlah_lulusan",
-        "indeks_prestasi_kumulatif_min",
-        "indeks_prestasi_kumulatif_rata_rata",
-        "indeks_prestasi_kumulatif_maks",
+        "min_indeks_prestasi_kumulatif",
+        "rata_rata_indeks_prestasi_kumulatif",
+        "maks_indeks_prestasi_kumulatif",
       ]
 
       const result = { ...item }
@@ -212,9 +213,9 @@ const ipkLulusanPlugin = {
         errors.push(`Row ${index + 1}: Tahun Lulus harus diisi`)
       }
 
-      const min = parseFloat(item.indeks_prestasi_kumulatif_min || 0)
-      const avg = parseFloat(item.indeks_prestasi_kumulatif_rata_rata || 0)
-      const max = parseFloat(item.indeks_prestasi_kumulatif_maks || 0)
+      const min = parseFloat(item.min_indeks_prestasi_kumulatif || 0)
+      const avg = parseFloat(item.rata_rata_indeks_prestasi_kumulatif || 0)
+      const max = parseFloat(item.maks_indeks_prestasi_kumulatif || 0)
 
       if (min > avg) {
         errors.push(

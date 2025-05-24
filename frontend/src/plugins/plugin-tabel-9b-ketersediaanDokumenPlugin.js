@@ -1,12 +1,12 @@
 /**
- * Plugin khusus untuk section Ketersediaan Dokumen SPMI (Tabel 9.a)
+ * Plugin khusus untuk section Ketersediaan Dokumen SPMI (Tabel 9.b)
  */
 import { processExcelDataBase } from "../utils/tableUtils"
 
 const ketersediaanDokumenPlugin = {
   getInfo() {
     return {
-      code: "9a",
+      code: "9b",
       name: "Ketersediaan Dokumen SPMI Plugin",
       description: "Plugin for evaluating availability and implementation of SPMI documents",
     }
@@ -54,28 +54,16 @@ const ketersediaanDokumenPlugin = {
     })
 
     const processedData = filteredData.map((row, index) => {
+
+      
       const item = {
         key: `excel-${index + 1}-${Date.now()}`,
         no: index + 1,
         selected: false,
-        bidang: "",
-        dokumen_iku_ikt: false,
-        siklus_ppepp: false,
-        bukti_efektivitas: false,
-        bukti_peningkatan: false,
+        jenis_dokumen_penjaminan_mutu: row[1] || "",
+        no_dokumen: row[2] || "",
+        tanggal_dokumen: row[3] || "",
       }
-
-      Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
-        if (colIndex === undefined || colIndex < 0) return
-        const value = row[colIndex]
-
-        if (["bidang"].includes(fieldName)) {
-          item[fieldName] = value ? String(value).trim() : ""
-        } else {
-          const normalized = typeof value === "string" ? value.toLowerCase().trim() : ""
-          item[fieldName] = normalized === "ya" || normalized === "yes" || value === true
-        }
-      })
 
       return item
     })
@@ -105,68 +93,49 @@ const ketersediaanDokumenPlugin = {
   },
 
   calculateScore(data) {
-    if (!data || data.length === 0) {
-      console.log("=== DEBUG: Empty or No Data for Score Calculation ===")
-      return {
-        scores: [
-          {
-            butir: 79,
-            nilai: 0,
-          },
-        ],
-        scoreDetail: {
-          aspek_terpenuhi: 0,
-          total_bidang: 0,
-        },
-      }
-    }
+  const allRows = data && data.allRows ? data.allRows : (Array.isArray(data) ? data : []);
 
-    let aspekPenuhTerpenuhi = 0
-    let totalBidang = data.length
-
-    data.forEach((row, index) => {
-      const allTrue =
-        row.dokumen_iku_ikt &&
-        row.siklus_ppepp &&
-        row.bukti_efektivitas &&
-        row.bukti_peningkatan
-
-      console.log(`Row ${index + 1}: All Aspek Terpenuhi? = ${allTrue}`)
-      if (allTrue) aspekPenuhTerpenuhi++
-    })
-
-    let nilai = 0
-    if (aspekPenuhTerpenuhi === totalBidang) {
-      nilai = 4
-    } else if (aspekPenuhTerpenuhi >= totalBidang - 1) {
-      nilai = 3
-    } else if (aspekPenuhTerpenuhi >= totalBidang / 2) {
-      nilai = 2
-    } else if (aspekPenuhTerpenuhi > 0) {
-      nilai = 1
-    }
-
+  if (!allRows || allRows.length === 0) {
+    console.log("=== DEBUG: Empty or No Data for Score Calculation ===")
     return {
-      scores: [
-        {
-          butir: 79,
-          nilai,
-        },
-      ],
-      scoreDetail: {
-        aspek_terpenuhi: aspekPenuhTerpenuhi,
-        total_bidang: totalBidang,
-      },
+      scores: [{ butir: 73, nilai: 0 }],
+      scoreDetail: { kebijakan_spmi: false, manual_spmi: false, standar_spmi: false, formulir_spmi: false },
     }
-  },
+  }
+
+  const kebijakanSPMI = allRows.some(row => row.jenis_dokumen_penjaminan_mutu.toLowerCase().includes('kebijakan spmi'));
+  const manualSPMI = allRows.some(row => row.jenis_dokumen_penjaminan_mutu.toLowerCase().includes('manual spmi'));
+  const standarSPMI = allRows.some(row => row.jenis_dokumen_penjaminan_mutu.toLowerCase().includes('standar spmi'));
+  const formulirSPMI = allRows.some(row => row.jenis_dokumen_penjaminan_mutu.toLowerCase().includes('formulir spmi'));
+
+  let nilai = 0;
+  if (kebijakanSPMI && manualSPMI && standarSPMI && formulirSPMI) {
+    nilai = 4;
+  } else if (kebijakanSPMI && manualSPMI && standarSPMI) {
+    nilai = 3;
+  } else if (kebijakanSPMI && manualSPMI) {
+    nilai = 2;
+  } else if (kebijakanSPMI) {
+    nilai = 1;
+  }
+
+  return {
+    scores: [
+      { butir: 73, nilai }
+    ],
+    scoreDetail: {
+      kebijakan_spmi: kebijakanSPMI,
+      manual_spmi: manualSPMI,
+      standar_spmi: standarSPMI,
+      formulir_spmi: formulirSPMI,
+    },
+  }
+},
 
   normalizeData(data) {
     return data.map((item) => ({
       ...item,
-      dokumen_iku_ikt: Boolean(item.dokumen_iku_ikt),
-      siklus_ppepp: Boolean(item.siklus_ppepp),
-      bukti_efektivitas: Boolean(item.bukti_efektivitas),
-      bukti_peningkatan: Boolean(item.bukti_peningkatan),
+      tanggal_dokumen: Boolean(item.tanggal_dokumen),
     }))
   },
 
@@ -174,8 +143,8 @@ const ketersediaanDokumenPlugin = {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.bidang || item.bidang.trim() === "") {
-        errors.push(`Row ${index + 1}: Nama bidang harus diisi.`)
+      if (!item.jenis_dokumen_penjaminan_mutu || item.jenis_dokumen_penjaminan_mutu.trim() === "") {
+        errors.push(`Row ${index + 1}: Jenis Dokumen Penjaminan harus diisi.`)
       }
     })
 

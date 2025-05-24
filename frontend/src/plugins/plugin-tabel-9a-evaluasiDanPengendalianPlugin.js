@@ -37,39 +37,23 @@ const evaluasiDanPengendalianPlugin = {
 
     const filteredData = rawData.filter((row) => {
       if (!row || row.length === 0) return false
-
       const nonEmptyValues = row.filter((val) => val !== undefined && val !== null && val !== "")
-      if (nonEmptyValues.length <= 1) return false
-
-      return true
+      return nonEmptyValues.length > 1 // Minimal ada nama standar
     })
 
     const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
+      return {
+        key: `excel-<span class="math-inline">\{index \+ 1\}\-</span>{Date.now()}`,
         no: index + 1,
         selected: false,
-        bidang: "",
-        dokumen_iku_ikt: false,
-        pelaksanaan_ppepp: false,
-        bukti_sahih_efektivitas: false,
-        bukti_peningkatan_standar: false,
+        nama_standar_sn_dikti: row[1] || "",
+        ketersediaan_standar_p: String(row[2]).trim().toUpperCase() === 'V',
+        pelaksanaan_standar_p: String(row[3]).trim().toUpperCase() === 'V',
+        monitoring_evaluasi_dan_audit_mutu_internal_e: String(row[4]).trim().toUpperCase() === 'V',
+        umpan_balik_audit_mutu_internal_p: String(row[5]).trim().toUpperCase() === 'V',
+        tindak_lanjut_audit_mutu_internal_p: String(row[6]).trim().toUpperCase() === 'V',
+        tanggal_audit_mutu_internal_hh_bb_tttt: row[7] || "",
       }
-
-      Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
-        if (colIndex === undefined || colIndex < 0) return
-
-        const value = row[colIndex]
-
-        if (["bidang"].includes(fieldName)) {
-          item[fieldName] = value ? String(value).trim() : ""
-        } else {
-          const normalized = String(value).toLowerCase().trim()
-          item[fieldName] = normalized === "ya" || normalized === "yes" || normalized === "1"
-        }
-      })
-
-      return item
     })
 
     return {
@@ -101,69 +85,59 @@ const evaluasiDanPengendalianPlugin = {
   },
 
   calculateScore(data) {
-    if (!data || data.length === 0) {
+    const allRows = data && data.allRows ? data.allRows : (Array.isArray(data) ? data : []);
+
+    if (!allRows || allRows.length === 0) {
       return {
-        scores: [
-          {
-            butir: 72,
-            nilai: 0,
-          },
-        ],
-        scoreDetail: {
-          jumlah_bidang: 0,
-          total_aspek: 0,
-          aspek_terpenuhi: 0,
-        },
-      }
+        scores: [{ butir: 74, nilai: 0 }],
+        scoreDetail: { jumlah_standar: 0, standar_terimplementasi: 0, persentase_implementasi: 0 },
+      };
     }
 
-    let totalAspek = 0
-    let aspekTerpenuhi = 0
-    let bidangCount = data.length
+    const jumlahStandar = allRows.length;
+    let standarTerimplementasi = 0;
 
-    data.forEach((item) => {
-      const flags = [
-        item.dokumen_iku_ikt,
-        item.pelaksanaan_ppepp,
-        item.bukti_sahih_efektivitas,
-        item.bukti_peningkatan_standar,
-      ]
+    allRows.forEach(item => {
+      let implementasiCount = 0;
+      if (item.ketersediaan_standar_p) implementasiCount++;
+      if (item.pelaksanaan_standar_p) implementasiCount++;
+      if (item.monitoring_evaluasi_dan_audit_mutu_internal_e) implementasiCount++;
+      if (item.umpan_balik_audit_mutu_internal_p) implementasiCount++;
+      if (item.tindak_lanjut_audit_mutu_internal_p) implementasiCount++;
 
-      totalAspek += 4
-      aspekTerpenuhi += flags.filter((v) => v === true).length
-    })
+      if (implementasiCount >= 5) { // Asumsi semua aspek harus terpenuhi untuk dianggap terimplementasi penuh per standar
+        standarTerimplementasi++;
+      }
+    });
 
-    const averageAspek = bidangCount > 0 ? aspekTerpenuhi / bidangCount : 0
-    let nilai = 0
+    const persentaseImplementasi = jumlahStandar > 0 ? (standarTerimplementasi / jumlahStandar) * 100 : 0;
+    let nilai = 0;
 
-    if (averageAspek >= 4) nilai = 4
-    else if (averageAspek >= 3) nilai = 3
-    else if (averageAspek >= 2) nilai = 2
-    else if (averageAspek >= 1) nilai = 1
+    if (persentaseImplementasi >= 80) nilai = 4;
+    else if (persentaseImplementasi >= 60) nilai = 3;
+    else if (persentaseImplementasi >= 40) nilai = 2;
+    else if (persentaseImplementasi > 0) nilai = 1;
 
     return {
       scores: [
-        {
-          butir: 72,
-          nilai,
-        },
+        { butir: 74, nilai }
       ],
       scoreDetail: {
-        jumlah_bidang: bidangCount,
-        total_aspek: totalAspek,
-        aspek_terpenuhi: aspekTerpenuhi,
-        rata_rata_aspek_per_bidang: averageAspek.toFixed(2),
+        jumlah_standar: jumlahStandar,
+        standar_terimplementasi: standarTerimplementasi,
+        persentase_implementasi: parseFloat(persentaseImplementasi.toFixed(2)),
       },
-    }
+    };
   },
 
   normalizeData(data) {
     return data.map((item) => ({
       ...item,
-      dokumen_iku_ikt: Boolean(item.dokumen_iku_ikt),
-      pelaksanaan_ppepp: Boolean(item.pelaksanaan_ppepp),
-      bukti_sahih_efektivitas: Boolean(item.bukti_sahih_efektivitas),
-      bukti_peningkatan_standar: Boolean(item.bukti_peningkatan_standar),
+      ketersediaan_standar: Boolean(item.ketersediaan_standar_p),
+      pelaksanaan_standar: Boolean(item.pelaksanaan_standar_p),
+      monitoring_evaluasi_audit: Boolean(item.monitoring_evaluasi_dan_audit_mutu_internal_e),
+      umpan_balik_audit: Boolean(item.umpan_balik_audit_mutu_internal_p),
+      tindak_lanjut_audit: Boolean(item.tindak_lanjut_audit_mutu_internal_p),
     }))
   },
 
@@ -171,8 +145,8 @@ const evaluasiDanPengendalianPlugin = {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.bidang || item.bidang.trim() === "") {
-        errors.push(`Row ${index + 1}: Bidang harus diisi`)
+      if (!item.nama_standar_sn_dikti || item.nama_standar_sn_dikti.trim() === "") {
+        errors.push(`Row ${index + 1}: Nama Standar harus diisi`)
       }
     })
 

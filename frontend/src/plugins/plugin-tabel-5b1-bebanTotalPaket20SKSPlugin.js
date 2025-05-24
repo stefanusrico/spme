@@ -121,23 +121,15 @@ const bebanTotalPaket20SKSPlugin = {
       }
     }
 
-    const jumlahMK = data.length
-    let nilai = 0
-
-    if (jumlahMK >= 5) nilai = 4
-    else if (jumlahMK >= 4) nilai = 3
-    else if (jumlahMK >= 3) nilai = 2
-    else if (jumlahMK >= 1) nilai = 1
-
     return {
       scores: [
         {
-          butir: 57,
+          butir: 49,
           nilai,
         },
       ],
       scoreDetail: {
-        jumlahMK,
+      
       },
     }
   },

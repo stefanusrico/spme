@@ -51,6 +51,11 @@ import LuaranPenelitianPkmYangDihasilkanMahasiswaTeknologiTepatGunaProdukKaryaSe
 import LuaranPenelitianPkmYangDihasilkanMahasiswaBukuBerIsbnBookChapter from "./plugin-tabel-8f5-4-LuaranPenelitianPkMYangDihasilkanMahasiswa"
 import evaluasiDanPengendalianPlugin from "./plugin-tabel-9a-evaluasiDanPengendalianPlugin"
 import ketersediaanDokumenPlugin from "./plugin-tabel-9b-ketersediaanDokumenPlugin"
+import pembimbinganTugasAKirPlugin from "./plugin-tabel-5a2-pembimbinganTugasAkhirPlugin"
+import masaStudiLulusanPlugin from "./plugin-tabel-8c-masaStudiLulusanPlugin"
+import pagelaranPameranPlugin from "./plugin-tabel-8f2-pagelaranPameranPlugin"
+import evaluasiDanPengendalian from "./plugin-tabel-9a-evaluasiDanPengendalianPlugin"
+
 
 const registerPlugins = () => {
   console.log("Registering LKPS plugins...")
@@ -74,10 +79,7 @@ const registerPlugins = () => {
   registerPlugin("3b6", KaryaIlmiahDtpsYangDisitasi)
   registerPlugin("3b7", ProdukJasaDtpsYangDiadopsiOlehIndustriMasyarakat)
   registerPlugin("3b8-1", LuaranPenelitianPkmLainnyaHKIPatenPatenSederhana)
-  registerPlugin(
-    "3b8-2",
-    LuaranPenelitianPkmLainnyaHKIHakCiptaDesainProdukIndustriDll
-  )
+  registerPlugin("3b8-2",LuaranPenelitianPkmLainnyaHKIHakCiptaDesainProdukIndustriDll)
   registerPlugin("3b8-3", LuaranPenelitianPkmLainnyaTeknologiTepatGunaProduk)
   registerPlugin("3b8-4", LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter)
 
@@ -86,6 +88,7 @@ const registerPlugins = () => {
   registerPlugin("4c", dataPrasaranaUPPSPlugin)
 
   registerPlugin("5a1", kurikulumCapaianRencanaPlugin)
+  registerPlugin("5a2", pembimbinganTugasAKirPlugin)
   registerPlugin("5a3", mataKuliahBasicSciencePlugin)
   registerPlugin("5a4", capstoneDesignProsesPembelajaranPlugin)
   registerPlugin("5b1", bebanTotalPaket20SKSPlugin)
@@ -100,10 +103,12 @@ const registerPlugins = () => {
   registerPlugin("8a", ipkLulusanPlugin)
   registerPlugin("8b1", PrestasiAkademikMahasiswaPlugin)
   registerPlugin("8b2", PrestasiNonAkademikMahasiswaPlugin)
+  registerPlugin("8c", masaStudiLulusanPlugin)
   registerPlugin("8d1", waktuTungguLulusanPlugin)
   registerPlugin("8d2", kesesuaianBidangKerjaPlugin)
   registerPlugin("8e1", LulusanTerlacakPlugin)
   registerPlugin("8e2", KepuasanPenggunaLulusanPlugin)
+  registerPlugin("8f2", pagelaranPameranPlugin)
   registerPlugin("8f4", ProdukJasaYangDihasilkanMahasiswa)
   registerPlugin(
     "8f5-1",
@@ -123,7 +128,7 @@ const registerPlugins = () => {
   )
 
   registerPlugin("9a", evaluasiDanPengendalianPlugin)
-  registerPlugin("9a", ketersediaanDokumenPlugin)
+  registerPlugin("9b", ketersediaanDokumenPlugin)
 
   console.log("All LKPS plugins registered successfully")
 }

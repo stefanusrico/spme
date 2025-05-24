@@ -105,7 +105,7 @@ const kurikulumCapaianRencanaPlugin = {
       return {
         scores: [
           {
-            butir: 43, // Asumsi Butir untuk 5.a.1, bisa disesuaikan
+            butir: 44, // Asumsi Butir untuk 5.a.1, bisa disesuaikan
             nilai: 0,
           },
         ],

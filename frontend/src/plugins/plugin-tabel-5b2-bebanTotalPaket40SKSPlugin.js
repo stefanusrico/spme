@@ -139,29 +139,15 @@ const bebanTotalPaket40SKSPlugin = {
       }
     }
 
-    // Contoh asumsinya: satu baris = satu mahasiswa mengikuti MBKM dengan jumlah SKS tertera
-    const totalMahasiswa = data.length
-    const totalSKS = data.reduce((acc, row) => acc + (parseFloat(row.sks) || 0), 0)
-    const mahasiswaMBKM = totalMahasiswa // jika semua mengikuti, bisa diubah kalau ada field terpisah
-
-    let nilai = 0
-    if (mahasiswaMBKM / totalMahasiswa >= 0.25 && totalSKS / totalMahasiswa >= 20) nilai = 4
-    else if (mahasiswaMBKM / totalMahasiswa >= 0.25) nilai = 3
-    else if (mahasiswaMBKM / totalMahasiswa > 0) nilai = 2
-    else nilai = 1
-
     return {
       scores: [
         {
-          butir: 60,
+          butir: 49,
           nilai,
         },
       ],
       scoreDetail: {
-        totalMahasiswa,
-        mahasiswaMBKM,
-        totalSKS,
-        sksPerMahasiswa: (totalSKS / totalMahasiswa).toFixed(2),
+        
       },
     }
   },
