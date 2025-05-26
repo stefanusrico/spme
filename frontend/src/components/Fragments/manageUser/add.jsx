@@ -6,6 +6,8 @@ import Dropdown from "../../Elements/Dropdown"
 import { uploadFile } from "../../Elements/Profile/profile.action"
 import axiosInstance from "../../../utils/axiosConfig"
 
+const ADMIN_ROLE_NAME = "Admin" // Asumsi nama role untuk Admin
+
 const AddUser = ({ title = "Add User" }) => {
   const navigate = useNavigate()
   const [user, setUser] = useState({
@@ -17,18 +19,18 @@ const AddUser = ({ title = "Add User" }) => {
     verifPass: "",
     phone_number: "",
     profile_picture: "",
-    jurusanId: "",
+    // jurusanId: "", // Dihapus
     prodiId: "",
   })
   const [roles, setRoles] = useState([])
-  const [jurusan, setJurusan] = useState([])
+  // const [jurusan, setJurusan] = useState([]) // Dihapus
   const [prodi, setProdi] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
 
   const [error, setError] = useState({
     role: "",
-    jurusanId: "",
+    // jurusanId: "", // Dihapus
     prodiId: "",
   })
 
@@ -38,46 +40,36 @@ const AddUser = ({ title = "Add User" }) => {
     const fetchData = async () => {
       try {
         const rolesResponse = await axiosInstance.get("/roles")
-        const jurusanResponse = await axiosInstance.get("/jurusan")
-
         setRoles(rolesResponse.data.data)
-        setJurusan(jurusanResponse.data)
+
+        // Langsung fetch semua prodi, karena jurusan sudah tidak ada
+        // Asumsi endpoint /prodi mengembalikan semua prodi
+        const prodiResponse = await axiosInstance.get("/prodi")
+        setProdi(prodiResponse.data) // Sesuaikan dengan struktur data respons prodi
       } catch (error) {
-        console.error("Error fetching data:", error)
+        console.error("Error fetching initial data:", error)
+        if (error.response && error.response.config.url.includes("/prodi")) {
+            setProdi([]) // Gagal fetch prodi, set ke array kosong
+            console.error("Khususnya, error fetching prodi data.")
+        }
       }
     }
     fetchData()
   }, [])
 
-  useEffect(() => {
-    // Reset prodi when jurusan changes
-    setProdi([])
-    setUser((prev) => ({ ...prev, prodiId: "" }))
-  }, [user.jurusanId])
+  // Tidak ada lagi useEffect yang bergantung pada user.jurusanId
 
-  const fetchProdi = async (id) => {
-    try {
-      const prodiResponse = await axiosInstance.get(`/prodi/${id}`)
-      setProdi(prodiResponse.data)
-    } catch (error) {
-      console.error("Error fetching prodi:", error)
-      setProdi([])
-    }
-  }
+  // Fungsi fetchProdi(id) sudah tidak relevan karena prodi difetch semua di awal
+  // Fungsi handleJurusanChange juga sudah tidak relevan
 
-  const handleJurusanChange = (id) => {
-    // Reset prodi when jurusan changes
-    setProdi([])
-
-    // Update user state with new jurusanId and clear prodiId
+  const handleRoleChange = (selectedRole) => {
     setUser((prev) => ({
       ...prev,
-      jurusanId: id,
-      prodiId: "",
+      role: selectedRole,
+      prodiId: selectedRole === ADMIN_ROLE_NAME ? "" : prev.prodiId, // Reset prodiId jika role Admin
     }))
-
-    // Fetch prodi for the selected jurusan
-    fetchProdi(id)
+    // Reset error prodi jika role berubah
+    setError(prev => ({...prev, prodiId: ""}));
   }
 
   const handleImageChange = (e) => {
@@ -87,12 +79,10 @@ const AddUser = ({ title = "Add User" }) => {
         alert("Ukuran file terlalu besar (maksimal 5MB)")
         return
       }
-
       if (!file.type.startsWith("image/")) {
         alert("Hanya file gambar yang diperbolehkan")
         return
       }
-
       setPreviewImage(URL.createObjectURL(file))
       setUser({ ...user, profile_picture: file })
     }
@@ -101,22 +91,18 @@ const AddUser = ({ title = "Add User" }) => {
   const handleChange = async () => {
     try {
       setIsLoading(true)
-
-      // Reset error states
       setError({
         role: "",
-        jurusanId: "",
         prodiId: "",
       })
 
       // Validation
       const validationErrors = {
         role: !user.role ? "Role harus dipilih" : "",
-        jurusanId: !user.jurusanId ? "Jurusan harus dipilih" : "",
-        prodiId: !user.prodiId ? "Program Studi harus dipilih" : "",
+        // prodiId tidak divalidasi di sini jika Admin, tapi backend-mu MEWAJIBKANNYA. Ini akan jadi masalah.
+        prodiId: user.role !== ADMIN_ROLE_NAME && !user.prodiId ? "Program Studi harus dipilih" : "",
       }
 
-      // Check all required fields
       const requiredFields = [
         "name",
         "email",
@@ -125,9 +111,12 @@ const AddUser = ({ title = "Add User" }) => {
         "password",
         "verifPass",
         "phone_number",
-        "jurusanId",
-        "prodiId",
+        // "jurusanId", // Dihapus
       ]
+      // ProdiId menjadi kondisional
+      if (user.role !== ADMIN_ROLE_NAME) {
+        requiredFields.push("prodiId")
+      }
 
       const missingFields = requiredFields.filter((field) => !user[field])
 
@@ -137,37 +126,23 @@ const AddUser = ({ title = "Add User" }) => {
         return
       }
 
-      // Additional validations
       if (user.password !== user.verifPass) {
         alert("Password yang dimasukkan berbeda")
         setIsLoading(false)
         return
       }
 
-      // Set any validation errors
-      if (
-        validationErrors.role ||
-        validationErrors.jurusanId ||
-        validationErrors.prodiId
-      ) {
+      if (validationErrors.role || (user.role !== ADMIN_ROLE_NAME && validationErrors.prodiId)) {
         setError(validationErrors)
         setIsLoading(false)
         return
       }
 
       let newProfilePicture = user.profile_picture
-
       if (user.profile_picture instanceof File) {
-        const uploadResponse = await uploadFile(
-          user.profile_picture,
-          "profile_pictures"
-        )
-
+        const uploadResponse = await uploadFile(user.profile_picture, "profile_pictures")
         if (uploadResponse.status === "success") {
-          newProfilePicture =
-            uploadResponse.file_path ||
-            uploadResponse.path ||
-            uploadResponse.url
+          newProfilePicture = uploadResponse.file_path || uploadResponse.path || uploadResponse.url
         } else {
           throw new Error("Gagal mengunggah foto profil")
         }
@@ -176,30 +151,34 @@ const AddUser = ({ title = "Add User" }) => {
       const dataToStore = {
         ...user,
         profile_picture: newProfilePicture,
-        // Remove unnecessary fields
-        phone_number: user.phone_number,
-        // Ensure correct field names match backend
-        jurusanId: user.jurusanId,
-        prodiId: user.prodiId,
+        // jurusanId: user.jurusanId, // DIHAPUS. PERHATIAN: Backend-mu MEWAJIBKAN ini!
       }
-
-      // Remove verifPass before sending
       delete dataToStore.verifPass
+      // delete dataToStore.jurusanId; // Pastikan ini benar-benar dihapus jika tidak dikirim
 
-      console.log(
-        "Data yang akan dikirim:",
-        JSON.stringify(dataToStore, null, 2)
-      )
+      // Hanya tambahkan prodiId jika bukan Admin
+      // PERHATIAN: Backend-mu MEWAJIBKAN prodiId bahkan untuk Admin!
+      if (user.role !== ADMIN_ROLE_NAME) {
+        dataToStore.prodiId = user.prodiId
+      } else {
+        delete dataToStore.prodiId // Hapus prodiId jika Admin
+      }
+      
+      // **CATATAN PENTING SEKALI:**
+      // Berdasarkan info API-mu:
+      // 1. `jurusanId` adalah `required`. Menghapusnya dari `dataToStore` akan menyebabkan ERROR dari backend.
+      // 2. `prodiId` adalah `required`. Jika `user.role` adalah `ADMIN_ROLE_NAME`, `dataToStore` di atas tidak akan punya `prodiId`, ini juga akan ERROR.
+      // Kamu PERLU menangani ini, entah dengan mengubah backend atau mengirim nilai default yang valid.
+
+      console.log("Data yang akan dikirim:", JSON.stringify(dataToStore, null, 2))
 
       try {
         const response = await axiosInstance.post(`/users`, dataToStore)
-
         console.log("Response dari backend:", {
           data: response.data,
           status: response.status,
           headers: response.headers,
         })
-
         navigate("/user-management/1")
       } catch (error) {
         console.error("Error creating user:", {
@@ -207,7 +186,7 @@ const AddUser = ({ title = "Add User" }) => {
           status: error.response?.status,
           headers: error.response?.headers,
         })
-        alert("Gagal membuat user. Silakan coba lagi.")
+        alert(`Gagal membuat user: ${error.response?.data?.message || "Silakan coba lagi."}`)
       }
     } catch (error) {
       console.error("Handle update error:", error)
@@ -227,8 +206,10 @@ const AddUser = ({ title = "Add User" }) => {
               <img
                 src={
                   previewImage ||
-                  (user.profile_picture
+                  (user.profile_picture && typeof user.profile_picture === 'string' // Cek jika string (path dari DB)
                     ? `http://localhost:8000/storage/${user.profile_picture}`
+                    : user.profile_picture instanceof File // Cek jika File (belum diupload)
+                    ? URL.createObjectURL(user.profile_picture) // Ini akan direvoke oleh previewImage, tapi sbg fallback
                     : "/default-avatar.png")
                 }
                 alt="User Avatar"
@@ -258,6 +239,9 @@ const AddUser = ({ title = "Add User" }) => {
                     }
                     setPreviewImage(null)
                     setUser({ ...user, profile_picture: "" })
+                    if(fileInputRef.current) {
+                      fileInputRef.current.value = ""; // Reset file input
+                    }
                   }}
                   aria-label="Remove"
                   disabled={isLoading}
@@ -284,12 +268,12 @@ const AddUser = ({ title = "Add User" }) => {
                   label="Role"
                   name="role"
                   options={roles.map((role) => ({
-                    id: role.id,
-                    value: role.name,
+                    id: role.id, // Pastikan role.id unik dan string jika dipakai sbg key
+                    value: role.name, // Menggunakan role.name sebagai value
                     label: role.name,
                   }))}
                   value={user.role}
-                  onChange={(e) => setUser({ ...user, role: e.target.value })}
+                  onChange={(e) => handleRoleChange(e.target.value)} // Gunakan handleRoleChange
                   disabled={isLoading}
                   placeholder="Pilih Role"
                   error={error.role}
@@ -336,48 +320,34 @@ const AddUser = ({ title = "Add User" }) => {
                   required
                 />
 
-                <Dropdown
-                  label="Jurusan"
-                  name="jurusanId"
-                  options={jurusan.map((j) => ({
-                    id: j.id,
-                    value: j.id,
-                    label: j.name,
-                  }))}
-                  value={user.jurusanId}
-                  onChange={(e) => {
-                    handleJurusanChange(e.target.value)
-                  }}
-                  disabled={isLoading}
-                  placeholder={
-                    user.jurusanId ? "Jurusan Terpilih" : "Pilih Jurusan"
-                  }
-                  error={error.jurusanId}
-                />
+                {/* Dropdown Jurusan Dihapus */}
 
-                <Dropdown
-                  label="Program Studi"
-                  name="prodiId"
-                  options={prodi.map((p) => ({
-                    id: p.id,
-                    value: p.id,
-                    label: p.name,
-                  }))}
-                  value={user.prodiId}
-                  onChange={(e) => {
-                    setUser({
-                      ...user,
-                      prodiId: e.target.value,
-                    })
-                  }}
-                  disabled={isLoading || !user.jurusanId || prodi.length === 0}
-                  placeholder={
-                    prodi.length === 0
-                      ? "Pilih Jurusan Dulu"
-                      : "Pilih Program Studi"
-                  }
-                  error={error.prodiId}
-                />
+                {/* Prodi hanya muncul jika role bukan Admin dan role sudah dipilih */}
+                {user.role && user.role !== ADMIN_ROLE_NAME && (
+                  <Dropdown
+                    label="Program Studi"
+                    name="prodiId"
+                    options={prodi.map((p) => ({
+                      id: p.id, // Pastikan p.id unik dan string jika dipakai sbg key
+                      value: p.id, // Menggunakan p.id sebagai value
+                      label: p.name,
+                    }))}
+                    value={user.prodiId}
+                    onChange={(e) => {
+                      setUser({
+                        ...user,
+                        prodiId: e.target.value,
+                      })
+                    }}
+                    disabled={isLoading || prodi.length === 0}
+                    placeholder={
+                      prodi.length === 0
+                        ? "Data Prodi tidak tersedia"
+                        : "Pilih Program Studi"
+                    }
+                    error={error.prodiId}
+                  />
+                )}
 
                 <InputForm
                   label="Password"
@@ -408,7 +378,7 @@ const AddUser = ({ title = "Add User" }) => {
                 />
               </div>
             </div>
-            <div className="mt-10 ml-8 flex space-x-96">
+            <div className="mt-10 ml-8 flex space-x-96 pb-10"> {/* Tambah pb-10 untuk padding bawah */}
               <Button
                 className="bg-red w-40 hover:bg-white hover:text-red"
                 aria-label="Cancel"
