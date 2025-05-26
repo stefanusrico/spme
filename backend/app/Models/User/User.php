@@ -10,7 +10,6 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Prodi\Prodi;
 use App\Models\DatabaseNotification;
-use App\Models\Jurusan\Jurusan;
 use App\Models\Project\Project;
 
 class User extends Model implements JWTSubject, AuthenticatableContract

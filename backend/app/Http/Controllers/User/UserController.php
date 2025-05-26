@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\User;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\User;
-use App\Models\Jurusan;
-use App\Models\Prodi;
+use App\Models\User\User;
+use App\Models\Prodi\Prodi;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +15,7 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::with(['jurusan', 'prodi'])->get();
+        $users = User::with(['prodi'])->get();
         return response()->json([
             'status' => 'success',
             'data' => $users
@@ -34,11 +34,9 @@ class UserController extends Controller
             'role' => 'required|string',
             'profile_picture' => 'nullable|string|max:255',
             'phone_number' => 'required|unique:users,phone_number|string',
-            'jurusanId' => 'nullable|exists:jurusans,_id',
             'prodiId' => [
-
                 'nullable',
-                Rule::requiredIf(function () use ($request, $adminRoleName ){
+                Rule::requiredIf(function () use ($request, $adminRoleName) {
                     return $request->input('role') !== $adminRoleName;
                 }),
                 'exists:prodis,_id'
@@ -71,13 +69,12 @@ class UserController extends Controller
                 'role' => $request->role,
                 'profile_picture' => $profilePicturePath,
                 'phone_number' => $request->phone_number,
-                'jurusanId' => $request->jurusanId,
                 'prodiId' => $request->prodiId,
                 'projects' => $request->projects ?? null,
             ]);
 
             // Reload with relationships
-            $user->load('jurusan', 'prodi');
+            $user->load('prodi');
 
             return response()->json([
                 'status' => 'success',
@@ -94,14 +91,14 @@ class UserController extends Controller
 
     public function getAuthenticatedUserData(Request $request)
     {
-        $user = Auth::user()->load('jurusan', 'prodi');
+        $user = Auth::user()->load('prodi');
         return response()->json($user);
     }
 
     public function show($id)
     {
         try {
-            $user = User::with(['jurusan', 'prodi'])->findOrFail($id);
+            $user = User::with(['prodi'])->findOrFail($id);
 
             if ($user->profile_picture) {
                 $user->profile_picture = asset('storage/' . $user->profile_picture);
@@ -131,7 +128,6 @@ class UserController extends Controller
                 'username' => 'sometimes|string|unique:users,username,' . $id,
                 'profile_picture' => 'sometimes|nullable|string',
                 'role' => 'sometimes|string',
-                'jurusanId' => 'sometimes|exists:jurusans,_id',
                 'prodiId' => 'sometimes|exists:prodis,_id',
             ]);
 
@@ -149,13 +145,12 @@ class UserController extends Controller
                 'username',
                 'profile_picture',
                 'role',
-                'prodiId',
-                'jurusanId'
+                'prodiId'
             ]));
 
             $user->save();
 
-            $user->refresh()->load('jurusan', 'prodi');
+            $user->refresh()->load('prodi');
 
             return response()->json([
                 'status' => 'success',
