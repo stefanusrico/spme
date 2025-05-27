@@ -609,9 +609,10 @@ class ProjectController extends Controller
             $project = Project::where('prodiId', $prodiId)
                 ->with([
                     'prodi',
-                    'tasks' => function ($query) {
-                        $query->with('users')
-                            ->whereIn('status', ['ACTIVE', 'UNASSIGNED']);
+                    'taskLists.tasks' => function ($query) {
+                        $query->with(['users', 'ledItem'])
+                            ->whereIn('status', ['ACTIVE', 'UNASSIGNED'])
+                            ->whereNotNull('ledItemId');
                     }
                 ])
                 ->first();
@@ -619,49 +620,51 @@ class ProjectController extends Controller
             if (!$project) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Project not found for given prodiId'
+                    'message' => 'Project tidak ditemukan.'
                 ], 404);
             }
 
-            $sortedTasks = $project->tasks->sortBy([
-                ['no', 'asc'],
-                ['sub', 'asc']
-            ])->values();
+            // Gabungkan semua tasks dari taskLists
+            $tasks = collect();
+            foreach ($project->taskLists as $taskList) {
+                $tasks = $tasks->merge($taskList->tasks);
+            }
 
-            $tasks = $sortedTasks->map(function ($task) {
-                return [
-                    'id' => $task->_id,
-                    'taskListId' => $task->taskListid,
-                    'ledItemId' => $task->ledItemId,
-                    'lkpsTableId' => $task->lkpsTableId,
-                    'name' => "Butir {$task->no} - {$task->sub}",
-                    'progress' => $task->progress,
-                    'owners' => $task->users->map(function ($user) {
-                        return [
-                            'id' => $user->_id,
-                            'name' => $user->name,
-                            'profile_picture' => $user->profile_picture
-                        ];
-                    }),
-                    'startDate' => $task->startDate,
-                    'endDate' => $task->endDate,
-                ];
-            })->toArray();
+            // Format dan urutkan tasks
+            $formattedTasks = $tasks
+                ->filter(function ($task) {
+                    return $task->ledItem !== null; // pastikan ada ledItem
+                })
+                ->values()
+                ->map(function ($task) {
+                    return [
+                        'id' => $task->_id,
+                        'name' => $task->nama,
+                        'status' => $task->status,
+                        'no' => $task->ledItem->no,
+                        'sub' => $task->ledItem->sub,
+                        'owners' => $task->users->map(function ($user) {
+                            return [
+                                'id' => $user->id,
+                                'name' => $user->name
+                            ];
+                        })->values()
+                    ];
+                });
 
-            $statistics = [
-                'totalTasks' => count($tasks)
-            ];
-
+            // Bangun response
             return response()->json([
                 'status' => 'success',
                 'data' => [
                     'projectId' => $project->_id,
                     'projectName' => $project->name,
-                    'prodiName' => $project->prodi->name ?? 'Unknown',
-                    'prodiId' => $project->prodiId,
+                    'prodiName' => $project->prodi->name ?? null,
+                    'prodiId' => $project->prodi->id ?? null,
                     'createdAt' => $project->created_at,
-                    'statistics' => $statistics,
-                    'tasks' => $tasks
+                    'statistics' => [
+                        'totalTasks' => $formattedTasks->count()
+                    ],
+                    'tasks' => $formattedTasks
                 ]
             ]);
 

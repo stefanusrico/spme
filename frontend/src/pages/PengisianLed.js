@@ -133,7 +133,16 @@ const extractText = (value) => {
 }
 
 const parseDraftContent = (isianAsesiJson, dataPendukung = []) => {
-  const draft = JSON.parse(isianAsesiJson);
+  if (!isianAsesiJson) return "";
+
+  let draft;
+  try {
+    draft = JSON.parse(isianAsesiJson);
+  } catch (e) {
+    console.warn("⚠️ Gagal parse JSON isianAsesi:", isianAsesiJson);
+    return "";
+  }
+
   const blocks = draft.blocks || [];
   const entityMap = draft.entityMap || {};
 
@@ -168,7 +177,7 @@ export const fetchMasukanAndScoreFromAI = async (
     console.log("data isian sebelum ke GPT : ", dataIsian)
 
     const combinedIsianAsesi = dataIsian.map((item, index) => {
-      return `Isian Asesi ${index + 1} - ${item.reference || "Tanpa Referensi"}\n\n${parseDraftContent(item.isianAsesi)}`
+      return `${parseDraftContent(item.isianAsesi)}`
     }).join("\n\n");
 
     const dataIsianToScoring = {
@@ -222,9 +231,18 @@ export const storeLedData = async (commit, dataIsian, noSub) => {
   // Upload file ke Google Drive dan dapatkan hasilnya
   const uploadedFiles = await storeFileToDrive({ dataIsian, noSub })
 
+  // let totalNilai = 0;
+  // let  ilaiValid = 0;
+
   // Sesuaikan `dataIsian.details`, ganti `dataPendukung` berdasarkan `seq`
   const updatedDetails = (dataIsian.details || []).map((detail, detailIndex) => {
         try {
+            // const nilai = typeof detail.nilai === 'number' ? detail.nilai : parseFloat(detail.nilai);
+            // if (!isNaN(nilai)) {
+            //   totalNilai += nilai;
+            //   jumlahNilaiValid++;
+            // }
+
             if (!Array.isArray(detail.dataPendukung)) {
                 console.warn(`Detail index ${detailIndex} tidak memiliki dataPendukung sebagai array.`);
                 return { ...detail, dataPendukung: [] };
@@ -243,6 +261,16 @@ export const storeLedData = async (commit, dataIsian, noSub) => {
                 };
             });
     
+            // //jika ada nilai didalam detail
+            // if (Object.prototype.hasOwnProperty.call(detail, 'nilai')) {
+            //   const { nilai, ...detailWithoutNilai } = detail;
+            //   return {
+            //     ...detailWithoutNilai,
+            //     dataPendukung: updatedPendukung,
+            //   };
+            // }
+
+            //jika tidak ada nilai didalam detail
             return {
                 ...detail,
                 dataPendukung: updatedPendukung
@@ -258,6 +286,8 @@ export const storeLedData = async (commit, dataIsian, noSub) => {
     userId: dataIsian.user_id,
     taskId: dataIsian.taskId,
     commit: commit,
+    nilai: dataIsian.nilai,
+    masukan: dataIsian.masukan,
     details: updatedDetails.map((detail) => ({
       ...detail,
       dataPendukung: Array.isArray(detail.dataPendukung)

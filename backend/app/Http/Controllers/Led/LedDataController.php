@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Led\LedData;
 use App\Models\Project\Task;
-use App\Models\Project\Project;
 use App\Models\User\User;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
@@ -80,13 +79,15 @@ class LedDataController extends Controller
                 return $item->task && $item->task->tasklist &&
                     $item->task->tasklist->project &&
                     $item->task->tasklist->project->prodiId === $prodiId &&
-                    $item->task->tasklist->project->status === 'ACTIVE';
+                    in_array($item->task->tasklist->project->status, ['ACTIVE', 'IN PROGRESS']);
             });
+
 
             if ($filteredLedData->isEmpty()) {
                 Log::warning("LED not found :", [
                     'prodiId' => $prodiId,
                     'count' => $ledData->count(),
+                    'project->prodiId' => $ledData
                     // 'led data 1' => $ledData->task->tasklist->project
                     // 'led data sebelum filter' => $ledData,
                 ]);
@@ -117,30 +118,22 @@ class LedDataController extends Controller
     public function getSkorPerButir($prodiId)
     {
         try {
-            $project = Project::where('prodiId', $prodiId)
-                ->orderBy('created_at', 'desc')
-                ->first();
-
-            if (!$project) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No active project found for this prodi',
-                ], 404);
-            }
-
             $ledData = LedData::orderBy('created_at', 'desc')
                 ->get();
 
-            $filteredLedData = $ledData->filter(function ($item) use ($project) {
-                return $item->task &&
-                    $item->task->tasklist &&
-                    $item->task->tasklist->projectId === $project->id;
-            });       
+            $filteredLedData = $ledData->filter(function ($item) use ($prodiId) {
+                return $item->task && $item->task->tasklist &&
+                    $item->task->tasklist->project &&
+                    $item->task->tasklist->project->prodiId === $prodiId &&
+                    $item->task->tasklist->project->status === 'ACTIVE';
+            });         
 
             if ($filteredLedData->isEmpty()) {
                 Log::warning("LED not found :", [
                     'prodiId' => $prodiId,
                     'count' => $ledData->count(),
+                    // 'led data 1' => $ledData->task->tasklist->project
+                    // 'led data sebelum filter' => $ledData,
                 ]);
                 return response()->json([
                     'status' => 'error',
@@ -158,7 +151,11 @@ class LedDataController extends Controller
             $result = $uniqueByTaskId->map(function ($item) {
                 return [
                     'no' => $item->task && $item->task->ledItem ? $item->task->ledItem->no : null,
-                    'nilai' => isset($item->details[0]) ? $item->details[0]['nilai'] : null,
+                    'nilai' => isset($item->nilai) 
+                        ? $item->nilai 
+                        : (isset($item->details[0]['nilai']) 
+                            ? $item->details[0]['nilai'] 
+                            : null),
                 ];
             });
 
@@ -176,6 +173,11 @@ class LedDataController extends Controller
                     'nilai' => number_format($average, 2), // string dengan 2 desimal
                 ];
             })->values();
+
+            // foreach ($uniqueByTaskId as $ld) {
+            //     $user = User::find($ld->userId);
+            //     $ld->skor = $user ? $user->name : null;
+            // }
 
             return response()->json([
                 'status' => 'success',
@@ -257,6 +259,8 @@ class LedDataController extends Controller
         $validator = Validator::make($request->all(), [
             'taskId' => 'required|string',
             'commit' => 'required|string',
+            'nilai' => 'nullable|string',
+            'masukan' => 'nullable|string',
             'details' => 'required|array',
         ]);
 
@@ -268,12 +272,37 @@ class LedDataController extends Controller
         }
 
         $validatedData = $validator->validated();
+        
+        $totalDetails = count($validatedData['details']);
+        $filledCount = 0;
 
+        foreach ($validatedData['details'] as $index => $detail) {
+            if (!empty($detail['isianAsesi'])) {
+                $filledCount++;
+            }
+        }
+        $progress = $totalDetails > 0 ? ($filledCount / $totalDetails) * 100 : 0;
+
+        $task = Task::where('_id', $validatedData['taskId'])->first();
+        if ($task) {
+            $task->progress = $progress;
+            $task->save();
+        }        
+        
+        Log::info("Task  :", [
+            'Task' => $task,
+            'totalDetails' => $totalDetails,
+            'filled count' => $filledCount,
+            'Progress ' => $progress,
+        ]);
+        
         try {
             LedData::create([
                 'userId' => auth()->id(),
                 'taskId' => $validatedData['taskId'],
                 'commit' => $validatedData['commit'] ?? null,
+                'nilai' => $validatedData['nilai'] ?? null,
+                'masukan' => $validatedData['masukan'] ?? null,
                 'details' => $validatedData['details'],
             ]);
 
