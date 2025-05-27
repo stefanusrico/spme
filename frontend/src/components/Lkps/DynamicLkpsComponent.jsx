@@ -18,7 +18,7 @@ import {
   ToolOutlined,
 } from "@ant-design/icons"
 
-import registerPlugins from "../../plugins"
+import { registerAllPlugins } from "../../plugins"
 
 import { useUser } from "../../context/userContext"
 import { useTable } from "../../hooks/useTable"
@@ -48,7 +48,8 @@ const DynamicLkpsContainer = () => {
   const { userData, isLoading: userLoading } = useUser()
 
   useEffect(() => {
-    registerPlugins()
+    // Register plugins when component loads
+    registerAllPlugins()
   }, [])
 
   const [debugMode, setDebugMode] = useState(false)
@@ -416,6 +417,7 @@ const DynamicLkpsContainer = () => {
                     setEditingKey={setEditingKey}
                     debouncedHandleDataChange={debouncedHandleDataChange}
                     handleToggleSelection={handleToggleSelection}
+                    plugin={plugin}
                   />
                 </TabPane>
               )

@@ -36,6 +36,7 @@ const TableComponent = ({
   setEditingKey,
   debouncedHandleDataChange,
   handleToggleSelection,
+  plugin,
 }) => {
   // Get table code correctly for MongoDB model structure
   const getTableCode = () => {
@@ -116,7 +117,9 @@ const TableComponent = ({
       handleToggleSelection,
       debouncedHandleDataChange,
       editingKey,
-      setEditingKey
+      setEditingKey,
+      plugin, // Add plugin parameter
+      currentTableCode // Add the current table code
     )
 
     const selectionTableColumns = generateColumns(
@@ -125,7 +128,9 @@ const TableComponent = ({
       handleToggleSelection,
       debouncedHandleDataChange,
       editingKey,
-      setEditingKey
+      setEditingKey,
+      plugin, // Add plugin parameter
+      currentTableCode // Add the current table code
     )
 
     const processedTableData = processDataForDisplay(tableData)

@@ -5,13 +5,15 @@ import { extractColumns } from "../../utils/tableUtils"
 /**
  * Generate columns for data tables - Updated for MongoDB
  */
-const generateColumns = (
+export const generateColumns = (
   tableConfig,
   isSelectionTable = false,
   handleToggleSelection,
   debouncedHandleDataChange,
   editingKey,
-  setEditingKey
+  setEditingKey,
+  plugin,
+  tableCodeParam // Add this parameter
 ) => {
   if (!tableConfig) {
     console.error("No tableConfig provided to generateColumns")
@@ -25,11 +27,14 @@ const generateColumns = (
     if (typeof config === "string") return config
     if (config && config.code) return config.code
     if (config && config.kode) return config.kode
-    return "unknown"
+    return tableCodeParam // Use the parameter as fallback
   }
 
+  // Explicitly get table code using the helper
   const tableCode = getTableCode(tableConfig)
-  console.log("Table code extracted:", tableCode)
+
+  // Get calculated fields if plugin exists, otherwise use empty array
+  const calculatedFields = plugin?.getReadOnlyFields?.() || []
 
   // Add a custom row number column
   const rowNumberColumn = {
@@ -515,8 +520,29 @@ const generateColumns = (
       const dataIndex = col.data_index || col.indeksData
       return dataIndex !== "source"
     })
-    .map(processColumn)
-    .filter(Boolean)
+    .map((col) => {
+      const isCalculated = calculatedFields.includes(col.dataIndex)
+      const column = processColumn(col)
+
+      // Skip if processColumn returned null
+      if (!column) return null
+
+      return {
+        ...column,
+        editable: !isCalculated,
+        className: isCalculated ? "calculated-field" : "",
+        render: (text, record) => {
+          if (isCalculated) {
+            // Special rendering for calculated fields
+            return <span className="calculated-value">{text}</span>
+          }
+
+          // Default rendering for editable fields
+          return column.render(text, record)
+        },
+      }
+    })
+    .filter(Boolean) // This will remove any null entries
 
   if (isSelectionTable) {
     return [rowNumberColumn, selectionColumn, ...processedColumns]
