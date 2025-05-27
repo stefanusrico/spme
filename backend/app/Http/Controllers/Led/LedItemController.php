@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Led;
 use App\Http\Controllers\Controller;
 use App\Models\Led\LedItem;
 use App\Models\Prodi\Prodi;
+use App\Models\Lam\Lam;
 use Illuminate\Http\Request;
 use MongoDB\BSON\ObjectId;
 
@@ -100,9 +101,28 @@ class LedItemController extends Controller
         \Log::info('lamId:', [$lamId]);
         \Log::info('strataId:', [$strataId]);
 
-        $ledItem = LedItem::where('lamId', new ObjectId($lamId))
-                  ->where('strataId', new ObjectId($strataId))
+        $ledItem = LedItem::where('lamId',$lamId)
+                  ->where('strataId', $strataId)
                   ->get();
+        
+        if ($ledItem->isEmpty()) {
+            $lamBanpt = Lam::where('name', 'BAN-PT')->first();
+            
+            if ($lamBanpt) {
+                \Log::info('Pencarian ulang dengan lamId BAN-PT:', [$lamBanpt->id]);
+
+                // Cek apakah lamId saat ini memang sama dengan lamBanpt->id
+                if ((string) $lamId === (string) $lamBanpt->id) {
+                    // Jika sama, cari berdasarkan strataId saja
+                    $ledItem = LedItem::where('strataId', $strataId)->get();
+                } else {
+                    // Jika berbeda, cari berdasarkan lamBanpt dan strataId
+                    $ledItem = LedItem::where('lamId', new ObjectId($lamBanpt->id))
+                        ->where('strataId', $strataId)
+                        ->get();
+                }
+            }
+        }
 
         if ($ledItem->isEmpty()) {
             return response()->json([
