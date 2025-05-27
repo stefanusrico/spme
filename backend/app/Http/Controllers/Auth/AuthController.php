@@ -20,11 +20,23 @@ class AuthController extends Controller
     {
         $credentials = $request->only('email', 'password');
 
-        if (!$token = auth('api')->setTTL(60)->attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
+        try {
+            $ttl = (int) config('jwt.ttl', 1440);
 
-        return $this->respondWithToken($token);
+            if (!$token = auth('api')->setTTL($ttl)->attempt($credentials)) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+
+            return $this->respondWithToken($token);
+
+        } catch (\Exception $e) {
+            \Log::error('JWT Login Error: ' . $e->getMessage());
+
+            return response()->json([
+                'error' => 'Authentication error',
+                'message' => config('app.debug') ? $e->getMessage() : 'Please try again'
+            ], 500);
+        }
     }
 
     /**
@@ -51,26 +63,42 @@ class AuthController extends Controller
      */
     protected function respondWithToken($token)
     {
-        $user = Auth::user();
+        try {
+            $user = Auth::user();
 
-        $role = Role::where('name', $user->role)->first();
+            $role = Role::where('name', $user->role)->first();
 
-        if (!$role) {
-            return response()->json(['error' => 'Role not found'], 404);
+            if (!$role) {
+                return response()->json(['error' => 'Role not found'], 404);
+            }
+
+            $menus = Menu::all();
+            $accessibleMenus = $menus->filter(function ($menu) use ($role) {
+                return in_array($menu->id, $role->access);
+            });
+            $menuTree = $this->buildMenuTree($accessibleMenus);
+
+            // Multiple safety checks for TTL
+            $ttlConfig = config('jwt.ttl');
+            $ttlMinutes = is_numeric($ttlConfig) ? (int) $ttlConfig : 1440;
+
+            return response()->json([
+                'token' => $token,
+                'token_type' => 'bearer',
+                'expires_in' => $ttlMinutes * 60,
+                'expires_in_minutes' => $ttlMinutes,
+                'role' => $user->role,
+                'access' => $menuTree
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('JWT Token Response Error: ' . $e->getMessage());
+
+            return response()->json([
+                'error' => 'Token generation error',
+                'message' => config('app.debug') ? $e->getMessage() : 'Please try again'
+            ], 500);
         }
-        $menus = Menu::all();
-        $accessibleMenus = $menus->filter(function ($menu) use ($role) {
-            return in_array($menu->id, $role->access);
-        });
-        $menuTree = $this->buildMenuTree($accessibleMenus);
-
-        return response()->json([
-            'token' => $token,
-            'token_type' => 'bearer',
-            'expires_in' => auth('api')->factory()->getTTL(),
-            'role' => $user->role,
-            'access' => $menuTree
-        ]);
     }
 
     /**
