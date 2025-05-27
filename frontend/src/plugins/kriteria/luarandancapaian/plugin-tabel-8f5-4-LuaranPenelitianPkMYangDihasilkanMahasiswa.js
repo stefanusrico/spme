@@ -1,7 +1,7 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
 import { processExcelDataBase } from "../../../utils/tableUtils"
-import { fetchScoreDetails } from "../utils/fetchScoreDetail"
+import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
 
 export class LuaranPenelitianPkmYangDihasilkanMahasiswaBukuPlugin extends BasePlugin {
   constructor() {
