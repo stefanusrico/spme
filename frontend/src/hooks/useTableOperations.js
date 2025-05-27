@@ -119,18 +119,6 @@ export const useTableOperations = (
 
       if (plugin.processFieldValue) {
         processedValue = plugin.processFieldValue(field, value, sectionCode)
-      } else {
-        if (
-          typeof value === "string" &&
-          (field.includes("is_") ||
-            field.includes("tingkat_") ||
-            field.includes("pendidikan") ||
-            field.includes("penelitian") ||
-            field.includes("pkm") ||
-            field.includes("status_"))
-        ) {
-          processedValue = !!value && value !== ""
-        }
       }
 
       setTableData((prev) => {
@@ -139,31 +127,55 @@ export const useTableOperations = (
           const index = newData[tableCode].findIndex((item) => item.key === key)
           if (index >= 0) {
             newData[tableCode] = [...newData[tableCode]]
-            newData[tableCode][index] = {
+
+            // First update the field value
+            const updatedRow = {
               ...newData[tableCode][index],
               [field]: processedValue,
+            }
+
+            // Then apply any automatic calculations if the plugin supports it
+            if (plugin && typeof plugin.recalculateRow === "function") {
+              newData[tableCode][index] = plugin.recalculateRow(updatedRow)
+            } else {
+              newData[tableCode][index] = updatedRow
+            }
+
+            // Trigger score recalculation if needed
+            if (calculateScoreData) {
+              setTimeout(() => calculateScoreData(newData), 0)
             }
           }
         }
         return newData
       })
 
+      // Apply the same change to selectionData
       setSelectionData((prev) => {
         const newData = { ...prev }
         if (newData[tableCode]) {
           const index = newData[tableCode].findIndex((item) => item.key === key)
           if (index >= 0) {
             newData[tableCode] = [...newData[tableCode]]
-            newData[tableCode][index] = {
+
+            // First update the field value
+            const updatedRow = {
               ...newData[tableCode][index],
               [field]: processedValue,
+            }
+
+            // Then apply any automatic calculations if the plugin supports it
+            if (plugin && typeof plugin.recalculateRow === "function") {
+              newData[tableCode][index] = plugin.recalculateRow(updatedRow)
+            } else {
+              newData[tableCode][index] = updatedRow
             }
           }
         }
         return newData
       })
     },
-    [sectionCode, plugin, setTableData, setSelectionData]
+    [sectionCode, plugin, setTableData, setSelectionData, calculateScoreData]
   )
 
   const debouncedHandleDataChange = useCallback(

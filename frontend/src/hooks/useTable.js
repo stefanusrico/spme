@@ -6,6 +6,8 @@ export const useTable = (tableCode, navigate) => {
   const [tableStructure, setTableStructure] = useState([])
   const [structureLoading, setStructureLoading] = useState(true)
   const [savedTables, setSavedTables] = useState([])
+  const [tableData, setTableData] = useState([])
+  const [plugin, setPlugin] = useState(null)
 
   // Load table structure from tables
   useEffect(() => {
@@ -109,6 +111,47 @@ export const useTable = (tableCode, navigate) => {
     [navigate]
   )
 
+  // Update table data
+  const updateTableData = useCallback(
+    (updatedData, recalculate = true) => {
+      if (!plugin) return
+
+      // Normalize data first
+      let normalizedData = plugin.normalizeData
+        ? plugin.normalizeData(updatedData)
+        : updatedData
+
+      // Recalculate fields if needed
+      if (recalculate && plugin.recalculateData) {
+        normalizedData = plugin.recalculateData(normalizedData)
+      }
+
+      setTableData(normalizedData)
+    },
+    [plugin]
+  )
+
+  // Handle cell change
+  const handleCellChange = useCallback(
+    (rowKey, dataIndex, value) => {
+      const newData = [...tableData]
+      const rowIndex = newData.findIndex((item) => item.key === rowKey)
+
+      if (rowIndex > -1) {
+        const row = newData[rowIndex]
+        newData[rowIndex] = { ...row, [dataIndex]: value }
+
+        // Automatically recalculate for this row only
+        if (plugin && plugin.recalculateRow) {
+          newData[rowIndex] = plugin.recalculateRow(newData[rowIndex])
+        }
+
+        updateTableData(newData, false)
+      }
+    },
+    [tableData, updateTableData, plugin]
+  )
+
   // Helper function to build table structure from tables
   function buildTableStructureFromTables(tables) {
     const result = []
@@ -180,5 +223,9 @@ export const useTable = (tableCode, navigate) => {
     handlePrev,
     handleNext,
     handleTableChange,
+    tableData,
+    setTableData,
+    updateTableData,
+    handleCellChange,
   }
 }

@@ -2,10 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { message } from "antd"
 import axiosInstance from "../utils/axiosConfig"
 import { useTablePlugin } from "./useTablePlugin"
-import {
-  createDefaultAcademicYears,
-  shouldHaveDefaultAcademicYears,
-} from "../utils/studentUtils"
 
 export const useTableData = (tableCode, config, userData, projectId) => {
   const { plugin, loading: pluginLoading } = useTablePlugin(tableCode)
@@ -38,62 +34,6 @@ export const useTableData = (tableCode, config, userData, projectId) => {
   const prodiName = userData?.prodi || ""
   const prodiId = userData?.prodiId
 
-  const ensureStudentTableDefaults = useCallback(() => {
-    if (
-      !tableCode ||
-      !shouldHaveDefaultAcademicYears(tableCode) ||
-      !config ||
-      !config.tables
-    ) {
-      return false
-    }
-
-    const defaultData = initializeStudentTableData(
-      tableCode,
-      config,
-      {},
-      prodiName
-    )
-
-    let needsUpdate = false
-    const updatedTableData = { ...tableData }
-
-    config.tables.forEach((table) => {
-      const tableCode = typeof table === "object" ? table.code : table
-
-      if (
-        !updatedTableData[tableCode] ||
-        updatedTableData[tableCode].length === 0
-      ) {
-        updatedTableData[tableCode] = defaultData[tableCode] || []
-        needsUpdate = true
-      } else if (defaultData[tableCode] && defaultData[tableCode].length > 0) {
-        const existingYears = updatedTableData[tableCode].map(
-          (row) => row.tahun_akademik
-        )
-
-        const missingRows = defaultData[tableCode].filter(
-          (defaultRow) => !existingYears.includes(defaultRow.tahun_akademik)
-        )
-
-        if (missingRows.length > 0) {
-          updatedTableData[tableCode] = [
-            ...updatedTableData[tableCode],
-            ...missingRows,
-          ]
-          needsUpdate = true
-        }
-      }
-    })
-
-    if (needsUpdate) {
-      setTableData(updatedTableData)
-      return true
-    }
-
-    return false
-  }, [tableCode, config, tableData, prodiName])
-
   const fixAllExistingData = useCallback(async () => {
     if (!plugin || !userData) return
 
@@ -111,7 +51,6 @@ export const useTableData = (tableCode, config, userData, projectId) => {
 
       if (userData.role === "admin") {
         try {
-          // Update this endpoint to match your new API structure
           const response = await axiosInstance.post("/lkps/data/fix-format", {
             tableCode: tableCode,
             prodiId: userData.prodiId,
@@ -152,8 +91,10 @@ export const useTableData = (tableCode, config, userData, projectId) => {
       return
     }
 
+    // Simple - plugin handles everything!
     const initialTableData = plugin.initializeData(config, prodiName, tableCode)
 
+    // Initialize other states
     const initialUploadState = {}
     const initialSelectionMode = {}
     const initialAllExcelData = {}
@@ -167,47 +108,14 @@ export const useTableData = (tableCode, config, userData, projectId) => {
       initialSelectionData[tableCode] = []
     })
 
-    if (shouldHaveDefaultAcademicYears(tableCode)) {
-      let needsUpdate = false
-      const updatedInitialData = { ...initialTableData }
-
-      config.tables.forEach((table) => {
-        const tableCode = typeof table === "object" ? table.code : table
-
-        if (
-          !updatedInitialData[tableCode] ||
-          updatedInitialData[tableCode].length === 0
-        ) {
-          updatedInitialData[tableCode] = createDefaultAcademicYears(
-            tableCode,
-            prodiName
-          )
-
-          if (
-            updatedInitialData[tableCode] &&
-            updatedInitialData[tableCode].length > 0
-          ) {
-            needsUpdate = true
-          }
-        }
-      })
-
-      if (needsUpdate) {
-        setTableData(updatedInitialData)
-      } else {
-        setTableData(initialTableData)
-      }
-    } else {
-      setTableData(initialTableData)
-    }
-
+    setTableData(initialTableData)
     setIsUploaded(initialUploadState)
     setShowSelectionMode(initialSelectionMode)
     setAllExcelData(initialAllExcelData)
     setSelectionData(initialSelectionData)
 
     hasBeenInitialized.current = true
-  }, [config, plugin, prodiName, tableCode, tableData])
+  }, [config, plugin, prodiName, tableCode])
 
   const calculateScoreData = useCallback(
     async (specificData = null, forcedCalculation = false) => {
@@ -278,6 +186,7 @@ export const useTableData = (tableCode, config, userData, projectId) => {
     [plugin, tableData, userData, tableCode]
   )
 
+  // ✅ SIMPLIFIED FETCH DATA
   const fetchTableData = useCallback(async () => {
     if (!config || !userData || !plugin) return
 
@@ -295,6 +204,7 @@ export const useTableData = (tableCode, config, userData, projectId) => {
           savedData[tableCode] = plugin.normalizeData(response.data.data)
         }
 
+        // Plugin handles merging with defaults automatically!
         const initializedData = plugin.initializeData(
           config,
           prodiName,
@@ -302,55 +212,7 @@ export const useTableData = (tableCode, config, userData, projectId) => {
           savedData
         )
 
-        Object.keys(savedData).forEach((tableCode) => {
-          if (
-            savedData[tableCode] &&
-            savedData[tableCode].length > 0 &&
-            (!initializedData[tableCode] ||
-              initializedData[tableCode].length === 0)
-          ) {
-            initializedData[tableCode] = savedData[tableCode]
-          }
-        })
-
-        if (shouldHaveDefaultAcademicYears(tableCode)) {
-          const defaultData = initializeStudentTableData(
-            tableCode,
-            config,
-            {},
-            prodiName
-          )
-
-          config.tables.forEach((table) => {
-            const tableCode = typeof table === "object" ? table.code : table
-
-            if (
-              !initializedData[tableCode] ||
-              initializedData[tableCode].length === 0
-            ) {
-              initializedData[tableCode] = defaultData[tableCode] || []
-            } else if (
-              defaultData[tableCode] &&
-              defaultData[tableCode].length > 0
-            ) {
-              const existingYears = initializedData[tableCode].map(
-                (row) => row.tahun_akademik
-              )
-
-              const missingRows = defaultData[tableCode].filter(
-                (defaultRow) =>
-                  !existingYears.includes(defaultRow.tahun_akademik)
-              )
-
-              if (missingRows.length > 0) {
-                initializedData[tableCode] = [
-                  ...initializedData[tableCode],
-                  ...missingRows,
-                ]
-              }
-            }
-          })
-        }
+        // ❌ HAPUS semua logic shouldHaveDefaultAcademicYears
 
         setTableData(initializedData)
 
@@ -394,6 +256,8 @@ export const useTableData = (tableCode, config, userData, projectId) => {
             setShowCreateModal(true)
           }
         }
+
+        // Initialize with defaults on 404
         const initializedData = plugin.initializeData(
           config,
           prodiName,
@@ -401,25 +265,7 @@ export const useTableData = (tableCode, config, userData, projectId) => {
           {}
         )
 
-        if (shouldHaveDefaultAcademicYears(tableCode)) {
-          const defaultData = initializeStudentTableData(
-            tableCode,
-            config,
-            {},
-            prodiName
-          )
-
-          config.tables.forEach((table) => {
-            const tableCode = typeof table === "object" ? table.code : table
-
-            if (
-              !initializedData[tableCode] ||
-              initializedData[tableCode].length === 0
-            ) {
-              initializedData[tableCode] = defaultData[tableCode] || []
-            }
-          })
-        }
+        // ❌ HAPUS semua logic shouldHaveDefaultAcademicYears
 
         setTableData(initializedData)
 
@@ -444,16 +290,6 @@ export const useTableData = (tableCode, config, userData, projectId) => {
       fetchTableData()
     }
   }, [config, fetchTableData, userData, plugin, pluginLoading, projectId])
-
-  useEffect(() => {
-    if (shouldHaveDefaultAcademicYears(tableCode) && plugin && config) {
-      const timer = setTimeout(() => {
-        ensureStudentTableDefaults()
-      }, 1000)
-
-      return () => clearTimeout(timer)
-    }
-  }, [tableCode, plugin, config, ensureStudentTableDefaults])
 
   const prepareDataForSaving = useCallback(
     (tableCode) => {
@@ -512,6 +348,5 @@ export const useTableData = (tableCode, config, userData, projectId) => {
     calculateScoreData,
     prepareDataForSaving,
     plugin,
-    ensureStudentTableDefaults,
   }
 }

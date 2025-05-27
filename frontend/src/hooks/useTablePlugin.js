@@ -1,39 +1,61 @@
 import { useState, useEffect } from "react"
-import { getPlugin } from "../plugins/registry"
+import {
+  getPlugin,
+  registerAllPlugins,
+  pluginRegistry,
+} from "../plugins/index.js"
+
+// Track if plugins have been registered
+let pluginsRegistered = false
 
 export const useTablePlugin = (tableCode) => {
   const [plugin, setPlugin] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
+  // Register plugins once at the beginning
   useEffect(() => {
-    if (tableCode) {
+    if (!pluginsRegistered) {
       try {
-        setLoading(true)
-
-        // Get plugin based on table code
-        const tablePlugin = getPlugin(tableCode)
-
-        // If no specific plugin, use default
-        if (!tablePlugin) {
-          console.warn(
-            `No specific plugin found for ${tableCode}, using default`
-          )
-          const defaultPlugin = getPlugin("default")
-          setPlugin(defaultPlugin)
-        } else {
-          setPlugin(tablePlugin)
-          console.log(
-            `Loaded plugin for ${tableCode}:`,
-            tablePlugin.getInfo().name
-          )
-        }
-      } catch (error) {
-        console.error(`Error loading plugin for ${tableCode}:`, error)
-      } finally {
-        setLoading(false)
+        registerAllPlugins()
+        pluginsRegistered = true
+        console.log("Plugins registered successfully")
+      } catch (err) {
+        console.error("Failed to register plugins:", err)
+        setError(err.message)
       }
     }
-  }, [tableCode])
+  }, [])
 
-  return { plugin, loading }
+  // Load plugin after registration
+  useEffect(() => {
+    if (!tableCode) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      // Verify plugin registry exists
+      if (!pluginRegistry) {
+        throw new Error("Plugin registry not initialized")
+      }
+
+      const plugin = getPlugin(tableCode)
+
+      if (!plugin) {
+        console.warn(`No plugin found for ${tableCode}, using default`)
+      } else {
+        console.log(`Loaded plugin for ${tableCode}: ${plugin.getInfo().name}`)
+      }
+
+      setPlugin(plugin)
+    } catch (err) {
+      console.error(`Error loading plugin for ${tableCode}:`, err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [tableCode, pluginsRegistered])
+
+  return { plugin, loading, error }
 }
