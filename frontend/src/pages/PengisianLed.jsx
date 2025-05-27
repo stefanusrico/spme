@@ -151,14 +151,14 @@ const PengisianLed = () => {
           .map(item => ({
             dataPendukung: [],
             isianAsesi: null,
-            masukan: null,
-            nilai: null,
             reference: item.reference || null,
             seq: item.seq || null,
           }));
 
         const defaultLedData = {
           commit: "",
+          nilai: null,
+          masukan: null,
           details: detailsArray,
           taskId: matchedTask.id,
           userId: userData.id,
@@ -333,7 +333,11 @@ const PengisianLed = () => {
         />
 
         <BarProgress
-          progress={10}     
+          progress={
+            filteredLedData && !isNaN(parseFloat(filteredLedData.nilai))
+              ? (parseFloat(filteredLedData.nilai) / 4) * 100
+              : 0
+          }
           width={200}
           height={50}
         />

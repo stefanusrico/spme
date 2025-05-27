@@ -91,8 +91,6 @@ function PengisianLedTableNew({
         return {
           ...detail,
           editorState,
-          nilai: dataIsianItem ? dataIsianItem.nilai : "-",
-          masukan: dataIsianItem ? dataIsianItem.masukan : "",
           "Data Pendukung": dataIsianItem ? dataIsianItem.data_pendukung : "",
         }
       })
@@ -128,23 +126,14 @@ function PengisianLedTableNew({
       //   throw new Error("Data dari GPT tidak lengkap!")
       // }
 
-      console.log("hasil dari prompting", data)
-      toast.info("skor prompting", data.nilai)
-
-      const updatedDetails = selectedDetails.map((item) => ({
-        ...item,
-        nilai: data.nilai,
-        masukan: data.masukan,
-      }));
+      console.log("hasil dari prompting")
+      toast.info("skor prompting")
 
       // updateDataIsian(updatedDetails)
       const updatedDataIsian = {
         ...dataIsian,
-        details: dataIsian.details.map((item) => ({
-          ...item,
-          nilai: data.nilai,
-          masukan: data.masukan,
-        }))
+        nilai: data.nilai,
+        masukan: data.masukan,
       };
 
       updateDataIsian(updatedDataIsian);
@@ -325,7 +314,7 @@ function PengisianLedTableNew({
               {detail.seq}. Kriteria Indikator: {detail.reference || ""}
             </div>
             <Button className="bg-primary w-auto text-sm py-0" disabled={true}>
-              Score: {detail.nilai || "-"}
+              Score: {dataIsian.nilai || "-"}
             </Button>
           </div>
 
@@ -396,7 +385,7 @@ function PengisianLedTableNew({
               id={`masukan_${index}`}
               placeholder="Masukan dari GPT"
               className="w-full p-2 border rounded-md min-h-[40px] resize-none"
-              value={detail.masukan || ""}
+              value={dataIsian.masukan || ""}
               readOnly
               onInput={(e) => {
                 e.target.style.height = "40px"
