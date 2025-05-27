@@ -700,10 +700,6 @@ class ProjectController extends Controller
                 ], 404);
             }
 
-            // 3. Implement pagination if needed
-            $perPage = request('per_page', 50);
-            $page = request('page', 1);
-
             // 4. Optimize eager loading with specific field selection
             $taskLists = TaskList::where('projectId', $project->_id)
                 ->select('_id', 'kriteria', 'order', 'projectId')
@@ -760,6 +756,8 @@ class ProjectController extends Controller
                         'id' => $task->_id,
                         'ledItemId' => $task->ledItemId,
                         'lkpsTableId' => $task->lkpsTableId,
+                        'no' => $taskDetails['no'],
+                        'sub' => $taskDetails['sub'],
                         'name' => $taskDetails['name'],
                         'status' => $task->status,
                         'progress' => $task->progress,
