@@ -34,7 +34,7 @@ const PengisianLed = () => {
   const [tasks, setTasks] = useState([])
   const [prodi, setProdi] = useState([])
   const [colors, setColors] = useState([])
-  const { no = "", sub = "" } = useParams()
+  const { no = "", sub = "", projectId = "" } = useParams()
   const [isLoading, setIsLoading] = useState(true)
   const [isVersion, setIsVersion] = useState(false)
   const [user, setUser] = useState({})
@@ -96,7 +96,7 @@ const PengisianLed = () => {
     if (!no || !sub) {
       const firstTask = tasks[0] || allDataTasks[0];
       if (firstTask) {
-        navigate(`/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`, { replace: true });
+        navigate(`projects/${firstTask.project.id}/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`, { replace: true });
       }
     }
   }, [no, sub, tasks, allDataTasks, navigate]);
@@ -219,9 +219,9 @@ const PengisianLed = () => {
     setColors(data)
   }
 
-  const changeNoSub = (newNo, newSub) => {
-    navigate(`/pengisian-matriks-led/${newNo}/${newSub}`)
-  }
+  // const changeNoSub = (newNo, newSub, projectId) => {
+  //   navigate(`projects/${projectId}/pengisian-matriks-led/${newNo}/${newSub}`)
+  // }
 
   const updateUserTaskPlus = async(no, sub) => {
       try {

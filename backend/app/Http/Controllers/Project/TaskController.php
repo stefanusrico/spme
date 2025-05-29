@@ -530,7 +530,7 @@ class TaskController extends Controller
     /**
      * Update owners for a task by no and sub.
      */
-    public function updateOwners(Request $request, $no, $sub)
+    public function updateOwners(Request $request, $no, $sub, $prodiId)
     {
         $this->logRouteParams('updateOwners', compact('no', 'sub'));
 
@@ -541,15 +541,26 @@ class TaskController extends Controller
                 'startDate' => 'nullable|date',
                 'endDate' => 'nullable|date|after:startDate'
             ]);
+            $tasks = Task::with(['tasklist.project'])
+                ->whereHas('ledItem', function ($query) use ($no, $sub) {
+                    $query->where('no', $no)
+                        ->where('sub', $sub);
+                })
+                ->get();
 
-            $task = Task::where('no', $no)
-                ->where('sub', $sub)
-                ->first();
+            $task = $tasks->first(function ($task) use ($prodiId) {
+                return $task->tasklist &&
+                    $task->tasklist->project &&
+                    $task->tasklist->project->prodiId === $prodiId &&
+                    in_array($task->taskList->project->status, ['ACTIVE', 'IN PROGRESS']);
+            });
 
             if (!$task) {
                 Log::warning("Task not found in updateOwners", [
                     'no' => $no,
-                    'sub' => $sub
+                    'sub' => $sub,
+                    'prodiId' => $prodi,
+                    'owners' => $request->owners,
                 ]);
 
                 return response()->json([

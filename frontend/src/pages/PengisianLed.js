@@ -55,10 +55,8 @@ export const updateUserTask = async (newNo, newSub, prodiId, userId) => {
   }
 }
 
-export const changeNoSub = (newNo, newSub) => {
-  console.log(newNo, newSub)
-  const navigate = useNavigate()
-  navigate(`/pengisian-matriks-led/${newNo}/${newSub}`)
+export const changeNoSub = (newNo, newSub, projectId, navigate) => {
+  navigate(`/projects/${projectId}/pengisian-matriks-led/${newNo}/${newSub}`)
 }
 
 export const fetchAllProdi = async () => {
