@@ -10,6 +10,7 @@ use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListCon
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController};
 use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController};
+use App\Http\Controllers\Akreditasi\{DataAkreditasiController};
 use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
 
 
@@ -35,7 +36,8 @@ Route::get('test', function () {
     ]);
 });
 
-Route::get('/lkps/project-scores', [LkpsDataController::class, 'getProjectScores']);
+Route::get('/lkps/project-scores', [DataAkreditasiController::class, 'getProjectScores']);
+Route::get('/lkps/score-syarat-perlu', [DataAkreditasiController::class, 'getScoreSyaratPerluPeringkat']);
 Route::post('/generate-text', [GeminiController::class, 'generateText']);
 Route::post('/analyze-image', [GeminiController::class, 'analyzeImage']);
 Route::post('/chat', [GeminiController::class, 'startChat']);
