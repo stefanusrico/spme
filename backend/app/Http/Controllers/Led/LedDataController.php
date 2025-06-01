@@ -277,11 +277,31 @@ class LedDataController extends Controller
         $filledCount = 0;
 
         foreach ($validatedData['details'] as $index => $detail) {
-            if (!empty($detail['isianAsesi'])) {
-                $filledCount++;
+            $isian = $detail['isianAsesi'] ?? null;
+
+            // Coba decode JSON
+            $decoded = json_decode($isian, true);
+
+            // Cek apakah valid dan ada teks tidak kosong dalam salah satu block
+            if (
+                is_array($decoded) &&
+                isset($decoded['blocks']) &&
+                is_array($decoded['blocks'])
+            ) {
+                $hasText = false;
+                foreach ($decoded['blocks'] as $block) {
+                    if (!empty(trim($block['text'] ?? ''))) {
+                        $hasText = true;
+                        break;
+                    }
+                }
+
+                if ($hasText) {
+                    $filledCount++;
+                }
             }
         }
-        $progress = $totalDetails > 0 ? ($filledCount / $totalDetails) * 100 : 0;
+        $progress = $totalDetails > 0 ? round(($filledCount / $totalDetails) * 100, 1) : 0;
 
         $task = Task::where('_id', $validatedData['taskId'])->first();
         if ($task) {
