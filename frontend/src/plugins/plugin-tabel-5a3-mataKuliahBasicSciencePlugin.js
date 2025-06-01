@@ -87,7 +87,7 @@ const mataKuliahBasicSciencePlugin = {
       return {
         scores: [
           {
-            butir: 54, // asumsi butirnya 54, bisa disesuaikan
+            butir: 54,
             nilai: 0,
           },
         ],
@@ -133,7 +133,7 @@ const mataKuliahBasicSciencePlugin = {
       scores: [
         {
           butir: 54,
-          nilai,
+          nilai: nilai,
         },
       ],
       scoreDetail: {
