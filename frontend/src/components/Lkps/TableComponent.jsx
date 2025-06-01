@@ -37,6 +37,7 @@ const TableComponent = ({
   debouncedHandleDataChange,
   handleToggleSelection,
   plugin,
+  handleDeleteRow, // Add this prop
 }) => {
   // Get table code correctly for MongoDB model structure
   const getTableCode = () => {
@@ -114,23 +115,13 @@ const TableComponent = ({
     const mainTableColumns = generateColumns(
       tableConfig,
       false,
-      handleToggleSelection,
-      debouncedHandleDataChange,
-      editingKey,
-      setEditingKey,
-      plugin, // Add plugin parameter
-      currentTableCode // Add the current table code
+      currentTableCode // Pass the table code as third parameter
     )
 
     const selectionTableColumns = generateColumns(
       tableConfig,
       true,
-      handleToggleSelection,
-      debouncedHandleDataChange,
-      editingKey,
-      setEditingKey,
-      plugin, // Add plugin parameter
-      currentTableCode // Add the current table code
+      currentTableCode // Pass the table code as third parameter
     )
 
     const processedTableData = processDataForDisplay(tableData)

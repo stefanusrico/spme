@@ -5,10 +5,11 @@ export const useColumnsGenerator = (
   handleToggleSelection,
   debouncedHandleDataChange,
   editingKey,
-  setEditingKey
+  setEditingKey,
+  handleDeleteRow // Add this parameter
 ) => {
   const columnsGenerator = useCallback(
-    (tableConfig, isSelectionTable = false) => {
+    (tableConfig, isSelectionTable = false, tableCode) => {
       if (!tableConfig) {
         console.warn("No table config provided to columnsGenerator")
         return []
@@ -20,7 +21,10 @@ export const useColumnsGenerator = (
         handleToggleSelection,
         debouncedHandleDataChange,
         editingKey,
-        setEditingKey
+        setEditingKey,
+        null, // plugin
+        tableCode,
+        handleDeleteRow // Pass handleDeleteRow
       )
     },
     [
@@ -28,6 +32,7 @@ export const useColumnsGenerator = (
       debouncedHandleDataChange,
       editingKey,
       setEditingKey,
+      handleDeleteRow,
     ]
   )
 

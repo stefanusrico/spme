@@ -113,6 +113,7 @@ const DynamicLkpsContainer = () => {
     handleDataChange,
     debouncedHandleDataChange,
     handleAddRow,
+    handleDeleteRow, // Add this
   } = useTableOperations(
     tableCode,
     prodiName,
@@ -164,7 +165,8 @@ const DynamicLkpsContainer = () => {
     handleToggleSelection,
     debouncedHandleDataChange,
     editingKey,
-    setEditingKey
+    setEditingKey,
+    handleDeleteRow // Add this parameter
   )
 
   useEffect(() => {

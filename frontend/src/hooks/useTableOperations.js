@@ -288,11 +288,66 @@ export const useTableOperations = (
     return allColumns
   }, [])
 
+  const handleDeleteRow = useCallback(
+    (tableCode, rowKey) => {
+      // Remove from main table data
+      setTableData((prevData) => {
+        const newData = { ...prevData }
+        if (newData[tableCode]) {
+          newData[tableCode] = newData[tableCode].filter(
+            (row) => row.key !== rowKey
+          )
+
+          // Re-index the remaining rows
+          newData[tableCode] = newData[tableCode].map((row, index) => ({
+            ...row,
+            no: index + 1, // Update row numbers
+          }))
+        }
+        return newData
+      })
+
+      // Also remove from selection data if exists
+      setSelectionData((prevSelection) => {
+        const newSelection = { ...prevSelection }
+        if (newSelection[tableCode]) {
+          newSelection[tableCode] = newSelection[tableCode].filter(
+            (row) => row.key !== rowKey
+          )
+        }
+        return newSelection
+      })
+
+      // Clear editing key if the deleted row was being edited
+      if (editingKey === rowKey) {
+        setEditingKey(null)
+      }
+
+      // Recalculate scores if plugin exists
+      if (plugin && calculateScoreData) {
+        setTimeout(() => {
+          calculateScoreData()
+        }, 100)
+      }
+
+      message.success("Baris berhasil dihapus")
+    },
+    [
+      setTableData,
+      setSelectionData,
+      editingKey,
+      setEditingKey,
+      plugin,
+      calculateScoreData,
+    ]
+  )
+
   return {
     handleToggleSelection,
     toggleSelectionMode,
     handleDataChange,
     debouncedHandleDataChange,
     handleAddRow,
+    handleDeleteRow,
   }
 }

@@ -1,4 +1,13 @@
-import { Input, Checkbox, DatePicker, Tooltip, InputNumber } from "antd"
+import {
+  Input,
+  Checkbox,
+  DatePicker,
+  Tooltip,
+  InputNumber,
+  Button,
+  Popconfirm,
+} from "antd"
+import { DeleteOutlined } from "@ant-design/icons"
 import dayjs from "dayjs"
 import { extractColumns } from "../../utils/tableUtils"
 
@@ -13,7 +22,8 @@ export const generateColumns = (
   editingKey,
   setEditingKey,
   plugin,
-  tableCodeParam // Add this parameter
+  tableCodeParam,
+  handleDeleteRow // Add this parameter
 ) => {
   if (!tableConfig) {
     console.error("No tableConfig provided to generateColumns")
@@ -544,11 +554,54 @@ export const generateColumns = (
     })
     .filter(Boolean) // This will remove any null entries
 
-  if (isSelectionTable) {
-    return [rowNumberColumn, selectionColumn, ...processedColumns]
+  // Add delete action column
+  const actionColumn = {
+    title: "Aksi",
+    key: "actions",
+    width: 80,
+    align: "center",
+    fillable: false,
+    render: (_, record) => (
+      <Popconfirm
+        title="Hapus Baris"
+        description="Apakah Anda yakin ingin menghapus baris ini?"
+        onConfirm={() =>
+          handleDeleteRow && handleDeleteRow(tableCodeParam, record.key)
+        }
+        okText="Ya"
+        cancelText="Tidak"
+        okType="danger"
+        placement="topRight"
+      >
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          size="small"
+          title="Hapus baris"
+          disabled={!handleDeleteRow}
+        />
+      </Popconfirm>
+    ),
   }
 
-  return [rowNumberColumn, ...processedColumns]
+  // Return columns with action column at the end (only if handleDeleteRow is provided)
+  const finalColumns = [rowNumberColumn, ...processedColumns]
+
+  if (handleDeleteRow) {
+    finalColumns.push(actionColumn)
+  }
+
+  if (isSelectionTable) {
+    return [
+      rowNumberColumn,
+      selectionColumn,
+      ...processedColumns,
+      ...(handleDeleteRow ? [actionColumn] : []),
+    ]
+  }
+
+  return finalColumns
 }
 
 export default generateColumns
