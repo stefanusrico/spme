@@ -11,9 +11,7 @@ export const isTokenExpired = (token) => {
 
   try {
     const decoded = jwtDecode(token)
-    // console.log("decoded:", decoded)
     const currentTime = Date.now() / 1000
-    // console.log("currentTime:", currentTime)
     return decoded.exp < currentTime
   } catch (error) {
     console.error("Error decoding token:", error)
@@ -47,4 +45,3 @@ axiosInstance.interceptors.request.use(
 )
 
 export default axiosInstance
-
