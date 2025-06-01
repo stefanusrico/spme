@@ -41,16 +41,14 @@ export class LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin extends BasePlugin {
         key: `excel-${index + 1}-${Date.now()}`,
         no: index + 1,
         selected: true,
-        judul_luaran_penelitian_dan_pkm: "",
+        luaran_penelitian_dan_pkm: "",
         tanggal_hh_bb_tttt: "",
         keterangan_nomor_isbn: "",
       }
 
       // Map based on column indices
       if (row[1] !== undefined)
-        item.judul_luaran_penelitian_dan_pkm = PluginUtils.normalizeTextField(
-          row[1]
-        )
+        item.luaran_penelitian_dan_pkm = PluginUtils.normalizeTextField(row[1])
       if (row[2] !== undefined)
         item.tanggal_hh_bb_tttt = PluginUtils.normalizeTextField(row[2])
       if (row[3] !== undefined)
@@ -80,7 +78,7 @@ export class LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin extends BasePlugin {
 
     data.forEach((item) => {
       if (
-        isValidField(item.judul_luaran_penelitian_dan_pkm) &&
+        isValidField(item.luaran_penelitian_dan_pkm) &&
         isValidField(item.tanggal_hh_bb_tttt) &&
         isValidField(item.keterangan_nomor_isbn)
       ) {
@@ -167,7 +165,7 @@ export class LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin extends BasePlugin {
       const result = { ...item }
 
       const textFields = [
-        "judul_luaran_penelitian_dan_pkm",
+        "luaran_penelitian_dan_pkm",
         "tanggal_hh_bb_tttt",
         "keterangan_nomor_isbn",
       ]
@@ -184,9 +182,9 @@ export class LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin extends BasePlugin {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.judul_luaran_penelitian_dan_pkm) {
+      if (!item.luaran_penelitian_dan_pkm) {
         errors.push(
-          `Row ${index + 1}: Judul Luaran Penelitian dan PkM harus diisi`
+          `Row ${index + 1}: Luaran Penelitian dan PkM harus diisi`
         )
       }
       if (!item.tanggal_hh_bb_tttt) {

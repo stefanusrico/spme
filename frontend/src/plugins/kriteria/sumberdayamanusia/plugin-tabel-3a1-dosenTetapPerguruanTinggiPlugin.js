@@ -31,13 +31,16 @@ export class DosenTetapPlugin extends DosenPluginBase {
   }
 
   async calculateMetrics(data, additionalData) {
-    const { jumlahMahasiswa: NM = 0, projectId } = additionalData
+    const { projectId } = additionalData
+    let NM = 0
     let NDTT = 0
 
     if (projectId) {
       try {
-        const scoreDetails = await fetchScoreDetails("3a4", projectId)
-        NDTT = scoreDetails?.NDTT || 0
+        const scoreDetail2a1 = await fetchScoreDetails("2a1", projectId)
+        const scoreDetail3a4 = await fetchScoreDetails("3a4", projectId)
+        NM = scoreDetail2a1?.NM || 0
+        NDTT = scoreDetail3a4?.NDTT || 0
       } catch (error) {
         console.warn("Failed to fetch NDTT:", error)
       }

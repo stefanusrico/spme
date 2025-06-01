@@ -99,10 +99,36 @@ export class PenelitianDtpsPlugin extends BasePlugin {
       return item
     })
 
+    // FIX: Calculate jumlah for each row after processing
+    const calculatedData = processedData.map((row) => this.recalculateRow(row))
+
     return {
-      allRows: processedData,
+      allRows: calculatedData,
       shouldReplaceExisting: true,
     }
+  }
+
+  getCalculatedFields() {
+    return {
+      jumlah: (row) => {
+        const ts2 = parseFloat(row.ts_2_jumlah_judul_penelitian) || 0
+        const ts1 = parseFloat(row.ts_1_jumlah_judul_penelitian) || 0
+        const ts = parseFloat(row.ts_jumlah_judul_penelitian) || 0
+
+        return ts2 + ts1 + ts
+      },
+    }
+  }
+
+  recalculateRow(row) {
+    const calculatedFields = this.getCalculatedFields()
+    const updatedRow = { ...row }
+
+    if (calculatedFields.jumlah) {
+      updatedRow.jumlah = calculatedFields.jumlah(updatedRow)
+    }
+
+    return updatedRow
   }
 
   async calculateScore(data, config, additionalData = {}) {
@@ -112,10 +138,8 @@ export class PenelitianDtpsPlugin extends BasePlugin {
 
     // Mendapatkan nilai NI, NN, dan NL
     data.forEach((item) => {
-      const jumlah =
-        (item.ts_2_jumlah_judul_penelitian || 0) +
-        (item.ts_1_jumlah_judul_penelitian || 0) +
-        (item.ts_jumlah_judul_penelitian || 0)
+      // FIX: Use auto-calculated jumlah field
+      const jumlah = item.jumlah || 0
       const sumber = item.sumber_pembiayaan.toLowerCase()
 
       if (sumber.includes("mandiri") || sumber.includes("perguruan tinggi")) {
@@ -141,45 +165,116 @@ export class PenelitianDtpsPlugin extends BasePlugin {
     }
     let NDTPS = responseScoreDetail?.NDTPS || 0
 
-    // Mendapatkan nilai RI, RN, dan RL
-    let RI = Math.round((NI / 3 / NDTPS) * 100) / 100
-    let RN = Math.round((NN / 3 / NDTPS) * 100) / 100
-    let RL = Math.round((NL / 3 / NDTPS) * 100) / 100
+    if (NDTPS === 0) {
+      console.warn("NDTPS is 0, cannot calculate ratios")
+      return {
+        scores: [{ butir: 26, nilai: 0 }],
+        scoreDetail: {
+          NI,
+          NL,
+          NN,
+          NDTPS: 0,
+          RI: 0,
+          RL: 0,
+          RN: 0,
+          A: 0,
+          B: 0,
+          C: 0,
+        },
+      }
+    }
 
-    // Dengan Faktor:
+    // Calculate initial ratios
+    let RI = Math.round((NI / 3 / NDTPS) * 10000) / 10000
+    let RN = Math.round((NN / 3 / NDTPS) * 10000) / 10000
+    let RL = Math.round((NL / 3 / NDTPS) * 10000) / 10000
+
+    // Constants
     const a = 0.05
     const b = 0.3
     const c = 1
 
-    // Mendapatkan nilai A, B, dan C
-    let A = Math.round((RI / a) * 100) / 100
-    let B = Math.round((RN / b) * 100) / 100
-    let C = Math.round((RL / c) * 100) / 100
+    // FIX: Apply capping rules before calculating A, B, C
+    // Jika RI ≥ a dan RN < b, maka RI = a
+    if (RI >= a && RN < b) {
+      RI = a
+    }
+    // Jika RI < a dan RN ≥ b, maka RN = b
+    if (RI < a && RN >= b) {
+      RN = b
+    }
+    // Jika RL ≥ c , maka RL = c
+    if (RL >= c) {
+      RL = c
+    }
 
-    // Menghitung score
+    // Calculate A, B, C after applying capping
+    let A = Math.round((RI / a) * 10000) / 10000
+    let B = Math.round((RN / b) * 10000) / 10000
+    let C = Math.round((RL / c) * 10000) / 10000
+
+    // FIX: Apply correct scoring formula
     let score = 0
-    if (RI >= a && RN >= b) {
+
+    // Jika RI > a dan RN > b maka Skor = 4
+    if (RI > a && RN > b) {
       score = 4
-    } else if (
-      (RI > 0 && RI < a) ||
-      (RN > 0 && RN < b) ||
+    }
+    // Jika 0 < RI ≤ a, atau 0 < RN ≤ b, atau 0 < RL ≤ c
+    // maka Skor = 3.75 x ((A+B+(C/2))-(AxB)-((AxC)/2)-((BxC)/2)+((AxBxC)/2))
+    else if (
+      (RI > 0 && RI <= a) ||
+      (RN > 0 && RN <= b) ||
       (RL > 0 && RL <= c)
     ) {
       score =
-        4 *
+        3.75 *
         (A + B + C / 2 - A * B - (A * C) / 2 - (B * C) / 2 + (A * B * C) / 2)
     }
+    // Jika semua 0, maka score = 0 (default)
 
     score = Math.round(score * 100) / 100
 
+    console.log("=== Penelitian DTPS Calculation Debug ===")
+    console.log("Raw values:", { NI, NN, NL, NDTPS })
+    console.log("Initial ratios:", {
+      RI_initial: NI / 3 / NDTPS,
+      RN_initial: NN / 3 / NDTPS,
+      RL_initial: NL / 3 / NDTPS,
+    })
+    console.log("After capping:", { RI, RN, RL })
+    console.log("Factors:", { A, B, C })
+    console.log("Constants:", { a, b, c })
+    console.log("Score conditions:")
+    console.log(`  RI > a (${RI} > ${a}): ${RI > a}`)
+    console.log(`  RN > b (${RN} > ${b}): ${RN > b}`)
+    console.log(`  Both conditions met: ${RI > a && RN > b}`)
+    console.log("Final score:", score)
+
     return {
       scores: [{ butir: 26, nilai: score }],
-      scoreDetail: { NI, NL, NN, NDTPS, RI, RL, RN, A, B, C, a, b, c },
+      scoreDetail: {
+        NI,
+        NL,
+        NN,
+        NDTPS,
+        RI: Math.round(RI * 10000) / 10000,
+        RL: Math.round(RL * 10000) / 10000,
+        RN: Math.round(RN * 10000) / 10000,
+        A: Math.round(A * 10000) / 10000,
+        B: Math.round(B * 10000) / 10000,
+        C: Math.round(C * 10000) / 10000,
+        a,
+        b,
+        c,
+      },
     }
   }
 
+  // FIX: Update normalizeData to include auto-calculation
   normalizeData(data) {
-    return data.map((item) => {
+    // First apply base normalization
+    const normalizedData = data.map((item) => {
       const result = { ...item }
 
       const textFields = ["sumber_pembiayaan"]
@@ -200,6 +295,9 @@ export class PenelitianDtpsPlugin extends BasePlugin {
 
       return result
     })
+
+    // Then recalculate auto-calculated fields
+    return normalizedData.map((row) => this.recalculateRow(row))
   }
 
   validateData(data) {
@@ -227,6 +325,19 @@ export class PenelitianDtpsPlugin extends BasePlugin {
           )
         }
       })
+
+      // FIX: Validate that auto-calculated jumlah matches manual calculation
+      const expectedJumlah = this.getCalculatedFields().jumlah(item)
+      const actualJumlah = parseFloat(item.jumlah) || 0
+
+      if (Math.abs(expectedJumlah - actualJumlah) > 0.001) {
+        // Auto-fix the jumlah if it's incorrect
+        console.warn(
+          `Row ${
+            index + 1
+          }: Auto-correcting jumlah from ${actualJumlah} to ${expectedJumlah}`
+        )
+      }
     })
 
     return {
@@ -234,8 +345,26 @@ export class PenelitianDtpsPlugin extends BasePlugin {
       errors,
     }
   }
+
+  processFieldValue(field, value, sectionCode) {
+    // Handle numeric fields
+    const numericFields = [
+      "ts_2_jumlah_judul_penelitian",
+      "ts_1_jumlah_judul_penelitian",
+      "ts_jumlah_judul_penelitian",
+    ]
+
+    if (numericFields.includes(field)) {
+      return value === "" ? 0 : parseFloat(value) || 0
+    }
+
+    if (field === "jumlah") {
+      return value === "" ? 0 : parseFloat(value) || 0
+    }
+
+    return value
+  }
 }
 
-// Export
 export const penelitianDtpsPlugin = new PenelitianDtpsPlugin()
 export default penelitianDtpsPlugin

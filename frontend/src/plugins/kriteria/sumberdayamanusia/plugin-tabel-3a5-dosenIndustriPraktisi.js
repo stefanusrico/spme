@@ -74,7 +74,6 @@ export class DosenIndustriPraktisiPlugin extends BasePlugin {
   }
 
   async calculateScore(data, config, additionalData = {}) {
-    // MKKI = Jumlah mata kuliah kompetensi yang diampu oleh dosen industri/praktisi.
     let uniqueMatkul = new Set()
 
     data.forEach((item) => {
@@ -105,7 +104,7 @@ export class DosenIndustriPraktisiPlugin extends BasePlugin {
       }
     }
 
-    const MKK = responseScoreDetail?.jumlah_mata_kuliah_kompetensi || 0
+    const MKK = responseScoreDetail?.jumlahMataKuliahKompetensi || 0
 
     // PMKI = (MKKI / MKK) x 100%
     const PMKI = MKK > 0 ? (MKKI / MKK) * 100 : 0

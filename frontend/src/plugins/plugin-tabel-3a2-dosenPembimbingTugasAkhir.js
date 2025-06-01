@@ -146,7 +146,6 @@ const DosenPembimbingTugasAkhir = {
   },
 
   calculateScore(data, config, additionalData = {}) {
-    // RDPU = Rata-rata jumlah bimbingan sebagai pembimbing utama di seluruh program/ semester.
     let RDPU = 0
     let index = 0
     let totalAverageFinalProjectSupervisor = 0

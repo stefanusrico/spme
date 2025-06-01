@@ -171,18 +171,24 @@ const DosenTetapPerguruanTinggiPlugin = {
     console.log("Calculating dosen tetap score with data:", data)
     console.log("Additional data:", additionalData)
 
-    const NM = additionalData.jumlahMahasiswa || 0
     let NDTT = 0
+    let NM = 0
 
     try {
       if (additionalData.projectId) {
-        const scoreDetailsResponse = await fetchScoreDetails(
+        const scoreDetailResponse2a1 = await fetchScoreDetails(
+          "2a1",
+          additionalData.projectId
+        )
+        const scoreDetailResponse3a4 = await fetchScoreDetails(
           "3a4",
           additionalData.projectId
         )
 
-        // Extract NDTT from score details if available
-        NDTT = scoreDetailsResponse?.NDTT || 0
+        NM = scoreDetailResponse2a1?.NM || 0
+        console.log("Fetched NM from 2a1:", NM)
+
+        NDTT = scoreDetailResponse3a4?.NDTT || 0
         console.log("Fetched NDTT from 3a4:", NDTT)
       } else {
         console.warn("No projectId provided, using default NDTT value")

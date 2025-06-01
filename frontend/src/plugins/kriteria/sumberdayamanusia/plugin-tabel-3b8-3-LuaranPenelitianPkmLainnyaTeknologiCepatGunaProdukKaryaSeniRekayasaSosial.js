@@ -40,7 +40,7 @@ export class LuaranPenelitianPkmLainnyaTeknologiTepatGunaPlugin extends BasePlug
         key: `excel-${index + 1}-${Date.now()}`,
         no: index + 1,
         selected: true,
-        judul_luaran_penelitian_dan_pkm: "",
+        luaran_penelitian_dan_pkm: "",
         tanggal_hh_bb_tttt: "",
         status_tingkat_kesiapan_teknologi: "",
         nomor_sertifikat_tkt: "",
@@ -48,9 +48,7 @@ export class LuaranPenelitianPkmLainnyaTeknologiTepatGunaPlugin extends BasePlug
 
       // Map based on column indices
       if (row[1] !== undefined)
-        item.judul_luaran_penelitian_dan_pkm = PluginUtils.normalizeTextField(
-          row[1]
-        )
+        item.luaran_penelitian_dan_pkm = PluginUtils.normalizeTextField(row[1])
       if (row[2] !== undefined)
         item.tanggal_hh_bb_tttt = PluginUtils.normalizeTextField(row[2])
       if (row[3] !== undefined)
@@ -84,7 +82,7 @@ export class LuaranPenelitianPkmLainnyaTeknologiTepatGunaPlugin extends BasePlug
 
     data.forEach((item) => {
       if (
-        isValidField(item.judul_luaran_penelitian_dan_pkm) &&
+        isValidField(item.luaran_penelitian_dan_pkm) &&
         isValidField(item.tanggal_hh_bb_tttt) &&
         isValidField(item.status_tingkat_kesiapan_teknologi) &&
         isValidField(item.nomor_sertifikat_tkt)
@@ -106,7 +104,7 @@ export class LuaranPenelitianPkmLainnyaTeknologiTepatGunaPlugin extends BasePlug
       const result = { ...item }
 
       const textFields = [
-        "judul_luaran_penelitian_dan_pkm",
+        "luaran_penelitian_dan_pkm",
         "tanggal_hh_bb_tttt",
         "status_tingkat_kesiapan_teknologi",
         "nomor_sertifikat_tkt",
@@ -124,10 +122,8 @@ export class LuaranPenelitianPkmLainnyaTeknologiTepatGunaPlugin extends BasePlug
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.judul_luaran_penelitian_dan_pkm) {
-        errors.push(
-          `Row ${index + 1}: Judul Luaran Penelitian dan PkM harus diisi`
-        )
+      if (!item.luaran_penelitian_dan_pkm) {
+        errors.push(`Row ${index + 1}: Luaran Penelitian dan PkM harus diisi`)
       }
       if (!item.tanggal_hh_bb_tttt) {
         errors.push(`Row ${index + 1}: Tanggal (HH/BB/TTTT) harus diisi`)

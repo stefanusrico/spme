@@ -45,7 +45,6 @@ export class LuaranPenelitianPkmLainnyaHKIHakCiptaPlugin extends BasePlugin {
         keterangan_nomor_sertifikat: "",
       }
 
-      // Map based on column indices
       if (row[1] !== undefined)
         item.judul_luaran_penelitian_dan_pkm = PluginUtils.normalizeTextField(
           row[1]

@@ -130,7 +130,6 @@ export class KaryaIlmiahDtpsYangDisitasiPlugin extends BasePlugin {
       }
     }
 
-    // Menghitung RS
     RS = Math.round((NAS / NDTPS) * 100) / 100
 
     // Menghitung score

@@ -1,6 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { ExcelUtils } from "../../utils/ExcelUtils.js"
 import { processExcelDataBase } from "../../../utils/tableUtils"
 import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
 
@@ -134,6 +133,32 @@ export class PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin extends BasePlu
     ]
   }
 
+  // FIX: Add calculated fields configuration
+  getCalculatedFields() {
+    return {
+      jumlah: (row) => {
+        const ts2 = parseFloat(row.ts_2_jumlah_judul) || 0
+        const ts1 = parseFloat(row.ts_1_jumlah_judul) || 0
+        const ts = parseFloat(row.ts_jumlah_judul) || 0
+
+        return ts2 + ts1 + ts
+      },
+    }
+  }
+
+  // FIX: Add method to recalculate row with auto-calculated fields
+  recalculateRow(row) {
+    const calculatedFields = this.getCalculatedFields()
+    const updatedRow = { ...row }
+
+    // Calculate jumlah automatically
+    if (calculatedFields.jumlah) {
+      updatedRow.jumlah = calculatedFields.jumlah(updatedRow)
+    }
+
+    return updatedRow
+  }
+
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
     const { rawData, detectedIndices } = await processExcelDataBase(
       workbook,
@@ -158,38 +183,26 @@ export class PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin extends BasePlu
         jumlah: 0,
       }
 
-      // Map fields based on detected indices
-      const fieldMapping = {
-        jenis_publikasi: 1,
-        ts_2_jumlah_judul: 2,
-        ts_1_jumlah_judul: 3,
-        ts_jumlah_judul: 4,
-        jumlah: 5,
-      }
+      Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
+        if (colIndex === undefined || colIndex < 0) return
 
-      Object.entries(fieldMapping).forEach(([fieldName, defaultIndex]) => {
-        const colIndex =
-          detectedIndices[fieldName] !== undefined
-            ? detectedIndices[fieldName]
-            : defaultIndex
-        if (
-          colIndex !== undefined &&
-          colIndex >= 0 &&
-          row[colIndex] !== undefined
-        ) {
-          if (fieldName === "jenis_publikasi") {
-            item[fieldName] = PluginUtils.normalizeTextField(row[colIndex])
-          } else {
-            item[fieldName] = PluginUtils.parseNumber(row[colIndex], 0)
-          }
+        const value = row[colIndex]
+
+        if (fieldName === "no" || fieldName === "jenis_publikasi") {
+          item[fieldName] = PluginUtils.normalizeTextField(value)
+        } else {
+          item[fieldName] = PluginUtils.parseNumber(value, 0)
         }
       })
 
       return item
     })
 
+    // FIX: Calculate jumlah for each row after processing
+    const calculatedData = processedData.map((row) => this.recalculateRow(row))
+
     return {
-      allRows: processedData,
+      allRows: calculatedData,
       shouldReplaceExisting: true,
     }
   }
@@ -206,13 +219,9 @@ export class PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin extends BasePlu
       NC2 = 0,
       NC3 = 0
 
-    // Mendapatkan nilai
+    // FIX: Use auto-calculated jumlah field
     data.forEach((item) => {
-      const ts2 = Number(item.ts_2_jumlah_judul) || 0
-      const ts1 = Number(item.ts_1_jumlah_judul) || 0
-      const ts = Number(item.ts_jumlah_judul) || 0
-      const jumlah = ts2 + ts1 + ts
-
+      const jumlah = item.jumlah || 0
       const judul = item.jenis_publikasi.toLowerCase()
 
       if (judul.includes("internasional bereputasi")) {
@@ -222,14 +231,18 @@ export class PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin extends BasePlu
       } else if (judul.includes("jurnal penelitian nasional terakreditasi")) {
         NA2 += jumlah
       } else if (
-        judul.includes("jurnal penelitian nasional tidak terakreditasi")
+        judul.includes("jurnal penelitian nasional tidak terakreditasi") ||
+        judul.includes("jurnal penelitian tidak terakreditasi")
       ) {
         NA1 += jumlah
       } else if (judul.includes("seminar internasional")) {
         NB3 += jumlah
       } else if (judul.includes("seminar nasional")) {
         NB2 += jumlah
-      } else if (judul.includes("seminar wilayah")) {
+      } else if (
+        judul.includes("seminar wilayah") ||
+        judul.includes("seminar lokal")
+      ) {
         NB1 += jumlah
       } else if (judul.includes("forum di tingkat internasional")) {
         NC3 += jumlah
@@ -245,11 +258,19 @@ export class PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin extends BasePlu
       "3a1",
       additionalData.projectId
     )
+    if (!responseScoreDetail) {
+      console.warn('fetchScoreDetails("3a1") did not return any data')
+      return {
+        scores: [{ butir: 28, nilai: 0 }],
+        scoreDetail: {},
+      }
+    }
     let NDTPS = responseScoreDetail?.NDTPS || 0
 
     if (NDTPS === 0) {
+      console.warn("NDTPS is 0, cannot calculate ratios")
       return {
-        scores: [{ butir: 28, nilai: 1 }],
+        scores: [{ butir: 28, nilai: 0 }],
         scoreDetail: {
           NA1,
           NA2,
@@ -262,41 +283,96 @@ export class PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin extends BasePlu
           NC2,
           NC3,
           NDTPS: 0,
+          RI: 0,
+          RN: 0,
+          RW: 0,
+          A: 0,
+          B: 0,
+          C: 0,
         },
       }
     }
 
-    // Mendapatkan nilai RW, RN, RI
-    let RW = Math.round(((NA1 + NB1 + NC1) / NDTPS) * 100) / 100
-    let RN = Math.round(((NA2 + NA3 + NB2 + NC2) / NDTPS) * 100) / 100
-    let RI = Math.round(((NA4 + NB3 + NC3) / NDTPS) * 100) / 100
+    // FIX: Calculate initial ratios
+    let RW = Math.round(((NA1 + NB1 + NC1) / NDTPS) * 10000) / 10000
+    let RN = Math.round(((NA2 + NA3 + NB2 + NC2) / NDTPS) * 10000) / 10000
+    let RI = Math.round(((NA4 + NB3 + NC3) / NDTPS) * 10000) / 10000
 
-    // Dengan Faktor:
+    // Constants
     const a = 0.1
     const b = 1
     const c = 2
 
-    // Mendapatkan nilai A, B, dan C
-    let A = Math.round((RI / a) * 100) / 100
-    let B = Math.round((RN / b) * 100) / 100
-    let C = Math.round((RW / c) * 100) / 100
+    // FIX: Apply capping rules before calculating A, B, C
+    // Jika RI ≥ a dan RN < b, maka RI = a
+    if (RI >= a && RN < b) {
+      RI = a
+    }
+    // Jika RI < a dan RN ≥ b, maka RN = b
+    if (RI < a && RN >= b) {
+      RN = b
+    }
+    // Jika RW ≥ c , maka RW = c
+    if (RW >= c) {
+      RW = c
+    }
 
-    // Menghitung score
+    // Calculate A, B, C after applying capping
+    let A = Math.round((RI / a) * 10000) / 10000
+    let B = Math.round((RN / b) * 10000) / 10000
+    let C = Math.round((RW / c) * 10000) / 10000
+
+    // FIX: Apply correct scoring formula
     let score = 0
-    if (RI >= a && RN >= b) {
+
+    // Jika RI > a dan RN > b maka Skor = 4
+    if (RI > a && RN > b) {
       score = 4
-    } else if (
-      (RI > 0 && RI < a) ||
-      (RN > 0 && RN < b) ||
+    }
+    // Jika 0 < RI ≤ a, atau 0 < RN ≤ b, atau 0 < RW ≤ c
+    // maka Skor = 3.75 x ((A+B+(C/2))-(AxB)-((AxC)/2)-((BxC)/2)+((AxBxC)/2))
+    else if (
+      (RI > 0 && RI <= a) ||
+      (RN > 0 && RN <= b) ||
       (RW > 0 && RW <= c)
     ) {
       score =
-        4 *
+        3.75 *
         (A + B + C / 2 - A * B - (A * C) / 2 - (B * C) / 2 + (A * B * C) / 2)
     }
+    // Jika semua 0, maka score = 0 (default)
 
+    // Ensure score doesn't exceed 4
     score = score > 4 ? 4 : score
     score = Math.round(score * 100) / 100
+
+    console.log("=== Publikasi Ilmiah DTPS Calculation Debug ===")
+    console.log("Raw counts:", {
+      NA1,
+      NA2,
+      NA3,
+      NA4,
+      NB1,
+      NB2,
+      NB3,
+      NC1,
+      NC2,
+      NC3,
+      NDTPS,
+    })
+    console.log("Initial ratios:", {
+      RW_initial: (NA1 + NB1 + NC1) / NDTPS,
+      RN_initial: (NA2 + NA3 + NB2 + NC2) / NDTPS,
+      RI_initial: (NA4 + NB3 + NC3) / NDTPS,
+    })
+    console.log("After capping:", { RI, RN, RW })
+    console.log("Factors:", { A, B, C })
+    console.log("Constants:", { a, b, c })
+    console.log("Score conditions:")
+    console.log(`  RI > a (${RI} > ${a}): ${RI > a}`)
+    console.log(`  RN > b (${RN} > ${b}): ${RN > b}`)
+    console.log(`  Both conditions met: ${RI > a && RN > b}`)
+    console.log("Final score:", score)
 
     return {
       scores: [{ butir: 28, nilai: score }],
@@ -311,11 +387,47 @@ export class PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin extends BasePlu
         NC1,
         NC2,
         NC3,
-        RI,
-        RN,
-        RW,
+        NDTPS,
+        RI: Math.round(RI * 10000) / 10000,
+        RN: Math.round(RN * 10000) / 10000,
+        RW: Math.round(RW * 10000) / 10000,
+        A: Math.round(A * 10000) / 10000,
+        B: Math.round(B * 10000) / 10000,
+        C: Math.round(C * 10000) / 10000,
+        a,
+        b,
+        c,
       },
     }
+  }
+
+  // FIX: Update normalizeData to include auto-calculation
+  normalizeData(data) {
+    // First apply base normalization
+    const normalizedData = data.map((item) => {
+      const result = { ...item }
+
+      const textFields = ["jenis_publikasi"]
+      const numericFields = [
+        "ts_2_jumlah_judul",
+        "ts_1_jumlah_judul",
+        "ts_jumlah_judul",
+        "jumlah",
+      ]
+
+      textFields.forEach((field) => {
+        result[field] = PluginUtils.normalizeTextField(result[field])
+      })
+
+      numericFields.forEach((field) => {
+        result[field] = PluginUtils.parseNumber(result[field], 0)
+      })
+
+      return result
+    })
+
+    // Then recalculate auto-calculated fields
+    return normalizedData.map((row) => this.recalculateRow(row))
   }
 
   validateData(data) {
@@ -325,20 +437,32 @@ export class PagelaranPameranPresentasiPublikasiIlmiahDTPSPlugin extends BasePlu
       if (!item.jenis_publikasi?.trim()) {
         errors.push(`Row ${index + 1}: Jenis Publikasi harus diisi`)
       }
-      if (
-        item.ts_2_jumlah_judul === undefined ||
-        item.ts_2_jumlah_judul === null
-      ) {
-        errors.push(`Row ${index + 1}: TS-2 Jumlah Judul harus diisi`)
-      }
-      if (
-        item.ts_1_jumlah_judul === undefined ||
-        item.ts_1_jumlah_judul === null
-      ) {
-        errors.push(`Row ${index + 1}: TS-1 Jumlah Judul harus diisi`)
-      }
-      if (item.ts_jumlah_judul === undefined || item.ts_jumlah_judul === null) {
-        errors.push(`Row ${index + 1}: TS Jumlah Judul harus diisi`)
+
+      const tahunFields = [
+        { field: item.ts_2_jumlah_judul, label: "TS-2" },
+        { field: item.ts_1_jumlah_judul, label: "TS-1" },
+        { field: item.ts_jumlah_judul, label: "TS" },
+      ]
+
+      tahunFields.forEach(({ field, label }) => {
+        const num = parseFloat(field)
+        if (isNaN(num) || num < 0) {
+          errors.push(
+            `Row ${index + 1}: Nilai tahun ${label} harus berupa angka >= 0`
+          )
+        }
+      })
+
+      // FIX: Validate that auto-calculated jumlah matches manual calculation
+      const expectedJumlah = this.getCalculatedFields().jumlah(item)
+      const actualJumlah = parseFloat(item.jumlah) || 0
+
+      if (Math.abs(expectedJumlah - actualJumlah) > 0.001) {
+        console.warn(
+          `Row ${
+            index + 1
+          }: Auto-correcting jumlah from ${actualJumlah} to ${expectedJumlah}`
+        )
       }
     })
 
