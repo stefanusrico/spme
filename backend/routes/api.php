@@ -6,7 +6,7 @@ use App\Http\Controllers\User\{UserController, RoleController};
 use App\Http\Controllers\Lam\{LamController, JadwalLamController};
 use App\Http\Controllers\Jurusan\{JurusanController};
 use App\Http\Controllers\Prodi\{ProdiController, StrataController};
-use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController};
+use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController, ButirController};
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, WordController};
 use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController};
@@ -260,11 +260,11 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/ledData/{taskId}/all', 'getAll');
             Route::get('/ledData/{taskId}/latest', 'getLatest');
             Route::get('/ledData/byProdi/{prodiId}', 'getLedDataByProdi');
-            Route::get('/ledData/getSkorPerButir/{prodiId}', 'getSkorPerButir');
             Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
         });
 
         Route::post('/analyze-gpt', [GPTController::class, 'analyze']);
+        Route::get('/projects/get-skor-per-butir/{prodiId}', [ButirController::class, 'getSkorPerButir']);
 
         Route::controller(LedItemController::class)->group(function () {
             Route::get('/ledItem', 'index');
