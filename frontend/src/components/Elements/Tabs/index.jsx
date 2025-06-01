@@ -103,35 +103,31 @@ export default function ScrollableTabs({
     let bgColorArray = new Array(tabsData.length).fill(
       color[0]?.value || "#f38383"
     )
-    // const json = allLedData
-    console.log("json : ", allLedData)
-    console.log("tabsData : ", tabsData)
+
+    console.log("json : ", json)
+    console.log("tabsdata : ", tabsData);
+    console.log("color ", color);
+
     for (let i = 0; i < json.length; i++) {
       for (let index = 0; index < tabsData.length; index++) {
+        const ledItem = allLedData[i]?.task?.led_item
+        
         if (
-          json[i]?.task?.led_item?.no === String(tabsData[index]?.no) &&
-          json[i]?.task?.led_item?.sub === tabsData[index]?.sub
+          ledItem?.no === String(tabsData[index]?.no) &&
+          ledItem?.sub === tabsData[index]?.sub
         ) {
-          // Hitung total skor
-          let totalScore = 0
-          let count = 0
-          console.log('total skor ', totalScore)
+          const nilaiStr = allLedData[i]?.nilai
+          const totalScore = parseFloat(nilaiStr)
 
-          
-          totalScore = parseInt(json[i].nilai) || 0
-               
+          if (!isNaN(totalScore)) {
+            const finalScore = totalScore.toFixed(2)
 
-          // Menghitung nilai rata-rata
-          const finalScore = totalScore ? totalScore.toFixed(2) : 0
-
-          // Menentukan warna berdasarkan finalScore
-          for (let indexColor = 0; indexColor < color.length; indexColor++) {
-            if (
-              finalScore >= color[indexColor].rangeStart &&
-              finalScore <= color[indexColor].rangeEnd
-            ) {
-              bgColorArray[index] = color[indexColor].value // Simpan warna di indeks yang sama dengan tabsData
-              break
+            for (let indexColor = 0; indexColor < color.length; indexColor++) {
+              const { rangeStart, rangeEnd, value } = color[indexColor]
+              if (totalScore >= rangeStart && totalScore <= rangeEnd) {
+                bgColorArray[index] = value
+                break
+              }
             }
           }
         }
@@ -245,17 +241,4 @@ export default function ScrollableTabs({
       </Modal>
     </>
   )
-}
-
-ScrollableTabs.propTypes = {
-  tabsData: PropTypes.arrayOf(
-    PropTypes.shape({
-      name: PropTypes.string.isRequired,
-      no: PropTypes.string,
-      sub: PropTypes.string,
-    })
-  ).isRequired,
-  no: PropTypes.string,
-  sub: PropTypes.string,
-  onClick: PropTypes.func,
 }
