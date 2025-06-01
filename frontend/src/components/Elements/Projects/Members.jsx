@@ -13,6 +13,15 @@ import {
 import { useProjectDetails } from "../../../hooks/useProjectDetails"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 const LoadingBar = () => (
   <div className="relative mt-2 h-1 bg-gray overflow-hidden">
@@ -68,6 +77,8 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
   const [showRoleDrawer, setShowRoleDrawer] = useState(false)
   const [selectedMember, setSelectedMember] = useState(null)
   const [error, setError] = useState(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [memberToDelete, setMemberToDelete] = useState(null)
   const { userData } = useUser()
 
   const {
@@ -110,25 +121,39 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
       setShowRoleDrawer(false)
       setSelectedMember(null)
       if (onMembersUpdate) onMembersUpdate()
+      toast.success("Member role updated successfully")
     } catch (err) {
       console.error("Error updating role:", err)
       setError(err.message || "Failed to update role")
+      toast.error(err.message || "Failed to update role")
     }
   }
 
-  const handleRemoveMember = async (userId) => {
-    if (!window.confirm("Are you sure you want to remove this member?")) {
-      return
-    }
+  const handleRemoveMember = (userId) => {
+    setMemberToDelete(userId)
+    setShowDeleteDialog(true)
+  }
+
+  const confirmRemoveMember = async () => {
+    if (!memberToDelete) return
 
     try {
       setError(null)
-      await removeMember(userId)
+      await removeMember(memberToDelete)
       if (onMembersUpdate) onMembersUpdate()
+      toast.success("Member removed successfully")
+      setShowDeleteDialog(false)
+      setMemberToDelete(null)
     } catch (err) {
       console.error("Error removing member:", err)
       setError(err.message || "Failed to remove member")
+      toast.error(err.message || "Failed to remove member")
     }
+  }
+
+  const cancelRemoveMember = () => {
+    setShowDeleteDialog(false)
+    setMemberToDelete(null)
   }
 
   const isCurrentUser = (userId) => {
@@ -281,7 +306,6 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
             </button>
           </div>
         )}
-
         <div className="bg-white rounded-xl shadow-lg p-6 w-full mb-6">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -339,7 +363,26 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
           </div>
         </div>
 
-        {/* Add Member Drawer */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent className="fixed top-[50%] translate-x-[-50%] translate-y-[-50%] w-full max-w-[425px] p-6 bg-white rounded-lg shadow-lg border ml-72">
+            <DialogHeader>
+              <DialogTitle>Remove Member</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to remove this member from the project?
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={cancelRemoveMember}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmRemoveMember}>
+                Remove Member
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <AddMemberModal
           isOpen={showAddDrawer}
           onClose={() => setShowAddDrawer(false)}
@@ -347,8 +390,6 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
           availableRoles={availableRoles || []}
           canAddAdmin={canManageAdmins}
         />
-
-        {/* Role Select Drawer */}
         <RoleSelectModal
           isOpen={showRoleDrawer}
           onClose={() => {
