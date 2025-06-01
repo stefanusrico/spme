@@ -643,6 +643,9 @@ class ProjectController extends Controller
                         'status' => $task->status,
                         'no' => $task->ledItem->no,
                         'sub' => $task->ledItem->sub,
+                        'project' => [
+                            'id' => $task->taskList->project->_id,
+                        ],
                         'owners' => $task->users->map(function ($user) {
                             return [
                                 'id' => $user->id,

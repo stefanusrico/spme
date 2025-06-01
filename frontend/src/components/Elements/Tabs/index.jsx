@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import Tabs from "@mui/material/Tabs"
 import Box from "@mui/material/Box"
 import Modal from "@mui/material/Modal"
@@ -19,6 +20,7 @@ export default function ScrollableTabs({
   dataColor,
   allLedData,
 }) {
+  const navigate = useNavigate()
   const [json, setJson] = useState([])
   const [value, setValue] = useState(0)
   const [color, setColor] = useState([])
@@ -53,7 +55,6 @@ export default function ScrollableTabs({
       (tab) => tab?.no?.toString() === no && tab.sub === sub
     )
 
-
     if (defaultIndex >= 0) {
       setValue(defaultIndex)
     }
@@ -70,20 +71,20 @@ export default function ScrollableTabs({
     setValue(newValue)
   }
 
-  const handleClick = async (no, sub, index, status) => {
+  const handleClick = async (no, sub, projectId, index, status) => {
     if(status === "plus"){
-      await updateUserTask(no, sub)
+      await updateUserTask(no, sub, projectId)
       setOpen(false); // Tutup modal
       if (onClick) {
-        await onClick(no, sub);
+        await onClick(no, sub, projectId,navigate);
       }
       return;
     }
     setValue(index) // Update active tab manually
     if (onClick) {
       if (no && sub) {
-        console.log(no, sub, index)
-        await onClick(no, sub)
+        console.log(no, sub, index, projectId)
+        await onClick(no, sub, projectId, navigate)
       }
     }
   }
@@ -108,27 +109,20 @@ export default function ScrollableTabs({
     for (let i = 0; i < json.length; i++) {
       for (let index = 0; index < tabsData.length; index++) {
         if (
-          json[i]?.task?.no === tabsData[index]?.no &&
-          json[i]?.task?.sub === tabsData[index]?.sub
+          json[i]?.task?.led_item?.no === String(tabsData[index]?.no) &&
+          json[i]?.task?.led_item?.sub === tabsData[index]?.sub
         ) {
           // Hitung total skor
           let totalScore = 0
           let count = 0
+          console.log('total skor ', totalScore)
 
-          for (
-            let indexDetail = 0;
-            indexDetail < json[i].details.length;
-            indexDetail++
-          ) {
-            if (json[i].details[indexDetail].type === "K") {
-              const intScore = parseInt(json[i].details[indexDetail].nilai) || 0
-              totalScore += intScore
-              count++
-            }
-          }
+          
+          totalScore = parseInt(json[i].nilai) || 0
+               
 
           // Menghitung nilai rata-rata
-          const finalScore = count > 0 ? (totalScore / count).toFixed(2) : 0
+          const finalScore = totalScore ? totalScore.toFixed(2) : 0
 
           // Menentukan warna berdasarkan finalScore
           for (let indexColor = 0; indexColor < color.length; indexColor++) {
@@ -162,7 +156,7 @@ export default function ScrollableTabs({
           {tabsData.map((tab, index) => (
             <Box
               key={index}
-              onClick={() => handleClick(tab.no, tab.sub, index)}
+              onClick={() => handleClick(tab.no, tab.sub, tab.project.id, index)}
               sx={{
                 padding: "8px 16px",
                 cursor: "pointer",
@@ -240,7 +234,7 @@ export default function ScrollableTabs({
                       bgcolor: "grey.400",
                     },
                   }}
-                  onClick={() => handleClick(tab.no, tab.sub, index, "plus")}
+                  onClick={() => handleClick(tab.no, tab.sub, tab.project.id, index, "plus")}
                 >
                   <Typography variant="caption">{`${tab.no} ${tab.sub}`}</Typography>
                 </Box>

@@ -90,9 +90,10 @@ class GeminiScoringLedController extends Controller
         1. Pahami indikator dan deskripsi rubrik penilaian.
         2. Baca dan analisis isi isian asesi secara menyeluruh.
         3. Identifikasi bukti atau pernyataan dalam isian yang relevan dengan rubrik penilaian.
-        4. Bandingkan temuan dalam isian dengan kriteria skor (0, 1, 2, 3, 4).
-        5. Tentukan skor yang paling sesuai berdasarkan kesesuaian.
-        6. Berikan penjelasan ringkas (masukan) yang mendasari skor tersebut.
+        4. Evaluasi apakah bukti atau pernyataan dalam isian memiliki detail dan penjelasan yang memadai untuk membuktikan klaimnya, bukan hanya daftar kata kunci. 
+        5. Bandingkan temuan dalam isian dengan kriteria skor (0, 1, 2, 3, 4).
+        6. Tentukan skor yang paling sesuai berdasarkan kesesuaian.
+        7. Berikan penjelasan ringkas (masukan) yang mendasari skor tersebut.
 
         Data Matriks
 

@@ -17,7 +17,7 @@ import ProgressBar from "../components/Elements/Chart/ProgressBar"
 
 const PengisianMatrikLed = () => {
   const navigate = useNavigate()
-  const { no = "", sub = "" } = useParams()
+  const { no = "", sub = "", projectId = "" } = useParams()
   const [json, setJson] = useState([])
   const [task, setTask] = useState([])
   const [prodi, setProdi] = useState([])
@@ -118,13 +118,13 @@ const PengisianMatrikLed = () => {
   }
 
   const checkAndRedirect = (userTasks) => {
-    if (no && sub) {
-      navigate(`/pengisian-matriks-led/${no}/${sub}`, {
+    if (no && sub && projectId) {
+      navigate(`projects/${projectId}/pengisian-matriks-led/${no}/${sub}`, {
         replace: true, // Supaya tidak menambah entry baru di history browser
       })
     } else if (userTasks.length > 0) {
       const firstTask = userTasks[0]
-      navigate(`/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`, {
+      navigate(`projects/${firstTask.project.id}/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`, {
         replace: true, // Supaya tidak menambah entry baru di history browser
       })
     } else {
@@ -543,7 +543,7 @@ const PengisianMatrikLed = () => {
   }
 
   const changeNoSub = (newNo, newSub) => {
-    navigate(`/pengisian-matriks-led/${newNo}/${newSub}`)
+    navigate(`projects/${projectId}/pengisian-matriks-led/${newNo}/${newSub}`)
   }
 
   const toggleMasukanVisibility = () => {

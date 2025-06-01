@@ -26,18 +26,17 @@ const ExportData = ({ projectId }) => {
   const [selectedTables, setSelectedTables] = useState([])
   const [tableStructure, setTableStructure] = useState([])
   const [ledCriteria, setLedCriteria] = useState([
-    { code: "led_a", name: "Kriteria A: Visi, Misi, Tujuan, dan Strategi" },
+    { code: "C1", name: "Kriteria A: Visi, Misi, Tujuan, dan Strategi" },
     {
-      code: "led_b",
-      name: "Kriteria B: Tata Pamong, Tata Kelola, dan Kerjasama",
+      code: "C2", name: "Kriteria B: Tata Pamong, Tata Kelola, dan Kerjasama",
     },
-    { code: "led_c", name: "Kriteria C: Mahasiswa" },
-    { code: "led_d", name: "Kriteria D: Sumber Daya Manusia" },
-    { code: "led_e", name: "Kriteria E: Keuangan, Sarana, dan Prasarana" },
-    { code: "led_f", name: "Kriteria F: Pendidikan" },
-    { code: "led_g", name: "Kriteria G: Penelitian" },
-    { code: "led_h", name: "Kriteria H: Pengabdian kepada Masyarakat" },
-    { code: "led_i", name: "Kriteria I: Luaran dan Capaian Tridharma" },
+    { code: "C3", name: "Kriteria C: Mahasiswa" },
+    { code: "C4", name: "Kriteria D: Sumber Daya Manusia" },
+    { code: "C5", name: "Kriteria E: Keuangan, Sarana, dan Prasarana" },
+    { code: "C6", name: "Kriteria F: Pendidikan" },
+    { code: "C7", name: "Kriteria G: Penelitian" },
+    { code: "C8", name: "Kriteria H: Pengabdian kepada Masyarakat" },
+    { code: "C9", name: "Kriteria I: Luaran dan Capaian Tridharma" },
   ])
 
   useEffect(() => {
@@ -108,10 +107,10 @@ const ExportData = ({ projectId }) => {
         }
       } else {
         // LED
-        endpoint = "/led/export"
+        endpoint = "/led/export-data"
         requestData = {
           projectId,
-          criteria: selectedTables,
+          kriteria: selectedTables,
         }
       }
 
@@ -133,10 +132,12 @@ const ExportData = ({ projectId }) => {
         date.getMonth() + 1
       ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 
+      const extension = exportType === "lkps" ? "xlsx" : "docx"
       link.setAttribute(
         "download",
-        `${exportType.toUpperCase()}_Export_${formattedDate}.xlsx`
+        `${exportType.toUpperCase()}_Export_${formattedDate}.${extension}`
       )
+      
       document.body.appendChild(link)
       link.click()
       link.remove()

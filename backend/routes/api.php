@@ -8,7 +8,7 @@ use App\Http\Controllers\Jurusan\{JurusanController};
 use App\Http\Controllers\Prodi\{ProdiController, StrataController};
 use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController};
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
-use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController};
+use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, WordController};
 use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController};
 use App\Http\Controllers\Akreditasi\{DataAkreditasiController};
 use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
@@ -105,6 +105,8 @@ Route::get('/lkps/sections/all/data', [LkpsExportController::class, 'getAllSecti
 Route::post('/templates/upload', [LkpsExportController::class, 'uploadTemplate']);
 Route::get('/templates/info', [LkpsExportController::class, 'getTemplateInfo']);
 Route::post('/lkps/export-data', [LkpsExportController::class, 'exportData']);
+Route::post('/led/export-data', [WordController::class, 'exportData']);
+Route::post('/led/import-data', [WordController::class, 'importTemplateLed']);
 
 Route::get('/led/{sheet}', [DataController::class, 'getLembarIsianLed']);
 Route::get('/stortasklist/{projectId}', [TaskListController::class, 'storeFromLed']);
@@ -157,7 +159,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
     Route::get('tasks', [TaskController::class, 'myTasks']);
-    Route::patch('tasks/updateOwner/{no}/{sub}/{prodi}', [TaskController::class, 'updateOwners']);
+    Route::patch('tasks/updateOwner/{no}/{sub}/{prodiId}', [TaskController::class, 'updateOwners']);
     Route::get('allTaskByProdi/{prodiId}', [TaskController::class, 'getAllTaskByProdi']);
 
     Route::controller(JurusanController::class)->group(function () {
