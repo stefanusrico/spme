@@ -1,8 +1,15 @@
 import { useState, useEffect } from "react"
+<<<<<<< HEAD
 import { Upload, Tooltip, Button } from "antd";
 import { UploadOutlined, SaveOutlined } from "@ant-design/icons";
 import ClickableAndDeletableChips from "../Chip/clickableDeleteable";
 import FilePreviewComponent from "../../Fragments/FilePreviewComponent";
+=======
+import { Upload, Tooltip, Button } from "antd"
+import { UploadOutlined, SaveOutlined } from "@ant-design/icons"
+import ClickableAndDeletableChips from "../Chip/clickableDeleteable"
+import FilePreviewComponent from "../../Fragments/FilePreviewComponent"
+>>>>>>> dbv2
 
 const AddFileModal = ({
   isOpen,
@@ -11,6 +18,7 @@ const AddFileModal = ({
   availableRoles = [],
   selectedDetails,
   dataIsian,
+<<<<<<< HEAD
   updateDataIsian
 }) => {
   const [isUploaded, setIsUploaded] = useState(false);
@@ -22,6 +30,19 @@ const AddFileModal = ({
   const [error, setError] = useState("")
   const [selectedFiles, setSelectedFiles] = useState([]); //sudah tidak terpakai, nanti dihapus
   const [selectedFilesMap, setSelectedFilesMap] = useState({});
+=======
+  updateDataIsian,
+}) => {
+  const [isUploaded, setIsUploaded] = useState(false)
+  const [fileList, setFileList] = useState([])
+  const [files, setFiles] = useState([])
+  const [uploadedFiles, setUploadedFiles] = useState([])
+  const [openViewer, setOpenViewer] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [selectedFiles, setSelectedFiles] = useState([]) //sudah tidak terpakai, nanti dihapus
+  const [selectedFilesMap, setSelectedFilesMap] = useState({})
+>>>>>>> dbv2
   const [isAnimating, setIsAnimating] = useState(false)
 
   useEffect(() => {
@@ -46,6 +67,7 @@ const AddFileModal = ({
 
   const handleFileChange = ({ fileList }) => {
     console.log("file yang mau disimpan : ", fileList)
+<<<<<<< HEAD
     const key = selectedDetails[0].Seq; // Gunakan Seq sebagai kategori unik
     const existingFiles = new Set((selectedFilesMap[key] || []).map(file => file.name)); // File dari state
     const storedFiles = new Set((dataIsian.details.find(item => item.seq === key)?.data_pendukung || []).map(file => file.name)); // File dari dataIsian yang sudah tersimpan
@@ -120,6 +142,101 @@ const AddFileModal = ({
       }
   };
 
+=======
+    if (!selectedDetails[0]) return
+    const key = selectedDetails[0].seq  // Gunakan seq sebagai kategori unik
+    const existingFiles = new Set(
+      (selectedFilesMap[key] || []).map((file) => file.name)
+    ) // File dari state
+    const storedFiles = new Set(
+      (
+        dataIsian.details.find((item) => item.seq === key)?.data_pendukung || []
+      ).map((file) => file.name)
+    ) // File dari dataIsian yang sudah tersimpan
+
+    const uniqueFiles = fileList.filter(
+      (file) => !existingFiles.has(file.name) && !storedFiles.has(file.name) // Hindari duplikasi
+    )
+
+    setSelectedFilesMap((prev) => ({
+      ...prev,
+      [key]: [...(prev[key] || []), ...uniqueFiles], // Tambah file unik
+    }))
+  }
+
+  useEffect(() => {
+    if (!selectedDetails.length || !dataIsian?.details || !selectedDetails[0]) return // Error handling
+    
+    const key = selectedDetails[0].seq
+    const currentFiles = selectedFilesMap[key] || []
+    const storedFiles =
+      dataIsian.details.find((item) => item.seq === key)?.data_pendukung || []
+
+    const mergedFiles = [...storedFiles, ...currentFiles].reduce(
+      (acc, file) => {
+        if (!acc.some((f) => f.name === file.name)) acc.push(file)
+        return acc
+      },
+      []
+    )
+
+    // Cek apakah ada perubahan sebelum update
+    if (JSON.stringify(mergedFiles) !== JSON.stringify(storedFiles)) {
+      const updatedDataIsian = {
+        ...dataIsian,
+        details: dataIsian.details.map((item) =>
+          item.seq === key ? { ...item, data_pendukung: mergedFiles } : item
+        ),
+      }
+
+      console.log("sebelum ke parent :", updatedDataIsian)
+      updateDataIsian(updatedDataIsian)
+    }
+  }, [selectedFilesMap, selectedDetails])
+
+  useEffect(() => {
+    if (selectedDetails[0]) {
+      setSelectedFilesMap((prev) => ({
+        ...prev,
+        [selectedDetails[0].seq]: [],
+      }))
+    }
+  }, [selectedDetails])
+
+  const handleClick = (index) => {
+    console.log("helo", selectedDetails[0]?.dataPendukung[index])
+    setFiles([selectedDetails[0]?.dataPendukung[index]])
+  }
+
+  const handleDelete = async ({ fileId }) => {
+    try {
+      const foundInSelectedFiles = selectedFiles.some(
+        (file) => file.uid === fileId
+      )
+
+      if (foundInSelectedFiles) {
+        setSelectedFiles((prevFiles) =>
+          prevFiles.filter((file) => file.uid !== fileId)
+        )
+        setUploadedFiles((prevFiles) =>
+          prevFiles.filter((file) => file.uid !== fileId)
+        )
+      } else {
+        const response = await axiosIstance.delete("/delete-files", {
+          data: {
+            fileId,
+            subFolder: prodi,
+            noSub,
+          },
+        })
+
+        fetchUploadedFiles()
+      }
+    } catch (error) {
+      console.error("Gagal menghapus file:", error.response.data)
+    }
+  }
+>>>>>>> dbv2
 
   if (!isOpen && !isAnimating) return null
 
@@ -169,14 +286,19 @@ const AddFileModal = ({
                 </button>
               </div>
               <div className="mt-4">
+<<<<<<< HEAD
                 <h4>
                     Kriteria Indikator : {selectedDetails[0].Reference}
                 </h4>
+=======
+                <h4>Kriteria Indikator : {selectedDetails[0].Reference}</h4>
+>>>>>>> dbv2
               </div>
             </div>
 
             {/* Form content */}
             <div className="relative flex-1 px-6 py-6 overflow-auto">
+<<<<<<< HEAD
                 <div>
                     <Upload 
                         fileList={fileList}
@@ -243,6 +365,77 @@ const AddFileModal = ({
                     {error}
                   </div>
                 )}
+=======
+              <div>
+                <Upload
+                  fileList={fileList}
+                  beforeUpload={() => false}
+                  onChange={handleFileChange}
+                  showUploadList={false}
+                  accept=".xlsx, .xls, .png, .jpg, .pdf"
+                  multiple={true}
+                  // disabled={type === "readOnly" || isLoadingCheck}
+                >
+                  <Tooltip title="Unggah file sebagai data pendukung">
+                    <Button
+                      icon={<UploadOutlined />}
+                      style={{ marginBottom: "16px" }}
+                    >
+                      {isUploaded ? "File Diupload!" : "Upload"}
+                    </Button>
+                  </Tooltip>
+                </Upload>
+                <ClickableAndDeletableChips
+                  // disabled={type === "readOnly" || isLoadingCheck}
+                  no={dataIsian.task.no}
+                  sub={dataIsian.task.sub}
+                  kriteria={selectedDetails[0].seq}
+                  // uploadedFiles={selectedDetails?.Details?.[currentPage - 1]?.['Data Pendukung'] ?? []}
+                  dataPendukung={selectedDetails[0]?.["Data Pendukung"] ?? []}
+                  handleClick={handleClick}
+                  handleDelete={handleDelete}
+                />
+
+                {/* Diterapkan dibawab ini untuk viewwer nya */}
+                {openViewer && (
+                  <div className="mt-5 bg-gray">
+                    <div>
+                      {files.name}
+                      <button
+                        type="button"
+                        className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                        onClick={handleClosePreview}
+                      >
+                        <span className="sr-only">Close panel</span>
+                        <svg
+                          className="h-6 w-6"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    {files.map((file, index) => (
+                      <FilePreviewComponent key={index} file={file} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-md">
+                  {error}
+                </div>
+              )}
+>>>>>>> dbv2
             </div>
           </div>
         </div>

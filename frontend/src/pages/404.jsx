@@ -11,7 +11,7 @@ const NotFound = () => {
     error?.message || "The page you are looking for does not exist."
 
   const goToHome = () => {
-    navigate("/dashboard")
+    navigate("dashboard")
   }
 
   return (
@@ -21,7 +21,7 @@ const NotFound = () => {
         <h2 className="text-2xl font-semibold mt-4">{statusText}</h2>
         <p className="mt-2 text-gray-600">{message}</p>
         <Button
-          className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="mt-6 px-6 py-3 bg-blue text-white rounded-lg shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           onClick={goToHome}
         >
           Go to Dashboard

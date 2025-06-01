@@ -298,28 +298,15 @@ const Tasks = ({ projectId, userRole }) => {
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor(
-        (row) => {
-          if (row.isGroupHeader) return row.criteria
-          return row.taskId
-        },
-        {
-          id: "taskId",
-          header: "TASK ID",
-          size: 100,
-          cell: ({ row, getValue }) => {
-            if (row.original.isGroupHeader) {
-              return getValue()
-            }
-            return getValue()
-          },
-        }
-      ),
       columnHelper.accessor("name", {
         header: "TASK NAME",
         size: 200,
         cell: ({ row, getValue }) => {
-          if (row.original.isGroupHeader) return null
+          if (row.original.isGroupHeader) {
+            // Display criteria for group headers in the name column
+            return row.original.criteria
+          }
+          // For regular rows, show task name
           return getValue()
         },
       }),
@@ -444,14 +431,22 @@ const Tasks = ({ projectId, userRole }) => {
         size: 100,
         cell: ({ row }) => {
           if (row.original.isGroupHeader) return null
+          const isLkpsTask =
+            row.original.name && row.original.name.startsWith("Tabel")
+
+          let link
+          if (isLkpsTask) {
+            const sectionCodeMatch = row.original.name.match(/Tabel\s+(\S+)/)
+            const sectionCode = sectionCodeMatch ? sectionCodeMatch[1] : ""
+            link = `/projects/${projectId}/lkps/${sectionCode}`
+          } else {
+            link = `/projects/${projectId}/pengisian-matriks-led/${row.original.no}/${row.original.sub}`
+          }
+
           return (
             <div className="flex justify-center">
               <button
-                onClick={() =>
-                  navigate(
-                    `/pengisian-matriks-led/${row.original.no}/${row.original.sub}`
-                  )
-                }
+                onClick={() => navigate(link)}
                 className="px-3 py-1.5 text-sm font-medium text-white bg-blue rounded hover:bg-blue-700 rounded-lg"
               >
                 View Task
@@ -468,6 +463,7 @@ const Tasks = ({ projectId, userRole }) => {
       navigate,
       canEdit,
       handleUpdateRow,
+      projectId,
     ]
   )
 
@@ -541,19 +537,16 @@ const Tasks = ({ projectId, userRole }) => {
                           : ""
                       }`}
                     >
-                      {row.getVisibleCells().map((cell) => {
+                      {row.getVisibleCells().map((cell, cellIndex) => {
                         if (row.original.isGroupHeader) {
-                          if (cell.column.id === "taskId") {
+                          if (cellIndex === 0) {
                             return (
                               <td
                                 key={cell.id}
                                 colSpan={columns.length}
                                 className="font-bold text-black bg-gray px-4 py-2 text-left rounded-lg"
                               >
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )}
+                                {row.original.criteria}
                               </td>
                             )
                           }

@@ -27,39 +27,53 @@ const MonitoringAkreditasi = () => {
   }
 
   return (
-    <div className="w-full mx-auto">
-      <div className="mt-10 bg-white border border-gray rounded-lg shadow border-gray p-6 w-full flex justify-between">
-        <div className="w-full flex ml-8 gap-8 items-center">
-          <Card title="Akreditasi Unggul" value={getPeringkatValue("Unggul")} />
-          <Card
-            title="Akreditasi Baik Sekali"
-            value={getPeringkatValue("Baik Sekali")}
-          />
-          <Card title="Akreditasi Baik" value={getPeringkatValue("Baik")} />
-        </div>
-        <div className="flex flex-col justify-center items-center gap-4 mr-2">
-          <CardProgress
-            currentStatus={projectStats.submitted}
-            totalStatus={projectStats.total}
-            status="submitted"
-            statusText="Submitted"
-          />
-          <CardProgress
-            currentStatus={projectStats.inProgress}
-            totalStatus={projectStats.total}
-            status="inprogress"
-            statusText="In Progress"
-          />
-          <CardProgress
-            currentStatus={projectStats.notStarted}
-            totalStatus={projectStats.total}
-            status="notsubmitted"
-            statusText="Not Started"
-          />
+    <div className="w-full">
+      <div className="mt-6 bg-white border border-gray rounded-lg shadow p-4 md:p-6 overflow-hidden">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-4">
+          {/* First section - Cards */}
+          <div className="w-full flex flex-wrap justify-center sm:justify-between lg:justify-start gap-4">
+            <Card
+              title="Akreditasi Unggul"
+              value={getPeringkatValue("Unggul")}
+            />
+            <Card
+              title="Akreditasi Baik Sekali"
+              value={getPeringkatValue("Baik Sekali")}
+            />
+            <Card title="Akreditasi Baik" value={getPeringkatValue("Baik")} />
+          </div>
+
+          {/* Second section - Progress circles */}
+          <div className="flex flex-row lg:flex-col justify-center items-center gap-4 pb-2">
+            <div className="flex-shrink-0">
+              <CardProgress
+                currentStatus={projectStats.submitted}
+                totalStatus={projectStats.total}
+                status="submitted"
+                statusText="Submitted"
+              />
+            </div>
+            <div className="flex-shrink-0">
+              <CardProgress
+                currentStatus={projectStats.inProgress}
+                totalStatus={projectStats.total}
+                status="inprogress"
+                statusText="In Progress"
+              />
+            </div>
+            <div className="flex-shrink-0">
+              <CardProgress
+                currentStatus={projectStats.notStarted}
+                totalStatus={projectStats.total}
+                status="notsubmitted"
+                statusText="Not Started"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="mt-2 w-full rounded-lg">
+      <div className="mt-4 w-full">
         <ProgressAkreditasiTable />
       </div>
     </div>

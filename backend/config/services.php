@@ -39,4 +39,8 @@ return [
         'api_key' => env('OPENAI_API_KEY'),
     ],
 
+<<<<<<< HEAD
 ];
+=======
+];
+>>>>>>> dbv2

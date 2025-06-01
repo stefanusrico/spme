@@ -1,15 +1,31 @@
-import React, { useState } from "react";
-import Button from "../Button";
+import React, { useState } from "react"
+import Button from "../Button"
 
+<<<<<<< HEAD
 export function FormToast({ closeToast, dataIsian, noSub, title = "Title", message = "Message", onSubmit }) {
   const [commit, setCommit] = useState(""); 
 
   const handleSubmit = async () => {
     if (onSubmit) {
       await onSubmit(commit, dataIsian, noSub);
+=======
+export function FormToast({
+  closeToast,
+  dataIsian,
+  noSub,
+  title = "Title",
+  message = "Message",
+  onSubmit,
+}) {
+  const [commit, setCommit] = useState("")
+
+  const handleSubmit = async () => {
+    if (onSubmit) {
+      await onSubmit(commit, dataIsian, noSub)
+>>>>>>> dbv2
     }
-    closeToast(); 
-  };
+    closeToast()
+  }
 
   return (
     <div className="flex flex-col w-full gap-2">
@@ -19,15 +35,15 @@ export function FormToast({ closeToast, dataIsian, noSub, title = "Title", messa
         <textarea
           className="w-full border border-purple-600/40 rounded-md resize-none h-[100px]"
           value={commit}
-          onChange={(e) => setCommit(e.target.value)} 
+          onChange={(e) => setCommit(e.target.value)}
         />
       </form>
-      <Button 
-        className="bg-primary w-40 hover:bg-white hover:text-primary text-zinc-800 text-sm font-semibold" 
-        onClick={handleSubmit} 
+      <Button
+        className="bg-primary w-40 hover:bg-white hover:text-primary text-zinc-800 text-sm font-semibold"
+        onClick={handleSubmit}
       >
         Submit
       </Button>
     </div>
-  );
+  )
 }

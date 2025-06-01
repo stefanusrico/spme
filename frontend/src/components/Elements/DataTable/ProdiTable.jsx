@@ -82,38 +82,11 @@ const ProdiTable = () => {
       }),
       columnHelper.accessor("akreditasi.tanggalKedaluwarsa", {
         header: "TANGGAL KEDALUWARSA",
-        cell: (info) => format(new Date(info.getValue()), "dd-MM-yyyy"),
-      }),
-      columnHelper.accessor("tanggalSubmit", {
-        header: "TANGGAL AKHIR SUBMIT",
         cell: (info) => {
-          const submitDate = info.getValue()
-          const status = getSubmitDateStatus(submitDate)
-          const formattedDate = format(new Date(submitDate), "dd-MM-yyyy")
-
-          const statusClasses = {
-            urgent: "bg-blue_badge text-black rounded",
-            warning: "bg-orange_badge text-black rounded",
-            past: "bg-red_badge text-black rounded",
-          }
-
-          return (
-            <span
-              className={`text-sm px-2 py-1 ${statusClasses[status] || ""}`}
-            >
-              {formattedDate}
-            </span>
-          )
+          const value = info.getValue()
+          if (!value) return "-"
+          return format(new Date(value), "dd-MM-yyyy")
         },
-        size: 300,
-      }),
-      columnHelper.accessor("tanggalPengumuman", {
-        header: "TANGGAL PENGUMUMAN",
-        cell: (info) => format(new Date(info.getValue()), "dd-MM-yyyy"),
-      }),
-      columnHelper.accessor("lam.name", {
-        header: "LEMBAGA AKREDITASI",
-        cell: (info) => info.getValue(),
       }),
     ],
     []

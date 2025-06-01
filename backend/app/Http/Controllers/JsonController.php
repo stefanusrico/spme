@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Matriks;
-use App\Models\SpreadsheetInfo;
+use App\Models\Led\LedItem;
+use App\Models\Data\SpreadsheetInfo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
-use App\Http\Controllers\MatriksController;
 
 class JsonController extends Controller
 {
@@ -30,7 +29,7 @@ class JsonController extends Controller
 
         \Log::info("SpreadsheetInfo found: ", $spreadsheet_infos->toArray());
         foreach ($spreadsheet_infos as $spreadsheet_info) {
-            $SPREADSHEET_ID = $spreadsheet_info->spreadsheetId;
+            $SPREADSHEET_ID = $this->extractSpreadsheetId($spreadsheet_info->spreadsheetId);
             $RANGETOTAL = $spreadsheet_info->sheets;
 
             if (!$SPREADSHEET_ID || empty($RANGETOTAL)) {
@@ -54,25 +53,34 @@ class JsonController extends Controller
 
                 try {
                     foreach ($groupedData as $data) {
-                        $existingMatriks = Matriks::where('no', $data['No.'])
+                        // Ambil hanya key yang diinginkan dari masing-masing item details
+                        $filteredDetails = collect($data['Details'] ?? [])->map(function ($detail) {
+                            return [
+                                'seq' => $detail['Seq'] ?? null,
+                                'type' => $detail['Type'] ?? null,
+                                'reference' => $detail['Reference'] ?? null,
+                            ];
+                        })->toArray();
+
+                        $existingLedItem = LedItem::where('no', $data['No.'])
                             ->where('sub', $data['Sub'])
                             ->where('lamId', $spreadsheet_info->lamId)
                             ->where('strataId', $spreadsheet_info->strataId)
                             ->first();
 
-                        if ($existingMatriks) {
-                            $existingMatriks->update([
-                                'c' => $data['C'],
-                                'details' => $data['Details']
+                        if ($existingLedItem) {
+                            $existingLedItem->update([
+                                'kriteria' => $data['C'],
+                                'details' => $filteredDetails
                             ]);
                         } else {
-                            Matriks::create([
+                            LedItem::create([
                                 'strataId' => $spreadsheet_info->strataId,
                                 'lamId' => $spreadsheet_info->lamId,
-                                'c' => $data['C'],
+                                'kriteria' => $data['C'],
                                 'no' => $data['No.'],
                                 'sub' => $data['Sub'],
-                                'details' => $data['Details']
+                                'details' => $filteredDetails
                             ]);
                         }
                     }
@@ -108,6 +116,18 @@ class JsonController extends Controller
 
         $rows = $response->json()['values'] ?? [];
         return empty($rows) ? null : $rows;
+    }
+
+    /**
+     * Mengambil Spreadsheet Id dari link url spreadsheet.
+     */
+    private function extractSpreadsheetId($urlOrId)
+    {
+        if (preg_match('/\/d\/([a-zA-Z0-9-_]+)/', $urlOrId, $matches)) {
+            return $matches[1]; // Jika berupa URL, ambil ID-nya
+        }
+
+        return $urlOrId; // Jika sudah berupa ID, langsung return
     }
 
     /**

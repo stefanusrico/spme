@@ -33,8 +33,8 @@ class TaskAssignedNotification extends Notification
       'title' => 'Assigned to Task',
       'message' => "You have been assigned to task '{$this->task->no} - {$this->task->sub}' in project '{$this->project->name}' by {$this->assignedBy->name}",
       'type' => 'task_assignment',
-      'task_id' => $this->task->_id,
-      'project_id' => $this->project->projectId,
+      'taskId' => $this->task->_id,
+      'projectId' => $this->project->_id,
       'assigned_by' => [
         'id' => $this->assignedBy->_id,
         'name' => $this->assignedBy->name,

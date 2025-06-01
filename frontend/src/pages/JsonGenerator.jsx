@@ -3,12 +3,17 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+<<<<<<< HEAD
 import axiosInstance from "../../../../../INI BUAT PUSH 2/spme/frontend/src/utils/axiosConfig"
+=======
+import axiosInstance from "../utils/axiosConfig"
+>>>>>>> dbv2
 import { useEffect, useState } from "react"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faPlus } from "@fortawesome/free-solid-svg-icons"
 
 const JsonGenerator = () => {
+<<<<<<< HEAD
   const [urlSpreadsheet, setUrlSpreadsheet] = useState("");
   const [selectedStrata, setSelectedStrata] = useState("");
   const [selectedLAM, setSelectedLAM] = useState("");
@@ -21,6 +26,20 @@ const JsonGenerator = () => {
   useEffect(() => {
     fetchData();
   }, []);
+=======
+  const [urlSpreadsheet, setUrlSpreadsheet] = useState("")
+  const [selectedStrata, setSelectedStrata] = useState("")
+  const [selectedLAM, setSelectedLAM] = useState("")
+  const [title, setTitle] = useState("")
+  const [sheets, setSheets] = useState([""])
+  const [lamOptions, setLamOptions] = useState([])
+  const [strataOptions, setStrataOptions] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+>>>>>>> dbv2
 
   useEffect(() => {
     console.log("spreadsheet : ", urlSpreadsheet)
@@ -32,6 +51,7 @@ const JsonGenerator = () => {
   const fetchData = async () => {
     try {
       // const responseSpreadsheet_info = await axiosInstance.get("/spreadsheet-info/67cbcdaec9b2a57b2e019192");
+<<<<<<< HEAD
       const responseLam = await axiosInstance.get("/lam");
       const responseStrata = await axiosInstance.get("/strata");
       
@@ -39,12 +59,21 @@ const JsonGenerator = () => {
       // const spreadsheet_info = responseSpreadsheet_info.data
       // if (spreadsheet_info) {
       //   setTitle(spreadsheet_info.name || "");  
+=======
+      const responseLam = await axiosInstance.get("/lam")
+      const responseStrata = await axiosInstance.get("/strata")
+
+      // const spreadsheet_info = responseSpreadsheet_info.data
+      // if (spreadsheet_info) {
+      //   setTitle(spreadsheet_info.name || "");
+>>>>>>> dbv2
       //   setUrlSpreadsheet(spreadsheet_info.spreadsheetId || "");
       //   setSelectedLAM(spreadsheet_info.lamId || "");
       //   setSelectedStrata(spreadsheet_info.strataId || "");
       //   setSheets(spreadsheet_info.sheets && spreadsheet_info.sheets.length > 0 ? spreadsheet_info.sheets : [""]);
       // }
 
+<<<<<<< HEAD
       setLamOptions(responseLam.data || []);
       setStrataOptions(responseStrata.data?.data || []); 
       console.log(responseStrata.data.data)
@@ -83,6 +112,47 @@ const JsonGenerator = () => {
     setSheets(updatedSheets);
   };
   
+=======
+      setLamOptions(responseLam.data || [])
+      setStrataOptions(responseStrata.data?.data || [])
+      console.log(responseStrata.data.data)
+    } catch (error) {
+      console.error("Error fetching data from database", error)
+    }
+  }
+
+  const saveToFile = async () => {
+    try {
+      const lamName =
+        lamOptions.find((lam) => lam.id === selectedLAM)?.name || "Unknown LAM"
+      const strataName =
+        strataOptions.find((strata) => strata.id === selectedStrata)?.name ||
+        "Unknown Strata"
+
+      const responsePost = await axiosInstance.post("/save-json", {
+        name: `${lamName} ${strataName}`, // Gabungkan nama LAM dan Strata
+        strataId: selectedStrata,
+        lamId: selectedLAM,
+        spreadsheetId: urlSpreadsheet,
+        sheets: sheets,
+      })
+
+      alert("Data berhasil disimpan: " + JSON.stringify(responsePost.data))
+    } catch (error) {
+      console.error("Error saving file:", error)
+    }
+  }
+
+  const addInputField = () => {
+    setSheets([...sheets, ""])
+  }
+
+  const handleInputChange = (index, value) => {
+    const updatedSheets = [...sheets]
+    updatedSheets[index] = value
+    setSheets(updatedSheets)
+  }
+>>>>>>> dbv2
 
   return (
     <div className="pr-4 mx-auto mt-32">
@@ -103,10 +173,25 @@ const JsonGenerator = () => {
 
           <div>
             <Label className="text-lg mb-3">Strata</Label>
+<<<<<<< HEAD
             <RadioGroup className="mt-3 flex gap-6" value={selectedStrata} onValueChange={setSelectedStrata}>
               {strataOptions.map((strata) => (
                 <div key={strata.id} className="flex items-center space-x-3">
                   <RadioGroupItem value={strata.id} id={strata.id} className="h-5 w-5" />
+=======
+            <RadioGroup
+              className="mt-3 flex gap-6"
+              value={selectedStrata}
+              onValueChange={setSelectedStrata}
+            >
+              {strataOptions.map((strata) => (
+                <div key={strata.id} className="flex items-center space-x-3">
+                  <RadioGroupItem
+                    value={strata.id}
+                    id={strata.id}
+                    className="h-5 w-5"
+                  />
+>>>>>>> dbv2
                   <Label htmlFor={strata.id} className="text-lg">
                     {strata.name}
                   </Label>
@@ -124,7 +209,15 @@ const JsonGenerator = () => {
             >
               {lamOptions.map((lam) => (
                 <div key={lam.id} className="flex items-center space-x-3">
+<<<<<<< HEAD
                   <RadioGroupItem value={lam.id} id={`lam-${lam.id}`} className="h-5 w-5" />
+=======
+                  <RadioGroupItem
+                    value={lam.id}
+                    id={`lam-${lam.id}`}
+                    className="h-5 w-5"
+                  />
+>>>>>>> dbv2
                   <Label htmlFor={`lam-${lam.id}`} className="text-lg">
                     {lam.name}
                   </Label>
@@ -136,7 +229,14 @@ const JsonGenerator = () => {
           <div>
             {sheets.map((sheet, index) => (
               <div key={index} className="mb-3">
+<<<<<<< HEAD
                 <label htmlFor={`sheet-${index}`} className="text-lg mb-1 block">
+=======
+                <label
+                  htmlFor={`sheet-${index}`}
+                  className="text-lg mb-1 block"
+                >
+>>>>>>> dbv2
                   Nama Sheet {index + 1}
                 </label>
                 <input
@@ -160,7 +260,11 @@ const JsonGenerator = () => {
           </div>
 
           <div className="flex justify-end pt-8">
+<<<<<<< HEAD
             <Button 
+=======
+            <Button
+>>>>>>> dbv2
               className="bg-base h-12 px-6 text-lg"
               onClick={() => saveToFile()}
               disable={isLoading}

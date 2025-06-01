@@ -15,21 +15,24 @@ import { UserProvider } from "./context/userContext"
 import ErrorPage from "./pages/404"
 import Account from "./pages/account"
 import DashboardAdmin from "./pages/DashboardAdmin"
+import DashboardKoprodi from "./pages/DashboardKoprodi"
+import DashboardTimPenyusun from "./pages/DashboardTimPenyusun.jsx"
 import Jadwal from "./pages/Jadwal"
 import JsonGenerator from "./pages/JsonGenerator"
 import LoginPage from "./pages/login"
 import Notifications from "./pages/Notifications"
-import PengisianMatrikLed from "./pages/PengisianMatriksLed"
 import PengisianLed from "./pages/PengisianLed.jsx"
 import Projects from "./pages/Projects"
 import RegisterPage from "./pages/register"
 import UserManagement from "./pages/userManagement"
 import { isTokenExpired } from "./utils/axiosConfig"
+import DynamicLkpsComponent from "./components/Lkps/DynamicLkpsComponent"
+import Syarat from "./pages/syarat.jsx"
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
     },
   },
@@ -115,7 +118,7 @@ const router = createBrowserRouter([
       { path: "section", element: <Section1 /> },
       {
         path: "/pengisian-matriks-led/:no?/:sub?",
-        element: <PengisianLed />,
+        element: <PengisianMatrikLed />,
       },
     ],
   },

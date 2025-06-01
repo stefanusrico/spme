@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { Link } from "react-router-dom" // Import Link dari react-router-dom
 import ProgressBar from "../Chart/ProgressBar"
 import { useProjects } from "../../../hooks/useProjects"
 
@@ -63,7 +64,7 @@ const ProgressAkreditasiTable = () => {
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 w-full">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex justify-between mb-6">
         <h2 className="text-2xl font-semibold">Progress Akreditasi</h2>
         <select
           id="statusFilter"
@@ -114,9 +115,26 @@ const ProgressAkreditasiTable = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {paginatedProjects.map((project) => (
-                  <tr key={project._id} className="hover:bg-gray-50">
+                  <tr
+                    key={project._id}
+                    className="group hover:bg-gray-50 transition-colors" // Tambahkan group dan hover effect
+                  >
                     <td className="px-6 py-4 text-sm text-black">
-                      {project.prodiName || "Unknown"}
+                      {/* Modifikasi bagian Program Studi untuk menampilkan tombol hover */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className="truncate"
+                          title={project.prodiName || "Unknown"}
+                        >
+                          {project.prodiName || "Unknown"}
+                        </span>
+                        <Link
+                          to={`/projects/${project._id || project.id}`} // Sesuaikan dengan struktur ID project Anda
+                          className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out bg-blue_badge text-blue text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-400 whitespace-nowrap shrink-0"
+                        >
+                          Access Project
+                        </Link>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-black">
                       {formatTimestamp(project.startDate)}

@@ -11,6 +11,17 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { useProjectDetails } from "../../../hooks/useProjectDetails"
+import { ToastContainer, toast } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 const LoadingBar = () => (
   <div className="relative mt-2 h-1 bg-gray overflow-hidden">
@@ -66,6 +77,8 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
   const [showRoleDrawer, setShowRoleDrawer] = useState(false)
   const [selectedMember, setSelectedMember] = useState(null)
   const [error, setError] = useState(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [memberToDelete, setMemberToDelete] = useState(null)
   const { userData } = useUser()
 
   const {
@@ -88,12 +101,16 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
   const handleAddMember = async (memberData) => {
     try {
       setError(null)
-      await addMember(memberData)
+      const response = await addMember(memberData)
       setShowAddDrawer(false)
       if (onMembersUpdate) onMembersUpdate()
+      toast.success(response.message || "Member added successfully")
     } catch (err) {
       console.error("Error adding member:", err)
       setError(err.message || "Failed to add member")
+      toast.error(
+        err.response?.data?.message || err.message || "Failed to add member"
+      )
     }
   }
 
@@ -104,25 +121,39 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
       setShowRoleDrawer(false)
       setSelectedMember(null)
       if (onMembersUpdate) onMembersUpdate()
+      toast.success("Member role updated successfully")
     } catch (err) {
       console.error("Error updating role:", err)
       setError(err.message || "Failed to update role")
+      toast.error(err.message || "Failed to update role")
     }
   }
 
-  const handleRemoveMember = async (userId) => {
-    if (!window.confirm("Are you sure you want to remove this member?")) {
-      return
-    }
+  const handleRemoveMember = (userId) => {
+    setMemberToDelete(userId)
+    setShowDeleteDialog(true)
+  }
+
+  const confirmRemoveMember = async () => {
+    if (!memberToDelete) return
 
     try {
       setError(null)
-      await removeMember(userId)
+      await removeMember(memberToDelete)
       if (onMembersUpdate) onMembersUpdate()
+      toast.success("Member removed successfully")
+      setShowDeleteDialog(false)
+      setMemberToDelete(null)
     } catch (err) {
       console.error("Error removing member:", err)
       setError(err.message || "Failed to remove member")
+      toast.error(err.message || "Failed to remove member")
     }
+  }
+
+  const cancelRemoveMember = () => {
+    setShowDeleteDialog(false)
+    setMemberToDelete(null)
   }
 
   const isCurrentUser = (userId) => {
@@ -134,7 +165,7 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
   const columns = useMemo(
     () => [
       columnHelper.accessor("name", {
-        header: "Name",
+        header: "NAME",
         size: 200,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
@@ -159,30 +190,30 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
         ),
       }),
       columnHelper.accessor("email", {
-        header: "Email",
+        header: "EMAIL",
         size: 200,
       }),
       columnHelper.accessor("role", {
-        header: "Role",
+        header: "ROLE",
         size: 150,
         cell: ({ row }) => (
           <span className="px-1 py-1 rounded-full">{row.original.role}</span>
         ),
       }),
       columnHelper.accessor("joinedAt", {
-        header: "Joined At",
+        header: "JOINED AT",
         size: 150,
         cell: ({ getValue }) => format(new Date(getValue()), "PPP"),
       }),
       ...(canManageMembers
         ? [
             columnHelper.accessor("actions", {
-              header: "Actions",
+              header: "ACTIONS",
               size: 150,
               cell: ({ row }) => {
                 const member = row.original
                 return (
-                  <div className="flex gap-2">
+                  <div className="flex gap-4 items-center justify-left">
                     {/* Cannot edit owner role */}
                     {member.role !== "owner" && (
                       <>
@@ -194,9 +225,17 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
                                 setSelectedMember(member)
                                 setShowRoleDrawer(true)
                               }}
-                              className="px-2 py-1 text-sm bg-base text-white rounded-sm"
+                              className="text-gray-600 hover:text-base transition-colors"
+                              title="Change Role"
                             >
-                              Change Role
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 20 20"
+                                fill="orange"
+                              >
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                              </svg>
                             </button>
                           )}
 
@@ -205,9 +244,21 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
                           !isCurrentUser(member.userId) && (
                             <button
                               onClick={() => handleRemoveMember(member.userId)}
-                              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-700"
+                              className="text-gray-600 hover:text-red-500 transition-colors"
+                              title="Remove Member"
                             >
-                              Remove
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 20 20"
+                                fill="red"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
                             </button>
                           )}
                       </>
@@ -231,6 +282,18 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
 
   return (
     <div className="w-full mx-auto">
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
       <div className="mt-4 w-full">
         {canManageMembers && (
           <div className="flex justify-between mb-4">
@@ -243,7 +306,6 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
             </button>
           </div>
         )}
-
         <div className="bg-white rounded-xl shadow-lg p-6 w-full mb-6">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -301,7 +363,26 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
           </div>
         </div>
 
-        {/* Add Member Drawer */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent className="fixed top-[50%] translate-x-[-50%] translate-y-[-50%] w-full max-w-[425px] p-6 bg-white rounded-lg shadow-lg border ml-72">
+            <DialogHeader>
+              <DialogTitle>Remove Member</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to remove this member from the project?
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={cancelRemoveMember}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmRemoveMember}>
+                Remove Member
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <AddMemberModal
           isOpen={showAddDrawer}
           onClose={() => setShowAddDrawer(false)}
@@ -309,8 +390,6 @@ const Members = ({ projectId, userRole, onMembersUpdate }) => {
           availableRoles={availableRoles || []}
           canAddAdmin={canManageAdmins}
         />
-
-        {/* Role Select Drawer */}
         <RoleSelectModal
           isOpen={showRoleDrawer}
           onClose={() => {

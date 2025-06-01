@@ -9,7 +9,6 @@ import { useSidebarMenu } from "./hooks/useSideBarMenu"
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
@@ -50,10 +49,14 @@ function MainLayout({ children }) {
 
   const breadcrumbs = getBreadcrumbs()
 
+  // Header height values
+  const headerHeight = "4rem" // 64px
+  const headerMargin = collapsed ? "4rem" : "3rem" // 64px or 48px
+
   return (
     <SidebarInset>
-      <div className="flex flex-col h-full">
-        <header className="fixed z-50 w-full flex h-16 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-gray shadow-sm bg-background">
+      <div className="flex flex-col h-screen">
+        <header className="fixed z-50 w-full flex h-16 items-center gap-2 transition-[width,height] ease-linear border-b border-gray shadow-sm bg-background">
           <div className="flex items-center gap-2 px-4">
             <SidebarTrigger
               className="text-[hsl(var(--foreground))]"
@@ -92,12 +95,17 @@ function MainLayout({ children }) {
             </Breadcrumb>
           </div>
         </header>
+
         <div
-          className={`mx-auto transition-all duration-300 ease-in-out ${
-            collapsed ? "p-2 mt-16 w-[1920px]" : "p-5 mt-12 w-[1650px]"
-          }`}
+          className="mx-auto transition-all duration-300 ease-in-out overflow-auto"
+          style={{
+            width: collapsed ? "100vw" : "86vw",
+            height: `calc(100vh - ${headerMargin})`,
+            marginTop: headerHeight,
+            padding: collapsed ? "0.5rem" : "1.25rem",
+          }}
         >
-          <div className="flex flex-col gap-4 p-4 pt-0 transition-all duration-300">
+          <div className="flex flex-col gap-4 p-4 pt-0 transition-all duration-300 h-full">
             {children}
           </div>
         </div>
@@ -107,9 +115,11 @@ function MainLayout({ children }) {
 }
 
 export default function Layout({ children }) {
+  const { collapsed } = useSidebarMenu()
+
   return (
     <SidebarProvider>
-      <div className="flex h-screen">
+      <div className="flex h-screen overflow-hidden">
         <AppSidebar />
         <MainLayout>{children}</MainLayout>
         <Toaster />

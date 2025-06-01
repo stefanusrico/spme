@@ -1,39 +1,133 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\User\{UserController, RoleController};
+use App\Http\Controllers\Lam\{LamController, JadwalLamController};
+use App\Http\Controllers\Jurusan\{JurusanController};
+use App\Http\Controllers\Prodi\{ProdiController, StrataController};
+use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController};
+use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
+use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, WordController};
+use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController};
+use App\Http\Controllers\Akreditasi\{DataAkreditasiController};
+use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
+
+
 use App\Http\Controllers\{
-    AuthController,
-    JurusanController,
-    PostController,
-    ProdiController,
-    ProjectController,
-    RoleController,
-    TaskController,
-    TaskListController,
-    UserController,
     NotificationController,
     DataController,
     ScraperController,
-    LamController,
-    JadwalLamController,
     MenuController,
     RumusController,
     SectionController,
     JsonController,
-    VersionController,
     ColorController,
     MatriksController,
     StrataController,
     SpreadsheetInfoController,
-    GoogleDriveController,
-    GPTController
+    GoogleDriveController
 };
 use App\Http\Middleware\JwtMiddleware;
+
+Route::get('test', function () {
+    return response()->json([
+        'message' => 'API with prefix working correctly',
+        'url' => request()->fullUrl(),
+        'path' => request()->path()
+    ]);
+});
+
+Route::get('/lkps/project-scores', [DataAkreditasiController::class, 'getProjectScores']);
+Route::get('/lkps/score-syarat-perlu', [DataAkreditasiController::class, 'getScoreSyaratPerluPeringkat']);
+Route::post('/generate-text', [GeminiController::class, 'generateText']);
+Route::post('/analyze-image', [GeminiController::class, 'analyzeImage']);
+Route::post('/chat', [GeminiController::class, 'startChat']);
+Route::post('/chat/{session}/message', [GeminiController::class, 'sendChatMessage']);
+
+Route::get('/test-gemini', [GeminiTestController::class, 'testPrompt']);
+Route::post('/test-image-analysis', [GeminiFileTestController::class, 'testImageAnalysis']);
+Route::post('/data-mapping', [GeminiDataMappingController::class, 'mappingData']);
+Route::post('/scoring-led', [GeminiScoringLedController::class, 'scoringLed']);
+
+Route::post('users', [UserController::class, 'store']);
+
+Route::controller(StrataController::class)->group(function () {
+    Route::get('strata', 'index');
+    Route::post('strata', 'store');
+    Route::get('strata/{id}', 'show');
+    Route::put('strata/{id}', 'update');
+    Route::delete('strata/{id}', 'destroy');
+});
+
+Route::controller(RoleController::class)->group(function () {
+    Route::get('roles', 'index');
+    Route::post('roles', 'store');
+    Route::get('roles/{id}', 'show');
+    Route::put('roles/{id}', 'update');
+    Route::delete('roles/{id}', 'destroy');
+});
+
+
+Route::prefix('lkps')->group(function () {
+    // Table routes
+    Route::get('/tables', [LkpsTableController::class, 'getAllTables']);
+    Route::get('/tables/{tableCode}', [LkpsTableController::class, 'getTableWithColumns']);
+    Route::get('/tables/{tableCode}/config', [LkpsTableController::class, 'getTableConfig']);
+    Route::get('/tables/{tableCode}/data', [LkpsTableController::class, 'getData']);
+    Route::post('/tables/{tableCode}/data', [LkpsTableController::class, 'saveData']);
+    Route::post('/tables/{tableCode}/calculate', [LkpsTableController::class, 'calculateScore']);
+
+    // Column routes
+    Route::get('/tables/{tableCode}/columns', [LkpsColumnController::class, 'getColumns']);
+
+    // Data routes
+    // Route::get('/data', [LkpsDataController::class, 'getAllData']);
+    Route::get('/data', [LkpsDataController::class, 'getTableData']);
+
+
+    Route::post('/data/{tableCode}', [LkpsDataController::class, 'saveTableData']);
+    Route::get('/tables/{tableCode}/task', [LkpsDataController::class, 'getTaskIdForTable']);
+    Route::get('/export/{tableCode?}', [LkpsDataController::class, 'exportData']);
+
+});
+
+Route::get('/score-details', [LkpsDataController::class, 'getScoreDetail']);
+
+Route::get('/get-scores', [
+    VersionController::class,
+    '
+'
+]);
+
+
+
+Route::get('/templates/LKPS_template.xlsx', [LkpsExportController::class, 'getTemplate']);
+Route::get('/lkps/sections/all/data', [LkpsExportController::class, 'getAllSectionsData']);
+Route::post('/templates/upload', [LkpsExportController::class, 'uploadTemplate']);
+Route::get('/templates/info', [LkpsExportController::class, 'getTemplateInfo']);
+Route::post('/lkps/export-data', [LkpsExportController::class, 'exportData']);
+Route::post('/led/export-data', [WordController::class, 'exportData']);
+Route::post('/led/import-data', [WordController::class, 'importTemplateLed']);
 
 Route::get('/led/{sheet}', [DataController::class, 'getLembarIsianLed']);
 Route::get('/stortasklist/{projectId}', [TaskListController::class, 'storeFromLed']);
 Route::post('/projects/{projectId}/tasks/led', [TaskController::class, 'storeFromLed']);
+// Route::get('/sheets/colored-cells', [GoogleSheetController::class, 'getColoredCells']);
+Route::get('/available-tables', [GoogleSheetController::class, 'getAvailableTables']);
+Route::get('/colored-cells', [GoogleSheetController::class, 'getColoredCells']);
+Route::get('/colored-cells/table/{tableRef?}', [GoogleSheetController::class, 'getColoredCellsByTable']);
 
+// Legacy route with sheet_gid (keep for backward compatibility)
+Route::get('/colored-cells/gid', [GoogleSheetController::class, 'getColoredCells']);
+
+// API version endpoints (optional)
+Route::prefix('v1')->group(function () {
+    Route::get('tables', [GoogleSheetController::class, 'getAvailableTables']);
+    Route::get('tables/{tableRef}/colored-cells', [GoogleSheetController::class, 'getColoredCellsByTable']);
+});
+
+Route::get('table/{tableRef}', [GoogleSheetController::class, 'getColoredCellsByTable']);
 
 Route::get('/scrape/{perguruan_tinggi}/{strata}', [ScraperController::class, 'scrape']);
 Route::post('/jurusan', [JurusanController::class, 'store']);
@@ -67,7 +161,8 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
     Route::get('tasks', [TaskController::class, 'myTasks']);
-    Route::patch('tasks/updateOwner/{no}/{sub}/{prodi}', [TaskController::class, 'updateOwners']);
+    Route::patch('tasks/updateOwner/{no}/{sub}/{prodiId}', [TaskController::class, 'updateOwners']);
+    Route::get('allTaskByProdi/{prodiId}', [TaskController::class, 'getAllTaskByProdi']);
 
     Route::controller(JurusanController::class)->group(function () {
         Route::get('jurusan', 'index');
@@ -85,14 +180,15 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::get('count', 'countByPeringkat');
     });
 
-    Route::middleware(['role:Admin|admin|Ketua Program Studi'])->group(function () {
+    Route::middleware(['role:Admin|Koordinator Program Studi|Tim Penyusun Akreditasi'])->group(function () {
         Route::get('test-mongo', [AuthController::class, 'testMongoConnection']);
         Route::post('upload', [UserController::class, 'uploadFile']);
+        Route::delete('users/{id}/profile-picture', [UserController::class, 'removeProfilePicture']);
         Route::post('project', [ProjectController::class, 'store']);
         Route::post('projects/{projectId}/members', [ProjectController::class, 'addMember']);
+        Route::get('projects-with-owners', [ProjectController::class, 'projectsWithOwners']);
         Route::get('projects/all', [ProjectController::class, 'index']);
         Route::get('projects', [ProjectController::class, 'myProjects']);
-        Route::get('projectsByProdi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);
         Route::get('projects/{projectId}', [ProjectController::class, 'getProjectDetails']);
         Route::get('projects/{projectId}/members', [ProjectController::class, 'getMembers']);
         Route::get('projects/{projectId}/lists', [ProjectController::class, 'getProjectTaskLists']);
@@ -104,26 +200,21 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::put('projects/{projectId}/member-role', [ProjectController::class, 'updateMemberRole']);
         Route::get('projects/available-roles', [ProjectController::class, 'getAvailableRoles']);
         Route::get('projects/{projectId}/statistics', [ProjectController::class, 'getProjectStatistics']);
+        Route::get('prodi/{prodiId}/tasks', [ProjectController::class, 'getTasksByProdiId']);
+
         // Route::put('projects/{projectId}', [ProjectController::class, 'update']);
         // Route::delete('projects/{projectId}', [ProjectController::class, 'destroy']);
 
         Route::controller(UserController::class)->group(function () {
             Route::get('users', 'index');
             Route::get('auth/user', 'getAuthenticatedUserData');
-            Route::post('users', 'store');
+            // Route::post('users', 'store');
             Route::get('users/{id}', 'show');
             Route::put('users/{id}', 'update');
             Route::put('users/password/{id}', 'updatePassword');
             Route::delete('users/{id}', 'destroy');
         });
 
-        Route::controller(RoleController::class)->group(function () {
-            Route::get('roles', 'index');
-            Route::post('roles', 'store');
-            Route::get('roles/{id}', 'show');
-            Route::put('roles/{id}', 'update');
-            Route::delete('roles/{id}', 'destroy');
-        });
 
         Route::controller(MenuController::class)->group(function () {
             Route::get('/menus', 'index');
@@ -167,30 +258,27 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::controller(VersionController::class)->group(function () {
             Route::post('/versions/getVersion', 'get');
             Route::post('/versions', 'store');
-            Route::get('/versions/{prodiId}', 'getVersionByProdi');
-            Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
         });
-
-        Route::post('/analyze-gpt', [GPTController::class, 'analyze']);
 
         Route::controller(MatriksController::class)->group(function () {
             Route::get('/matriks', 'index');
             Route::post('/matriks', 'store');
             Route::get('/matriks/{id}', 'show');
-            // Route::get('/matriks/{no}/{sub}', 'showNoSub');
+            Route::get('/matriks/{no}/{sub}', 'showNoSub');
             Route::put('/matriks/{id}', 'update');
             Route::delete('/matriks/{id}', 'destroy');
-            Route::get('/matriks/{no}/{sub}', 'showNoSub');
-            Route::get('/getMatriksByProdi/{prodiId}', 'getMatriksByProdi');
         });
 
-        Route::controller(StrataController::class)->group(function () {
-            Route::get('strata', 'index');
-            Route::post('strata', 'store');
-            Route::get('strata/{id}', 'show');
-            Route::put('strata/{id}', 'update');
-            Route::delete('strata/{id}', 'destroy');
+        Route::controller(LedItemController::class)->group(function () {
+            Route::get('/ledItem', 'index');
+            Route::get('/ledItem/{id}', 'show');
+            Route::get('/ledItem/{no}/{sub}', 'showNoSub');
+            Route::get('/getLedItemByProdi/{prodiId}', 'getledItemByProdi');
+            Route::post('/ledItem', 'store');
+            Route::put('/ledItem/{id}', 'update');
+            Route::delete('/ledItem/{id}', 'destroy');
         });
+
 
         Route::controller(SpreadsheetInfoController::class)->group(function () {
             Route::get('/spreadsheet-info', 'index');

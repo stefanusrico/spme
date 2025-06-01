@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useState } from "react"
 import * as XLSX from "xlsx"
 import { useUser } from "../../../context/userContext"
 import axiosInstance from "../../../utils/axiosConfig"
+import * as math from "mathjs"
 
 const useFormulaData = (nomor, sub) => {
   const [formula, setFormula] = useState(null)
@@ -258,7 +259,8 @@ const TataPamongSection = () => {
 
           console.log("Main Formula String:", mainFormulaString)
 
-          const RK = eval(mainFormulaString)
+          // Ganti eval dengan math.evaluate
+          const RK = math.evaluate(mainFormulaString)
           console.log("Nilai RK yang dihitung:", RK)
 
           let calculatedScore = null
@@ -278,7 +280,8 @@ const TataPamongSection = () => {
 
               let conditionMet = false
               try {
-                conditionMet = eval(conditionString)
+                // Ganti eval dengan math.evaluate
+                conditionMet = math.evaluate(conditionString)
               } catch (condErr) {
                 console.error("Error dalam evaluasi kondisi:", condErr)
               }
@@ -299,7 +302,8 @@ const TataPamongSection = () => {
                 console.log("Formula untuk dievaluasi:", formulaString)
 
                 try {
-                  calculatedScore = eval(formulaString)
+                  // Ganti eval dengan math.evaluate
+                  calculatedScore = math.evaluate(formulaString)
                   console.log("Hasil perhitungan:", calculatedScore)
                   break
                 } catch (evalErr) {

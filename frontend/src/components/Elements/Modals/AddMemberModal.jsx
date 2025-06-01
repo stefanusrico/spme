@@ -28,10 +28,6 @@ const AddMemberModal = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!email.trim()) {
-      setError("Please enter an email address")
-      return
-    }
 
     setLoading(true)
     try {
@@ -98,7 +94,11 @@ const AddMemberModal = ({
 
             {/* Form content */}
             <div className="relative flex-1 px-6 py-6 overflow-auto">
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form
+                id="member-form"
+                onSubmit={handleSubmit}
+                className="space-y-6"
+              >
                 <div>
                   <label
                     htmlFor="email"
@@ -172,12 +172,12 @@ const AddMemberModal = ({
                   Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={handleSubmit}
+                  type="submit"
+                  form="member-form"
                   disabled={loading}
                   className="px-4 py-2 bg-base text-white rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                 >
-                  {loading ? "Adding..." : "Add Member"}
+                  {loading ? "Adding..." : "Add"}
                 </button>
               </div>
             </div>

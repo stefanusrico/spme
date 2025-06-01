@@ -33,6 +33,7 @@ export const UserProvider = ({ children }) => {
           profile_picture: data.profile_picture || "",
           jurusan: data.jurusan || "",
           prodi: data.prodi || "",
+          prodiId: data.prodi.id || "",
         })
 
         localStorage.setItem("user", JSON.stringify(data))
