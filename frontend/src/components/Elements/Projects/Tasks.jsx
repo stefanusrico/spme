@@ -440,7 +440,6 @@ const Tasks = ({ projectId, userRole }) => {
             const sectionCode = sectionCodeMatch ? sectionCodeMatch[1] : ""
             link = `/projects/${projectId}/lkps/${sectionCode}`
           } else {
-            // LED tasks
             link = `/projects/${projectId}/pengisian-matriks-led/${row.original.no}/${row.original.sub}`
           }
 
