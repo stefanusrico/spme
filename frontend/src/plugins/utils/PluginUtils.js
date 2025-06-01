@@ -12,7 +12,7 @@ export const PluginUtils = {
 
       if (nonEmptyValues.length <= 1) return false
 
-      // Skip jika semua nilai adalah angka
+      // Skip baris jika semua nilai adalah angka
       const allNumbers = nonEmptyValues.every(
         (val) =>
           typeof val === "number" ||
@@ -28,8 +28,29 @@ export const PluginUtils = {
           .trim()
         return summaryLabels.includes(normalized)
       })
+      if (hasSummaryLabel) return false
 
-      return !hasSummaryLabel
+      // Tambahan: jika baris mengandung sel "info" dan sisanya seluruhnya angka,
+      // maka skip baris tersebut.
+      const containsInfo = row.some(
+        (cell) =>
+          String(cell || "")
+            .toLowerCase()
+            .trim() === "info"
+      )
+      if (containsInfo) {
+        const otherCells = nonEmptyValues.filter(
+          (val) => String(val).toLowerCase().trim() !== "info"
+        )
+        const othersAllNumeric = otherCells.every(
+          (val) =>
+            typeof val === "number" ||
+            (typeof val === "string" && !isNaN(val) && val.trim() !== "")
+        )
+        if (othersAllNumeric && otherCells.length > 0) return false
+      }
+
+      return true
     })
   },
 
