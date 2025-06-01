@@ -131,7 +131,7 @@ const waktuTungguLulusanPlugin = {
       return {
         scores: [
           {
-            butir: 59,
+            butir: 65,
             nilai: 0,
           },
         ],
@@ -156,11 +156,16 @@ const waktuTungguLulusanPlugin = {
       totalTerlacak += terlacak
     })
 
-    console.log(`=== DEBUG: Total Lulusan = ${totalLulusan}, Total Terlacak = ${totalTerlacak} ===`)
+    console.log(
+      `=== DEBUG: Total Lulusan = ${totalLulusan}, Total Terlacak = ${totalTerlacak} ===`
+    )
 
-    const percentage = totalLulusan > 0 ? (totalTerlacak / totalLulusan) * 100 : 0
+    const percentage =
+      totalLulusan > 0 ? (totalTerlacak / totalLulusan) * 100 : 0
 
-    console.log(`=== DEBUG: Calculated Percentage = ${percentage.toFixed(2)}% ===`)
+    console.log(
+      `=== DEBUG: Calculated Percentage = ${percentage.toFixed(2)}% ===`
+    )
 
     let nilai
     if (percentage >= 50) {
@@ -180,7 +185,7 @@ const waktuTungguLulusanPlugin = {
     return {
       scores: [
         {
-          butir: 59, // Sesuaikan dengan butir LKPS untuk Waktu Tunggu
+          butir: 65, // Sesuaikan dengan butir LKPS untuk Waktu Tunggu
           nilai,
         },
       ],
@@ -188,7 +193,6 @@ const waktuTungguLulusanPlugin = {
         NL: totalLulusan,
         NJ: totalTerlacak,
         PJ: percentage.toFixed(2),
-
       },
     }
   },
@@ -223,14 +227,25 @@ const waktuTungguLulusanPlugin = {
       }
 
       const tracked = parseFloat(item.jumlah_lulusan_yang_terlacak || 0)
-      const totalWait = 
-        parseFloat(item.wt_3_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan || 0) +
-        parseFloat(item.wt_3sd6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan || 0) +
-        parseFloat(item.wt_6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan || 0)
+      const totalWait =
+        parseFloat(
+          item.wt_3_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan ||
+            0
+        ) +
+        parseFloat(
+          item.wt_3sd6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan ||
+            0
+        ) +
+        parseFloat(
+          item.wt_6_bulan_jumlah_lulusan_terlacak_dengan_waktu_tunggu_mendapatkan_pekerjaan ||
+            0
+        )
 
       if (totalWait > tracked) {
         errors.push(
-          `Row ${index + 1}: Jumlah total waktu tunggu tidak boleh melebihi jumlah lulusan terlacak`
+          `Row ${
+            index + 1
+          }: Jumlah total waktu tunggu tidak boleh melebihi jumlah lulusan terlacak`
         )
       }
     })

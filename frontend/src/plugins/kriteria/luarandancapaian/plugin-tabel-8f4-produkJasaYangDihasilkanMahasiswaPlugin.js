@@ -84,7 +84,6 @@ export class ProdukJasaYangDihasilkanMahasiswaPlugin extends BasePlugin {
     const isValidField = (field) =>
       typeof field === "string" && field.trim() !== ""
 
-    // NAPJ: Jumlah produk/jasa karya mahasiswa
     const NAPJ = data.filter(
       (item) =>
         isValidField(item.nama_mahasiswa) &&

@@ -24,87 +24,82 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
     return true
   }
 
-  getDefaultData() {
+  getDefaultData(tableCode, config = {}) {
     const now = Date.now()
+    const jenisKemampuanList = this.getJenisKemampuanOptions()
+
+    return jenisKemampuanList.map((jenis, index) => ({
+      key: `default-${index + 1}-${now}-${Math.random()
+        .toString(36)
+        .substr(2, 5)}`,
+      no: index + 1,
+      selected: true,
+      jenis_kemampuan: jenis,
+      tingkat_sangat_baik: 0,
+      tingkat_baik: 0,
+      tingkat_cukup: 0,
+      tingkat_kurang: 0,
+      rencana_tindak_lanjut_oleh_upps_ps: "",
+    }))
+  }
+
+  getJenisKemampuanOptions() {
     return [
-      {
-        key: `default-kepuasan-${now}`,
-        no: "1",
-        selected: true,
-        jenis_kemampuan: "Etika",
-        tingkat_sangat_baik: "0",
-        tingkat_baik: "0",
-        tingkat_cukup: "0",
-        tingkat_kurang: "0",
-        rencana_tindak_lanjut_oleh_upps_ps: "",
-      },
-      {
-        key: `default-kepuasan-${now + 1}`,
-        no: "2",
-        selected: true,
-        jenis_kemampuan: "Keahlian pada bidang ilmu (kompetensi utama)",
-        tingkat_sangat_baik: "0",
-        tingkat_baik: "0",
-        tingkat_cukup: "0",
-        tingkat_kurang: "0",
-        rencana_tindak_lanjut_oleh_upps_ps: "",
-      },
-      {
-        key: `default-kepuasan-${now + 2}`,
-        no: "3",
-        selected: true,
-        jenis_kemampuan: "Kemampuan berbahasa asing",
-        tingkat_sangat_baik: "0",
-        tingkat_baik: "0",
-        tingkat_cukup: "0",
-        tingkat_kurang: "0",
-        rencana_tindak_lanjut_oleh_upps_ps: "",
-      },
-      {
-        key: `default-kepuasan-${now + 3}`,
-        no: "4",
-        selected: true,
-        jenis_kemampuan: "Penggunaan teknologi informasi",
-        tingkat_sangat_baik: "0",
-        tingkat_baik: "0",
-        tingkat_cukup: "0",
-        tingkat_kurang: "0",
-        rencana_tindak_lanjut_oleh_upps_ps: "",
-      },
-      {
-        key: `default-kepuasan-${now + 4}`,
-        no: "5",
-        selected: true,
-        jenis_kemampuan: "Kemampuan berkomunikasi",
-        tingkat_sangat_baik: "0",
-        tingkat_baik: "0",
-        tingkat_cukup: "0",
-        tingkat_kurang: "0",
-        rencana_tindak_lanjut_oleh_upps_ps: "",
-      },
-      {
-        key: `default-kepuasan-${now + 5}`,
-        no: "6",
-        selected: true,
-        jenis_kemampuan: "Kerjasama tim",
-        tingkat_sangat_baik: "0",
-        tingkat_baik: "0",
-        tingkat_cukup: "0",
-        tingkat_kurang: "0",
-        rencana_tindak_lanjut_oleh_upps_ps: "",
-      },
-      {
-        key: `default-kepuasan-${now + 6}`,
-        no: "7",
-        selected: true,
-        jenis_kemampuan: "Pengembangan diri",
-        tingkat_sangat_baik: "0",
-        tingkat_baik: "0",
-        tingkat_cukup: "0",
-        tingkat_kurang: "0",
-        rencana_tindak_lanjut_oleh_upps_ps: "",
-      },
+      "Etika",
+      "Keahlian pada bidang ilmu (kompetensi utama)",
+      "Kemampuan berbahasa asing",
+      "Penggunaan teknologi informasi",
+      "Kemampuan berkomunikasi",
+      "Kerjasama tim",
+      "Pengembangan diri",
     ]
+  }
+
+  mergeWithDefaults(existingData, tableCode, config = {}) {
+    if (!this.hasDefaultData()) {
+      return existingData
+    }
+
+    const defaultData = this.getDefaultData(tableCode, config)
+
+    if (!existingData || existingData.length === 0) {
+      return defaultData
+    }
+
+    const existingJenisKemampuan = existingData.map(
+      (row) => row.jenis_kemampuan
+    )
+    const requiredJenisKemampuan = this.getJenisKemampuanOptions()
+
+    const missingJenisKemampuan = requiredJenisKemampuan.filter(
+      (jenis) =>
+        !existingJenisKemampuan.some(
+          (existing) =>
+            existing && existing.toLowerCase().includes(jenis.toLowerCase())
+        )
+    )
+
+    if (missingJenisKemampuan.length === 0) {
+      // All required jenis kemampuan exist, return existing data with updated row numbers
+      return existingData.map((row, index) => ({
+        ...row,
+        no: index + 1,
+      }))
+    }
+
+    // Add missing jenis kemampuan
+    const missingDefaults = defaultData.filter((row) =>
+      missingJenisKemampuan.includes(row.jenis_kemampuan)
+    )
+
+    // Combine existing data with missing defaults
+    const combined = [...existingData, ...missingDefaults]
+
+    // Update row numbers
+    return combined.map((row, index) => ({
+      ...row,
+      no: index + 1,
+    }))
   }
 
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
@@ -125,10 +120,10 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
         no: index + 1,
         selected: true,
         jenis_kemampuan: "",
-        tingkat_sangat_baik: "0",
-        tingkat_baik: "0",
-        tingkat_cukup: "0",
-        tingkat_kurang: "0",
+        tingkat_sangat_baik: 0,
+        tingkat_baik: 0,
+        tingkat_cukup: 0,
+        tingkat_kurang: 0,
         rencana_tindak_lanjut_oleh_upps_ps: "",
       }
 
@@ -137,17 +132,14 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
 
         const value = row[colIndex]
 
-        // Convert all values to string
-        item[fieldName] = PluginUtils.normalizeTextField(value)
-
-        // Remove % symbols from percentage fields if present
         if (
-          fieldName === "tingkat_sangat_baik" ||
-          fieldName === "tingkat_baik" ||
-          fieldName === "tingkat_cukup" ||
-          fieldName === "tingkat_kurang"
+          fieldName === "jenis_kemampuan" ||
+          fieldName === "rencana_tindak_lanjut_oleh_upps_ps"
         ) {
-          item[fieldName] = item[fieldName].replace(/%/g, "")
+          item[fieldName] = PluginUtils.normalizeTextField(value)
+        } else {
+          // For percentage fields, parse as number with 2 decimal places
+          item[fieldName] = PluginUtils.parseNumber(value, 0, true, 2)
         }
       })
 
@@ -163,59 +155,97 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
   async calculateScore(data, config, additionalData = {}) {
     console.log("Calculating kepuasan pengguna score with data:", data)
 
-    const prodiId = additionalData.userData?.prodiId
+    // Fetch data from 8e1 plugin
     const scoreDetailsResponse = await fetchScoreDetails(
       "8e1",
       additionalData.projectId
     )
     console.log("Fetched score details from 8e1:", scoreDetailsResponse)
 
-    // Extract the required values from the API response
     let NL = 0
     let NJ = 0
-    let PJ = 0
-    let Prmin = 0
 
     if (scoreDetailsResponse) {
-      NL = parseFloat(scoreDetailsResponse.NL || "0")
-      NJ = parseFloat(scoreDetailsResponse.NJ || "0")
-      PJ = parseFloat(scoreDetailsResponse.PJ?.replace("%", "") || "0")
-      Prmin = parseFloat(scoreDetailsResponse.Prmin?.replace("%", "") || "0")
+      NL = PluginUtils.parseNumber(scoreDetailsResponse.NL, 0)
+      NJ = PluginUtils.parseNumber(scoreDetailsResponse.PR, 0) // PR from 8e1 is the number of respondents
     } else {
-      NL = parseFloat(additionalData.jumlahLulusan || "0")
-      NJ = parseFloat(additionalData.jumlahResponden || "0")
-      PJ = NJ > 0 ? (NJ / NL) * 100 : 0
-      Prmin = NL >= 300 ? 30 : 50 - (NL / 300) * 20
+      NL = PluginUtils.parseNumber(additionalData.jumlahLulusan, 0)
+      NJ = PluginUtils.parseNumber(additionalData.jumlahResponden, 0)
+    }
+
+    // Calculate PJ using PluginUtils.roundToDecimal with 2 digits
+    const PJ = NL > 0 ? PluginUtils.roundToDecimal((NJ / NL) * 100, 2) : 0
+
+    // Calculate Prmin using PluginUtils.roundToDecimal with 2 digits
+    let Prmin
+    if (NL >= 300) {
+      Prmin = 30
+    } else {
+      Prmin = PluginUtils.roundToDecimal(50 - (NL / 300) * 20, 2)
     }
 
     console.log(`Using values: NL=${NL}, NJ=${NJ}, PJ=${PJ}%, Prmin=${Prmin}%`)
 
-    // Calculate TKi for each capability type
-    const tkiValues = data.map((item) => {
-      const tingkat_sangat_baik = parseFloat(item.tingkat_sangat_baik || "0")
-      const tingkat_baik = parseFloat(item.tingkat_baik || "0")
-      const tingkat_cukup = parseFloat(item.tingkat_cukup || "0")
-      const tingkat_kurang = parseFloat(item.tingkat_kurang || "0")
+    // Calculate TKi for each capability type according to the correct formula
+    const tkiValues = data.map((item, index) => {
+      const a = PluginUtils.parseNumber(item.tingkat_sangat_baik, 0) // Persentase Sangat Baik
+      const b = PluginUtils.parseNumber(item.tingkat_baik, 0) // Persentase Baik
+      const c = PluginUtils.parseNumber(item.tingkat_cukup, 0) // Persentase Cukup
+      const d = PluginUtils.parseNumber(item.tingkat_kurang, 0) // Persentase Kurang
 
-      return (
-        4 * tingkat_sangat_baik +
-        3 * tingkat_baik +
-        2 * tingkat_cukup +
-        tingkat_kurang
+      // TKi = (4 × a) + (3 × b) + (2 × c) + (1 × d)
+      // Ini menghasilkan skor tertimbang dalam bentuk persentase
+      const tki = PluginUtils.roundToDecimal(4 * a + 3 * b + 2 * c + 1 * d, 2)
+
+      console.log(
+        `TKi ${index + 1} (${
+          item.jenis_kemampuan
+        }): 4×${a} + 3×${b} + 2×${c} + 1×${d} = ${tki}`
       )
+
+      return tki
     })
 
-    console.log("TKI values:", tkiValues)
+    console.log("TKI values (percentage weighted scores):", tkiValues)
 
-    // Calculate average score
+    // Calculate sum of all TKi values
     const totalTKi = tkiValues.reduce((sum, tki) => sum + tki, 0)
-    const avgScore = tkiValues.length > 0 ? totalTKi / tkiValues.length : 0
+
+    // Calculate average TKi and convert to 4-point scale by dividing by (7 × 100)
+    // 7 = number of aspects, 100 = to convert percentage to scale
+    const avgTKi =
+      tkiValues.length > 0
+        ? PluginUtils.roundToDecimal(totalTKi / (tkiValues.length * 100), 2)
+        : 0
+
+    console.log(
+      `Total TKi: ${totalTKi}, Average TKi (on 4-point scale): ${avgTKi}`
+    )
 
     // Apply adjustment if response percentage doesn't meet minimum requirement
-    let finalScore = avgScore
+    let finalScore = avgTKi
     if (PJ < Prmin) {
-      finalScore = (PJ / Prmin) * avgScore
+      finalScore = PluginUtils.roundToDecimal((PJ / Prmin) * avgTKi, 2)
+      console.log(
+        `Adjusted score due to low response rate: (${PJ}/${Prmin}) × ${avgTKi} = ${finalScore}`
+      )
     }
+
+    // Ensure score is between 0 and 4
+    finalScore = PluginUtils.roundToDecimal(
+      Math.max(0, Math.min(4, finalScore)),
+      2
+    )
+
+    console.log("Score Detail:", {
+      NL,
+      NJ,
+      PJ,
+      Prmin,
+      totalTKi,
+      avgTKi,
+      finalScore,
+    })
 
     return {
       scores: [
@@ -229,67 +259,91 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
         NJ,
         PJ: PJ + "%",
         Prmin: Prmin + "%",
+        totalTKi: totalTKi,
+        avgTKi: avgTKi,
       },
     }
   }
 
-  normalizeData(data) {
-    return data.map((item) => {
-      const result = { ...item }
+  normalizeData(data, config = {}) {
+    if (!Array.isArray(data)) return []
 
-      const allFields = [
-        "jenis_kemampuan",
-        "tingkat_sangat_baik",
-        "tingkat_baik",
-        "tingkat_cukup",
-        "tingkat_kurang",
-        "rencana_tindak_lanjut_oleh_upps_ps",
-      ]
-
-      allFields.forEach((field) => {
-        if (result[field] === undefined || result[field] === null) {
-          result[field] = field.startsWith("tingkat_") ? "0" : ""
-        } else if (typeof result[field] === "boolean") {
-          result[field] = result[field]
-            ? field.startsWith("tingkat_")
-              ? "100"
-              : "Ya"
-            : field.startsWith("tingkat_")
-            ? "0"
-            : ""
-        } else {
-          result[field] = String(result[field])
+    return data
+      .filter((item) => {
+        // Filter out any invalid rows
+        if (!item.jenis_kemampuan) return true
+        const normalized = String(item.jenis_kemampuan).toLowerCase().trim()
+        return !["jumlah", "total", "sum", "rata-rata", "average"].includes(
+          normalized
+        )
+      })
+      .map((item, index) => {
+        const result = {
+          ...item,
+          id: item.id || `row-${Math.random().toString(36).substring(2, 9)}`,
+          key: item.key || `row-${Math.random().toString(36).substring(2, 9)}`,
+          no: index + 1,
         }
 
-        if (field.startsWith("tingkat_") && result[field].includes("%")) {
-          result[field] = result[field].replace(/%/g, "")
+        result.jenis_kemampuan = PluginUtils.normalizeTextField(
+          result.jenis_kemampuan
+        )
+        result.rencana_tindak_lanjut_oleh_upps_ps =
+          PluginUtils.normalizeTextField(
+            result.rencana_tindak_lanjut_oleh_upps_ps
+          )
+
+        // Parse percentage fields with 2 decimal places
+        const percentageFields = [
+          "tingkat_sangat_baik",
+          "tingkat_baik",
+          "tingkat_cukup",
+          "tingkat_kurang",
+        ]
+
+        percentageFields.forEach((field) => {
+          result[field] = PluginUtils.parseNumber(result[field], 0, true, 2)
+        })
+
+        return result
+      })
+  }
+
+  prepareDataForSaving(data, config = {}) {
+    return data
+      .filter((item) => {
+        if (!item.jenis_kemampuan) return true
+        const normalized = String(item.jenis_kemampuan).toLowerCase().trim()
+        return !["jumlah", "total", "sum", "rata-rata", "average"].includes(
+          normalized
+        )
+      })
+      .map((item, index) => {
+        const { id, key, _editing, _selected, ...cleanRow } = item
+        return {
+          ...cleanRow,
+          no: index + 1,
+          selected: true,
         }
       })
-
-      return result
-    })
   }
 
   validateData(data) {
     const errors = []
+    const requiredCapabilities = this.getJenisKemampuanOptions()
 
-    const requiredCapabilities = [
-      "Etika",
-      "Keahlian pada bidang ilmu",
-      "Kemampuan berbahasa asing",
-      "Penggunaan teknologi informasi",
-      "Kemampuan berkomunikasi",
-      "Kerjasama tim",
-      "Pengembangan diri",
-    ]
-
-    const capabilities = data.map((item) =>
-      String(item.jenis_kemampuan).toLowerCase()
+    // Check if all required capabilities are present
+    const existingCapabilities = data.map((item) =>
+      String(item.jenis_kemampuan || "")
+        .toLowerCase()
+        .trim()
     )
 
     requiredCapabilities.forEach((capability) => {
-      const found = capabilities.some((cap) =>
-        cap.toLowerCase().includes(capability.toLowerCase())
+      const found = existingCapabilities.some(
+        (existing) =>
+          existing.includes(capability.toLowerCase()) ||
+          capability.toLowerCase().includes(existing)
       )
 
       if (!found) {
@@ -297,20 +351,30 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
       }
     })
 
+    // Validate each row
     data.forEach((item, index) => {
-      if (!item.jenis_kemampuan) {
-        errors.push(`Row ${index + 1}: Jenis kemampuan harus diisi`)
+      if (!item.jenis_kemampuan || String(item.jenis_kemampuan).trim() === "") {
+        errors.push(`Baris ${index + 1}: Jenis kemampuan harus diisi`)
       }
 
-      const totalPercentage =
-        parseFloat(item.tingkat_sangat_baik || "0") +
-        parseFloat(item.tingkat_baik || "0") +
-        parseFloat(item.tingkat_cukup || "0") +
-        parseFloat(item.tingkat_kurang || "0")
+      const sangat_baik = PluginUtils.parseNumber(item.tingkat_sangat_baik, 0)
+      const baik = PluginUtils.parseNumber(item.tingkat_baik, 0)
+      const cukup = PluginUtils.parseNumber(item.tingkat_cukup, 0)
+      const kurang = PluginUtils.parseNumber(item.tingkat_kurang, 0)
 
+      // Validate percentage values are non-negative
+      if (sangat_baik < 0 || baik < 0 || cukup < 0 || kurang < 0) {
+        errors.push(`Baris ${index + 1}: Nilai persentase tidak boleh negatif`)
+      }
+
+      // Validate total percentage equals 100%
+      const totalPercentage = PluginUtils.roundToDecimal(
+        sangat_baik + baik + cukup + kurang,
+        2
+      )
       if (Math.abs(totalPercentage - 100) > 0.01) {
         errors.push(
-          `Row ${
+          `Baris ${
             index + 1
           }: Total persentase (${totalPercentage}%) harus sama dengan 100%`
         )
@@ -321,6 +385,48 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
       valid: errors.length === 0,
       errors,
     }
+  }
+
+  // Add method to handle field value processing
+  processFieldValue(field, value, sectionCode) {
+    // For jenis_kemampuan, ensure it's from valid options
+    if (field === "jenis_kemampuan") {
+      const validOptions = this.getJenisKemampuanOptions()
+      const normalizedValue = PluginUtils.normalizeTextField(value)
+
+      // If empty, return first option as default
+      if (!normalizedValue) {
+        return validOptions[0]
+      }
+
+      // Check if value is valid or similar
+      const match = validOptions.find(
+        (option) =>
+          option.toLowerCase().includes(normalizedValue.toLowerCase()) ||
+          normalizedValue.toLowerCase().includes(option.toLowerCase())
+      )
+
+      return match || normalizedValue
+    }
+
+    // For percentage fields with 2 decimal places
+    if (
+      [
+        "tingkat_sangat_baik",
+        "tingkat_baik",
+        "tingkat_cukup",
+        "tingkat_kurang",
+      ].includes(field)
+    ) {
+      return PluginUtils.parseNumber(value, 0, true, 2)
+    }
+
+    // For text fields
+    if (field === "rencana_tindak_lanjut_oleh_upps_ps") {
+      return PluginUtils.normalizeTextField(value)
+    }
+
+    return value
   }
 }
 

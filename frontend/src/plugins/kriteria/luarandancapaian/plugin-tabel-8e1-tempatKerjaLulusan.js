@@ -22,46 +22,65 @@ export class LulusanTerlacakPlugin extends BasePlugin {
     return true
   }
 
-  getDefaultData() {
+  getDefaultData(tableCode, config = {}) {
     const now = Date.now()
-    return [
-      {
-        key: `default-lulusan-${now}`,
-        no: 1,
-        selected: true,
-        tahun_lulus: "TS-4",
-        jumlah_lulusan: 0,
-        jumlah_pengguna_lulusan_yang_memberi_tanggapan: 0,
-        jumlah_lulusan_yang_terlacak: 0,
-        tingkat_lokal_wilayah_berwirausaha_tidak_berizin: 0,
-        tingkat_nasional_berwirausaha_berizin: 0,
-        tingkat_multinasional_internasional: 0,
-      },
-      {
-        key: `default-lulusan-${now + 1}`,
-        no: 2,
-        selected: true,
-        tahun_lulus: "TS-3",
-        jumlah_lulusan: 0,
-        jumlah_pengguna_lulusan_yang_memberi_tanggapan: 0,
-        jumlah_lulusan_yang_terlacak: 0,
-        tingkat_lokal_wilayah_berwirausaha_tidak_berizin: 0,
-        tingkat_nasional_berwirausaha_berizin: 0,
-        tingkat_multinasional_internasional: 0,
-      },
-      {
-        key: `default-lulusan-${now + 2}`,
-        no: 3,
-        selected: true,
-        tahun_lulus: "TS-2",
-        jumlah_lulusan: 0,
-        jumlah_pengguna_lulusan_yang_memberi_tanggapan: 0,
-        jumlah_lulusan_yang_terlacak: 0,
-        tingkat_lokal_wilayah_berwirausaha_tidak_berizin: 0,
-        tingkat_nasional_berwirausaha_berizin: 0,
-        tingkat_multinasional_internasional: 0,
-      },
-    ]
+    const years = ["TS-4", "TS-3", "TS-2"]
+
+    return years.map((year, index) => ({
+      key: `default-${index + 1}-${now}-${Math.random()
+        .toString(36)
+        .substr(2, 5)}`,
+      no: index + 1,
+      selected: true,
+      tahun_lulus: year,
+      jumlah_lulusan: 0,
+      jumlah_pengguna_lulusan_yang_memberi_tanggapan: 0,
+      jumlah_lulusan_yang_terlacak: 0,
+      tingkat_lokal_wilayah_berwirausaha_tidak_berizin: 0,
+      tingkat_nasional_berwirausaha_berizin: 0,
+      tingkat_multinasional_internasional: 0,
+    }))
+  }
+
+  mergeWithDefaults(existingData, tableCode, config = {}) {
+    if (!this.hasDefaultData()) {
+      return existingData
+    }
+
+    const defaultData = this.getDefaultData(tableCode, config)
+
+    if (!existingData || existingData.length === 0) {
+      return defaultData
+    }
+
+    const existingYears = existingData.map((row) => row.tahun_lulus)
+    const requiredYears = ["TS-4", "TS-3", "TS-2"]
+
+    const missingYears = requiredYears.filter(
+      (year) => !existingYears.includes(year)
+    )
+
+    if (missingYears.length === 0) {
+      // All required years exist, return existing data with updated row numbers
+      return existingData.map((row, index) => ({
+        ...row,
+        no: index + 1,
+      }))
+    }
+
+    // Add missing years
+    const missingDefaults = defaultData.filter((row) =>
+      missingYears.includes(row.tahun_lulus)
+    )
+
+    // Combine existing data with missing defaults
+    const combined = [...existingData, ...missingDefaults]
+
+    // Update row numbers
+    return combined.map((row, index) => ({
+      ...row,
+      no: index + 1,
+    }))
   }
 
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
@@ -137,19 +156,30 @@ export class LulusanTerlacakPlugin extends BasePlugin {
     let PR = 0 // Jumlah pengguna lulusan yang memberi tanggapan
 
     validData.forEach((item) => {
-      NL += item.jumlah_lulusan || 0
-      NJ += item.jumlah_lulusan_yang_terlacak || 0
-      NI += item.tingkat_multinasional_internasional || 0
-      NN += item.tingkat_nasional_berwirausaha_berizin || 0
-      NW += item.tingkat_lokal_wilayah_berwirausaha_tidak_berizin || 0
-      PR += item.jumlah_pengguna_lulusan_yang_memberi_tanggapan || 0
+      NL += PluginUtils.parseNumber(item.jumlah_lulusan, 0)
+      NJ += PluginUtils.parseNumber(item.jumlah_lulusan_yang_terlacak, 0)
+      NI += PluginUtils.parseNumber(item.tingkat_multinasional_internasional, 0)
+      NN += PluginUtils.parseNumber(
+        item.tingkat_nasional_berwirausaha_berizin,
+        0
+      )
+      NW += PluginUtils.parseNumber(
+        item.tingkat_lokal_wilayah_berwirausaha_tidak_berizin,
+        0
+      )
+      PR += PluginUtils.parseNumber(
+        item.jumlah_pengguna_lulusan_yang_memberi_tanggapan,
+        0
+      )
     })
 
-    const PJ = NJ > 0 ? (NL / NJ) * 100 : 0
-    const RI = NL > 0 ? (NI / NL) * 100 : 0
-    const RN = NL > 0 ? (NN / NL) * 100 : 0
-    const RW = NL > 0 ? (NW / NL) * 100 : 0
-    const persentaseResponden = NL > 0 ? (PR / NL) * 100 : 0
+    // Gunakan roundToDecimal untuk semua perhitungan persentase
+    const PJ = NJ > 0 ? PluginUtils.roundToDecimal((NJ / NL) * 100, 2) : 0
+    const RI = NL > 0 ? PluginUtils.roundToDecimal((NI / NL) * 100, 2) : 0
+    const RN = NL > 0 ? PluginUtils.roundToDecimal((NN / NL) * 100, 2) : 0
+    const RW = NL > 0 ? PluginUtils.roundToDecimal((NW / NL) * 100, 2) : 0
+    const persentaseResponden =
+      NL > 0 ? PluginUtils.roundToDecimal((PR / NL) * 100, 2) : 0
 
     // Faktor untuk perhitungan skor
     const a = 5 // 5%
@@ -161,7 +191,7 @@ export class LulusanTerlacakPlugin extends BasePlugin {
     if (NL >= 300) {
       Prmin = 30
     } else {
-      Prmin = 50 - (NL / 300) * 20
+      Prmin = PluginUtils.roundToDecimal(50 - (NL / 300) * 20, 2)
     }
 
     // Menghitung skor berdasarkan matriks penilaian
@@ -173,13 +203,14 @@ export class LulusanTerlacakPlugin extends BasePlugin {
       (0 < RN && RN < b) ||
       (0 < RW && RW <= c)
     ) {
-      const A = RI / a
-      const B = RN / b
-      const C = RW / c
+      const A = PluginUtils.roundToDecimal(RI / a, 4) // Gunakan 4 digit untuk perhitungan intermediate
+      const B = PluginUtils.roundToDecimal(RN / b, 4)
+      const C = PluginUtils.roundToDecimal(RW / c, 4)
 
       skor =
         4 *
         (A + B + C / 2 - A * B - (A * C) / 2 - (B * C) / 2 + (A * B * C) / 2)
+      skor = PluginUtils.roundToDecimal(skor, 2)
     } else {
       skor = 0
     }
@@ -190,10 +221,10 @@ export class LulusanTerlacakPlugin extends BasePlugin {
     // Penyesuaian skor jika persentase responden tidak memenuhi ketentuan
     let skorAkhir = skor
     if (persentaseResponden < Prmin) {
-      skorAkhir = (PJ / Prmin) * skor
+      skorAkhir = PluginUtils.roundToDecimal((PJ / Prmin) * skor, 2)
     }
 
-    skorAkhir = Math.min(skorAkhir, 4)
+    skorAkhir = PluginUtils.roundToDecimal(Math.min(skorAkhir, 4), 2)
 
     console.log("Score Detail:", {
       NL,
@@ -216,7 +247,7 @@ export class LulusanTerlacakPlugin extends BasePlugin {
       scores: [
         {
           butir: 67,
-          nilai: parseFloat(skorAkhir.toFixed(2)),
+          nilai: skorAkhir,
         },
       ],
       scoreDetail: {
@@ -232,48 +263,94 @@ export class LulusanTerlacakPlugin extends BasePlugin {
         PJ: PJ + "%",
         Prmin: Prmin + "%",
         persentaseResponden: persentaseResponden + "%",
-        skor: skor,
-        skorAkhir: skorAkhir,
       },
     }
   }
 
-  normalizeData(data) {
-    return data.map((item) => {
-      const result = { ...item }
+  normalizeData(data, config = {}) {
+    if (!Array.isArray(data)) return []
 
-      result.tahun_lulus = PluginUtils.normalizeTextField(result.tahun_lulus)
-
-      const numericFields = [
-        "jumlah_lulusan",
-        "jumlah_pengguna_lulusan_yang_memberi_tanggapan",
-        "jumlah_lulusan_yang_terlacak",
-        "tingkat_lokal_wilayah_berwirausaha_tidak_berizin",
-        "tingkat_nasional_berwirausaha_berizin",
-        "tingkat_multinasional_internasional",
-      ]
-
-      numericFields.forEach((field) => {
-        result[field] = PluginUtils.parseNumber(result[field], 0)
+    return data
+      .filter((item) => {
+        // Filter out any invalid rows
+        if (!item.tahun_lulus) return true
+        const normalized = String(item.tahun_lulus).toLowerCase().trim()
+        return !["jumlah", "total", "sum", "rata-rata", "average"].includes(
+          normalized
+        )
       })
+      .map((item, index) => {
+        const result = {
+          ...item,
+          id: item.id || `row-${Math.random().toString(36).substring(2, 9)}`,
+          key: item.key || `row-${Math.random().toString(36).substring(2, 9)}`,
+          no: index + 1,
+        }
 
-      return result
-    })
+        result.tahun_lulus = PluginUtils.normalizeTextField(result.tahun_lulus)
+
+        const numericFields = [
+          "jumlah_lulusan",
+          "jumlah_pengguna_lulusan_yang_memberi_tanggapan",
+          "jumlah_lulusan_yang_terlacak",
+          "tingkat_lokal_wilayah_berwirausaha_tidak_berizin",
+          "tingkat_nasional_berwirausaha_berizin",
+          "tingkat_multinasional_internasional",
+        ]
+
+        numericFields.forEach((field) => {
+          result[field] = PluginUtils.parseNumber(result[field], 0, false, 0) // Integer values, no decimals
+        })
+
+        return result
+      })
+  }
+
+  prepareDataForSaving(data, config = {}) {
+    return data
+      .filter((item) => {
+        if (!item.tahun_lulus) return true
+        const normalized = String(item.tahun_lulus).toLowerCase().trim()
+        return !["jumlah", "total", "sum", "rata-rata", "average"].includes(
+          normalized
+        )
+      })
+      .map((item, index) => {
+        const { id, key, _editing, _selected, ...cleanRow } = item
+        return {
+          ...cleanRow,
+          no: index + 1,
+          selected: true,
+        }
+      })
   }
 
   validateData(data) {
     const errors = []
+    const validYears = ["TS-4", "TS-3", "TS-2"]
 
     data.forEach((item, index) => {
       if (!item.tahun_lulus) {
         errors.push(`Row ${index + 1}: Tahun lulus harus diisi`)
+      } else if (!validYears.includes(item.tahun_lulus)) {
+        errors.push(`Row ${index + 1}: Tahun lulus harus TS-4, TS-3, atau TS-2`)
       }
 
-      if (item.jumlah_lulusan < 0) {
+      const jumlahLulusan = PluginUtils.parseNumber(item.jumlah_lulusan, 0)
+      const jumlahTerlacak = PluginUtils.parseNumber(
+        item.jumlah_lulusan_yang_terlacak,
+        0
+      )
+      const respondenCount = PluginUtils.parseNumber(
+        item.jumlah_pengguna_lulusan_yang_memberi_tanggapan,
+        0
+      )
+
+      if (jumlahLulusan < 0) {
         errors.push(`Row ${index + 1}: Jumlah lulusan tidak boleh negatif`)
       }
 
-      if (item.jumlah_lulusan_yang_terlacak > item.jumlah_lulusan) {
+      if (jumlahTerlacak > jumlahLulusan) {
         errors.push(
           `Row ${
             index + 1
@@ -281,12 +358,23 @@ export class LulusanTerlacakPlugin extends BasePlugin {
         )
       }
 
-      const totalPenempatan =
-        (item.tingkat_lokal_wilayah_berwirausaha_tidak_berizin || 0) +
-        (item.tingkat_nasional_berwirausaha_berizin || 0) +
-        (item.tingkat_multinasional_internasional || 0)
+      if (respondenCount > jumlahLulusan) {
+        errors.push(
+          `Row ${
+            index + 1
+          }: Jumlah responden tidak boleh lebih besar dari jumlah lulusan`
+        )
+      }
 
-      if (totalPenempatan > item.jumlah_lulusan_yang_terlacak) {
+      const totalPenempatan =
+        PluginUtils.parseNumber(
+          item.tingkat_lokal_wilayah_berwirausaha_tidak_berizin,
+          0
+        ) +
+        PluginUtils.parseNumber(item.tingkat_nasional_berwirausaha_berizin, 0) +
+        PluginUtils.parseNumber(item.tingkat_multinasional_internasional, 0)
+
+      if (totalPenempatan > jumlahTerlacak) {
         errors.push(
           `Row ${
             index + 1
@@ -299,6 +387,47 @@ export class LulusanTerlacakPlugin extends BasePlugin {
       valid: errors.length === 0,
       errors,
     }
+  }
+
+  // Add method to handle field value processing
+  processFieldValue(field, value, sectionCode) {
+    // For tahun_lulus, ensure it's from valid options
+    if (field === "tahun_lulus") {
+      const validYears = ["TS-4", "TS-3", "TS-2"]
+      const normalizedValue = PluginUtils.normalizeTextField(value)
+
+      // If empty, return first option as default
+      if (!normalizedValue) {
+        return validYears[0]
+      }
+
+      // Check if value is valid
+      if (validYears.includes(normalizedValue)) {
+        return normalizedValue
+      }
+
+      // Try to find closest match
+      const upperValue = normalizedValue.toUpperCase()
+      const match = validYears.find((year) => year.toUpperCase() === upperValue)
+
+      return match || validYears[0]
+    }
+
+    // For all numeric fields, parse as integers (no decimals)
+    const numericFields = [
+      "jumlah_lulusan",
+      "jumlah_pengguna_lulusan_yang_memberi_tanggapan",
+      "jumlah_lulusan_yang_terlacak",
+      "tingkat_lokal_wilayah_berwirausaha_tidak_berizin",
+      "tingkat_nasional_berwirausaha_berizin",
+      "tingkat_multinasional_internasional",
+    ]
+
+    if (numericFields.includes(field)) {
+      return PluginUtils.parseNumber(value, 0, false, 0) // No decimals for count data
+    }
+
+    return value
   }
 }
 

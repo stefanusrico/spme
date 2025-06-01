@@ -118,7 +118,7 @@ const kesesuaianBidangKerjaPlugin = {
   calculateScore(data) {
     if (!data || data.length === 0) {
       return {
-        scores: [{ butir: 60, nilai: Math.round(skorAkhir) }], // Pembulatan skor akhir
+        scores: [{ butir: 66, nilai: Math.round(skorAkhir) }], // Pembulatan skor akhir
         scoreDetail: { NL: 0, NJ: 0, PJ: 0, PBS: 0, Prmin: 0 },
       }
     }
@@ -170,7 +170,7 @@ const kesesuaianBidangKerjaPlugin = {
     skorAkhir = Math.min(4, Math.round(skorAkhir))
 
     return {
-      scores: [{ butir: 60, nilai: skorAkhir }],
+      scores: [{ butir: 66, nilai: skorAkhir }],
       scoreDetail: {
         NL: totalLulusan,
         NJ: totalTerlacak,

@@ -1,6 +1,7 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
 import { processExcelDataBase } from "../../../utils/tableUtils"
+import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
 
 export class PrestasiNonAkademikMahasiswaPlugin extends BasePlugin {
   constructor() {
@@ -128,13 +129,23 @@ export class PrestasiNonAkademikMahasiswaPlugin extends BasePlugin {
   }
 
   async calculateScore(data, config, additionalData = {}) {
+    const { projectId } = additionalData
     const allRows =
       data && data.allRows ? data.allRows : Array.isArray(data) ? data : []
-    const NM = additionalData.jumlahMahasiswaTS || 50 // Default value, should be provided
+    let NM = 0
 
     let NI = 0,
       NN = 0,
       NW = 0
+
+    if (projectId) {
+      try {
+        const scoreDetail2a1 = await fetchScoreDetails("2a1", projectId)
+        NM = scoreDetail2a1?.NM || 0
+      } catch (error) {
+        console.warn("Failed to fetch NDTT:", error)
+      }
+    }
 
     if (!allRows || allRows.length === 0) {
       console.warn(
