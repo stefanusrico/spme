@@ -68,7 +68,6 @@ export class MahasiswaAsingPlugin extends BasePlugin {
           ts_jumlah_mahasiswa_asing_paruh_waktu_part_time: 0,
         }
 
-        // Only process if detectedIndices exists
         if (detectedIndices && typeof detectedIndices === "object") {
           Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
             if (colIndex === undefined || colIndex < 0 || !Array.isArray(row))

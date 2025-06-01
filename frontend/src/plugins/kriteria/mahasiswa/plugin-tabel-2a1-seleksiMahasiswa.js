@@ -183,12 +183,25 @@ export class SeleksiMahasiswaPlugin extends BasePlugin {
       componentB = (4 * rasioSeleksi) / 3
     }
 
+    let totalMahasiswaAktif = 0
+    if (validData.length > 0) {
+      const latestEntry = validData[validData.length - 1]
+
+      const regulerAktif =
+        parseFloat(latestEntry.reguler_jumlah_mahasiswa_aktif) || 0
+      const transferAktif =
+        parseFloat(latestEntry.transfer_jumlah_mahasiswa_aktif) || 0
+
+      totalMahasiswaAktif = regulerAktif + transferAktif
+    }
+
     return {
       totalPendaftar,
       totalLulusSeleksi,
       rasioSeleksi,
       componentA,
       componentB,
+      totalMahasiswaAktif,
     }
   }
 
@@ -203,8 +216,7 @@ export class SeleksiMahasiswaPlugin extends BasePlugin {
       rasio: this.truncateToTwoDecimals(metrics.rasioSeleksi),
       A: metrics.componentA,
       B: this.truncateToTwoDecimals(metrics.componentB),
-      totalPendaftar: metrics.totalPendaftar,
-      totalLulusSeleksi: metrics.totalLulusSeleksi,
+      NM: metrics.totalMahasiswaAktif,
     }
   }
 
