@@ -58,19 +58,21 @@ export const useFileUpload = (
           )
 
           // Extract data and check if we should replace existing data
-          const { allRows, shouldReplaceExisting = false } = result || {
-            allRows: [],
-          }
+          const { allRows = [], shouldReplaceExisting = false } = result || {}
 
-          // Log important debug information
+          // Add safety check before logging
           console.log("===== REPLACEMENT DEBUG INFO =====")
           console.log("Table code:", tableCode)
+          console.log("Plugin result:", result)
           console.log("shouldReplaceExisting:", shouldReplaceExisting)
           console.log(
             "Selection allowed:",
             isSelectionAllowedForTable(tableCode)
           )
-          console.log("Rows count:", allRows.length)
+          console.log(
+            "Rows count:",
+            Array.isArray(allRows) ? allRows.length : "allRows is not an array"
+          )
           console.log("================================")
 
           // Log processed data
