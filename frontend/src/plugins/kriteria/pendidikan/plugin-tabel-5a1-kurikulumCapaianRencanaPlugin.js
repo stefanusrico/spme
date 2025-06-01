@@ -89,6 +89,78 @@ export class KurikulumCapaianRencanaPlugin extends BasePlugin {
     }
   }
 
+  /**
+   * Helper method to check if row has valid data (equivalent to Excel COUNTIFS condition)
+   * Checks if semester, kode_mata_kuliah, and nama_mata_kuliah are not empty
+   */
+  isValidRow(item) {
+    const semester = PluginUtils.normalizeTextField(item.semester)
+    const kodeMataKuliah = PluginUtils.normalizeTextField(item.kode_mata_kuliah)
+    const namaMataKuliah = PluginUtils.normalizeTextField(item.nama_mata_kuliah)
+
+    return semester !== "" && kodeMataKuliah !== "" && namaMataKuliah !== ""
+  }
+
+  /**
+   * Calculate additional metrics based on Excel formulas
+   */
+  calculateAdditionalMetrics(data) {
+    const validData = data.filter((item) => this.isValidRow(item))
+
+    // Jumlah Mata Kuliah
+    const jumlahMataKuliah = validData.length
+
+    // Jumlah Mata Kuliah Kompetensi (where mata_kuliah_kompetensi = "V")
+    const jumlahMataKuliahKompetensi = validData.filter((item) => {
+      const kompetensi = PluginUtils.normalizeTextField(
+        item.mata_kuliah_kompetensi
+      )
+      return (
+        kompetensi.toLowerCase() === "v" || kompetensi.toLowerCase() === "ya"
+      )
+    }).length
+
+    // Jumlah SKS Kuliah/Responsi/Tutorial
+    const jumlahSksKuliah = validData.reduce((sum, item) => {
+      return (
+        sum + parseFloat(item.kuliah_responsi_tutorial_bobot_kredit_sks || 0)
+      )
+    }, 0)
+
+    // Jumlah SKS Seminar
+    const jumlahSksSeminar = validData.reduce((sum, item) => {
+      return sum + parseFloat(item.seminar_bobot_kredit_sks || 0)
+    }, 0)
+
+    // Jumlah SKS Praktikum/Praktik/Praktik Lapangan
+    const jumlahSksPraktikum = validData.reduce((sum, item) => {
+      return (
+        sum +
+        parseFloat(
+          item.praktikum_praktik_praktik_lapangan_bobot_kredit_sks || 0
+        )
+      )
+    }, 0)
+
+    // Jumlah Konversi Kredit ke Jam
+    const jumlahKonversiKredit = validData.reduce((sum, item) => {
+      return (
+        sum +
+        parseFloat(item.konversi_kredit_ke_jam_diisi_oleh_pengusul_vokasi || 0)
+      )
+    }, 0)
+
+    return {
+      jumlahMataKuliah,
+      jumlahMataKuliahKompetensi,
+      jumlahSksKuliah,
+      jumlahSksSeminar,
+      jumlahSksPraktikum,
+      jumlahKonversiKredit,
+      validDataCount: validData.length,
+    }
+  }
+
   async calculateScore(data, config, additionalData = {}) {
     if (!data || data.length === 0) {
       return {
@@ -102,38 +174,50 @@ export class KurikulumCapaianRencanaPlugin extends BasePlugin {
           JP: 0,
           JB: 0,
           PJP: 0,
+          // Additional metrics
+          jumlahMataKuliah: 0,
+          jumlahMataKuliahKompetensi: 0,
+          jumlahSksKuliah: 0,
+          jumlahSksSeminar: 0,
+          jumlahSksPraktikum: 0,
+          jumlahKonversiKredit: 0,
         },
       }
     }
 
-    let JP = 0 // Praktikum/praktek
-    let JB = 0 // Total
+    // Calculate additional metrics
+    const additionalMetrics = this.calculateAdditionalMetrics(data)
 
-    data.forEach((item) => {
-      const konversi = parseFloat(
-        item.konversi_kredit_ke_jam_diisi_oleh_pengusul_vokasi || 0
-      )
-      const kuliah = parseFloat(
-        item.kuliah_responsi_tutorial_bobot_kredit_sks || 0
-      )
-      const seminar = parseFloat(item.seminar_bobot_kredit_sks || 0)
-      const praktikum = parseFloat(
-        item.praktikum_praktik_praktik_lapangan_bobot_kredit_sks || 0
-      )
+    // Filter valid data for main calculation
+    const validData = data.filter((item) => this.isValidRow(item))
 
-      const totalBobot = kuliah + seminar + praktikum
+    
+    const JP = (additionalMetrics.jumlahSksPraktikum * 170) / 60
 
-      JB += totalBobot * konversi
-      JP += praktikum * konversi
-    })
+    // JB = ((jumlahSksKuliah + jumlahSksSeminar) * 50) + (jumlahSksPraktikum * 170) / 60
+    const JB =
+      ((additionalMetrics.jumlahSksKuliah +
+        additionalMetrics.jumlahSksSeminar) *
+        50 +
+        additionalMetrics.jumlahSksPraktikum * 170) /
+      60
 
     const PJP = JB > 0 ? (JP / JB) * 100 : 0
     const nilai = PJP >= 50 ? 4 : Math.round(8 * PJP) / 100
 
-    console.log("JP:", JP)
-    console.log("JB:", JB)
-    console.log("PJP:", PJP)
+    console.log("=== Kurikulum Capaian Rencana Calculation ===")
+    console.log("Valid Data Count:", validData.length)
+    console.log("Jumlah SKS Kuliah:", additionalMetrics.jumlahSksKuliah)
+    console.log("Jumlah SKS Seminar:", additionalMetrics.jumlahSksSeminar)
+    console.log("Jumlah SKS Praktikum:", additionalMetrics.jumlahSksPraktikum)
+    console.log("JP Formula: jumlahSksPraktikum * 170 / 60 =", JP)
+    console.log(
+      "JB Formula: ((jumlahSksKuliah + jumlahSksSeminar) * 50) + (jumlahSksPraktikum * 170) / 60 =",
+      JB
+    )
+    console.log("PJP (%):", PJP)
     console.log("Score:", nilai)
+    console.log("Additional Metrics:", additionalMetrics)
 
     return {
       scores: [
@@ -146,6 +230,17 @@ export class KurikulumCapaianRencanaPlugin extends BasePlugin {
         JP: Math.round(JP * 100) / 100,
         JB: Math.round(JB * 100) / 100,
         PJP: Math.round(PJP * 100) / 100,
+        jumlahMataKuliah: additionalMetrics.jumlahMataKuliah,
+        jumlahMataKuliahKompetensi:
+          additionalMetrics.jumlahMataKuliahKompetensi,
+        jumlahSksKuliah:
+          Math.round(additionalMetrics.jumlahSksKuliah * 100) / 100,
+        jumlahSksSeminar:
+          Math.round(additionalMetrics.jumlahSksSeminar * 100) / 100,
+        jumlahSksPraktikum:
+          Math.round(additionalMetrics.jumlahSksPraktikum * 100) / 100,
+        jumlahKonversiKredit:
+          Math.round(additionalMetrics.jumlahKonversiKredit * 100) / 100,
       },
     }
   }
@@ -190,19 +285,37 @@ export class KurikulumCapaianRencanaPlugin extends BasePlugin {
     const errors = []
 
     data.forEach((item, idx) => {
-      if (!item.nama_mata_kuliah || !item.semester) {
-        errors.push(`Row ${idx + 1}: Nama mata kuliah dan semester wajib diisi`)
+      // Check if row has valid data
+      if (!this.isValidRow(item)) {
+        errors.push(
+          `Row ${
+            idx + 1
+          }: Semester, kode mata kuliah, dan nama mata kuliah wajib diisi`
+        )
       }
 
-      const totalBobot =
-        parseFloat(item.kuliah_responsi_tutorial_bobot_kredit_sks || 0) +
-        parseFloat(item.seminar_bobot_kredit_sks || 0) +
-        parseFloat(
-          item.praktikum_praktik_praktik_lapangan_bobot_kredit_sks || 0
-        )
+      // Only validate total bobot for valid rows
+      if (this.isValidRow(item)) {
+        const totalBobot =
+          parseFloat(item.kuliah_responsi_tutorial_bobot_kredit_sks || 0) +
+          parseFloat(item.seminar_bobot_kredit_sks || 0) +
+          parseFloat(
+            item.praktikum_praktik_praktik_lapangan_bobot_kredit_sks || 0
+          )
 
-      if (totalBobot <= 0) {
-        errors.push(`Row ${idx + 1}: Bobot kredit total harus lebih dari 0`)
+        if (totalBobot <= 0) {
+          errors.push(`Row ${idx + 1}: Bobot kredit total harus lebih dari 0`)
+        }
+
+        // Validate konversi kredit
+        const konversi = parseFloat(
+          item.konversi_kredit_ke_jam_diisi_oleh_pengusul_vokasi || 0
+        )
+        if (konversi <= 0) {
+          errors.push(
+            `Row ${idx + 1}: Konversi kredit ke jam harus lebih dari 0`
+          )
+        }
       }
     })
 
