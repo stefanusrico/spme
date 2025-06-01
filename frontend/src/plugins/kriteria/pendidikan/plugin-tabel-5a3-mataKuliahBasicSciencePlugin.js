@@ -6,21 +6,35 @@ export class MataKuliahBasicSciencePlugin extends BasePlugin {
   constructor() {
     super({
       code: "5a3",
-      name: "Capstone Design Proses Pembelajaran Plugin",
-      description:
-        "Plugin untuk tracking capstone design dalam proses pembelajaran",
+      name: "Mata Kuliah Basic Science dan Matematika Plugin",
+      description: "Plugin untuk mata kuliah basic science dan matematika",
     })
   }
 
   configureSection(config) {
     return {
       ...config,
-      isCapstoneDesignSection: true,
+      isMataKuliahBasicScienceSection: true,
     }
   }
 
   hasDefaultData() {
-    return false
+    return true
+  }
+
+  getDefaultData(tableCode, config = {}) {
+    const now = Date.now()
+
+    return [
+      {
+        key: `default-1-${now}-${Math.random().toString(36).substr(2, 5)}`,
+        no: 1,
+        selected: true,
+        nama_mata_kuliah_basic_science_dan_matematika: "",
+        semester: 0,
+        jumlah_sks: 0,
+      },
+    ]
   }
 
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
@@ -36,24 +50,29 @@ export class MataKuliahBasicSciencePlugin extends BasePlugin {
     const filteredData = PluginUtils.filterDataRows(rawData)
 
     const processedData = filteredData.map((row, index) => {
-      return {
+      const item = {
         key: `excel-${index + 1}-${Date.now()}`,
         no: index + 1,
         selected: true,
-        nama_mata_kuliah: PluginUtils.normalizeTextField(
-          row[detectedIndices.nama_mata_kuliah] || ""
-        ),
-        semester: PluginUtils.normalizeTextField(
-          row[detectedIndices.semester] || ""
-        ),
-        cakupan_bahasan: PluginUtils.normalizeTextField(
-          row[detectedIndices.cakupan_bahasan] || ""
-        ),
-        aspek_1: !!row[detectedIndices.aspek_1],
-        aspek_2: !!row[detectedIndices.aspek_2],
-        aspek_3: !!row[detectedIndices.aspek_3],
-        aspek_4: !!row[detectedIndices.aspek_4],
+        nama_mata_kuliah_basic_science_dan_matematika: "",
+        semester: 0,
+        jumlah_sks: 0,
       }
+
+      // Process each detected field
+      Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
+        if (colIndex === undefined || colIndex < 0) return
+
+        const value = row[colIndex]
+
+        if (fieldName === "nama_mata_kuliah_basic_science_dan_matematika") {
+          item[fieldName] = PluginUtils.normalizeTextField(value)
+        } else {
+          item[fieldName] = PluginUtils.parseNumber(value, 0)
+        }
+      })
+
+      return item
     })
 
     return {
@@ -63,98 +82,149 @@ export class MataKuliahBasicSciencePlugin extends BasePlugin {
   }
 
   async calculateScore(data, config, additionalData = {}) {
+    console.log("Calculating Basic Science score with data:", data)
+
     if (!data || data.length === 0) {
       return {
         scores: [
           {
-            butir: 54,
+            butir: 47,
             nilai: 0,
           },
         ],
         scoreDetail: {
-          jumlah_mk: 0,
-          distribusi_aspek: {
-            aspek_1: 0,
-            aspek_2: 0,
-            aspek_3: 0,
-            aspek_4: 0,
-          },
+          totalSKS: 0,
         },
       }
     }
 
-    const aspekCounter = { aspek_1: 0, aspek_2: 0, aspek_3: 0, aspek_4: 0 }
+    // Filter out empty or invalid entries
+    const validData = data.filter(
+      (item) =>
+        item.nama_mata_kuliah_basic_science_dan_matematika &&
+        item.nama_mata_kuliah_basic_science_dan_matematika.trim() !== ""
+    )
 
-    data.forEach((item) => {
-      for (let i = 1; i <= 4; i++) {
-        if (item[`aspek_${i}`]) aspekCounter[`aspek_${i}`] += 1
-      }
-    })
+    // Calculate total SKS
+    const totalSks = validData.reduce((sum, item) => {
+      return sum + PluginUtils.parseNumber(item.jumlah_sks, 0)
+    }, 0)
 
-    const hasAspek = (n) => {
-      const checklist = [1, 2, 3, 4].map((i) => aspekCounter[`aspek_${i}`] > 0)
-      const trueCount = checklist.filter(Boolean).length
-      return trueCount >= n
-    }
-
+    // Scoring based on total SKS according to the provided criteria
     let nilai = 0
-    if (hasAspek(4)) {
-      nilai = 4
-    } else if (hasAspek(3)) {
-      nilai = 3
-    } else if (hasAspek(2)) {
-      nilai = 2
-    } else if (hasAspek(1)) {
-      nilai = 1
+    if (totalSks >= 4) {
+      nilai = 4 // PS menyediakan mata kuliah basic sciences dan matematika ≥ 4 SKS
+    } else if (totalSks === 3) {
+      nilai = 3 // PS menyediakan mata kuliah basic sciences dan matematika 3 SKS
+    } else if (totalSks === 2) {
+      nilai = 2 // PS menyediakan mata kuliah basic sciences dan matematika 2 SKS
+    } else if (totalSks >= 1) {
+      nilai = 1 // PS menyediakan mata kuliah basic sciences dan matematika < 2 SKS (tapi ≥ 1)
+    } else {
+      nilai = 0 // Tidak ada atau kurang dari 1 SKS
     }
 
-    console.log("Distribusi Aspek:", aspekCounter)
-    console.log("Score:", nilai)
+    console.log("Basic Science Score Details:")
+    console.log("- Jumlah MK:", validData.length)
+    console.log("- Total SKS:", totalSks)
+    console.log("- Score:", nilai)
 
     return {
       scores: [
         {
-          butir: 54,
+          butir: 47,
           nilai: nilai,
         },
       ],
       scoreDetail: {
-        jumlah_mk: data.length,
-        distribusi_aspek: aspekCounter,
+        totalSKS: totalSks,
       },
     }
   }
 
-  normalizeData(data) {
-    return data.map((item) => {
-      const result = { ...item }
+  normalizeData(data, config = {}) {
+    if (!Array.isArray(data)) return []
 
-      const textFields = ["nama_mata_kuliah", "semester", "cakupan_bahasan"]
-
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
+    return data
+      .filter((item) => {
+        // Filter out any invalid rows
+        if (!item.nama_mata_kuliah_basic_science_dan_matematika) return true
+        const normalized = String(
+          item.nama_mata_kuliah_basic_science_dan_matematika
+        )
+          .toLowerCase()
+          .trim()
+        return !["jumlah", "total", "sum", "rata-rata", "average"].includes(
+          normalized
+        )
       })
+      .map((item, index) => {
+        const result = {
+          ...item,
+          id: item.id || `row-${Math.random().toString(36).substring(2, 9)}`,
+          key: item.key || `row-${Math.random().toString(36).substring(2, 9)}`,
+          no: index + 1,
+        }
 
-      // Normalize boolean fields
-      result.aspek_1 = !!result.aspek_1
-      result.aspek_2 = !!result.aspek_2
-      result.aspek_3 = !!result.aspek_3
-      result.aspek_4 = !!result.aspek_4
+        // Normalize text fields
+        result.nama_mata_kuliah_basic_science_dan_matematika =
+          PluginUtils.normalizeTextField(
+            result.nama_mata_kuliah_basic_science_dan_matematika
+          )
 
-      return result
-    })
+        // Normalize numeric fields
+        result.semester = PluginUtils.parseNumber(result.semester, 0)
+        result.jumlah_sks = PluginUtils.parseNumber(result.jumlah_sks, 0)
+
+        return result
+      })
+  }
+
+  prepareDataForSaving(data, config = {}) {
+    return data
+      .filter((item) => {
+        if (!item.nama_mata_kuliah_basic_science_dan_matematika) return true
+        const normalized = String(
+          item.nama_mata_kuliah_basic_science_dan_matematika
+        )
+          .toLowerCase()
+          .trim()
+        return !["jumlah", "total", "sum", "rata-rata", "average"].includes(
+          normalized
+        )
+      })
+      .map((item, index) => {
+        const { id, key, _editing, _selected, ...cleanRow } = item
+        return {
+          ...cleanRow,
+          no: index + 1,
+          selected: true,
+        }
+      })
   }
 
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.nama_mata_kuliah) {
-        errors.push(`Row ${index + 1}: Nama Mata Kuliah wajib diisi`)
+      if (!item.nama_mata_kuliah_basic_science_dan_matematika) {
+        errors.push(
+          `Baris ${index + 1}: Nama Mata Kuliah Basic Science wajib diisi`
+        )
       }
 
-      if (!item.semester) {
-        errors.push(`Row ${index + 1}: Semester wajib diisi`)
+      const semester = PluginUtils.parseNumber(item.semester, 0)
+      if (semester < 1 || semester > 8) {
+        errors.push(
+          `Baris ${index + 1}: Semester harus antara 1-8, nilai: ${semester}`
+        )
+      }
+
+      const sks = PluginUtils.parseNumber(item.jumlah_sks, 0)
+      if (sks < 0 || sks > 6) {
+        errors.push(
+          `Baris ${index + 1}: Jumlah SKS harus antara 0-6, nilai: ${sks}`
+        )
       }
     })
 
@@ -162,6 +232,19 @@ export class MataKuliahBasicSciencePlugin extends BasePlugin {
       valid: errors.length === 0,
       errors,
     }
+  }
+
+  // Method to handle field value processing
+  processFieldValue(field, value, sectionCode) {
+    if (field === "nama_mata_kuliah_basic_science_dan_matematika") {
+      return PluginUtils.normalizeTextField(value)
+    }
+
+    if (field === "semester" || field === "jumlah_sks") {
+      return PluginUtils.parseNumber(value, 0)
+    }
+
+    return value
   }
 }
 
