@@ -14,7 +14,6 @@ const SelectColor = ({ isLoading, dataColors, width, height }) => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('colorRangeData', JSON.stringify(colors));
     dataColors(colors);
   }, [colors]);
 
@@ -56,8 +55,8 @@ const SelectColor = ({ isLoading, dataColors, width, height }) => {
       placeholder="Pilih Warna & Rentang"
       style={{ width, height }}
       open={dropdownOpen}
-      onOpenChange={setDropdownOpen}
-      popupRender={() => (
+      onDropdownVisibleChange={(open) => setDropdownOpen(open)}
+      dropdownRender={() => (
         <div style={{ padding: 12 }}>
           {isLoading ? (
             <div style={{ textAlign: 'center' }}>Loading...</div>
@@ -95,7 +94,7 @@ const SelectColor = ({ isLoading, dataColors, width, height }) => {
                 </Space>
               ))}
 
-              <Space style={{ marginTop: 12, width: '100%', justifyContent: 'space-between' }}>
+              {/* <Space style={{ marginTop: 12, width: '100%', justifyContent: 'space-between' }}>
                 <Button
                   onClick={() => {
                     if (editable) setColors(originalColors);
@@ -109,7 +108,7 @@ const SelectColor = ({ isLoading, dataColors, width, height }) => {
                     Simpan
                   </Button>
                 )}
-              </Space>
+              </Space> */}
             </Space>
           )}
         </div>

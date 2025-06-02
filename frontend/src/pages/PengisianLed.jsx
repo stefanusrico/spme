@@ -16,7 +16,7 @@ import ScrollableTabs from "../components/Elements/Tabs"
 import Button from "../components/Elements/Button"
 import DropdownWithSearch from "../components/Elements/Dropdown/WithSearch"
 import BarProgress from "../components/Elements/CircularProgress/BarProgress"
-import ColorRangeDropdown from "../components/Elements/Dropdown/ColorRangeDropdown"
+// import ColorRangeDropdown from "../components/Elements/Dropdown/ColorRangeDropdown"
 import PengisianLedTableNew from "../components/Elements/DataTable/PengisianLedTableNew"
 import HeaderPengisianLedTable from "../components/Elements/DataTable/HeaderPengisianLedTable"
 import VerticalLinearStepper from "../components/Elements/Stepper"
@@ -325,7 +325,7 @@ const PengisianLed = () => {
             label: prodi.name,
           }))}
           placeholder= "Pilih Program Studi"
-          width={200}
+          width={250}
           height={50}
           onChange={(newValue) =>
             setSelectedProdi({ name: newValue?.value || "", id: newValue.id })
@@ -338,11 +338,11 @@ const PengisianLed = () => {
               ? (parseFloat(filteredLedData.nilai) / 4) * 100
               : 0
           }
-          width={200}
+          width={250}
           height={50}
         />
 
-        <SelectColor isLoading={false} dataColors={updateColor} width={200} height={50}/>
+        <SelectColor isLoading={false} dataColors={updateColor} width={250} height={50}/>
         {/* <ColorRangeDropdown isLoading={false} dataColors={updateColor} /> */}
       </div>
       
