@@ -16,6 +16,7 @@ import AddFileModal from "../Modals/AddFileModal"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { Spin } from "antd"
+import { Loader2 } from "lucide-react"
 import axiosInstance from "../../../utils/axiosConfig"
 
 function PengisianLedTableNew({
@@ -28,6 +29,7 @@ function PengisianLedTableNew({
   noSub
 }) {
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingCheck, setIsLoadingCheck] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [dataToUpload, setDataToUpload] = useState([])
   const [globalDetails, setGlobalDetails] = useState({})
@@ -108,6 +110,7 @@ function PengisianLedTableNew({
   }
 
   const handleButtonCheck = async (seq, index) => {
+    setIsLoadingCheck(true)
     try {
       const toInt = parseInt(seq, 10) - 1
 
@@ -118,16 +121,8 @@ function PengisianLedTableNew({
 
       const data = await fetchMasukanAndScoreFromAI(
         dataKriteriaIndikator,
-        // dataIsian.details[toInt]
         dataIsian.details
       )
-
-      // if (!data || !data.nilai || !data.masukan) {
-      //   throw new Error("Data dari GPT tidak lengkap!")
-      // }
-
-      console.log("hasil dari prompting")
-      toast.info("skor prompting")
 
       // updateDataIsian(updatedDetails)
       const updatedDataIsian = {
@@ -137,12 +132,12 @@ function PengisianLedTableNew({
       };
 
       updateDataIsian(updatedDataIsian);
-      setSelectedDetails(updatedDetails)
-      console.log("data respon  : ", )
       toast.success("Berhasil prompting ", )
     } catch (error) {
       toast.info("skor prompting",)
       toast.error("Gagal prompting ")
+    } finally{
+      setIsLoadingCheck(false)
     }
   }
 
@@ -370,12 +365,21 @@ function PengisianLedTableNew({
               Upload file Data Pendukung
             </Button>
             <Button
-              className="bg-primary w-40 hover:bg-white hover:text-black"
+              className={`bg-primary flex items-center gap-2 hover:bg-white hover:text-black ${isLoadingCheck ? 'opacity-50 cursor-not-allowed' : ''}`}
               aria-label="Check"
               onClick={() => handleButtonCheck(detail.seq, index)}
-              disabled={type === "readonly" || type === "readonlyVersion"}
+              disabled={type === "readonly" || type === "readonlyVersion" || isLoadingCheck}
             >
-              Check
+              {isLoadingCheck ? (
+                <>
+                  <span>Check...</span>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </>
+              ) : (
+                <>
+                  <span>Check</span>
+                </>
+              )}
             </Button>
           </div>
 

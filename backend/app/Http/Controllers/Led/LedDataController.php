@@ -19,33 +19,43 @@ class LedDataController extends Controller
     **/
     public function getLatest($taskId)
     {
-        $ledData = LedData::with('user')
-            ->where('taskId', $taskId)
-            ->orderBy('created_at', 'desc')
-            ->first();
+        try {
+            $ledData = LedData::with('user')
+                ->where('taskId', $taskId)
+                ->orderBy('created_at', 'desc')
+                ->first();
 
-        if (!$ledData) {
+            if (!$ledData) {
+                return response()->json([
+                    'status' => 'error', 
+                    'message' => 'No data found'
+                ], 404);
+            }
+
+            $ledData->username = $ledData->user?->name ?? 'Unknown';
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Berhasil mengambil data', 
+                'data' => $ledData
+            ], 200);
+        } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error', 
-                'message' => 'No data found'
-            ], 404);
+                'message' => "something wrong {$e->getMessage()}", 
+            ], 500);
         }
-
-        $ledData->username = $ledData->user?->name ?? 'Unknown';
-
-        return response()->json([
-            'status' => 'success', 
-            'data' => $ledData
-        ], 200);
+        
     }
 
     /**
      * untuk mendapatkan banyak data dari LED data menggunakan taskId dan prodiId
      * ini untuk menampilkan riwayat penyusunan LED
     **/
-    public function getAll($taskId)
+    public function getByTask(Request $request)
     {
-        $ledData = LedData::with('user')
+        $taskId = $request->input('taskId');
+        $ledData = LedData::with('user', 'task')
             ->where('taskId', $taskId)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -53,7 +63,7 @@ class LedDataController extends Controller
         if ($ledData->isEmpty()) {
             return response()->json([
                 'status' => 'error', 
-                'message' => 'No data found'
+                'message' => "No data found with task ${taskId}"
             ], 404);
         }
 

@@ -7,6 +7,7 @@ import {
   fetchLedDataByProdi,
   fetchLedItemByProdi,
   storeLedData,
+  fetchLedDataByTaskId,
   fetchLedDataProdiReference,
   addPreviewToFiles,
 } from "./PengisianLed"
@@ -130,11 +131,8 @@ const PengisianLed = () => {
     setFilteredDataReference(latestRefData);
 
     // Filter data history
-    const history = dataVersionHistory.filter(
-      (item) => String(item.task?.led_item?.no) === no && String(item.task?.led_item?.sub) === sub
-    );
-    setFilteredDataHistory(history);
-    setLedDataSelected(history.length > 1 ? "1" : "0");
+    setFilteredDataHistory(dataVersionHistory);
+    setLedDataSelected(dataVersionHistory.length > 1 ? "1" : "0");
 
     // Temukan LED item terkait
     const foundItem = allDataLedItem.find((item) => item.no === no && item.sub === sub);
@@ -248,16 +246,17 @@ const PengisianLed = () => {
     // setDataIsian(updatedData);
   }
 
-  const handleClickVersion = () => {
-    const getAllLedDataByProdi = async () => {
-      try {
-        setDataVersionHistory(allLedData)
-      } catch (error) {
-        toast.error("gagal fetch semua data version history")
-      }
+  const handleClickVersion = async() => {
+    try {
+      const matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
+  
+      if (matchedTask) {
+        const responseVersion = await fetchLedDataByTaskId(matchedTask.id);
+        setDataVersionHistory(responseVersion);
+      }  
+    } catch (error) {
+      toast.error("Gagal fetch version");
     }
-
-    getAllLedDataByProdi()
   }
 
   const handleShowToast = () => {
