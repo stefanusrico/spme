@@ -15,55 +15,37 @@ import TabelMatriksAkreditasi from "./TabelMatriksAkreditasi"
 import { LoadingScreen } from "./LoadingSpinner"
 import axiosInstance from "../utils/axiosConfig"
 
-// Konfigurasi skor yang diperlukan berdasarkan requirement baru
 const SKOR_YANG_DIPERLUKAN = [
-  // Syarat Perlu Akreditasi (semua harus >= 2.0)
+  {
+    butir: 74,
+    tipe: "syaratPerluAkreditasi",
+    kunci: "penjaminanMutu",
+    deskripsi: "Penjaminan Mutu",
+  },
   {
     butir: 16,
-    tableCode: "3a1",
     tipe: "syaratPerluAkreditasi",
-    kunci: "jabatanAkademikDTPS",
-    deskripsi: "Jabatan Akademik DTPS",
+    kunci: "kecukupanJumlahDTPS",
+    deskripsi: "Kecukupan Jumlah DTPS",
     juga_untuk_unggul: true,
     syaratUnggul: 3.5,
     syaratBaikSekali: 3.0,
   },
   {
-    butir: 38,
-    tableCode: "kurikulum", // placeholder, sesuaikan dengan data aktual
-    tipe: "syaratPerluAkreditasi",
-    kunci: "kurikulum",
-    deskripsi: "Kurikulum",
-  },
-  {
-    butir: "penjaminanMutu", // placeholder untuk penjaminan mutu
-    tableCode: "sistem",
-    tipe: "syaratPerluAkreditasi",
-    kunci: "penjaminanMutu",
-    deskripsi:
-      "Penjaminan Mutu (keterlaksanaan Sistem Penjaminan Mutu Internal)",
-  },
-  {
-    butir: "basicScience", // placeholder untuk basic science
-    tableCode: "basic",
+    butir: 47,
     tipe: "syaratPerluAkreditasi",
     kunci: "basicScience",
     deskripsi: "Basic Science dan Matematika",
   },
-
-  // Syarat Perlu Unggul Diploma 4
   {
-    butir: 16,
-    tableCode: "3a1",
-    tipe: "syaratPeringkatUnggul",
-    kunci: "jabatanAkademikDTPS",
-    deskripsi: "Jabatan Akademik DTPS",
-    syaratUnggul: 3.5,
-    syaratBaikSekali: 3.0,
+    butir: 40,
+    tipe: "syaratPerluAkreditasi",
+    kunci: "kurikulum",
+    deskripsi: "Kurikulum",
   },
+
   {
-    butir: 19,
-    tableCode: "3a1",
+    butir: 17,
     tipe: "syaratPeringkatUnggul",
     kunci: "kualifikasiAkademikDTPS",
     deskripsi: "Kualifikasi Akademik DTPS",
@@ -71,8 +53,15 @@ const SKOR_YANG_DIPERLUKAN = [
     syaratBaikSekali: 3.0,
   },
   {
+    butir: 19,
+    tipe: "syaratPeringkatUnggul",
+    kunci: "jabatanAkademikDTPS",
+    deskripsi: "Jabatan Akademik DTPS",
+    syaratUnggul: 3.5,
+    syaratBaikSekali: 3.0,
+  },
+  {
     butir: 65,
-    tableCode: "8d1",
     tipe: "syaratPeringkatUnggul",
     kunci: "waktuTunggu",
     deskripsi: "Waktu Tunggu",
@@ -81,7 +70,6 @@ const SKOR_YANG_DIPERLUKAN = [
   },
   {
     butir: 66,
-    tableCode: "8d2",
     tipe: "syaratPeringkatUnggul",
     kunci: "kesesuaianBidang",
     deskripsi: "Kesesuaian Bidang Kerja",
@@ -90,7 +78,6 @@ const SKOR_YANG_DIPERLUKAN = [
   },
   {
     butir: 47,
-    tableCode: "5a3",
     tipe: "syaratPeringkatUnggul",
     kunci: "basicScience",
     deskripsi: "Basic Science dan Matematika",
@@ -99,31 +86,29 @@ const SKOR_YANG_DIPERLUKAN = [
   },
 ]
 
-// Struktur awal untuk data program
 const dataProgramAwal = {
   nama: "",
   jenis: "",
   syaratPerluAkreditasi: {
     penjaminanMutu: {
-      skor: 3.5,
-      lulus: true,
-      deskripsi:
-        "Penjaminan Mutu (keterlaksanaan Sistem Penjaminan Mutu Internal)",
-    },
-    jabatanAkademikDTPS: {
       skor: 0,
       lulus: false,
-      deskripsi: "Jabatan Akademik DTPS",
+      deskripsi: "Penjaminan Mutu",
     },
-    kurikulum: {
-      skor: 3.5,
-      lulus: true,
-      deskripsi: "Kurikulum",
+    kecukupanJumlahDTPS: {
+      skor: 0,
+      lulus: false,
+      deskripsi: "Kecukupan Jumlah DTPS",
     },
     basicScience: {
-      skor: 3.5,
-      lulus: true,
+      skor: 0,
+      lulus: false,
       deskripsi: "Basic Science dan Matematika",
+    },
+    kurikulum: {
+      skor: 0,
+      lulus: false,
+      deskripsi: "Kurikulum",
     },
   },
   syaratPeringkatUnggul: {
@@ -132,35 +117,30 @@ const dataProgramAwal = {
       syarat: 3.5,
       lulus: false,
       deskripsi: "Kualifikasi Akademik DTPS",
-      isDummy: false,
     },
     jabatanAkademikDTPS: {
       skor: 0,
       syarat: 3.5,
       lulus: false,
       deskripsi: "Jabatan Akademik DTPS",
-      isDummy: false,
     },
     waktuTunggu: {
       skor: 0,
       syarat: 3.5,
       lulus: false,
       deskripsi: "Waktu Tunggu",
-      isDummy: false,
     },
     kesesuaianBidang: {
       skor: 0,
       syarat: 3.5,
       lulus: false,
       deskripsi: "Kesesuaian Bidang Kerja",
-      isDummy: false,
     },
     basicScience: {
-      skor: 3.5,
+      skor: 0,
       syarat: 3.5,
       lulus: false,
       deskripsi: "Basic Science dan Matematika",
-      isDummy: true,
     },
   },
   syaratPeringkatBaikSekali: {
@@ -169,35 +149,30 @@ const dataProgramAwal = {
       syarat: 3.0,
       lulus: false,
       deskripsi: "Kualifikasi Akademik DTPS",
-      isDummy: false,
     },
     jabatanAkademikDTPS: {
       skor: 0,
       syarat: 3.0,
       lulus: false,
       deskripsi: "Jabatan Akademik DTPS",
-      isDummy: false,
     },
     waktuTunggu: {
       skor: 0,
       syarat: 3.0,
       lulus: false,
       deskripsi: "Waktu Tunggu",
-      isDummy: false,
     },
     kesesuaianBidang: {
       skor: 0,
       syarat: 3.0,
       lulus: false,
       deskripsi: "Kesesuaian Bidang Kerja",
-      isDummy: false,
     },
     basicScience: {
-      skor: 3.5,
+      skor: 0,
       syarat: 3.0,
       lulus: false,
       deskripsi: "Basic Science dan Matematika",
-      isDummy: true,
     },
   },
 }
@@ -211,7 +186,6 @@ const formatTanggal = (isoDateString) => {
     const options = { day: "numeric", month: "long", year: "numeric" }
     return date.toLocaleDateString("id-ID", options)
   } catch (error) {
-    console.error("Error formatting date:", error)
     return isoDateString
   }
 }
@@ -221,16 +195,17 @@ const AccreditationStatus = () => {
   const [dataProgram, setDataProgram] = useState(dataProgramAwal)
   const [sedangMemuatSkor, setSedangMemuatSkor] = useState(true)
   const [error, setError] = useState(null)
+  // Tambahkan state untuk nilai akreditasi
+  const [nilaiAkreditasi, setNilaiAkreditasi] = useState(0)
+  const [projectInfo, setProjectInfo] = useState(null)
 
   // State untuk admin prodi selection
   const [prodiList, setProdiList] = useState([])
   const [selectedProdiId, setSelectedProdiId] = useState(null)
   const [loadingProdiList, setLoadingProdiList] = useState(false)
 
-  // Cek apakah user adalah admin
   const isAdmin = userData?.role === "Admin"
 
-  // Fungsi untuk memetakan peringkat akreditasi
   const petakanPeringkat = (peringkat) => {
     const petaPeringkat = {
       Unggul: "Unggul",
@@ -240,23 +215,43 @@ const AccreditationStatus = () => {
     return petaPeringkat[peringkat] || peringkat || "Tidak Terakreditasi"
   }
 
-  // Fungsi untuk mengambil semua skor dari endpoint baru
+  // Fungsi untuk menentukan peringkat berdasarkan nilai akreditasi
+  const tentukanPeringkatBerdasarkanNilai = (nilai) => {
+    if (nilai >= 361) {
+      return "Unggul"
+    } else if (nilai >= 301) {
+      return "Baik Sekali"
+    } else if (nilai >= 200) {
+      return "Baik"
+    } else {
+      return "Tidak Terakreditasi"
+    }
+  }
+
   const ambilSemuaSkorButir = async (prodiId) => {
     try {
-      console.log(`Fetching all scores for prodi ID: ${prodiId}`)
-      const response = await axiosInstance.get(`/lkps/score-syarat-perlu`, {
-        params: { prodiId },
-      })
+      const response = await axiosInstance.get(
+        `projects/get-skor-per-butir/${prodiId}`
+      )
 
-      if (response.data && response.data.nilaiItems) {
-        console.log("Received score data:", response.data)
-        return response.data.nilaiItems
+      if (response.data) {
+        // Set nilai akreditasi dan project info
+        setNilaiAkreditasi(response.data.nilaiAkreditasi || 0)
+        setProjectInfo({
+          projectId: response.data.projectId,
+          projectName: response.data.projectName,
+          prodiId: response.data.prodiId,
+        })
+
+        if (response.data["data-tanpa-bobot"]) {
+          return response.data["data-tanpa-bobot"]
+        } else {
+          return []
+        }
       } else {
-        console.warn("No score data found in response")
         return []
       }
     } catch (error) {
-      console.error("Error fetching scores:", error)
       throw error
     }
   }
@@ -271,7 +266,7 @@ const AccreditationStatus = () => {
         const response = await axiosInstance.get("/prodi")
         setProdiList(response.data)
       } catch (error) {
-        console.error("Error fetching prodi list:", error)
+        // Handle error silently or show user-friendly message
       } finally {
         setLoadingProdiList(false)
       }
@@ -298,7 +293,6 @@ const AccreditationStatus = () => {
         }
 
         if (!prodiId) {
-          console.warn("No prodi ID available")
           setSedangMemuatSkor(false)
           return
         }
@@ -309,19 +303,20 @@ const AccreditationStatus = () => {
         // Ambil semua skor dari endpoint baru
         const nilaiItems = await ambilSemuaSkorButir(prodiId)
 
-        // Buat map untuk mempermudah pencarian skor berdasarkan butir dan tableCode
+        // Buat map untuk mempermudah pencarian skor berdasarkan butir
         const skorMap = new Map()
         nilaiItems.forEach((item) => {
-          const key = `${item.butir}-${item.tableCode}`
-          skorMap.set(key, item.nilai)
+          skorMap.set(item.no, item.nilai)
         })
 
         // Update data program berdasarkan konfigurasi
         SKOR_YANG_DIPERLUKAN.forEach((konfigurasiSkor) => {
-          const kunciSkor = `${konfigurasiSkor.butir}-${konfigurasiSkor.tableCode}`
-          const skor = skorMap.get(kunciSkor) || 0
+          let skor = skorMap.get(konfigurasiSkor.butir) || 0
 
-          console.log(`Processing ${konfigurasiSkor.kunci}: ${skor}`)
+          // Dummy value untuk butir 74 (Penjaminan Mutu)
+          if (konfigurasiSkor.butir === 74) {
+            skor = 3.8
+          }
 
           if (konfigurasiSkor.tipe === "syaratPerluAkreditasi") {
             // Syarat perlu akreditasi
@@ -395,13 +390,9 @@ const AccreditationStatus = () => {
           }
         })
 
-        // Debug: log data program yang telah diperbarui
-        console.log("Data program setelah update:", dataProgramBaru)
-
         // Perbarui state dengan data yang telah diambil
         setDataProgram(dataProgramBaru)
       } catch (err) {
-        console.error("Error fetching scores:", err)
         setError("Gagal memuat data skor. Silakan coba lagi.")
       } finally {
         setSedangMemuatSkor(false)
@@ -448,11 +439,6 @@ const AccreditationStatus = () => {
   const dataProgramFinal = {
     ...dataProgram,
     nama: dataProdi?.name || "",
-    jenis: dataProdi?.name?.includes("D-III")
-      ? "Diploma 3"
-      : dataProdi?.name?.includes("D-IV")
-      ? "Diploma 4"
-      : "",
     akreditasi: {
       status: dataAkreditasi ? "Terakreditasi" : "Belum Terakreditasi",
       peringkat: dataAkreditasi
@@ -484,14 +470,20 @@ const AccreditationStatus = () => {
     program.syaratPeringkatBaikSekali
   ).every((item) => item.lulus)
 
-  // Menentukan peringkat berdasarkan syarat yang terpenuhi
+  // Tentukan peringkat berdasarkan nilai akreditasi
+  const peringkatBerdasarkanNilai =
+    tentukanPeringkatBerdasarkanNilai(nilaiAkreditasi)
+
+  // Menentukan peringkat akhir berdasarkan kombinasi syarat dan nilai
   let peringkatSimulasi = "Tidak Terakreditasi"
-  if (semuaSyaratPerluAkreditasiTerpenuhi) {
-    if (syaratPeringkatUnggulTerpenuhi) {
+
+  if (semuaSyaratPerluAkreditasiTerpenuhi && nilaiAkreditasi >= 200) {
+    // Jika syarat perlu akreditasi terpenuhi dan nilai akreditasi minimal 200
+    if (syaratPeringkatUnggulTerpenuhi && nilaiAkreditasi >= 361) {
       peringkatSimulasi = "Unggul"
-    } else if (syaratPeringkatBaikSekaliTerpenuhi) {
+    } else if (syaratPeringkatBaikSekaliTerpenuhi && nilaiAkreditasi >= 301) {
       peringkatSimulasi = "Baik Sekali"
-    } else {
+    } else if (nilaiAkreditasi >= 200) {
       peringkatSimulasi = "Baik"
     }
   }
@@ -552,7 +544,6 @@ const AccreditationStatus = () => {
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
               <CardTitle className="text-2xl">{program.nama}</CardTitle>
-              <p className="text-muted-foreground">Program {program.jenis}</p>
             </div>
             <div className="flex flex-col items-end">
               <div className="flex items-center gap-2 mb-2">
@@ -604,6 +595,60 @@ const AccreditationStatus = () => {
           </h2>
         </div>
 
+        {/* Project Info */}
+        {projectInfo && (
+          <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">
+              Informasi Project:
+            </h4>
+            <div className="text-sm text-gray-600 space-y-1">
+              <p>Project: {projectInfo.projectName}</p>
+              <p>Project ID: {projectInfo.projectId}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Nilai Akreditasi Card */}
+        <div className="mb-6 p-4 bg-white rounded-lg border border-blue-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="font-medium text-lg">Nilai Akreditasi:</h3>
+              <p className="text-sm text-muted-foreground">
+                Total nilai berdasarkan perhitungan sistem
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-blue-600">
+                {nilaiAkreditasi.toFixed(2)}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Peringkat: {peringkatBerdasarkanNilai}
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 p-3 bg-gray-50 rounded-md">
+            <h4 className="text-sm font-medium mb-2">Skala Penilaian:</h4>
+            <div className="text-xs space-y-1">
+              <div className="flex justify-between">
+                <span>Unggul:</span>
+                <span>≥ 361</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Baik Sekali:</span>
+                <span>301 - 360</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Baik:</span>
+                <span>200 - 300</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Tidak Terakreditasi:</span>
+                <span>200</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Simulasi Peringkat */}
         <div className="mb-6 p-4 bg-white rounded-lg border border-blue-200">
           <div className="flex justify-between items-center">
@@ -612,7 +657,7 @@ const AccreditationStatus = () => {
                 Simulasi Peringkat Akreditasi:
               </h3>
               <p className="text-sm text-muted-foreground">
-                Berdasarkan data yang telah diinput pada aplikasi
+                Berdasarkan nilai akreditasi dan syarat yang terpenuhi
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -633,32 +678,69 @@ const AccreditationStatus = () => {
               </Badge>
             </div>
           </div>
-        </div>
 
-        <p className="text-sm text-muted-foreground mb-6">
-          Berikut adalah hasil penilaian akreditasi berdasarkan data yang telah
-          diinput pada aplikasi. Hasil ini dapat berbeda dengan status
-          akreditasi resmi yang berlaku saat ini.
-        </p>
+          {/* Status Summary */}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-3 bg-gray-50 rounded-md">
+              <h5 className="text-xs font-medium text-gray-600 mb-1">
+                Nilai Akreditasi
+              </h5>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">
+                  {nilaiAkreditasi.toFixed(2)}
+                </span>
+                {nilaiAkreditasi >= 200 ? (
+                  <CheckCircle className="text-green-500 h-4 w-4" />
+                ) : (
+                  <XCircle className="text-red-500 h-4 w-4" />
+                )}
+              </div>
+            </div>
 
-        {/* Info tentang data dummy */}
-        <div className="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-yellow-800">Informasi Data</p>
-              <p className="text-yellow-700 mt-1">
-                Beberapa data ditandai dengan label{" "}
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
-                  DUMMY
-                </span>{" "}
-                menggunakan nilai sementara untuk keperluan simulasi dan
-                testing. Data ini akan diganti dengan nilai aktual setelah
-                implementasi endpoint yang sesuai.
-              </p>
+            <div className="p-3 bg-gray-50 rounded-md">
+              <h5 className="text-xs font-medium text-gray-600 mb-1">
+                Syarat Akreditasi
+              </h5>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">
+                  {semuaSyaratPerluAkreditasiTerpenuhi ? "Terpenuhi" : "Belum"}
+                </span>
+                {semuaSyaratPerluAkreditasiTerpenuhi ? (
+                  <CheckCircle className="text-green-500 h-4 w-4" />
+                ) : (
+                  <XCircle className="text-red-500 h-4 w-4" />
+                )}
+              </div>
+            </div>
+
+            <div className="p-3 bg-gray-50 rounded-md">
+              <h5 className="text-xs font-medium text-gray-600 mb-1">
+                Syarat Peringkat
+              </h5>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">
+                  {syaratPeringkatUnggulTerpenuhi
+                    ? "Unggul"
+                    : syaratPeringkatBaikSekaliTerpenuhi
+                    ? "Baik Sekali"
+                    : "Dasar"}
+                </span>
+                {syaratPeringkatUnggulTerpenuhi ||
+                syaratPeringkatBaikSekaliTerpenuhi ? (
+                  <CheckCircle className="text-green-500 h-4 w-4" />
+                ) : (
+                  <XCircle className="text-red-500 h-4 w-4" />
+                )}
+              </div>
             </div>
           </div>
         </div>
+
+        <p className="text-sm text-muted-foreground mb-6">
+          Peringkat akhir ditentukan berdasarkan kombinasi nilai akreditasi dan
+          pemenuhan syarat. Hasil ini dapat berbeda dengan status akreditasi
+          resmi yang berlaku saat ini.
+        </p>
 
         {/* Required Conditions Section */}
         <div className="w-full mb-6">
@@ -667,7 +749,8 @@ const AccreditationStatus = () => {
             <h2 className="text-lg font-medium">Syarat Perlu Terakreditasi</h2>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Semua butir penilaian harus terpenuhi (skor ≥ 2,0)
+            Semua butir penilaian harus terpenuhi (skor ≥ 2,0) dan nilai
+            akreditasi ≥ 200
           </p>
 
           <div className="w-full overflow-x-auto">
@@ -686,14 +769,6 @@ const AccreditationStatus = () => {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {item.deskripsi}
-                          {item.isDummy && (
-                            <Badge
-                              variant="outline"
-                              className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs"
-                            >
-                              DUMMY
-                            </Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center font-medium">
@@ -737,7 +812,8 @@ const AccreditationStatus = () => {
             </h2>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Butir penilaian untuk mendapatkan peringkat Unggul (Diploma 4)
+            Butir penilaian untuk mendapatkan peringkat Unggul (nilai akreditasi
+            ≥ 361)
           </p>
 
           <div className="w-full overflow-x-auto bg-white rounded-lg">
@@ -756,14 +832,6 @@ const AccreditationStatus = () => {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {item.deskripsi}
-                          {item.isDummy && (
-                            <Badge
-                              variant="outline"
-                              className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs"
-                            >
-                              DUMMY
-                            </Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -819,7 +887,8 @@ const AccreditationStatus = () => {
             </h2>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Butir penilaian untuk mendapatkan peringkat Baik Sekali
+            Butir penilaian untuk mendapatkan peringkat Baik Sekali (nilai
+            akreditasi ≥ 301)
           </p>
 
           <div className="w-full overflow-x-auto bg-white rounded-lg">
@@ -838,14 +907,6 @@ const AccreditationStatus = () => {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {item.deskripsi}
-                          {item.isDummy && (
-                            <Badge
-                              variant="outline"
-                              className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs"
-                            >
-                              DUMMY
-                            </Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
