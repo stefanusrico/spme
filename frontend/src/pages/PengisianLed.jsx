@@ -141,7 +141,10 @@ const PengisianLed = () => {
     // Jika data LED tidak ditemukan, buat default
     if (!latestLedData && allDataLedItem.length && allDataTasks.length && userData?.id){
       const matchedLedItem = allDataLedItem.find(item => item.no === no && item.sub === sub);
-      const matchedTask = tasks.find(task => String(task.no )=== no && task.sub === sub);
+      let matchedTask = tasks.find(task => String(task.no) === no && task.sub === sub);
+      if(!matchedTask){
+        matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
+      }
       console.log("MASUK SINI")
       if (matchedLedItem && matchedTask) {
         const detailsArray = (matchedLedItem.details || [])
@@ -283,6 +286,26 @@ const PengisianLed = () => {
     setLedDataSelected(newIndex.toString())
   }
 
+  const progress = (() => {
+    if (!filteredLedData || !Array.isArray(filteredLedData.details)) return 0;
+
+    const total = filteredLedData.details.length;
+    if (total === 0) return 0;
+
+    const filledCount = filteredLedData.details.filter(detail => {
+      if (!detail.isianAsesi) return false;
+
+      try {
+        const parsed = JSON.parse(detail.isianAsesi);
+        return parsed.blocks && parsed.blocks.some(block => block.text.trim() !== "");
+      } catch (e) {
+        return false;
+      }
+    }).length;
+
+    return Number(((filledCount / total) * 100).toFixed(2));
+  })();
+
   if (isLoading) {
     return (
       <div
@@ -333,11 +356,7 @@ const PengisianLed = () => {
         />
 
         <BarProgress
-          progress={
-            filteredLedData && !isNaN(parseFloat(filteredLedData.nilai))
-              ? (parseFloat(filteredLedData.nilai) / 4) * 100
-              : 0
-          }
+          progress={progress}
           width={250}
           height={50}
         />

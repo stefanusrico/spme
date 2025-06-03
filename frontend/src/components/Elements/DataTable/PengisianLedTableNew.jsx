@@ -383,11 +383,11 @@ function PengisianLedTableNew({
             <textarea
               id={`masukan_${index}`}
               placeholder="Masukan dari GPT"
-              className="w-full p-2 border rounded-md min-h-[40px] resize-none"
+              className="w-full p-2 border rounded-md min-h-[80px] resize-none"
               value={dataIsian.masukan || ""}
               readOnly
               onInput={(e) => {
-                e.target.style.height = "40px"
+                e.target.style.height = "80px"
                 e.target.style.height = `${e.target.scrollHeight}px`
               }}
             ></textarea>

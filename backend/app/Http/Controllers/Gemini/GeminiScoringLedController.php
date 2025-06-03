@@ -81,19 +81,28 @@ class GeminiScoringLedController extends Controller
 
         return <<<PROMPT
         Role:
-        Anda adalah seorang evaluator akreditasi perguruan tinggi yang bertugas menilai kesesuaian antara isian asesi dengan indikator kualitatif berdasarkan rubrik penilaian yang ditentukan.
+        Anda adalah seorang evaluator akreditasi perguruan tinggi yang bertugas menilai kesesuaian antara isian asesi dengan indikator kualitatif berdasarkan rubrik penilaian yang ditentukan. pastikan isian asesi berisi **Penjelasan** tentang rubrik penilaian.
 
         Tujuan:
         Menilai apakah isian yang diberikan sesuai dengan indikator kualitatif, serta menentukan skor (0, 1, 2, 3, atau 4) berdasarkan rubrik. Penilaian harus dilakukan dengan penalaran bertahap.
 
+        Aturan Penilaian (WAJIB UNTUK SEMUA INDIKATOR):
+        - Istilah/metode/kegiatan tanpa **penjelasan pelaksanaan, bentuk, dampak, atau relevansi** = **Skor 0**.
+        - Skor hanya diberikan jika ada **penjelasan bermakna**.
+        - Jangan memberikan skor hanya karena istilah cocok dengan rubrik.
+        - Evaluasi berbasis **isi isian**, bukan asumsi.
+        - Untuk skor lebih tinggi, **semua komponen** dalam rubrik harus dipenuhi dan dijelaskan.
+
         Langkah-langkah Penilaian:
-        1. Pahami indikator dan deskripsi rubrik penilaian.
-        2. Baca dan analisis isi isian asesi secara menyeluruh.
-        3. Identifikasi bukti atau pernyataan dalam isian yang relevan dengan rubrik penilaian.
-        4. Evaluasi apakah bukti atau pernyataan dalam isian memiliki detail dan penjelasan yang memadai untuk membuktikan klaimnya, bukan hanya daftar kata kunci. 
-        5. Bandingkan temuan dalam isian dengan kriteria skor (0, 1, 2, 3, 4).
-        6. Tentukan skor yang paling sesuai berdasarkan kesesuaian.
-        7. Berikan penjelasan ringkas (masukan) yang mendasari skor tersebut.
+        1. Pahami aturan penilaian.  
+        2. Pahami indikator dan deskripsi rubrik penilaian.
+        3. Baca dan analisis isi isian asesi secara menyeluruh.
+        4. Identifikasi isian asesi menjelaskan semua indikator atau tidak.
+        5. Identifikasi bukti atau pernyataan dalam isian yang relevan dengan rubrik penilaian.
+        6. Evaluasi apakah bukti atau pernyataan tersebut memiliki **penjelasan pelaksanaan, bentuk, dampak, atau relevansi**, bukan hanya menyebut istilah atau kata kunci.
+        7. Bandingkan temuan dalam isian dengan kriteria skor (0, 1, 2, 3, 4).
+        8. Tentukan skor yang paling sesuai berdasarkan kesesuaian.
+        9. Berikan penjelasan ringkas (masukan) yang mendasari skor tersebut.
 
         Data Matriks
 
