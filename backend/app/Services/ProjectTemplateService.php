@@ -9,10 +9,13 @@ use App\Models\Prodi\Prodi;
 use App\Models\Project\TaskList;
 use App\Models\Project\Task;
 use App\Models\Lkps\LkpsTable;
+use App\Traits\ObjectIdConversion; 
 use Carbon\Carbon;
 
 class ProjectTemplateService
 {
+  use ObjectIdConversion; 
+
   protected $taskListController;
   protected $taskController;
 
@@ -42,37 +45,78 @@ class ProjectTemplateService
       throw new \Exception("Prodi does not have valid Strata ID");
     }
 
+    // Convert ObjectId to string for LedItem queries
+    $strataIdString = $service->convertObjectIdToString($strataId);
+
+    // Debug: Log detailed information
     \Log::info('Creating project template structure', [
       'projectId' => $projectId,
       'prodiId' => $prodi->_id,
       'prodiName' => $prodi->name,
-      'strataId' => $strataId
+      'strataId' => $strataId,
+      'strataIdString' => $strataIdString,
+      'strataIdType' => gettype($strataId),
+      'strataIdStringType' => gettype($strataIdString)
     ]);
 
-    $taskLists = $service->createTaskListsFromLedItems($projectId, $strataId);
-    $service->createTasksFromLedItems($projectId, $strataId);
-    $service->createLkpsTaskListAndTasks($projectId);
+    try {
+      $taskLists = $service->createTaskListsFromLedItems($projectId, $strataIdString);
+      $service->createTasksFromLedItems($projectId, $strataIdString);
+      $service->createLkpsTaskListAndTasks($projectId);
 
-    return $taskLists;
+      return $taskLists;
+    } catch (\Exception $e) {
+      \Log::error('Template creation failed: ' . $e->getMessage());
+
+      // Even if LED template fails, still create LKPS tasks
+      try {
+        $service->createLkpsTaskListAndTasks($projectId);
+        \Log::info('LKPS tasks created successfully despite LED failure');
+      } catch (\Exception $lkpsError) {
+        \Log::error('LKPS task creation also failed: ' . $lkpsError->getMessage());
+      }
+
+      throw $e;
+    }
   }
 
   private function createTaskListsFromLedItems($projectId, $strataId)
   {
-    $ledItemCount = LedItem::where('strataId', $strataId)
-      ->count();
+    // Ensure strataId is string for LedItem queries
+    $strataIdString = is_string($strataId) ? $strataId : $this->convertObjectIdToString($strataId);
 
-    \Log::info("Found {$ledItemCount} LedItem records for strataId: {$strataId}");
+    // Debug: Log strataId yang diterima
+    \Log::info("Debug: Received strataId for LedItem query: {$strataIdString}");
+    \Log::info("Debug: StrataId type: " . gettype($strataIdString));
 
-    if ($ledItemCount === 0) {
-      throw new \Exception("No LedItem data found for strataId: {$strataId}");
+    // Debug: Check if LedItem collection has any data at all
+    $totalLedItems = LedItem::count();
+    \Log::info("Debug: Total LedItem records in database: {$totalLedItems}");
+
+    // Debug: Get all unique strataIds from LedItem
+    $allStrataIds = LedItem::distinct('strataId')->pluck('strataId')->toArray();
+    \Log::info("Debug: All available strataIds in LedItem:", $allStrataIds);
+
+    // Debug: Try different query approaches
+    $ledItemCount1 = LedItem::where('strataId', $strataIdString)->count();
+    $ledItemCount2 = LedItem::where('strataId', '=', $strataIdString)->count();
+
+    \Log::info("Debug: Query results - exact match: {$ledItemCount1}, explicit equals: {$ledItemCount2}");
+
+    if ($ledItemCount1 === 0) {
+      // Try to find similar strataIds (case insensitive or slight variations)
+      $similarStrataIds = LedItem::whereRaw("LOWER(strataId) = ?", [strtolower($strataIdString)])->count();
+      \Log::info("Debug: Case insensitive match count: {$similarStrataIds}");
+
+      throw new \Exception("No LedItem data found for strataId: {$strataIdString}. Available strataIds: " . implode(', ', $allStrataIds));
     }
 
-    $allLedItemRecords = LedItem::where('strataId', $strataId)
-      ->get(['kriteria', 'no', 'sub']);
+    $allLedItemRecords = LedItem::where('strataId', $strataIdString)
+      ->get(['kriteria', 'no', 'sub', 'strataId']);
 
     \Log::info("Sample of first 5 LedItem records:", $allLedItemRecords->take(5)->toArray());
 
-    $uniqueCriteria = LedItem::where('strataId', $strataId)
+    $uniqueCriteria = LedItem::where('strataId', $strataIdString)
       ->whereNotNull('kriteria')
       ->distinct('kriteria')
       ->get(['kriteria'])
@@ -84,7 +128,7 @@ class ProjectTemplateService
     \Log::info("Found " . $uniqueCriteria->count() . " unique criteria values:", $uniqueCriteria->toArray());
 
     if ($uniqueCriteria->isEmpty()) {
-      $manualUniqueCriteria = LedItem::where('strataId', $strataId)
+      $manualUniqueCriteria = LedItem::where('strataId', $strataIdString)
         ->whereNotNull('kriteria')
         ->get(['kriteria'])
         ->pluck('kriteria')
@@ -96,7 +140,7 @@ class ProjectTemplateService
       \Log::info("Manual unique criteria check found " . $manualUniqueCriteria->count() . " values:", $manualUniqueCriteria->toArray());
 
       if ($manualUniqueCriteria->isEmpty()) {
-        throw new \Exception("No valid criteria found in LedItems for strataId: {$strataId}. Please check your LedItem data.");
+        throw new \Exception("No valid criteria found in LedItems for strataId: {$strataIdString}. Please check your LedItem data.");
       }
 
       $uniqueCriteria = $manualUniqueCriteria;
@@ -127,12 +171,15 @@ class ProjectTemplateService
 
   private function createTasksFromLedItems($projectId, $strataId)
   {
+    // Ensure strataId is string for LedItem queries
+    $strataIdString = is_string($strataId) ? $strataId : $this->convertObjectIdToString($strataId);
+
     $project = Project::find($projectId);
     if (!$project) {
       throw new \Exception("Project not found");
     }
 
-    $ledItems = LedItem::where('strataId', $strataId)
+    $ledItems = LedItem::where('strataId', $strataIdString)
       ->whereNotNull('kriteria')
       ->orderBy('kriteria')
       ->orderBy('no')
@@ -142,7 +189,7 @@ class ProjectTemplateService
     \Log::info("Found " . $ledItems->count() . " LED items for tasks");
 
     if ($ledItems->isEmpty()) {
-      throw new \Exception("No valid task items found in LedItems for strataId: {$strataId}");
+      throw new \Exception("No valid task items found in LedItems for strataId: {$strataIdString}");
     }
 
     $groupedByKriteria = $ledItems->groupBy('kriteria');
@@ -180,6 +227,7 @@ class ProjectTemplateService
         Task::create([
           'taskListId' => $taskList->_id,
           'ledItemId' => $item->_id,
+          'projectId' => $projectId, // Add this
           'nama' => $taskName,
           'progress' => 0,
           'status' => 'UNASSIGNED',
@@ -190,6 +238,7 @@ class ProjectTemplateService
       }
     }
   }
+
 
   private function getLkpsTableMapping()
   {
@@ -222,7 +271,6 @@ class ProjectTemplateService
       '3c' => 'C4',
 
       // Keuangan, Sarana, dan Prasarana
-
       '4a' => 'C5',
       '4b' => 'C5',
       '4c' => 'C5',
@@ -261,10 +309,8 @@ class ProjectTemplateService
       '8f5-4' => 'C9',
 
       // Penjaminan Mutu
-      '9a' => 'D',
-      '9b' => 'D',
-
-      'default' => 'Undefined'
+      '9a' => 'D3',
+      '9b' => 'D2',
     ];
   }
 
@@ -293,7 +339,13 @@ class ProjectTemplateService
 
     $tablesByKriteria = [];
     foreach ($lkpsTables as $table) {
-      $mappedKriteria = $tableMapping[$table->kode] ?? $tableMapping['default'];
+      // Gunakan array_key_exists atau isset untuk mengecek keberadaan key
+      if (!array_key_exists($table->kode, $tableMapping)) {
+        \Log::warning("Table code '{$table->kode}' not found in mapping. Skipping...");
+        continue;
+      }
+
+      $mappedKriteria = $tableMapping[$table->kode];
 
       if (!isset($tablesByKriteria[$mappedKriteria])) {
         $tablesByKriteria[$mappedKriteria] = [];
