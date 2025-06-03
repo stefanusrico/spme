@@ -17,10 +17,26 @@ use Exception;
 
 class ButirController extends Controller
 {
-    public function getSkorPerButir($projectId)
+    public function getSkorPerButir($prodiId)
     {
         try {
-            Log::debug("Start fetching data for projectId: $projectId");
+            Log::debug("Start fetching data for prodiId: $prodiId");
+
+            // Cari project terbaru berdasarkan prodiId
+            $latestProject = Project::where('prodiId', $prodiId)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (!$latestProject) {
+                Log::warning("No project found for prodiId: $prodiId");
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No project found for this prodi'
+                ], 404);
+            }
+
+            $projectId = $latestProject->id;
+            Log::debug("Found latest project: $projectId for prodiId: $prodiId");
 
             [$filteredLedData, $filteredLkpsData] = $this->fetchAndFilterData($projectId);
 
@@ -33,22 +49,22 @@ class ButirController extends Controller
             $calculator = new ScoreCalculator();
             $resultButir = $this->calculateScorePerButir($combinedData, $calculator);
             $resultButirBobot = $this->calculateScorePerButirBobot($resultButir, $calculator);
-            // $resultKriteria = $this->calculateScorePerKriteria($projectId, $resultButir, $calculator);
 
             $nilaiAkreditasi = round($resultButirBobot->sum(fn($d) => $d['nilai'] ?? 0.0), 2);
 
             return response()->json([
                 'status' => 'success',
+                'prodiId' => $prodiId,
+                'projectId' => $projectId,
+                'projectName' => $latestProject->name ?? null,
                 'nilaiAkreditasi' => $nilaiAkreditasi,
-                // 'count data per Kriteria' => $resultKriteria->count(),
-                // 'data per Kriteria' => $resultKriteria,
                 'count data per Butir setelah dihitung dengan bobot' => $resultButirBobot->count(),
-                'data per Butir setelah dihitung dengan bobot' => $resultButirBobot,
+                'data-dengan-bobot' => $resultButirBobot,
                 'count data per Butir sebelum dihitung dengan bobot' => $resultButir->count(),
-                'data per Butir sebelum dihitung dengan bobot' => $resultButir,
+                'data-tanpa-bobot' => $resultButir,
             ], 200);
         } catch (Exception $e) {
-            Log::error("Error in getSkorPerButir: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            Log::error("Error in getSkorPerButirByProdi: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
@@ -58,12 +74,14 @@ class ButirController extends Controller
         $ledData = LedData::latest()->get();
         $lkpsData = LkpsData::with('task.tasklist')->latest()->get();
 
-        $filteredLedData = $ledData->filter(fn($item) =>
+        $filteredLedData = $ledData->filter(
+            fn($item) =>
             $item->task && $item->task->tasklist &&
             $item->task->tasklist->projectId === $projectId
         );
 
-        $filteredLkpsData = $lkpsData->filter(fn($item) =>
+        $filteredLkpsData = $lkpsData->filter(
+            fn($item) =>
             $item->task && $item->task->tasklist->project &&
             $item->task->tasklist->projectId === $projectId
         );
@@ -139,11 +157,11 @@ class ButirController extends Controller
                 'nilai' => $calculator->hitungSkorBobotButir($no, $items),
             ];
         })
-        ->values()
-        ->sortBy(function ($item) {
-            return is_numeric($item['no']) ? (int) $item['no'] : PHP_INT_MAX;
-        })
-        ->values();
+            ->values()
+            ->sortBy(function ($item) {
+                return is_numeric($item['no']) ? (int) $item['no'] : PHP_INT_MAX;
+            })
+            ->values();
     }
 
     // private function calculateScorePerKriteria($projectId, $resultButir, $calculator)

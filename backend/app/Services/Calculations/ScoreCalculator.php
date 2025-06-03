@@ -12,9 +12,9 @@ class ScoreCalculator
             ->toArray();
 
         switch ($no) {
-            case '7': 
+            case '7':
             case '8':
-            case '15':  
+            case '15':
             case '42':
             case '52':
                 return $this->rumusAB_Bobot2($nilaiMap);
@@ -22,11 +22,11 @@ class ScoreCalculator
             case '10':
                 return $this->rumusA2B($nilaiMap);
 
-            case '13': 
+            case '13':
             case '33':
                 return $this->rataRataAB($nilaiMap);
 
-            case '14': 
+            case '14':
                 return $this->rumusA4B($nilaiMap);
 
             case '40':
@@ -92,7 +92,7 @@ class ScoreCalculator
         return round(array_values($nilai)[0] ?? 0.0, 2);
     }
 
-    public function hitungSkorKriteria(string $kriteria, array $items, array $bobotKriteria) : float
+    public function hitungSkorKriteria(string $kriteria, array $items, array $bobotKriteria): float
     {
         Log::debug("Hitung Skor Kriteria - Kriteria: $kriteria");
         Log::debug("Items:", $items);
@@ -109,18 +109,18 @@ class ScoreCalculator
             $itemNilai = isset($item['nilai']) ? (float) $item['nilai'] : 0.0;
             $nilai += $itemNilai * $bobot;
         }
-        
+
         Log::debug("Items JSON: " . json_encode($items, JSON_PRETTY_PRINT));
         Log::debug("BobotKriteria JSON: " . json_encode($bobotKriteria, JSON_PRETTY_PRINT));
-                return round($nilai, 2);
+        return round($nilai, 2);
     }
 
-    public function hitungSkorBobotButir(string $no, array $items) : float
+    public function hitungSkorBobotButir(string $no, array $items): float
     {
 
         $bobotButir = collect($this->bobotButir())->firstWhere('butir', (int) $no);
         $bobot = $bobotButir ? (float) $bobotButir['bobot'] : 0.0;
-        
+
         $nilai = 0.0;
         foreach ($items as $item) {
             $itemNilai = isset($item['nilai']) ? (float) $item['nilai'] : 0.0;
