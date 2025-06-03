@@ -3,55 +3,99 @@ export const PluginUtils = {
    * Filter baris data yang valid (bukan summary, bukan header)
    */
   filterDataRows(rawData) {
-    return rawData.filter((row) => {
-      if (!row?.length) return false
+    const infoKeywords = ["info:", "keterangan", "catatan", "summary"]
+    let tableEndColumn = -1
 
-      const nonEmptyValues = row.filter(
-        (val) => val !== undefined && val !== null && val !== ""
-      )
+    // Cek baris pertama (header) untuk menemukan kata kunci
+    if (rawData.length > 0) {
+      const headerRow = rawData[0]
 
-      if (nonEmptyValues.length <= 1) return false
-
-      // Skip baris jika semua nilai adalah angka
-      const allNumbers = nonEmptyValues.every(
-        (val) =>
-          typeof val === "number" ||
-          (typeof val === "string" && !isNaN(val) && val.trim() !== "")
-      )
-      if (allNumbers && nonEmptyValues.length > 0) return false
-
-      // Skip baris summary
-      const summaryLabels = ["jumlah", "total", "sum", "rata-rata", "average"]
-      const hasSummaryLabel = row.some((cell) => {
-        const normalized = String(cell || "")
+      for (let i = 0; i < headerRow.length; i++) {
+        const cellValue = String(headerRow[i] || "")
           .toLowerCase()
           .trim()
-        return summaryLabels.includes(normalized)
-      })
-      if (hasSummaryLabel) return false
 
-      // Tambahan: jika baris mengandung sel "info" dan sisanya seluruhnya angka,
-      // maka skip baris tersebut.
-      const containsInfo = row.some(
-        (cell) =>
-          String(cell || "")
-            .toLowerCase()
-            .trim() === "info"
-      )
-      if (containsInfo) {
-        const otherCells = nonEmptyValues.filter(
-          (val) => String(val).toLowerCase().trim() !== "info"
+        if (infoKeywords.some((keyword) => cellValue.includes(keyword))) {
+          tableEndColumn = i
+          break
+        }
+      }
+    }
+
+    // Jika tidak ditemukan, coba deteksi berdasarkan struktur data
+    if (tableEndColumn === -1) {
+      // Cari kolom dengan banyak cell kosong berturut-turut
+      for (
+        let col = 0;
+        col < Math.max(...rawData.map((r) => r.length));
+        col++
+      ) {
+        let consecutiveEmpty = 0
+
+        for (let row = 0; row < Math.min(rawData.length, 20); row++) {
+          if (!rawData[row][col] || rawData[row][col] === "") {
+            consecutiveEmpty++
+          } else {
+            consecutiveEmpty = 0
+          }
+
+          // Jika ada 5+ baris kosong berturut-turut, ini mungkin pemisah
+          if (consecutiveEmpty >= 5) {
+            tableEndColumn = col
+            break
+          }
+        }
+
+        if (tableEndColumn !== -1) break
+      }
+    }
+
+    const maxColumns = tableEndColumn > 0 ? tableEndColumn : 10
+
+    return rawData
+      .filter((row) => {
+        if (!row?.length) return false
+
+        // Potong row sampai batas tabel
+        const trimmedRow = row.slice(0, maxColumns)
+
+        const nonEmptyValues = trimmedRow.filter(
+          (val) => val !== undefined && val !== null && val !== ""
         )
-        const othersAllNumeric = otherCells.every(
+
+        if (nonEmptyValues.length <= 1) return false
+
+        // Skip baris jika semua nilai adalah angka
+        const allNumbers = nonEmptyValues.every(
           (val) =>
             typeof val === "number" ||
             (typeof val === "string" && !isNaN(val) && val.trim() !== "")
         )
-        if (othersAllNumeric && otherCells.length > 0) return false
-      }
+        if (allNumbers && nonEmptyValues.length > 0) return false
 
-      return true
-    })
+        // Skip baris summary
+        const summaryLabels = [
+          "jumlah",
+          "total",
+          "sum",
+          "rata-rata",
+          "average",
+          "kerjasama",
+          "internasional",
+          "tingkat",
+          "aktif",
+        ]
+        const hasSummaryLabel = trimmedRow.some((cell) => {
+          const normalized = String(cell || "")
+            .toLowerCase()
+            .trim()
+          return summaryLabels.includes(normalized)
+        })
+        if (hasSummaryLabel) return false
+
+        return true
+      })
+      .map((row) => row.slice(0, maxColumns))
   },
 
   /**
