@@ -52,7 +52,36 @@ class LedDataController extends Controller
      * untuk mendapatkan banyak data dari LED data menggunakan taskId dan prodiId
      * ini untuk menampilkan riwayat penyusunan LED
     **/
-    public function getByTask(Request $request)
+    public function getAllByTask(Request $request)
+    {
+        $taskId = $request->input('taskId');
+        $ledData = LedData::with('user', 'task')
+            ->where('taskId', $taskId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        if ($ledData->isEmpty()) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => "No data found with task ${taskId}"
+            ], 404);
+        }
+
+        foreach ($ledData as $ld) {
+            $ld->username = $ld->user?->name ?? 'Unknown';
+        }
+
+        return response()->json([
+            'status' => 'success', 
+            'data' => $ledData
+        ], 200);
+    }
+
+    /**
+     * untuk mendapatkan banyak data dari LED data menggunakan taskId dan prodiId
+     * ini untuk menampilkan riwayat penyusunan LED
+    **/
+    public function getLatestByTask(Request $request)
     {
         $taskId = $request->input('taskId');
         $ledData = LedData::with('user', 'task')

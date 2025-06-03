@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom"
 
 export const fetchLedDataByTaskId = async (taskId) => {
   try {
-    const responseVersion = await axiosInstance.get(`/led-data/get-by-task`,{ params: { 
+    const responseVersion = await axiosInstance.get(`/led-data/get-all-by-task`,{ params: { 
         taskId: taskId 
       }
     })
