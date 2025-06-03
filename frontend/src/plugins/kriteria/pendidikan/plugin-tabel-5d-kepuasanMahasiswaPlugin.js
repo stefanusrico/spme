@@ -138,6 +138,13 @@ export class KepuasanMahasiswaPlugin extends BasePlugin {
       scoreDetail: {
         TKMi: TKMiValues,
         TKM: parseFloat(TKM_persen_final.toFixed(2)),
+        details: [
+          {
+            no: 52,
+            sub: "A",
+            nilai: parseFloat(skorAkhir),
+          },
+        ],
       },
     }
   }

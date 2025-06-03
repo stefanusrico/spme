@@ -24,7 +24,7 @@ export class PengakuanRekognisiDtpsPlugin extends BasePlugin {
   }
 
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    const { rawData, detectedIndices, columnMap } = await processExcelDataBase(
       workbook,
       tableCode,
       config,
@@ -54,8 +54,34 @@ export class PengakuanRekognisiDtpsPlugin extends BasePlugin {
         if (colIndex === undefined || colIndex < 0) return
 
         const value = row[colIndex]
+        const column = columnMap[fieldName]
 
-        item[fieldName] = PluginUtils.normalizeTextField(value)
+        if (fieldName.startsWith("tingkat_")) {
+          // Special handling for tingkat fields - "V" means true
+          const stringValue = String(value || "")
+            .trim()
+            .toLowerCase()
+          item[fieldName] =
+            stringValue === "v" ||
+            stringValue === "✓" ||
+            stringValue === "x" ||
+            stringValue === "true" ||
+            value === true ||
+            value === 1
+        } else if (
+          fieldName === "pendidikan" ||
+          fieldName === "penelitian" ||
+          fieldName === "pkm" ||
+          (column && column.type === "boolean")
+        ) {
+          item[fieldName] = PluginUtils.parseBoolean(value)
+        } else if (column && column.type === "date") {
+          item[fieldName] = parseDateValue(value)
+        } else if (column && column.type === "number") {
+          item[fieldName] = PluginUtils.parseNumber(value)
+        } else {
+          item[fieldName] = PluginUtils.normalizeTextField(value)
+        }
       })
 
       return item
@@ -150,41 +176,51 @@ export class PengakuanRekognisiDtpsPlugin extends BasePlugin {
     }
   }
 
-  // FIX: Add method to validate rekognisi type
+  // Add this helper function at the top of the class
+  safeStringValue(value) {
+    if (value === null || value === undefined) return ""
+    return String(value).trim().toLowerCase()
+  }
+
+  // FIX: Update method to validate rekognisi type
   hasValidRekognisi(item) {
-    const rekognisi =
-      item.rekognisi_rekognisi_dan_bukti_pendukung?.toLowerCase() || ""
-    const bukti =
-      item.bukti_pendukung_rekognisi_dan_bukti_pendukung?.toLowerCase() || ""
-
-    // Check for valid rekognisi types based on criteria
-    const validTypes = [
-      "visiting lecturer",
-      "visiting scholar",
-      "keynote speaker",
-      "invited speaker",
-      "editor",
-      "mitra bestari",
-      "reviewer",
-      "staf ahli",
-      "narasumber",
-      "tenaga ahli",
-      "konsultan",
-      "penghargaan",
-      "prestasi",
-    ]
-
-    const hasValidType = validTypes.some(
-      (type) => rekognisi.includes(type) || bukti.includes(type)
+    // Use safe string conversion
+    const tingkatWilayah = this.safeStringValue(item.tingkat_wilayah)
+    const tingkatNasional = this.safeStringValue(item.tingkat_nasional)
+    const tingkatInternasional = this.safeStringValue(
+      item.tingkat_internasional
     )
 
-    // Check for tingkat (level)
-    const hasValidLevel =
-      item.tingkat_wilayah?.trim() ||
-      item.tingkat_nasional?.trim() ||
-      item.tingkat_interna_sional?.trim()
+    // Check if any tingkat field has valid value (same logic as kerjasama plugin)
+    const hasValidTingkatWilayah =
+      tingkatWilayah === "v" ||
+      tingkatWilayah === "✓" ||
+      tingkatWilayah === "x" ||
+      tingkatWilayah === "true" ||
+      item.tingkat_wilayah === true ||
+      item.tingkat_wilayah === 1
 
-    return hasValidType && hasValidLevel
+    const hasValidTingkatNasional =
+      tingkatNasional === "v" ||
+      tingkatNasional === "✓" ||
+      tingkatNasional === "x" ||
+      tingkatNasional === "true" ||
+      item.tingkat_nasional === true ||
+      item.tingkat_nasional === 1
+
+    const hasValidTingkatInternasional =
+      tingkatInternasional === "v" ||
+      tingkatInternasional === "✓" ||
+      tingkatInternasional === "x" ||
+      tingkatInternasional === "true" ||
+      item.tingkat_internasional === true ||
+      item.tingkat_internasional === 1
+
+    return (
+      hasValidTingkatWilayah ||
+      hasValidTingkatNasional ||
+      hasValidTingkatInternasional
+    )
   }
 
   // FIX: Add method to get detailed rekognisi analysis
@@ -327,9 +363,6 @@ export class PengakuanRekognisiDtpsPlugin extends BasePlugin {
         "bidang_keahlian",
         "rekognisi_rekognisi_dan_bukti_pendukung",
         "bukti_pendukung_rekognisi_dan_bukti_pendukung",
-        "tingkat_wilayah",
-        "tingkat_nasional",
-        "tingkat_interna_sional",
         "tahun_yyyy",
       ]
 

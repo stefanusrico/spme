@@ -1,9 +1,8 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
 import { processExcelDataBase } from "../../../utils/tableUtils"
-import { fetchScoreDetails } from "../../../utils/fetchScoreDetail"
 import axiosInstance from "../../../utils/axiosConfig"
-import { message } from "antd"
+import { fetchScoreDetails } from "../../../utils/fetchScoreDetail"
 
 const parseDateValue = (value, defaultValue = "") => {
   if (value === null || value === undefined || value === "") {
@@ -56,7 +55,7 @@ export class TridharmaPlugin extends BasePlugin {
 
     const processedData = filteredData.map((row, index) => {
       const item = {
-        key: `excel-${index + 1}`,
+        key: `excel-${index + 1}-${Date.now()}`,
         no: index + 1,
         selected: false,
         tingkat_internasional: false,
@@ -74,8 +73,19 @@ export class TridharmaPlugin extends BasePlugin {
         const value = row[colIndex]
         const column = columnMap[fieldName]
 
-        if (
-          fieldName.startsWith("tingkat_") ||
+        if (fieldName.startsWith("tingkat_")) {
+          // Special handling for tingkat fields - "V" means true
+          const stringValue = String(value || "")
+            .trim()
+            .toLowerCase()
+          item[fieldName] =
+            stringValue === "v" ||
+            stringValue === "✓" ||
+            stringValue === "x" ||
+            stringValue === "true" ||
+            value === true ||
+            value === 1
+        } else if (
           fieldName === "pendidikan" ||
           fieldName === "penelitian" ||
           fieldName === "pkm" ||
@@ -110,146 +120,362 @@ export class TridharmaPlugin extends BasePlugin {
       pppIndices.pkm !== -1
     ) {
       if (sectionCode === "1-1") {
-        return { allRows: processedData.filter((item) => item.pendidikan) }
+        return {
+          allRows: processedData.filter((item) => item.pendidikan),
+          shouldReplaceExisting: true,
+        }
       } else if (sectionCode === "1-2") {
-        return { allRows: processedData.filter((item) => item.penelitian) }
+        return {
+          allRows: processedData.filter((item) => item.penelitian),
+          shouldReplaceExisting: true,
+        }
       } else if (sectionCode === "1-3") {
-        return { allRows: processedData.filter((item) => item.pkm) }
+        return {
+          allRows: processedData.filter((item) => item.pkm),
+          shouldReplaceExisting: true,
+        }
       }
     }
 
-    return { allRows: processedData }
+    return {
+      allRows: processedData,
+      shouldReplaceExisting: true,
+    }
   }
 
   async calculateScore(data, config, additionalData = {}) {
-    const forceCalculation = additionalData.forcedCalculation === true
-
-    if (!forceCalculation) {
-      return {
-        skipped: true,
-        message: "Tridharma calculations only performed during save",
-      }
-    }
-
     try {
-      // Check if all sections are saved
-      const allSaved = await this.checkAllSectionsSaved(additionalData.userData)
+      // Only calculate from selected data
+      const selectedData = data.filter((item) => item.selected === true)
 
-      if (!allSaved) {
+      // Get current section code
+      const sectionCode =
+        additionalData.sectionCode || this.determineSectionCode(data)
+
+      if (!sectionCode || !["1-1", "1-2", "1-3"].includes(sectionCode)) {
         return {
-          score: null,
-          scoreDetail: null,
-          message:
-            "Score will be calculated after all sections 1-1, 1-2, and 1-3 are saved.",
-        }
-      }
-
-      // Get NDTPS from section 3a1
-      const scoreDetailsResponse = await fetchScoreDetails("3a1")
-      const NDTPS = scoreDetailsResponse?.NDTPS || 0
-
-      if (NDTPS === 0) {
-        return {
-          score: 0,
-          scoreDetail: { NDTPS: 0 },
-          message: "NDTPS is 0, cannot calculate score",
-        }
-      }
-
-      // Get data from all sections
-      const sectionData = await this.fetchAllSectionsData(
-        additionalData.userData
-      )
-      if (!sectionData) {
-        return { score: 0, scoreDetail: {} }
-      }
-
-      // Calculate variables from each section
-      const vars1 = this.extractVariables(sectionData["1-1"])
-      const vars2 = this.extractVariables(sectionData["1-2"])
-      const vars3 = this.extractVariables(sectionData["1-3"])
-
-      // Get activity counts (N1, N2, N3)
-      const N1 = vars1.N1 || 0
-      const N2 = vars2.N2 || 0
-      const N3 = vars3.N3 || 0
-
-      // Count cooperation levels across all data
-      const allData = [
-        ...(sectionData["1-1"] || []),
-        ...(sectionData["1-2"] || []),
-        ...(sectionData["1-3"] || []),
-      ]
-
-      let NI = 0,
-        NN = 0,
-        NW = 0
-      allData.forEach((row) => {
-        if (row.tingkat_internasional === true) NI++
-        else if (row.tingkat_nasional === true) NN++
-        else if (row.tingkat_lokal_wilayah === true) NW++
-      })
-
-      // Calculate scores using simple formulas
-      // Score A formula
-      const RK = (2 * N1 + 1 * N2 + 3 * N3) / NDTPS
-      let scoreA = 0
-      if (RK >= 1) {
-        scoreA = 4
-      } else {
-        scoreA = Math.min(4, 2 + 2 * RK)
-      }
-
-      // Score B formula
-      const A = NI / 1
-      const B = NN / 4
-      const C = NW / 6
-      let scoreB = 0
-      if (A >= 1) {
-        scoreB = 4
-      } else if (A < 1 && B >= 1) {
-        scoreB = 3 + A
-      } else if (A < 1 && B < 1 && C >= 1) {
-        scoreB = 2 + A + B
-      } else {
-        scoreB = 2 * (A + B + C)
-      }
-
-      const finalScore = scoreA
-
-      const scoreDetail = {
-        scoreA: PluginUtils.roundToDecimal(scoreA),
-        scoreB: PluginUtils.roundToDecimal(scoreB),
-        N1,
-        N2,
-        N3,
-        NI,
-        NN,
-        NW,
-        RK: PluginUtils.roundToDecimal(RK),
-        NDTPS,
-      }
-
-      // Update scores in all sections
-      await this.updateAllSectionsScore(finalScore, additionalData.userData)
-
-      return {
-        scores: [
-          {
-            butir: 10,
-            nilai: PluginUtils.roundToDecimal(finalScore),
+          scores: [{ butir: 10, nilai: 0 }],
+          scoreDetail: {
+            error: "Invalid section code for Tridharma calculation",
+            sectionCode,
           },
-        ],
-        scoreDetail,
+        }
+      }
+
+      // Calculate individual section metrics for current section
+      const sectionMetrics = this.calculateSectionMetrics(
+        selectedData,
+        sectionCode
+      )
+
+      // Get previous sections' score details
+      const previousSectionsDetails = await this.getPreviousSectionsDetails(
+        sectionCode,
+        additionalData.projectId
+      )
+
+      // For section 1-3, calculate final score
+      if (sectionCode === "1-3") {
+        // Fetch NDTPS from table 3a1
+        const responseScoreDetail = await this.fetchScoreDetails(
+          "3a1",
+          additionalData.projectId
+        )
+
+        if (!responseScoreDetail) {
+          console.warn('fetchScoreDetails("3a1") did not return any data')
+          return {
+            scores: [{ butir: 10, nilai: 0 }],
+            scoreDetail: {
+              error: "Cannot fetch NDTPS from table 3a1",
+              ...sectionMetrics,
+              previousSections: previousSectionsDetails,
+            },
+          }
+        }
+
+        const NDTPS = responseScoreDetail?.NDTPS || 10
+
+        // Calculate final score using all sections' data
+        const finalScoreResult = this.calculateFinalScoreFromAllDetails(
+          previousSectionsDetails,
+          sectionMetrics,
+          NDTPS
+        )
+
+        return {
+          ...finalScoreResult,
+          scoreDetail: {
+            ...finalScoreResult.scoreDetail,
+            currentSection: sectionMetrics,
+            previousSections: previousSectionsDetails,
+          },
+        }
+      }
+
+      // For sections 1-1 and 1-2, just return section metrics with previous details
+      return {
+        scores: [{ butir: 10, nilai: 0 }], // Individual sections don't have final score
+        scoreDetail: {
+          ...sectionMetrics,
+          selectedCount: selectedData.length,
+          totalCount: data.length,
+          message: `Score detail calculated for section ${sectionCode}`,
+          previousSections: previousSectionsDetails,
+        },
       }
     } catch (error) {
       console.error("Error calculating score:", error)
       return {
-        score: 0,
-        scoreDetail: {},
-        error: error.message,
+        scores: [{ butir: 10, nilai: 0 }],
+        scoreDetail: {
+          error: error.message,
+          selectedCount: data.filter((item) => item.selected).length,
+          totalCount: data.length,
+        },
       }
     }
+  }
+
+  async getPreviousSectionsDetails(currentSectionCode, projectId) {
+    const previousSections = []
+
+    // Define which sections to fetch based on current section
+    const sectionsToFetch = []
+    if (currentSectionCode === "1-2") {
+      sectionsToFetch.push("1-1")
+    } else if (currentSectionCode === "1-3") {
+      sectionsToFetch.push("1-1", "1-2")
+    }
+
+    // Fetch score details for each previous section
+    for (const sectionCode of sectionsToFetch) {
+      try {
+        const scoreDetail = await this.fetchScoreDetails(sectionCode, projectId)
+        if (scoreDetail) {
+          previousSections.push({
+            sectionCode,
+            ...scoreDetail,
+          })
+        }
+      } catch (error) {
+        console.warn(
+          `Failed to fetch score details for section ${sectionCode}:`,
+          error
+        )
+      }
+    }
+
+    return previousSections
+  }
+
+  calculateFinalScoreFromAllDetails(
+    previousSectionsDetails,
+    currentSectionMetrics,
+    NDTPS
+  ) {
+    // Extract N1, N2, N3 from all sections
+    let N1 = 0,
+      N2 = 0,
+      N3 = 0
+    let totalNI = 0,
+      totalNN = 0,
+      totalNW = 0
+
+    // Process previous sections (1-1 and 1-2)
+    previousSectionsDetails.forEach((section) => {
+      if (
+        section.sectionCode === "1-1" &&
+        section.activityCount !== undefined
+      ) {
+        N1 = section.activityCount || 0
+        totalNI += section.NI || 0
+        totalNN += section.NN || 0
+        totalNW += section.NW || 0
+      } else if (
+        section.sectionCode === "1-2" &&
+        section.activityCount !== undefined
+      ) {
+        N2 = section.activityCount || 0
+        totalNI += section.NI || 0
+        totalNN += section.NN || 0
+        totalNW += section.NW || 0
+      }
+    })
+
+    // Add current section (1-3) metrics
+    N3 = currentSectionMetrics.activityCount || 0
+    totalNI += currentSectionMetrics.NI || 0
+    totalNN += currentSectionMetrics.NN || 0
+    totalNW += currentSectionMetrics.NW || 0
+
+    // Calculate Elemen A: Kerjasama pendidikan, penelitian, dan PkM
+    const a = 3,
+      b = 1,
+      c = 2
+    const RK = (a * N1 + b * N2 + c * N3) / NDTPS
+    const elementA = RK >= 4 ? 4 : RK
+
+    // Calculate Elemen B: Kerjasama tingkat internasional, nasional, wilayah/lokal
+    const factorA = 2,
+      factorB = 6,
+      factorC = 8
+    let elementB = 0
+
+    if (totalNI > factorA && totalNN > factorB) {
+      elementB = 4
+    } else if (
+      (totalNI > 0 && totalNI <= factorA) ||
+      (totalNN > 0 && totalNN <= factorB) ||
+      (totalNW > 0 && totalNW <= factorC)
+    ) {
+      // Apply constraints from the formula
+      let adjustedNI = totalNI
+      let adjustedNN = totalNN
+
+      // Constraint rules from the matrix
+      if (totalNI >= factorA && totalNN < factorB) {
+        adjustedNI = factorA
+      }
+      if (totalNI < factorA && totalNN >= factorB) {
+        adjustedNN = factorB
+      }
+
+      const A = adjustedNI / factorA
+      const B = adjustedNN / factorB
+      const C = totalNW / factorC
+
+      // Formula from the matrix
+      elementB =
+        3.75 *
+        (A + B + C / 2 - A * B - (A * C) / 2 - (B * C) / 2 + (A * B * C) / 2)
+      elementB = Math.max(0, Math.min(4, elementB)) // Ensure score is between 0 and 4
+    }
+
+    // Calculate final score: ((2 x A) + B) / 3
+    const finalScore = (2 * elementA + elementB) / 3
+
+    return {
+      scores: [
+        {
+          butir: 10,
+          nilai: PluginUtils.roundToDecimal(finalScore, 2),
+        },
+      ],
+      scoreDetail: {
+        // Elemen A data
+        N1,
+        N2,
+        N3,
+        RK: PluginUtils.roundToDecimal(RK, 3),
+        elementA: PluginUtils.roundToDecimal(elementA, 2),
+
+        // Elemen B data
+        NI: totalNI,
+        NN: totalNN,
+        NW: totalNW,
+        elementB: PluginUtils.roundToDecimal(elementB, 2),
+
+        // Final calculation
+        NDTPS,
+        finalScore: PluginUtils.roundToDecimal(finalScore, 2),
+        formula: "Skor = ((2 x A) + B) / 3",
+
+        // Calculation breakdown
+        calculationBreakdown: {
+          "RK = ((3 x N1) + (1 x N2) + (2 x N3)) / NDTPS": `((3 x ${N1}) + (1 x ${N2}) + (2 x ${N3})) / ${NDTPS} = ${PluginUtils.roundToDecimal(
+            RK,
+            3
+          )}`,
+          "Element A":
+            RK >= 4
+              ? "4 (karena RK ≥ 4)"
+              : `${PluginUtils.roundToDecimal(elementA, 2)} (karena RK < 4)`,
+          "Element B": `${PluginUtils.roundToDecimal(
+            elementB,
+            2
+          )} (berdasarkan tingkat kerjasama)`,
+          "Final Score": `((2 x ${PluginUtils.roundToDecimal(
+            elementA,
+            2
+          )}) + ${PluginUtils.roundToDecimal(
+            elementB,
+            2
+          )}) / 3 = ${PluginUtils.roundToDecimal(finalScore, 2)}`,
+        },
+      },
+    }
+  }
+
+  calculateSectionMetrics(data, sectionCode) {
+    // Count cooperation levels
+    let NI = 0,
+      NN = 0,
+      NW = 0
+    data.forEach((row) => {
+      if (row.tingkat_internasional === true) NI++
+      else if (row.tingkat_nasional === true) NN++
+      else if (row.tingkat_lokal_wilayah === true) NW++
+    })
+
+    // Count activity types
+    let activityCount = 0
+    let activityType = ""
+
+    switch (sectionCode) {
+      case "1-1":
+        activityCount = data.filter((item) => item.pendidikan === true).length
+        activityType = "N1 (Kerjasama Pendidikan)"
+        break
+      case "1-2":
+        activityCount = data.filter((item) => item.penelitian === true).length
+        activityType = "N2 (Kerjasama Penelitian)"
+        break
+      case "1-3":
+        activityCount = data.filter((item) => item.pkm === true).length
+        activityType = "N3 (Kerjasama PkM)"
+        break
+    }
+
+    return {
+      sectionCode,
+      activityType,
+      activityCount,
+      NI,
+      NN,
+      NW,
+      totalKerjasama: data.length,
+    }
+  }
+
+  // Helper method to determine section code from data
+  determineSectionCode(data) {
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return null
+    }
+
+    // Check which type of activity is predominant
+    const pendidikanCount = data.filter(
+      (item) => item.pendidikan === true
+    ).length
+    const penelitianCount = data.filter(
+      (item) => item.penelitian === true
+    ).length
+    const pkmCount = data.filter((item) => item.pkm === true).length
+
+    if (
+      pendidikanCount > 0 &&
+      pendidikanCount >= penelitianCount &&
+      pendidikanCount >= pkmCount
+    ) {
+      return "1-1"
+    } else if (penelitianCount > 0 && penelitianCount >= pkmCount) {
+      return "1-2"
+    } else if (pkmCount > 0) {
+      return "1-3"
+    }
+
+    return null
   }
 
   normalizeData(data) {
@@ -260,6 +486,7 @@ export class TridharmaPlugin extends BasePlugin {
 
       // Normalize boolean fields
       const booleanFields = [
+        "selected",
         "tingkat_internasional",
         "tingkat_nasional",
         "tingkat_lokal_wilayah",
@@ -270,6 +497,42 @@ export class TridharmaPlugin extends BasePlugin {
 
       booleanFields.forEach((field) => {
         updatedRow[field] = PluginUtils.parseBoolean(updatedRow[field])
+      })
+
+      // Normalize numeric fields
+      const numericFields = ["no", "durasi_dalam_tahun"]
+
+      numericFields.forEach((field) => {
+        if (updatedRow[field] !== undefined) {
+          updatedRow[field] = PluginUtils.parseNumber(updatedRow[field], 0)
+        }
+      })
+
+      // Normalize text fields
+      const textFields = [
+        "lembaga_mitra",
+        "judul_kegiatan_kerjasama",
+        "manfaat_bagi_ps_yang_diakreditasi",
+        "status_kerjasama",
+        "bukti_kerjasama",
+      ]
+
+      textFields.forEach((field) => {
+        if (updatedRow[field] !== undefined) {
+          updatedRow[field] = PluginUtils.normalizeTextField(updatedRow[field])
+        }
+      })
+
+      // Normalize date fields
+      const dateFields = [
+        "tanggal_awal_kerjasama_hh_bb_tttt",
+        "tanggal_akhir_kerjasama_hh_bb_tttt",
+      ]
+
+      dateFields.forEach((field) => {
+        if (updatedRow[field] !== undefined) {
+          updatedRow[field] = parseDateValue(updatedRow[field])
+        }
       })
 
       // Ensure at least one tingkat is selected
@@ -289,17 +552,40 @@ export class TridharmaPlugin extends BasePlugin {
     const errors = []
 
     data.forEach((item, index) => {
-      const hasTingkat =
-        item.tingkat_internasional ||
-        item.tingkat_nasional ||
-        item.tingkat_lokal_wilayah
+      // Validate required fields for selected items only
+      if (item.selected) {
+        if (!item.lembaga_mitra) {
+          errors.push(`Row ${index + 1}: Lembaga mitra harus diisi`)
+        }
 
-      if (!hasTingkat) {
-        errors.push(
-          `Row ${
-            index + 1
-          }: Harus memilih minimal satu tingkat (Internasional/Nasional/Lokal)`
-        )
+        if (!item.judul_kegiatan_kerjasama) {
+          errors.push(`Row ${index + 1}: Judul kegiatan kerjasama harus diisi`)
+        }
+
+        // Validate tingkat selection
+        const hasTingkat =
+          item.tingkat_internasional ||
+          item.tingkat_nasional ||
+          item.tingkat_lokal_wilayah
+
+        if (!hasTingkat) {
+          errors.push(
+            `Row ${
+              index + 1
+            }: Harus memilih minimal satu tingkat (Internasional/Nasional/Lokal)`
+          )
+        }
+
+        // Validate activity type
+        const hasActivity = item.pendidikan || item.penelitian || item.pkm
+
+        if (!hasActivity) {
+          errors.push(
+            `Row ${
+              index + 1
+            }: Harus memilih minimal satu jenis kegiatan (Pendidikan/Penelitian/PkM)`
+          )
+        }
       }
     })
 
@@ -310,7 +596,6 @@ export class TridharmaPlugin extends BasePlugin {
   }
 
   // Helper methods
-
   detectPPP(jsonData, headerRowIndex) {
     const result = { pendidikan: -1, penelitian: -1, pkm: -1 }
     const maxRows = Math.min(headerRowIndex + 3, jsonData.length)
@@ -336,100 +621,12 @@ export class TridharmaPlugin extends BasePlugin {
     return result
   }
 
-  extractVariables(data) {
-    if (!data || !Array.isArray(data)) {
-      return { NI: 0, NN: 0, NW: 0, N1: 0, N2: 0, N3: 0 }
-    }
-
-    return {
-      NI: data.filter((item) => item.tingkat_internasional === true).length,
-      NN: data.filter((item) => item.tingkat_nasional === true).length,
-      NW: data.filter((item) => item.tingkat_lokal_wilayah === true).length,
-      N1: data.filter((item) => item.pendidikan === true).length,
-      N2: data.filter((item) => item.penelitian === true).length,
-      N3: data.filter((item) => item.pkm === true).length,
-    }
-  }
-
-  async checkAllSectionsSaved(userData) {
+  async fetchScoreDetails(tableCode, projectId) {
     try {
-      const sections = ["1-1", "1-2", "1-3"]
-      const requests = sections.map((section) =>
-        axiosInstance.get(`/lkps/sections/${section}/data`, {
-          params: { prodiId: userData?.prodiId },
-        })
-      )
-
-      await Promise.all(requests)
-      return true
+      return await fetchScoreDetails(tableCode, projectId)
     } catch (error) {
-      console.error("Error checking sections:", error)
-      return false
-    }
-  }
-
-  async fetchAllSectionsData(userData) {
-    try {
-      const sections = ["1-1", "1-2", "1-3"]
-      const results = {}
-
-      for (const section of sections) {
-        const response = await axiosInstance.get(
-          `/lkps/sections/${section}/data`,
-          {
-            params: { prodiId: userData?.prodiId },
-          }
-        )
-
-        // Get table data from response
-        const tableData = response.data?.tables
-        if (tableData) {
-          const tableKey = Object.keys(tableData)[0]
-          results[section] = this.normalizeData(tableData[tableKey] || [])
-        } else {
-          results[section] = []
-        }
-      }
-
-      return results
-    } catch (error) {
-      console.error("Error fetching section data:", error)
+      console.error(`Error fetching score details for ${tableCode}:`, error)
       return null
-    }
-  }
-
-  async updateAllSectionsScore(score, userData) {
-    try {
-      const sections = ["1-1", "1-2", "1-3"]
-
-      for (const section of sections) {
-        const response = await axiosInstance.get(
-          `/lkps/sections/${section}/data`,
-          {
-            params: { prodiId: userData?.prodiId },
-          }
-        )
-
-        if (response.data?.tables) {
-          const tableKey = Object.keys(response.data.tables)[0]
-          const tableData = response.data.tables[tableKey] || []
-
-          const payload = {
-            prodiId: userData?.prodiId,
-            score: score,
-            [tableKey]: tableData,
-          }
-
-          await axiosInstance.post(`/lkps/sections/${section}/data`, payload)
-          console.log(`Score for section ${section} updated to ${score}`)
-        }
-      }
-
-      message.success(`Semua data tersimpan! Skor akhir: ${score}`)
-      return true
-    } catch (error) {
-      console.error("Error updating scores:", error)
-      return false
     }
   }
 }

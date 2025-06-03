@@ -18,6 +18,10 @@ export class MahasiswaAsingPlugin extends BasePlugin {
     }
   }
 
+  hasDefaultData() {
+    return false
+  }
+
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
     console.log(
       `Processing Excel data for Mahasiswa Asing table (${tableCode})...`
@@ -68,20 +72,20 @@ export class MahasiswaAsingPlugin extends BasePlugin {
           ts_jumlah_mahasiswa_asing_paruh_waktu_part_time: 0,
         }
 
-        if (detectedIndices && typeof detectedIndices === "object") {
-          Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
-            if (colIndex === undefined || colIndex < 0 || !Array.isArray(row))
-              return
+        // Map Excel data using detectedIndices
+        Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
+          if (colIndex === undefined || colIndex < 0) return
 
-            const value = row[colIndex]
+          const value = row[colIndex]
 
-            if (fieldName === "program_studi" || fieldName === "no") {
-              item[fieldName] = PluginUtils.normalizeTextField(value)
-            } else {
-              item[fieldName] = PluginUtils.parseNumber(value, 0)
-            }
-          })
-        }
+          if (fieldName === "program_studi" || fieldName === "no") {
+            item[fieldName] = PluginUtils.normalizeTextField(value)
+          } else if (this.getNumericFields().includes(fieldName)) {
+            item[fieldName] = PluginUtils.parseNumber(value, 0)
+          } else {
+            item[fieldName] = PluginUtils.normalizeTextField(value)
+          }
+        })
 
         return item
       })
@@ -100,14 +104,12 @@ export class MahasiswaAsingPlugin extends BasePlugin {
   }
 
   /**
-   * Process field values to ensure correct data types during data entry
+   * Get list of numeric fields
+   * @returns {Array} - Array of numeric field names
    */
-  processFieldValue(field, value, sectionCode) {
-    // Text fields that should remain as strings
-    const textFields = ["program_studi"]
-
-    // Numeric fields that should be converted to numbers
-    const numericFields = [
+  getNumericFields() {
+    return [
+      "no",
       "ts_2_jumlah_mahasiswa_aktif",
       "ts_1_jumlah_mahasiswa_aktif",
       "ts_jumlah_mahasiswa_aktif",
@@ -118,6 +120,22 @@ export class MahasiswaAsingPlugin extends BasePlugin {
       "ts_1_jumlah_mahasiswa_asing_paruh_waktu_part_time",
       "ts_jumlah_mahasiswa_asing_paruh_waktu_part_time",
     ]
+  }
+
+  /**
+   * Get list of text fields
+   * @returns {Array} - Array of text field names
+   */
+  getTextFields() {
+    return ["program_studi"]
+  }
+
+  /**
+   * Process field values to ensure correct data types during data entry
+   */
+  processFieldValue(field, value, sectionCode) {
+    const textFields = this.getTextFields()
+    const numericFields = this.getNumericFields()
 
     if (textFields.includes(field)) {
       return PluginUtils.normalizeTextField(value)
@@ -134,11 +152,13 @@ export class MahasiswaAsingPlugin extends BasePlugin {
     let totalInternationalStudents = 0
 
     data.forEach((item) => {
+      // Total active students across all periods
       totalStudents +=
         parseFloat(item.ts_2_jumlah_mahasiswa_aktif || 0) +
         parseFloat(item.ts_1_jumlah_mahasiswa_aktif || 0) +
         parseFloat(item.ts_jumlah_mahasiswa_aktif || 0)
 
+      // Total international students (full-time + part-time) across all periods
       totalInternationalStudents +=
         parseFloat(
           item.ts_2_jumlah_mahasiswa_asing_penuh_waktu_full_time || 0
@@ -156,30 +176,42 @@ export class MahasiswaAsingPlugin extends BasePlugin {
         parseFloat(item.ts_jumlah_mahasiswa_asing_paruh_waktu_part_time || 0)
     })
 
+    // Calculate percentage
     const percentage =
       totalStudents > 0 ? (totalInternationalStudents / totalStudents) * 100 : 0
 
-    let score
+    // Calculate score based on percentage
+    let score = 0
     if (percentage >= 1) {
       score = 4
     } else {
       score = (percentage / 1) * 4
     }
 
-    // Round score to 2 decimal places
-    const roundToTwo = (num) => Math.round((num + Number.EPSILON) * 100) / 100
-
     return {
       scores: [
         {
           butir: 14,
-          nilai: roundToTwo(score),
+          nilai: PluginUtils.roundToDecimal(score, 2),
         },
       ],
       scoreDetail: {
         totalStudents,
         totalInternationalStudents,
-        percentageInternational: roundToTwo(percentage) + "%",
+        percentageInternational: PluginUtils.roundToDecimal(percentage, 2),
+        formula: "Skor = (Persentase Mahasiswa Asing / 1%) × 4, maksimal 4",
+        calculationBreakdown: {
+          "Total Mahasiswa Aktif": totalStudents,
+          "Total Mahasiswa Asing": totalInternationalStudents,
+          Persentase: `${PluginUtils.roundToDecimal(percentage, 2)}%`,
+          Skor:
+            percentage >= 1
+              ? "4 (karena ≥ 1%)"
+              : `(${PluginUtils.roundToDecimal(
+                  percentage,
+                  2
+                )}% / 1%) × 4 = ${PluginUtils.roundToDecimal(score, 2)}`,
+        },
       },
     }
   }
@@ -188,19 +220,8 @@ export class MahasiswaAsingPlugin extends BasePlugin {
     if (!Array.isArray(data)) return []
 
     return data.map((item) => {
-      const numericFields = [
-        "ts_2_jumlah_mahasiswa_aktif",
-        "ts_1_jumlah_mahasiswa_aktif",
-        "ts_jumlah_mahasiswa_aktif",
-        "ts_2_jumlah_mahasiswa_asing_penuh_waktu_full_time",
-        "ts_1_jumlah_mahasiswa_asing_penuh_waktu_full_time",
-        "ts_jumlah_mahasiswa_asing_penuh_waktu_full_time",
-        "ts_2_jumlah_mahasiswa_asing_paruh_waktu_part_time",
-        "ts_1_jumlah_mahasiswa_asing_paruh_waktu_part_time",
-        "ts_jumlah_mahasiswa_asing_paruh_waktu_part_time",
-      ]
-
-      const textFields = ["program_studi"]
+      const numericFields = this.getNumericFields()
+      const textFields = this.getTextFields()
 
       const result = {
         ...item,
@@ -234,7 +255,14 @@ export class MahasiswaAsingPlugin extends BasePlugin {
         errors.push(`Row ${index + 1}: Program Studi harus diisi`)
       }
 
-      // Validate TS
+      // Validate numeric fields are not negative
+      this.getNumericFields().forEach((field) => {
+        if (field !== "no" && parseFloat(item[field] || 0) < 0) {
+          errors.push(`Row ${index + 1}: ${field} tidak boleh bernilai negatif`)
+        }
+      })
+
+      // Validate TS: International students should not exceed active students
       const tsActiveStudents = parseFloat(item.ts_jumlah_mahasiswa_aktif || 0)
       const tsInternationalStudents =
         parseFloat(item.ts_jumlah_mahasiswa_asing_penuh_waktu_full_time || 0) +
@@ -248,7 +276,7 @@ export class MahasiswaAsingPlugin extends BasePlugin {
         )
       }
 
-      // Validate TS-1
+      // Validate TS-1: International students should not exceed active students
       const ts1ActiveStudents = parseFloat(
         item.ts_1_jumlah_mahasiswa_aktif || 0
       )
@@ -266,7 +294,7 @@ export class MahasiswaAsingPlugin extends BasePlugin {
         )
       }
 
-      // Validate TS-2
+      // Validate TS-2: International students should not exceed active students
       const ts2ActiveStudents = parseFloat(
         item.ts_2_jumlah_mahasiswa_aktif || 0
       )
