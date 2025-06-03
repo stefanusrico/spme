@@ -115,7 +115,7 @@ class WordController extends Controller
     private function generateDocumentSection($section, $kriteria, $projectId)
     {
         $section->addText("Kriteria : {$kriteria}", [
-            'bold' => true, 
+            'bold' => true,
             'size' => 14
         ]);
 
@@ -143,7 +143,8 @@ class WordController extends Controller
             $no = $task->ledItem['no'] ?? null;
             $sub = $task->ledItem['sub'] ?? null;
 
-            if (!$no || !$sub) continue;
+            if (!$no || !$sub)
+                continue;
 
             if (!$latestLedData || !$latestLedData->details) {
                 Log::warning("No LED data for task ID: {$task->_id}, {$task->nama}");
@@ -215,12 +216,13 @@ class WordController extends Controller
         $paragraphs = preg_split("/\n{2,}/", $textCombined);
 
         foreach ($paragraphs as $paragraph) {
-            if (trim($paragraph) === '') continue;
+            if (trim($paragraph) === '')
+                continue;
 
             // Cek jika paragraf adalah tag gambar dengan format [[IMAGE::path]]
             if (str_starts_with($paragraph, '[[IMAGE::') && str_ends_with($paragraph, ']]')) {
                 $imgPath = str_replace(['[[IMAGE::', ']]'], '', trim($paragraph));
-                
+
                 // Jika file gambar ditemukan, tambahkan ke dokumen
                 if (file_exists($imgPath)) {
                     $section->addImage($imgPath, [
