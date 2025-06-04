@@ -1,11 +1,6 @@
 import axiosInstance from "../utils/axiosConfig"
 
-// Tables with data selection capability
-export const tablesWithDataSelection = [
-  "1-1", // Kerjasama Tridharma - Pendidikan
-  "1-2", // Kerjasama Tridharma - Penelitian
-  "1-3", // Kerjasama Tridharma - Pengabdian
-]
+export const tablesWithDataSelection = ["1-1", "1-2", "1-3"]
 
 // Helper function for checking if a table allows selection
 export const isSelectionAllowedForTable = (tableCode) => {

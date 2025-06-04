@@ -559,7 +559,7 @@ class TaskController extends Controller
                 Log::warning("Task not found in updateOwners", [
                     'no' => $no,
                     'sub' => $sub,
-                    'prodiId' => $prodi,
+                    'prodiId' => $prodiId,
                     'owners' => $request->owners,
                 ]);
 

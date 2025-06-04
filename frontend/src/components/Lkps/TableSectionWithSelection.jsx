@@ -16,7 +16,7 @@ import {
   FilterOutlined,
   FileExcelOutlined,
 } from "@ant-design/icons"
-import { isSelectionAllowedForSection } from "../../constants/sectionStructure"
+import { isSelectionAllowedForTable } from "../../constants/tableStructure"
 
 const { Text, Title, Paragraph } = Typography
 
@@ -37,7 +37,6 @@ const TableSectionWithSelection = ({
   debouncedHandleDataChange,
   handleToggleSelection,
 }) => {
-  // Get table code correctly for MongoDB model structure
   const getTableCode = () => {
     if (typeof tableConfig === "string") return tableConfig
     if (tableConfig && tableConfig.code) return tableConfig.code
@@ -72,6 +71,15 @@ const TableSectionWithSelection = ({
 
   const hasData = tableData && tableData.length > 0
   const hasSelectionData = selectionData && selectionData.length > 0
+
+  useEffect(() => {
+    console.log(`Section ${sectionCode} selection data:`, {
+      hasSelectionData,
+      selectionDataLength: selectionData?.length || 0,
+      showSelectionMode,
+      isSelectionAllowed: isSelectionAllowedForTable(sectionCode),
+    })
+  }, [selectionData, showSelectionMode, sectionCode])
 
   if (!tableCode) {
     return (
@@ -164,8 +172,9 @@ const TableSectionWithSelection = ({
                 Tambah Baris
               </Button>
 
-              {hasSelectionData &&
-                isSelectionAllowedForSection(sectionCode) && (
+              {/* PENTING: Pastikan kondisi ini benar untuk menampilkan tombol seleksi */}
+              {(hasSelectionData || isUploaded) &&
+                isSelectionAllowedForTable(sectionCode) && (
                   <Button
                     icon={<FilterOutlined />}
                     type={showSelectionMode ? "primary" : "default"}
@@ -176,6 +185,38 @@ const TableSectionWithSelection = ({
                       : "Pilih Data Dari Excel"}
                   </Button>
                 )}
+
+              {/* Tambahkan tombol untuk select all / unselect all */}
+              {showSelectionMode && hasSelectionData && (
+                <Space>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      // Select all items in selection data
+                      selectionData.forEach((item) => {
+                        if (!item.selected) {
+                          handleToggleSelection(item.key || item._id, true)
+                        }
+                      })
+                    }}
+                  >
+                    Pilih Semua
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      // Unselect all items
+                      selectionData.forEach((item) => {
+                        if (item.selected) {
+                          handleToggleSelection(item.key || item._id, false)
+                        }
+                      })
+                    }}
+                  >
+                    Batal Pilih Semua
+                  </Button>
+                </Space>
+              )}
             </Space>
 
             <Space>
@@ -189,17 +230,17 @@ const TableSectionWithSelection = ({
                 </Badge>
               )}
 
-              {(tableConfig.barisAwalExcel !== undefined ||
-                (typeof tableConfig === "object" &&
-                  tableConfig?.barisAwalExcel !== undefined)) && (
-                <Tooltip title="Baris awal untuk membaca data dari Excel">
-                  <Text type="secondary">
-                    <FileExcelOutlined /> Baris Excel:{" "}
-                    {typeof tableConfig === "object"
-                      ? tableConfig.barisAwalExcel
-                      : 0}
-                  </Text>
-                </Tooltip>
+              {/* Tampilkan jumlah data yang dipilih */}
+              {hasData && (
+                <Badge
+                  count={
+                    processedTableData.filter((item) => item.selected).length
+                  }
+                  overflowCount={9999}
+                  style={{ backgroundColor: "#1890ff" }}
+                >
+                  <Text>Data Terpilih</Text>
+                </Badge>
               )}
             </Space>
           </div>
@@ -208,11 +249,7 @@ const TableSectionWithSelection = ({
           <Table
             columns={mainTableColumns}
             dataSource={processedTableData}
-            pagination={
-              typeof tableConfig === "object" && tableConfig.pagination
-                ? tableConfig.pagination
-                : { pageSize: 10, position: ["bottomCenter"] }
-            }
+            pagination={{ pageSize: 10, position: ["bottomCenter"] }}
             bordered
             size="middle"
             scroll={{ x: "max-content" }}
@@ -228,12 +265,10 @@ const TableSectionWithSelection = ({
             }}
             onRow={(record) => ({
               onClick: (e) => {
-                // If not a checkbox click, set editing key
                 if (e.target.type !== "checkbox") {
                   setEditingKey(record.key)
                 }
               },
-              // Highlight row being edited
               style: {
                 background: record.key === editingKey ? "#f0f7ff" : undefined,
               },
@@ -242,28 +277,45 @@ const TableSectionWithSelection = ({
           />
         </Card>
 
+        {/* Selection table - tampilkan jika mode seleksi aktif */}
         {showSelectionMode &&
           hasSelectionData &&
-          isSelectionAllowedForSection(sectionCode) && (
+          isSelectionAllowedForTable(sectionCode) && (
             <Card
               title="Data Tersedia untuk Dipilih"
               style={{ marginBottom: 16 }}
             >
               <Paragraph>
-                Pilih data yang ingin disertakan dalam laporan program studi
-                Anda.
+                Pilih data kerjasama yang ingin disertakan dalam laporan program
+                studi Anda. Data yang dipilih akan digunakan untuk perhitungan
+                score section {sectionCode}.
               </Paragraph>
+
+              {/* Filter untuk section tertentu jika data mengandung multiple section */}
+              {sectionCode && (
+                <Alert
+                  message={`Menampilkan data untuk section ${sectionCode}`}
+                  description={
+                    sectionCode === "1-1"
+                      ? "Kerjasama Pendidikan"
+                      : sectionCode === "1-2"
+                      ? "Kerjasama Penelitian"
+                      : sectionCode === "1-3"
+                      ? "Kerjasama Pengabdian kepada Masyarakat"
+                      : ""
+                  }
+                  type="info"
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+
               <Table
                 columns={selectionTableColumns}
                 dataSource={processedSelectionData.map((item, index) => ({
                   ...item,
                   rowIndex: index + 1,
                 }))}
-                pagination={
-                  typeof tableConfig === "object" && tableConfig.pagination
-                    ? tableConfig.pagination
-                    : { pageSize: 10, position: ["bottomCenter"] }
-                }
+                pagination={{ pageSize: 10, position: ["bottomCenter"] }}
                 bordered
                 size="middle"
                 scroll={{ x: "max-content" }}
@@ -279,12 +331,10 @@ const TableSectionWithSelection = ({
                 }}
                 onRow={(record) => ({
                   onClick: (e) => {
-                    // If not a checkbox click, set editing key
                     if (e.target.type !== "checkbox") {
                       setEditingKey(record.key)
                     }
                   },
-                  // Highlight row being edited
                   style: {
                     background:
                       record.key === editingKey ? "#f0f7ff" : undefined,

@@ -28,6 +28,7 @@ import UserManagement from "./pages/userManagement"
 import { isTokenExpired } from "./utils/axiosConfig"
 import DynamicLkpsComponent from "./components/Lkps/DynamicLkpsComponent"
 import Syarat from "./pages/syarat.jsx"
+import "./index.css"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +48,10 @@ let tokenCheckInterval = setInterval(() => {
     handleLogout()
   }
 }, CHECK_INTERVAL)
+
+const getBasename = () => {
+  return import.meta.env.DEV ? "/siaps" : "/"
+}
 
 const router = createBrowserRouter(
   [
@@ -176,7 +181,7 @@ const router = createBrowserRouter(
     },
   ],
   {
-    basename: "/siaps",
+    basename: getBasename(),
   }
 )
 

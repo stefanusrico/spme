@@ -301,10 +301,10 @@ const DashboardKoprodi = () => {
         (task) => task.status === "COMPLETED"
       ).length
       const inProgress = allTasks.filter(
-        (task) => task.status === "ACTIVE"
+        (task) => task.status === "IN PROGRESSS"
       ).length
       const unassigned = allTasks.filter(
-        (task) => task.status === "UNASSIGNED"
+        (task) => task.status === "ACTIVE"
       ).length
       const completionPercentage =
         total === 0 ? 0 : Math.round((completed / total) * 100)
@@ -317,7 +317,7 @@ const DashboardKoprodi = () => {
         completionPercentage,
       }
     } else {
-      const { totalTasks, completedTasks, inProgressTasks, notStartedTasks } =
+      const { totalTasks, completedTasks, inProgressTasks, activeTasks } =
         projectData.statistics
       const completionPercentage =
         totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100)
@@ -326,7 +326,7 @@ const DashboardKoprodi = () => {
         total: totalTasks,
         completed: completedTasks,
         inProgress: inProgressTasks,
-        unassigned: notStartedTasks,
+        active: activeTasks,
         completionPercentage,
       }
     }
@@ -523,7 +523,7 @@ const DashboardKoprodi = () => {
 
         <TaskCard
           title="Not Started"
-          count={taskStats.unassigned}
+          count={taskStats.active}
           icon={<AlertCircle className="h-5 w-5 text-red-500" />}
         />
       </div>

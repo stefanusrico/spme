@@ -2,7 +2,7 @@ import axios from "axios"
 import { jwtDecode } from "jwt-decode"
 
 const axiosInstance = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/",
+  baseURL: "https://polban-space.cloudias79.com/siaps/api/",
   withCredentials: true,
 })
 

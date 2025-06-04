@@ -58,12 +58,27 @@ class DataAkreditasiController extends Controller
     }
 
     $projectId = $project->_id;
-    Log::info("Found latest  project {$projectId} for prodiId {$prodiId}");
+    Log::info("Found latest project {$projectId} for prodiId {$prodiId}");
+
+    $predefinedWeights = [
+      'A' => 1.0,
+      'B' => 1.0,
+      'C1' => 2.84,
+      'C2' => 6.62,
+      'C3' => 6.62,
+      'C4' => 9.46,
+      'C5' => 6.62,
+      'C6' => 17.97,
+      'C7' => 1.89,
+      'C8' => 2.84,
+      'C9' => 32.15,
+      'D' => 1.0,
+      'E' => 1.0,
+    ];
 
     // Find all task lists for this project
     $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
 
-    // Rest of your existing code stays the same from here...
     if ($taskLists->isEmpty()) {
       Log::warning("No task lists found for active project {$projectId}");
       return response()->json(['message' => 'No task lists found for this project'], 404);
@@ -113,7 +128,6 @@ class DataAkreditasiController extends Controller
       ];
 
       if ($lkpsData) {
-        // Keep the original nilai format (array or numeric)
         $scoreData['nilai'] = $lkpsData->nilai;
         $scoreData['hasData'] = !empty($lkpsData->data);
       }
@@ -124,6 +138,13 @@ class DataAkreditasiController extends Controller
     // Group scores by criteria (task list) with enhanced information
     $scoresByTaskList = [];
     foreach ($taskLists as $taskList) {
+      $kriteria = $taskList->kriteria;
+
+      // Skip 'Undefined' criteria
+      if ($kriteria === 'Undefined') {
+        continue;
+      }
+
       $taskListScores = collect($projectScores)->where('taskList.taskListId', $taskList->_id)->values();
 
       if ($taskListScores->isNotEmpty()) {
@@ -135,41 +156,41 @@ class DataAkreditasiController extends Controller
           $nilai = $taskScore['nilai'];
 
           if (is_array($nilai)) {
-            // Check if it's an array of objects with 'nilai' property
             foreach ($nilai as $scoreItem) {
               if (is_array($scoreItem) && isset($scoreItem['nilai'])) {
-                // Handle array format: [{"butir": 16, "nilai": 3.9047619047619047}]
                 if (is_numeric($scoreItem['nilai'])) {
                   $numericScores[] = (float) $scoreItem['nilai'];
                   $totalRawScore += (float) $scoreItem['nilai'];
                 }
               } elseif (is_numeric($scoreItem)) {
-                // Handle simple array format: [4.0, 3.5]
                 $numericScores[] = (float) $scoreItem;
                 $totalRawScore += (float) $scoreItem;
               }
             }
           } elseif (is_numeric($nilai)) {
-            // If nilai is already numeric
             $numericScores[] = (float) $nilai;
             $totalRawScore += (float) $nilai;
           }
         }
 
-        // Get the weight for this TaskList (bobot should be in percentage)
-        $bobot = $taskList->bobot ?? 0;
+        // Get predefined weight for this criteria
+        $bobot = $predefinedWeights[$kriteria] ?? 0;
 
-        // FIX: Use helper function to convert Decimal128
-        $bobotFloat = $this->decimal128ToFloat($bobot);
+        // Skip if no predefined weight found
+        if ($bobot === 0 && $kriteria !== 'E') {
+          Log::warning("No predefined weight found for criteria: {$kriteria}");
+          continue;
+        }
 
         // Calculate NA contribution
-        $naContribution = round($totalRawScore * ($bobotFloat / 100), 4);
+        $naContribution = round($totalRawScore * ($bobot / 100), 4);
 
         $scoresByTaskList[] = [
           'taskListId' => $taskList->_id,
-          'kriteria' => $taskList->kriteria,
+          'kriteria' => $kriteria,
           'order' => $taskList->order,
-          'bobot' => $bobotFloat, // Use converted float
+          'bobot' => $bobot,
+          'bobotSource' => 'predefined', // Indicate this is from predefined weights
           'totalTasks' => $taskListScores->count(),
           'tasksWithData' => $taskListScores->where('hasData', true)->count(),
           'tasksWithScores' => count($numericScores),
@@ -183,15 +204,6 @@ class DataAkreditasiController extends Controller
     // Calculate overall NA (Nilai Akreditasi) = Σ(Total_Score × Bobot/100)
     $totalNA = array_sum(array_column($scoresByTaskList, 'naContribution'));
 
-    // FIX: Use converted float values for totalWeight
-    $totalWeight = 0;
-    foreach ($scoresByTaskList as $taskListScore) {
-      $totalWeight += $taskListScore['bobot']; // These are now float values
-    }
-
-    // Round for precision
-    $totalWeight = round($totalWeight, 2);
-
     // Determine peringkat based on BAN-PT standards
     $peringkat = 'TMSP';
     if ($totalNA >= 361) {
@@ -202,11 +214,38 @@ class DataAkreditasiController extends Controller
       $peringkat = 'Baik';
     }
 
-    // Validation: Total weight should equal 100 for proper NA calculation
+    // Calculate total weight from ALL predefined weights (excluding 'Undefined')
+    $totalWeight = 0;
+    $usedCriteria = [];
+
+    // Get all criteria that actually exist in task lists (excluding 'Undefined')
+    foreach ($taskLists as $taskList) {
+      $kriteria = $taskList->kriteria;
+      if ($kriteria !== 'Undefined' && isset($predefinedWeights[$kriteria])) {
+        if (!in_array($kriteria, $usedCriteria)) {
+          $usedCriteria[] = $kriteria;
+          $totalWeight += $predefinedWeights[$kriteria];
+        }
+      }
+    }
+
+    // Round for precision
+    $totalWeight = round($totalWeight, 2);
+
+    // Alternative calculation: sum all predefined weights directly
+    $allPredefinedWeight = array_sum($predefinedWeights);
+    $allPredefinedWeightRounded = round($allPredefinedWeight, 2);
+
+    // Validation: Total weight should equal expected total
     $weightValidation = [
       'totalWeight' => $totalWeight,
-      'isValid' => $totalWeight == 100,
-      'message' => $totalWeight == 100 ? 'Weight distribution is valid' : 'Warning: Total weight should equal 100'
+      'allPredefinedWeight' => $allPredefinedWeightRounded,
+      'usedCriteria' => $usedCriteria,
+      'isValid' => $totalWeight == $allPredefinedWeightRounded,
+      'message' => $totalWeight == $allPredefinedWeightRounded ? 'Weight distribution is valid' : "Warning: Total weight should equal {$allPredefinedWeightRounded}",
+      'predefinedWeights' => $predefinedWeights,
+      'excludedCriteria' => ['Undefined'],
+      'missingCriteria' => array_diff(array_keys($predefinedWeights), $usedCriteria)
     ];
 
     // Sort by order
@@ -216,6 +255,7 @@ class DataAkreditasiController extends Controller
 
     Log::info("Retrieved scores for " . count($projectScores) . " tasks in active project {$projectId}");
     Log::info("Calculated NA: {$totalNA} with peringkat: {$peringkat}");
+    Log::info("Total weight from predefined: {$totalWeight}");
 
     return response()->json([
       'projectId' => $projectId,
@@ -247,6 +287,9 @@ class DataAkreditasiController extends Controller
 
     $prodiId = $request->input('prodiId');
 
+    // Definisikan butir yang diinginkan
+    $allowedButirs = [17, 19, 47, 65, 66];
+
     // Get latest project
     $project = \App\Models\Project\Project::where('prodiId', $prodiId)
       ->orderBy('created_at', 'desc')
@@ -259,11 +302,11 @@ class DataAkreditasiController extends Controller
     $projectId = $project->_id;
     Log::info("Found latest project {$projectId} for prodiId {$prodiId}");
 
-    // Get task lists - tetap seperti original
+    // Get task lists
     $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
     $taskListIds = $taskLists->pluck('_id')->toArray();
 
-    // Get all LKPS tasks - tetap seperti original untuk menghindari masalah
+    // Get all LKPS tasks
     $tasksLKPS = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
       ->whereNotNull('lkpsTableId')
       ->get();
@@ -294,7 +337,6 @@ class DataAkreditasiController extends Controller
 
     // Process data
     $allNilaiItems = [];
-    $allButirs = [];
 
     foreach ($tasksLKPS as $task) {
       // Get table from pre-loaded collection
@@ -322,25 +364,17 @@ class DataAkreditasiController extends Controller
         if ($hasButirFormat) {
           // Add each nilai item to the flat array with tableCode information
           foreach ($nilaiArray as $item) {
-            $item['tableCode'] = $tableCode;
-            $allNilaiItems[] = $item;
-            $allButirs[$item['butir']] = true;
+            // Filter hanya butir yang diinginkan
+            if (in_array($item['butir'], $allowedButirs)) {
+              $item['tableCode'] = $tableCode;
+              $allNilaiItems[] = $item;
+            }
           }
         }
       }
     }
 
-    // Sort butir numbers for reference
-    $allButirNumbers = array_keys($allButirs);
-    sort($allButirNumbers);
-
-    return response()->json([
-      'projectId' => $projectId,
-      'projectName' => $project->name,
-      'prodiId' => $prodiId,
-      'totalItems' => count($allNilaiItems),
-      'butirNumbers' => $allButirNumbers,
-      'nilaiItems' => $allNilaiItems
-    ]);
+    // Hanya return nilaiItems yang sudah difilter
+    return response()->json($allNilaiItems);
   }
 }

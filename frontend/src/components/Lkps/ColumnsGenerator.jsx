@@ -271,17 +271,27 @@ export const generateColumns = (
           </EditableCell>
         )
       }
-    } else if (columnType === "boolean") {
+    }
+    // Handle kesesuaian columns specifically (these should be boolean)
+    else if (
+      dataIndex.includes("kesesuaian") ||
+      dataIndex === "kesesuaian_dengan_kompetensi_inti_ps_3" ||
+      dataIndex ===
+        "kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu_7" ||
+      columnType === "boolean"
+    ) {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
+        const isChecked = text === true || text === "true" || text === "V"
+
         return isEditing && isFillable ? (
           <Checkbox
-            checked={Boolean(text)}
+            checked={isChecked}
             onChange={(e) =>
               debouncedHandleDataChange(
                 tableCode,
                 record.key,
-                baseColumn.dataIndex,
+                dataIndex,
                 e.target.checked
               )
             }
@@ -293,7 +303,7 @@ export const generateColumns = (
             onClick={() => handleCellClick(record, isFillable)}
             isFillable={isFillable}
           >
-            {text === true ? "✅" : text === false ? "❌" : "-"}
+            {isChecked ? "✅" : "❌"}
           </EditableCell>
         )
       }

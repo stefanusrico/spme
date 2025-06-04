@@ -4,13 +4,73 @@ import { processExcelDataBase } from "../../../utils/tableUtils"
 import axiosInstance from "../../../utils/axiosConfig"
 import { fetchScoreDetails } from "../../../utils/fetchScoreDetail"
 
+// Helper function untuk parsing tanggal
 const parseDateValue = (value, defaultValue = "") => {
   if (value === null || value === undefined || value === "") {
     return defaultValue
   }
 
+  // Handle Excel date serial numbers first (common issue)
+  if (typeof value === "number") {
+    try {
+      // Excel date serial number (days since 1900-01-01, with 1900 incorrectly treated as leap year)
+      if (value > 1 && value < 2958466) {
+        // Valid Excel date range
+        // Adjust for Excel's leap year bug (day 60 = Feb 29, 1900 which didn't exist)
+        const adjustedValue = value > 59 ? value - 1 : value
+        // Excel epoch starts from 1899-12-30 (not 1900-01-01)
+        const excelDate = new Date(1899, 11, 30)
+        excelDate.setDate(excelDate.getDate() + adjustedValue)
+
+        if (!isNaN(excelDate.getTime())) {
+          return excelDate.toISOString().split("T")[0]
+        }
+      }
+
+      // Regular timestamp
+      const date = new Date(value)
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split("T")[0]
+      }
+    } catch (e) {
+      return defaultValue
+    }
+  }
+
   if (typeof value === "string") {
-    return value.trim()
+    const trimmed = value.trim()
+    if (!trimmed) return defaultValue
+
+    // Handle Indonesian date format (DD/MM/YYYY or DD-MM-YYYY)
+    const indonesianDateRegex = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/
+    const match = trimmed.match(indonesianDateRegex)
+
+    if (match) {
+      const [, day, month, year] = match
+      // Convert to ISO format (YYYY-MM-DD)
+      const isoDate = `${year}-${month.padStart(2, "0")}-${day.padStart(
+        2,
+        "0"
+      )}`
+
+      // Validate the constructed date
+      const testDate = new Date(isoDate)
+      if (!isNaN(testDate.getTime())) {
+        return isoDate
+      }
+    }
+
+    // Try parsing as-is for other formats
+    try {
+      const parsed = new Date(trimmed)
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split("T")[0]
+      }
+    } catch (e) {
+      // Continue to other parsing methods
+    }
+
+    return trimmed
   }
 
   if (value instanceof Date) {
@@ -20,11 +80,14 @@ const parseDateValue = (value, defaultValue = "") => {
 
   try {
     const parsed = new Date(String(value))
-    if (isNaN(parsed.getTime())) return defaultValue
-    return parsed.toISOString().split("T")[0]
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split("T")[0]
+    }
   } catch (e) {
     return defaultValue
   }
+
+  return defaultValue
 }
 
 export class TridharmaPlugin extends BasePlugin {
@@ -74,7 +137,6 @@ export class TridharmaPlugin extends BasePlugin {
         const column = columnMap[fieldName]
 
         if (fieldName.startsWith("tingkat_")) {
-          // Special handling for tingkat fields - "V" means true
           const stringValue = String(value || "")
             .trim()
             .toLowerCase()
@@ -101,7 +163,6 @@ export class TridharmaPlugin extends BasePlugin {
         }
       })
 
-      // Set default tingkat if none selected
       if (
         !item.tingkat_internasional &&
         !item.tingkat_nasional &&
@@ -113,44 +174,35 @@ export class TridharmaPlugin extends BasePlugin {
       return item
     })
 
-    // Filter data based on section if PPP columns exist
-    if (
-      pppIndices.pendidikan !== -1 &&
-      pppIndices.penelitian !== -1 &&
-      pppIndices.pkm !== -1
-    ) {
-      if (sectionCode === "1-1") {
-        return {
-          allRows: processedData.filter((item) => item.pendidikan),
-          shouldReplaceExisting: true,
-        }
-      } else if (sectionCode === "1-2") {
-        return {
-          allRows: processedData.filter((item) => item.penelitian),
-          shouldReplaceExisting: true,
-        }
-      } else if (sectionCode === "1-3") {
-        return {
-          allRows: processedData.filter((item) => item.pkm),
-          shouldReplaceExisting: true,
-        }
-      }
-    }
-
     return {
       allRows: processedData,
-      shouldReplaceExisting: true,
+      shouldReplaceExisting: false,
+      selectionRows: processedData,
+    }
+  }
+
+  filterSelectedDataBySection(data, sectionCode) {
+    const selectedData = data.filter((item) => item.selected === true)
+
+    switch (sectionCode) {
+      case "1-1":
+        return selectedData.filter((item) => item.pendidikan === true)
+      case "1-2":
+        return selectedData.filter((item) => item.penelitian === true)
+      case "1-3":
+        return selectedData.filter((item) => item.pkm === true)
+      default:
+        return selectedData
     }
   }
 
   async calculateScore(data, config, additionalData = {}) {
     try {
-      // Only calculate from selected data
-      const selectedData = data.filter((item) => item.selected === true)
-
-      // Get current section code
       const sectionCode =
         additionalData.sectionCode || this.determineSectionCode(data)
+      const selectedData = data.filter((item) => item.selected === true)
+
+      const relevantData = this.filterSelectedDataBySection(data, sectionCode)
 
       if (!sectionCode || !["1-1", "1-2", "1-3"].includes(sectionCode)) {
         return {
@@ -162,21 +214,17 @@ export class TridharmaPlugin extends BasePlugin {
         }
       }
 
-      // Calculate individual section metrics for current section
       const sectionMetrics = this.calculateSectionMetrics(
         selectedData,
         sectionCode
       )
 
-      // Get previous sections' score details
       const previousSectionsDetails = await this.getPreviousSectionsDetails(
         sectionCode,
         additionalData.projectId
       )
 
-      // For section 1-3, calculate final score
       if (sectionCode === "1-3") {
-        // Fetch NDTPS from table 3a1
         const responseScoreDetail = await this.fetchScoreDetails(
           "3a1",
           additionalData.projectId

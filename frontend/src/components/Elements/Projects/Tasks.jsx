@@ -265,20 +265,18 @@ const Tasks = ({ projectId, userRole }) => {
     return hasEditPermission
   }, [userRole])
 
+  // Update: Tidak mengubah status ACTIVE menjadi IN PROGRESS
   const getTaskStatus = useCallback((status) => {
-    switch (status) {
-      case "ACTIVE":
-        return "IN PROGRESS"
-      default:
-        return status
-    }
+    return status
   }, [])
 
+  // Update: Tambahkan styling untuk status ACTIVE
   const getStatusStyle = useCallback((status) => {
     const styles = {
-      "IN PROGRESS": "bg-orange_badge text-orange",
-      COMPLETED: "bg-green_badge text-green",
-      DEFAULT: "bg-red_badge text-red",
+      ACTIVE: "bg-blue-100 text-blue-800 w-28 text-center",
+      "IN PROGRESS": "bg-orange_badge text-orange w-28 text-center",
+      COMPLETED: "bg-green_badge text-green w-28 text-center",
+      DEFAULT: "bg-red_badge text-red w-28 text-center",
     }
     return styles[status] || styles.DEFAULT
   }, [])
@@ -339,7 +337,7 @@ const Tasks = ({ projectId, userRole }) => {
           return (
             <div className="flex justify-center">
               <span
-                className={`text-sm text-center font-semibold rounded-lg px-2 py-1 ${getStatusStyle(
+                className={`text-sm font-semibold rounded-lg px-2 py-1 inline-block min-w-[96px] ${getStatusStyle(
                   status
                 )}`}
               >

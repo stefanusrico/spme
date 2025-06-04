@@ -206,10 +206,8 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
     return { rawData: [], headers: [], detectedIndices: {} }
   }
 
-  // Find the correct table config - either direct config or in tables array
   let tableConfig = config
 
-  // If config has tables array and the code doesn't match, check inside tables
   if (
     config.tables &&
     Array.isArray(config.tables) &&
@@ -217,7 +215,6 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
     config.code !== tableCode &&
     config.kode !== tableCode
   ) {
-    // Try to find matching table in tables array
     const matchingTable = config.tables.find(
       (t) =>
         typeof t === "object" && (t.code === tableCode || t.kode === tableCode)
@@ -270,14 +267,12 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
     let excelStartRow = tableConfig.barisAwalExcel || 0
     const maxRowsToScan = Math.min(20, jsonData.length)
 
-    // If barisAwalExcel is provided, use it as the starting point
     if (excelStartRow && excelStartRow > 0) {
-      headerRowIndex = excelStartRow - 1 // Adjust for 0-based index
+      headerRowIndex = excelStartRow - 1
       console.log(
         `[DEBUG] Using barisAwalExcel from config: ${excelStartRow}, setting headerRowIndex to ${headerRowIndex}`
       )
     } else {
-      // Otherwise, try to detect header row
       console.log(
         `[DEBUG] No barisAwalExcel provided, trying to auto-detect header row...`
       )
@@ -328,22 +323,27 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
       }
     }
 
-    // Extract all potential header rows - Look for multiple levels of headers
+    // Simplified header processing - ambil hanya header yang clean
     const headerRows = []
     let currentHeaderIndex = headerRowIndex
     let hasFoundNumericRow = false
+    let maxHeaderRows = 3 // Batasi maksimal 3 baris header
 
-    while (currentHeaderIndex < jsonData.length && !hasFoundNumericRow) {
+    while (
+      currentHeaderIndex < jsonData.length &&
+      !hasFoundNumericRow &&
+      headerRows.length < maxHeaderRows
+    ) {
       const row = jsonData[currentHeaderIndex]
       if (!row || row.length === 0) {
-        break // Stop if we encounter an empty row
+        break
       }
 
       // Check if this row looks like a data row rather than a header row
       const firstCell = String(row[0] || "").trim()
       const hasNumericFirstCell = /^\d+\.?$/.test(firstCell)
 
-      if (hasNumericFirstCell) {
+      if (hasNumericFirstCell && headerRows.length > 0) {
         hasFoundNumericRow = true
         console.log(
           `[DEBUG] Found data row starting with number at row ${
@@ -373,142 +373,52 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
       )
     }
 
-    // Now combine all header rows into a hierarchical header structure
+    // IMPROVED: Extract clean headers - hanya ambil header terakhir yang berisi data kolom aktual
+    const lastHeaderRow = headerRows[headerRows.length - 1]
+    const combinedHeaders = []
+
     console.log(
-      `\n[DEBUG] Processing ${headerRows.length} header rows to create hierarchical headers`
+      `\n[DEBUG] Processing ${headerRows.length} header rows to create clean headers`
     )
-    const mainHeaderRow = headerRows[0]
-    const combinedHeaders = [...mainHeaderRow]
 
-    // Process merged cells to identify parent headers
-    const mergedCellMap = new Map()
+    // Function to get the most relevant header for each column
+    function getCleanHeaderForColumn(colIndex) {
+      // Start from the last (most specific) header row and work backwards
+      for (let rowIndex = headerRows.length - 1; rowIndex >= 0; rowIndex--) {
+        const headerValue = String(headerRows[rowIndex][colIndex] || "").trim()
 
-    if (merges && merges.length > 0) {
-      merges.forEach((merge) => {
-        // Only consider merges in the header rows
-        if (
-          merge.s.r >= headerRowIndex &&
-          merge.e.r < headerRowIndex + headerRows.length
-        ) {
-          for (let col = merge.s.c; col <= merge.e.c; col++) {
-            mergedCellMap.set(`${col}`, {
-              rowStart: merge.s.r,
-              rowEnd: merge.e.r,
-              colStart: merge.s.c,
-              colEnd: merge.e.c,
-              value: jsonData[merge.s.r][merge.s.c],
-            })
-          }
+        // Skip jika header kosong atau hanya berisi angka/nomor urut
+        if (!headerValue || /^\d+\.?$/.test(headerValue)) {
+          continue
         }
-      })
-      console.log(
-        `[DEBUG] Found ${mergedCellMap.size} merged cells in header rows`
-      )
+
+        // Skip jika header terlalu pendek (kemungkinan bukan header yang berguna)
+        if (headerValue.length < 2) {
+          continue
+        }
+
+        // Skip jika header berisi pattern yang menunjukkan ini bukan nama kolom
+        if (headerValue.match(/^(1|2|3|4|5|6|7|8|9|10|\d+)$/)) {
+          continue
+        }
+
+        return headerValue
+      }
+
+      // Jika tidak ada header yang valid, gunakan posisi kolom
+      return `Column_${colIndex + 1}`
     }
 
-    // Function to build a hierarchical header from multiple rows
-    function buildHierarchicalHeader(colIndex) {
-      // Store header values from each level with proper context
-      const headerLevels = []
-
-      // First pass: collect direct values and merged cell values
-      for (let rowIndex = 0; rowIndex < headerRows.length; rowIndex++) {
-        const directValue = String(headerRows[rowIndex][colIndex] || "").trim()
-
-        // Check for merged cells
-        let mergedValue = null
-        const mergeKey = `${colIndex}`
-        if (mergedCellMap.has(mergeKey)) {
-          const mergeInfo = mergedCellMap.get(mergeKey)
-          if (
-            headerRowIndex + rowIndex >= mergeInfo.rowStart &&
-            headerRowIndex + rowIndex <= mergeInfo.rowEnd
-          ) {
-            mergedValue = String(
-              jsonData[mergeInfo.rowStart][mergeInfo.colStart] || ""
-            ).trim()
-          }
-        }
-
-        // Also check if this cell is a target of a horizontal merge
-        for (const [key, mergeInfo] of mergedCellMap.entries()) {
-          if (
-            headerRowIndex + rowIndex >= mergeInfo.rowStart &&
-            headerRowIndex + rowIndex <= mergeInfo.rowEnd &&
-            colIndex >= mergeInfo.colStart &&
-            colIndex <= mergeInfo.colEnd
-          ) {
-            mergedValue = String(
-              jsonData[mergeInfo.rowStart][mergeInfo.colStart] || ""
-            ).trim()
-            break
-          }
-        }
-
-        // Store the value (prefer merged value over direct value)
-        headerLevels[rowIndex] = mergedValue || directValue
-      }
-
-      // Second pass: inherit horizontally for each row level
-      for (let rowIndex = 0; rowIndex < headerRows.length; rowIndex++) {
-        if (headerLevels[rowIndex] === "") {
-          // Try to inherit from left for horizontal merged structure
-          for (let prevCol = colIndex - 1; prevCol >= 0; prevCol--) {
-            // Check if we're part of the same horizontal merge group
-            let isPartOfSameMerge = false
-            for (const [key, mergeInfo] of mergedCellMap.entries()) {
-              if (
-                headerRowIndex + rowIndex >= mergeInfo.rowStart &&
-                headerRowIndex + rowIndex <= mergeInfo.rowEnd &&
-                prevCol >= mergeInfo.colStart &&
-                prevCol <= mergeInfo.colEnd &&
-                colIndex >= mergeInfo.colStart &&
-                colIndex <= mergeInfo.colEnd
-              ) {
-                isPartOfSameMerge = true
-                headerLevels[rowIndex] = String(
-                  jsonData[mergeInfo.rowStart][mergeInfo.colStart] || ""
-                ).trim()
-                break
-              }
-            }
-
-            if (isPartOfSameMerge) break
-          }
-        }
-      }
-
-      // Build the hierarchy respecting structural patterns
-      let headerParts = []
-
-      // Add non-empty values preserving order
-      for (let i = 0; i < headerLevels.length; i++) {
-        if (headerLevels[i] && !headerParts.includes(headerLevels[i])) {
-          headerParts.push(headerLevels[i])
-        }
-      }
-
-      // Join parts with a separator
-      let headerText = headerParts.join(" - ")
-
-      // Standardize "ps" to "PS" for better readability
-      headerText = headerText.replace(/pada ps yang/i, "pada PS yang")
-      headerText = headerText.replace(/pada ps lain/i, "pada PS Lain")
-
-      return headerText || ""
-    }
-
-    // Build hierarchical headers for each column
-    for (let colIndex = 0; colIndex < mainHeaderRow.length; colIndex++) {
-      const hierarchicalHeader = buildHierarchicalHeader(colIndex)
-      if (hierarchicalHeader) {
-        combinedHeaders[colIndex] = hierarchicalHeader
-      }
+    // Build clean headers for each column
+    const maxColumns = Math.max(...headerRows.map((row) => row.length))
+    for (let colIndex = 0; colIndex < maxColumns; colIndex++) {
+      const cleanHeader = getCleanHeaderForColumn(colIndex)
+      combinedHeaders[colIndex] = cleanHeader
     }
 
     // Debug the combined headers
     console.log(
-      `\n[DEBUG] Combined hierarchical headers (${combinedHeaders.length} columns):`
+      `\n[DEBUG] Clean headers extracted (${combinedHeaders.length} columns):`
     )
     combinedHeaders.forEach((header, idx) => {
       console.log(`  Column ${idx + 1}: "${header}"`)
@@ -566,24 +476,13 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
       Object.keys(columnMap).map((key) => `${key}: ${columnMap[key].judul}`)
     )
 
-    // ---------- NEW AI-BASED MAPPING ----------
+    // ---------- IMPROVED AI-BASED MAPPING ----------
     console.log(`\n[DEBUG] Starting AI-based column mapping process...`)
     console.log(
       `[DEBUG] Finding matches for ${
         Object.keys(columnMap).length
       } database columns in ${combinedHeaders.length} Excel columns`
     )
-
-    // Log whether we have any columns to match
-    if (Object.keys(columnMap).length === 0) {
-      console.log(
-        "[ERROR] ⚠️ No columns found in columnMap! Column matching cannot proceed."
-      )
-      console.log(
-        "[ERROR] This may be due to incorrect config structure or missing indeksData fields."
-      )
-      console.log("[ERROR] Raw config:", tableConfig)
-    }
 
     // Initialize detected indices
     const detectedIndices = {}
@@ -621,7 +520,6 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
         console.log("[ERROR] Failed to get AI mapping, using fallback matching")
         // If AI mapping fails, use basic matching as fallback
         Object.entries(columnMap).forEach(([dataIndex, column]) => {
-          // Very simple direct matching as fallback
           const index = basicColumnMatching(combinedHeaders, column)
           if (index !== -1) {
             detectedIndices[dataIndex] = index
@@ -666,29 +564,50 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
       })
     }
 
-    // Basic fallback matching function if AI fails
+    // Improved basic fallback matching function
     function basicColumnMatching(headers, column) {
+      const columnTitle = column.judul.toLowerCase().trim()
+
+      // First pass: exact match
       for (let i = 0; i < headers.length; i++) {
         const header = String(headers[i] || "")
           .toLowerCase()
           .trim()
-        const columnTitle = column.judul.toLowerCase().trim()
-
-        // Very basic exact match or contains match
-        if (header === columnTitle || header.includes(columnTitle)) {
+        if (header === columnTitle) {
           return i
         }
+      }
 
-        // If column has parent title, check for hierarchical match
-        if (column.parentTitle) {
-          const parentTitle = column.parentTitle.toLowerCase().trim()
-          const combined = `${parentTitle} - ${columnTitle}`
-
-          if (header === combined || header.includes(combined)) {
-            return i
-          }
+      // Second pass: contains match
+      for (let i = 0; i < headers.length; i++) {
+        const header = String(headers[i] || "")
+          .toLowerCase()
+          .trim()
+        if (header.includes(columnTitle) || columnTitle.includes(header)) {
+          return i
         }
       }
+
+      // Third pass: word-based matching
+      const columnWords = columnTitle.split(/\s+/)
+      for (let i = 0; i < headers.length; i++) {
+        const header = String(headers[i] || "")
+          .toLowerCase()
+          .trim()
+        const headerWords = header.split(/\s+/)
+
+        // Check if any significant words match
+        const significantMatches = columnWords.filter(
+          (word) =>
+            word.length > 2 &&
+            headerWords.some((hw) => hw.includes(word) || word.includes(hw))
+        )
+
+        if (significantMatches.length > 0) {
+          return i
+        }
+      }
+
       return -1
     }
 
@@ -737,7 +656,7 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
     console.log(`COMPREHENSIVE EXCEL vs DATABASE COLUMN COMPARISON`)
     console.log(`==================================================`)
 
-    console.log(`\n[EXCEL HEADERS] All Excel headers found in the file:`)
+    console.log(`\n[EXCEL HEADERS] Clean Excel headers found in the file:`)
     combinedHeaders.forEach((header, idx) => {
       console.log(`  ${idx + 1}. "${header}"`)
     })

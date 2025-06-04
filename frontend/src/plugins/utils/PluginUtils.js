@@ -3,99 +3,55 @@ export const PluginUtils = {
    * Filter baris data yang valid (bukan summary, bukan header)
    */
   filterDataRows(rawData) {
-    const infoKeywords = ["info:", "keterangan", "catatan", "summary"]
-    let tableEndColumn = -1
+    return rawData.filter((row) => {
+      if (!row?.length) return false
 
-    // Cek baris pertama (header) untuk menemukan kata kunci
-    if (rawData.length > 0) {
-      const headerRow = rawData[0]
+      const nonEmptyValues = row.filter(
+        (val) => val !== undefined && val !== null && val !== ""
+      )
 
-      for (let i = 0; i < headerRow.length; i++) {
-        const cellValue = String(headerRow[i] || "")
+      if (nonEmptyValues.length <= 1) return false
+
+      // Skip baris jika semua nilai adalah angka
+      const allNumbers = nonEmptyValues.every(
+        (val) =>
+          typeof val === "number" ||
+          (typeof val === "string" && !isNaN(val) && val.trim() !== "")
+      )
+      if (allNumbers && nonEmptyValues.length > 0) return false
+
+      // Skip baris summary
+      const summaryLabels = ["jumlah", "total", "sum", "rata-rata", "average"]
+      const hasSummaryLabel = row.some((cell) => {
+        const normalized = String(cell || "")
           .toLowerCase()
           .trim()
+        return summaryLabels.includes(normalized)
+      })
+      if (hasSummaryLabel) return false
 
-        if (infoKeywords.some((keyword) => cellValue.includes(keyword))) {
-          tableEndColumn = i
-          break
-        }
-      }
-    }
-
-    // Jika tidak ditemukan, coba deteksi berdasarkan struktur data
-    if (tableEndColumn === -1) {
-      // Cari kolom dengan banyak cell kosong berturut-turut
-      for (
-        let col = 0;
-        col < Math.max(...rawData.map((r) => r.length));
-        col++
-      ) {
-        let consecutiveEmpty = 0
-
-        for (let row = 0; row < Math.min(rawData.length, 20); row++) {
-          if (!rawData[row][col] || rawData[row][col] === "") {
-            consecutiveEmpty++
-          } else {
-            consecutiveEmpty = 0
-          }
-
-          // Jika ada 5+ baris kosong berturut-turut, ini mungkin pemisah
-          if (consecutiveEmpty >= 5) {
-            tableEndColumn = col
-            break
-          }
-        }
-
-        if (tableEndColumn !== -1) break
-      }
-    }
-
-    const maxColumns = tableEndColumn > 0 ? tableEndColumn : 10
-
-    return rawData
-      .filter((row) => {
-        if (!row?.length) return false
-
-        // Potong row sampai batas tabel
-        const trimmedRow = row.slice(0, maxColumns)
-
-        const nonEmptyValues = trimmedRow.filter(
-          (val) => val !== undefined && val !== null && val !== ""
+      // Tambahan: jika baris mengandung sel "info" dan sisanya seluruhnya angka,
+      // maka skip baris tersebut.
+      const containsInfo = row.some(
+        (cell) =>
+          String(cell || "")
+            .toLowerCase()
+            .trim() === "info"
+      )
+      if (containsInfo) {
+        const otherCells = nonEmptyValues.filter(
+          (val) => String(val).toLowerCase().trim() !== "info"
         )
-
-        if (nonEmptyValues.length <= 1) return false
-
-        // Skip baris jika semua nilai adalah angka
-        const allNumbers = nonEmptyValues.every(
+        const othersAllNumeric = otherCells.every(
           (val) =>
             typeof val === "number" ||
             (typeof val === "string" && !isNaN(val) && val.trim() !== "")
         )
-        if (allNumbers && nonEmptyValues.length > 0) return false
+        if (othersAllNumeric && otherCells.length > 0) return false
+      }
 
-        // Skip baris summary
-        const summaryLabels = [
-          "jumlah",
-          "total",
-          "sum",
-          "rata-rata",
-          "average",
-          "kerjasama",
-          "internasional",
-          "tingkat",
-          "aktif",
-        ]
-        const hasSummaryLabel = trimmedRow.some((cell) => {
-          const normalized = String(cell || "")
-            .toLowerCase()
-            .trim()
-          return summaryLabels.includes(normalized)
-        })
-        if (hasSummaryLabel) return false
-
-        return true
-      })
-      .map((row) => row.slice(0, maxColumns))
+      return true
+    })
   },
 
   /**
@@ -307,7 +263,6 @@ export const PluginUtils = {
     if (typeof value === "number") return true
     if (typeof value !== "string") return false
 
-    // Check if string is numeric
     return !isNaN(value) && !isNaN(parseFloat(value)) && value.trim() !== ""
   },
 
@@ -316,57 +271,76 @@ export const PluginUtils = {
       return defaultValue
     }
 
-    // If it's already a string, return as is (assuming it's a valid date string)
-    if (typeof value === "string") {
-      return value.trim()
+    if (typeof value === "number") {
+      try {
+        if (value > 1 && value < 2958466) {
+          const adjustedValue = value > 59 ? value - 1 : value
+          // Excel epoch starts from 1899-12-30 (not 1900-01-01)
+          const excelDate = new Date(1899, 11, 30)
+          excelDate.setDate(excelDate.getDate() + adjustedValue)
+
+          if (!isNaN(excelDate.getTime())) {
+            return excelDate.toISOString().split("T")[0]
+          }
+        }
+
+        const date = new Date(value)
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split("T")[0]
+        }
+      } catch (e) {
+        return defaultValue
+      }
     }
 
-    // If it's a Date object, convert to ISO string or readable format
+    if (typeof value === "string") {
+      const trimmed = value.trim()
+      if (!trimmed) return defaultValue
+
+      const indonesianDateRegex = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/
+      const match = trimmed.match(indonesianDateRegex)
+
+      if (match) {
+        const [, day, month, year] = match
+        const isoDate = `${year}-${month.padStart(2, "0")}-${day.padStart(
+          2,
+          "0"
+        )}`
+
+        // Validate the constructed date
+        const testDate = new Date(isoDate)
+        if (!isNaN(testDate.getTime())) {
+          return isoDate
+        }
+      }
+
+      try {
+        const parsed = new Date(trimmed)
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toISOString().split("T")[0]
+        }
+      } catch (e) {}
+
+      return trimmed
+    }
+
     if (value instanceof Date) {
       if (isNaN(value.getTime())) {
         return defaultValue
       }
-      // Return in YYYY-MM-DD format
       return value.toISOString().split("T")[0]
     }
 
-    // If it's a number (timestamp), convert to date
-    if (typeof value === "number") {
-      try {
-        const date = new Date(value)
-        if (isNaN(date.getTime())) {
-          return defaultValue
-        }
-        return date.toISOString().split("T")[0]
-      } catch (e) {
-        return defaultValue
-      }
-    }
-
-    // For Excel date serial numbers (common in Excel files)
-    if (typeof value === "number" && value > 25569) {
-      try {
-        // Excel date serial number conversion
-        const excelDate = new Date((value - 25569) * 86400 * 1000)
-        if (isNaN(excelDate.getTime())) {
-          return defaultValue
-        }
-        return excelDate.toISOString().split("T")[0]
-      } catch (e) {
-        return defaultValue
-      }
-    }
-
-    // Try to parse as string
     try {
       const parsed = new Date(String(value))
-      if (isNaN(parsed.getTime())) {
-        return defaultValue
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split("T")[0]
       }
-      return parsed.toISOString().split("T")[0]
     } catch (e) {
       return defaultValue
     }
+
+    return defaultValue
   },
 
   /**
