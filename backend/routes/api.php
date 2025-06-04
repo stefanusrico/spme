@@ -257,7 +257,8 @@ Route::middleware([JwtMiddleware::class])->group(function () {
 
         Route::controller(LedDataController::class)->group(function () {
             Route::post('/ledData', 'store');
-            Route::get('/led-data/get-by-task', 'getByTask');
+            Route::get('/led-data/get-all-by-task', 'getAllByTask');
+            Route::get('/led-data/get-by-task', 'getAllByTask');
             Route::get('/ledData/{taskId}/latest', 'getLatest');
             Route::get('/ledData/byProdi/{prodiId}', 'getLedDataByProdi');
 

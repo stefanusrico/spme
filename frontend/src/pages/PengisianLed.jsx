@@ -17,7 +17,6 @@ import ScrollableTabs from "../components/Elements/Tabs"
 import Button from "../components/Elements/Button"
 import DropdownWithSearch from "../components/Elements/Dropdown/WithSearch"
 import BarProgress from "../components/Elements/CircularProgress/BarProgress"
-// import ColorRangeDropdown from "../components/Elements/Dropdown/ColorRangeDropdown"
 import PengisianLedTableNew from "../components/Elements/DataTable/PengisianLedTableNew"
 import HeaderPengisianLedTable from "../components/Elements/DataTable/HeaderPengisianLedTable"
 import VerticalLinearStepper from "../components/Elements/Stepper"
@@ -28,6 +27,7 @@ import MySelectComponent from "../components/Elements/Select"
 import SelectColor from "../components/Elements/Select/SelectColor"
 import { Spin } from "antd"
 import { useUser } from "../context/userContext"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const PengisianLed = () => {
   const navigate = useNavigate()
@@ -141,7 +141,10 @@ const PengisianLed = () => {
     // Jika data LED tidak ditemukan, buat default
     if (!latestLedData && allDataLedItem.length && allDataTasks.length && userData?.id){
       const matchedLedItem = allDataLedItem.find(item => item.no === no && item.sub === sub);
-      const matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
+      let matchedTask = tasks.find(task => String(task.no) === no && task.sub === sub);
+      if(!matchedTask){
+        matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
+      }
       console.log("MASUK SINI")
       if (matchedLedItem && matchedTask) {
         const detailsArray = (matchedLedItem.details || [])
@@ -181,12 +184,6 @@ const PengisianLed = () => {
       setIsLoading(false);
     }
   }, [filteredLedData, allDataLedItem]);
-
-  useEffect(() => {
-    if (ledDataSelected) {
-      setIsVersion(true);
-    }
-  }, [ledDataSelected]);
 
   useEffect(() => {
     if (filteredDataReference && Object.keys(filteredDataReference).length > 0) {
@@ -248,12 +245,19 @@ const PengisianLed = () => {
 
   const handleClickVersion = async() => {
     try {
-      const matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
-  
-      if (matchedTask) {
-        const responseVersion = await fetchLedDataByTaskId(matchedTask.id);
-        setDataVersionHistory(responseVersion);
-      }  
+      setIsVersion(!isVersion)
+
+      if(isVersion){
+        let matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
+        if (!matchedTask) {
+          matchedTask = tasks.find(task => String(task.no) === no && task.sub === sub);
+        }
+        
+        if (matchedTask) {
+          const responseVersion = await fetchLedDataByTaskId(matchedTask.id);
+          setDataVersionHistory(responseVersion);
+        } 
+      }
     } catch (error) {
       toast.error("Gagal fetch version");
     }
@@ -281,6 +285,26 @@ const PengisianLed = () => {
   const handleVersionChange = (newIndex) => {
     setLedDataSelected(newIndex.toString())
   }
+
+  const progress = (() => {
+    if (!filteredLedData || !Array.isArray(filteredLedData.details)) return 0;
+
+    const total = filteredLedData.details.length;
+    if (total === 0) return 0;
+
+    const filledCount = filteredLedData.details.filter(detail => {
+      if (!detail.isianAsesi) return false;
+
+      try {
+        const parsed = JSON.parse(detail.isianAsesi);
+        return parsed.blocks && parsed.blocks.some(block => block.text.trim() !== "");
+      } catch (e) {
+        return false;
+      }
+    }).length;
+
+    return Number(((filledCount / total) * 100).toFixed(2));
+  })();
 
   if (isLoading) {
     return (
@@ -332,11 +356,7 @@ const PengisianLed = () => {
         />
 
         <BarProgress
-          progress={
-            filteredLedData && !isNaN(parseFloat(filteredLedData.nilai))
-              ? (parseFloat(filteredLedData.nilai) / 4) * 100
-              : 0
-          }
+          progress={progress}
           width={250}
           height={50}
         />
@@ -409,44 +429,20 @@ const PengisianLed = () => {
               {/* History Version */}
               {isVersion && filteredDataHistory ? (
                 filteredDataHistory.length > 0 ? (
-                  <div>
-                    <div className="flex justify-between mx-[30px] mt-[30px]">
-                      <div>
-                        {viewAllVersion ? (
-                          <>
-                            <h1 className="text-xl font-bold">
-                              Daftar Pembaruan
-                            </h1>
-                          </>
-                        ) : (
-                          <>
-                            <h1 className="text-xl font-bold">
-                              Commit :{" "}
-                              {filteredDataHistory[parseInt(ledDataSelected)]
-                                ?.commit || "Data commit tidak tersedia"}
-                            </h1>
-                          </>
-                        )}
-                      </div>
-                      <div>
-                        <button
-                          className={`h-10 px-1 text-sm rounded-md bg-primary text-white opacity-50 `}
-                          onClick={() => setViewAllVersion(!viewAllVersion)}
-                          disabled={isLoadingVersion}
-                        >
-                          Tampilkan{" "}
-                          {viewAllVersion ? "Tabel Isian" : "Daftar Pembaruan"}
-                        </button>
-                      </div>
-                    </div>
-                    {viewAllVersion ? (
-                      <VerticalLinearStepper
-                        dataSteps={filteredDataHistory}
-                        paramActiveStep={ledDataSelected}
-                        onStepChange={handleVersionChange}
-                      />
-                    ) : (
-                      <div className="mt-5 mx-[30px] mb-[0px]">
+                  <div className="justify-between mx-[30px] mt-[30px]">
+                    <Tabs defaultValue="tabel isian">
+                      <TabsList className="mb-4">
+                        <TabsTrigger value="tabel isian">Tampilkan Tabel Isian</TabsTrigger>
+                        <TabsTrigger value="daftar">Tampilkan Daftar Perubahan</TabsTrigger>
+                      </TabsList>
+
+                      <h3 className="text-xl font-bold">
+                        Commit :{" "}
+                        {filteredDataHistory[parseInt(ledDataSelected)]
+                          ?.commit || "Data commit tidak tersedia"}
+                      </h3>
+          
+                      <TabsContent value="tabel isian" className="mt-2">
                         <PengisianLedTableNew
                           key={`${no}-${sub}`}
                           dataKriteriaIndikator={filteredDataLedItem}
@@ -458,8 +454,16 @@ const PengisianLed = () => {
                           type="readonlyVersion"
                           prodi={selectedProdi}
                         />
-                      </div>
-                    )}
+                      </TabsContent>
+          
+                      <TabsContent value="daftar" className="mt-2">
+                        <VerticalLinearStepper
+                          dataSteps={filteredDataHistory}
+                          paramActiveStep={ledDataSelected}
+                          onStepChange={handleVersionChange}
+                        />
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 ) : (
                   <div>Tidak ada perubahan sebelumnya</div>

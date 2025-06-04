@@ -287,8 +287,9 @@ function PengisianLedTableNew({
         </h1>
       )}
       
-      <Stack spacing={2} className="mb-4 center-stack">
+      <Stack spacing={2} className="mb-4 center-stack flex center">
         <Pagination
+          className="flex justify-center"
           count={totalPages || 1}
           page={currentPage}
           onChange={handlePageChange}
@@ -356,31 +357,25 @@ function PengisianLedTableNew({
           </div>
 
           <div className="mt-4 flex justify-end">
-            <Button
-              className="bg-black w-80 hover:bg-white hover:text-primary mr-2"
-              aria-label="Update"
-              onClick={() => setIsOpenModalUploadFile(true)}
-              disabled={type === "readonly" || type === "readonlyVersion"}
-            >
-              Upload file Data Pendukung
-            </Button>
-            <Button
-              className={`bg-primary flex items-center gap-2 hover:bg-white hover:text-black ${isLoadingCheck ? 'opacity-50 cursor-not-allowed' : ''}`}
-              aria-label="Check"
-              onClick={() => handleButtonCheck(detail.seq, index)}
-              disabled={type === "readonly" || type === "readonlyVersion" || isLoadingCheck}
-            >
-              {isLoadingCheck ? (
-                <>
-                  <span>Check...</span>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </>
-              ) : (
-                <>
-                  <span>Check</span>
-                </>
-              )}
-            </Button>
+            {type !== "readonly" && type !== "readonlyVersion" ? (
+              <Button
+                className={`bg-primary flex items-center gap-2 hover:bg-white hover:text-black ${isLoadingCheck ? 'opacity-50 cursor-not-allowed' : ''}`}
+                aria-label="Check"
+                onClick={() => handleButtonCheck(detail.seq, index)}
+                disabled={isLoadingCheck}
+              >
+                {isLoadingCheck ? (
+                  <>
+                    <span>Check...</span>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    <span>Check</span>
+                  </>
+                )}
+              </Button>
+            ) : null}
           </div>
 
           <div className="w-full items-center gap-1.5 mt-4">
@@ -388,11 +383,11 @@ function PengisianLedTableNew({
             <textarea
               id={`masukan_${index}`}
               placeholder="Masukan dari GPT"
-              className="w-full p-2 border rounded-md min-h-[40px] resize-none"
+              className="w-full p-2 border rounded-md min-h-[80px] resize-none"
               value={dataIsian.masukan || ""}
               readOnly
               onInput={(e) => {
-                e.target.style.height = "40px"
+                e.target.style.height = "80px"
                 e.target.style.height = `${e.target.scrollHeight}px`
               }}
             ></textarea>
