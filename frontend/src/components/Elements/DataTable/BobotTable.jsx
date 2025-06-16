@@ -55,6 +55,11 @@ const BobotTable = () => {
         size: 300,
       },
       {
+        accessorKey: "rumus",
+        header: "RUMUS",
+        size: 300,
+      },
+      {
         id: "actions",
         header: () => <div className="text-center">ACTION</div>,
         size: 150,

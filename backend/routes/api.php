@@ -276,7 +276,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
 
         Route::post('/analyze-gpt', [GPTController::class, 'analyze']);
         Route::get('/projects/get-skor-per-butir/{prodiId}', [ButirController::class, 'getSkorPerButir']);
-        Route::get('/projects/bobot-butir/{prodiId}', [ButirController::class, 'getBobotButir']);
+        Route::get('/projects/bobot-butir/{prodiId}', [ButirController::class, '_getBobotRumusCollection']);
 
         Route::controller(LedItemController::class)->group(function () {
             Route::get('/ledItem', 'index');

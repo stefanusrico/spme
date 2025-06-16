@@ -89,6 +89,7 @@ class SpreadsheetController extends Controller
                             'elemen' => $data['elemen'] ?? null,
                             'indikator' => $data['indikator'] ?? null,
                             'bobot' => $data['bobot'] ?? null,
+                            'rumus' => $data['rumus'] ?? null,
                         ]);
                     } else {
                         BobotButir::create([
@@ -98,6 +99,7 @@ class SpreadsheetController extends Controller
                             'elemen' => $data['elemen'] ?? null,
                             'indikator' => $data['indikator'] ?? null,
                             'bobot' => $data['bobot'] ?? null,
+                            'rumus' => $data['rumus'] ?? null,
                         ]);
                     }
                 }
@@ -334,7 +336,8 @@ class SpreadsheetController extends Controller
      */
     private function transformDataBobotButir(array $rows): Collection
     {
-        $header = array_shift($rows);
+        $header = ['Butir', 'Elemen', 'Indikator', 'Bobot', 'Rumus']; // tulis manual
+        \Log::info('Using manual header:', $header);
 
         $data = collect($rows)->map(function ($row, $index) use ($header) {
             if (count($row) > count($header)) {
@@ -345,19 +348,19 @@ class SpreadsheetController extends Controller
             return array_combine($header, array_pad($row, count($header), null));
         })->filter();
 
-        return $data->groupBy(fn($item) => isset($item['Butir']) 
-            ? "{$item['Butir']}" 
-            : "unknown")
-            ->map(function ($items, $key) {
-                $item = $items->first(); // <-- ini penting!
+        return $data->groupBy(fn($item) => $item['Butir'] ?? 'unknown')
+            ->map(function ($items) {
+                $item = $items->first();
                 return [
                     'butir' => $item['Butir'] ?? null,
                     'elemen' => $item['Elemen'] ?? null,
                     'indikator' => $item['Indikator'] ?? null,
                     'bobot' => $item['Bobot'] ?? null,
+                    'rumus' => $item['Rumus'] ?? null,
                 ];
-            })->filter()->values(); 
+            })->filter()->values();
     }
+
 
     /**
      * Mengubah data Google Sheets menjadi format JSON yang dikelompokkan.

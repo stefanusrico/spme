@@ -17,6 +17,7 @@ class BobotButir extends Model
         'strataId',
         'indikator',
         'bobot',
+        'rumus'
     ];
 
     public function strata()

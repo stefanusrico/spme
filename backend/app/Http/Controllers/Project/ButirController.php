@@ -49,8 +49,10 @@ class ButirController extends Controller
             $combinedData = $this->combineLedAndLkps($filteredLedData, $filteredLkpsData);
 
             $calculator = new ScoreCalculator();
-            $resultButir = $this->calculateScorePerButir($combinedData, $calculator);
-            $resultButirBobot = $this->calculateScorePerButirBobot($resultButir, $calculator, $prodiId);
+            $bobotRumusCollection = $this->_getBobotRumusCollection($prodiId);
+
+            $resultButir = $this->calculateScorePerButir($combinedData, $calculator, $bobotRumusCollection);
+            $resultButirBobot = $this->calculateScorePerButirBobot($resultButir, $calculator, $bobotRumusCollection );
 
             $nilaiAkreditasi = round($resultButirBobot->sum(fn($d) => $d['nilai'] ?? 0.0), 2);
 
@@ -135,32 +137,32 @@ class ButirController extends Controller
         return $combined->filter(fn($d) => $d['no'] !== null);
     }
 
-    private function calculateScorePerButir($data, $calculator)
+    private function calculateScorePerButir($data, $calculator, $bobotRumusCollection)
     {
-        return $data->groupBy('no')->map(function ($items, $no) use ($calculator) {
+        $rumusMap = $bobotRumusCollection->keyBy('butir');
+        
+        return $data->groupBy('no')->map(function ($items, $no) use ($calculator, $rumusMap) {
+            $matchedRumusData = $rumusMap->get($no);
+            $rumusValue = $matchedRumusData ? $matchedRumusData['rumus'] : "A";
             return [
                 'no' => $no,
                 'kriteria' => $items->first()['kriteria'] ?? null,
-                'nilai' => $calculator->hitungSkorButir($no, $items->all()),
+                'nilai' => $calculator->hitungSkorButir($no, $items->all(), $rumusValue),
             ];
         })->values()->sortBy(function ($item) {
             return is_numeric($item['no']) ? (int) $item['no'] : PHP_INT_MAX;
         })->values();
     }
 
-    private function calculateScorePerButirBobot($data, $calculator, $prodiId)
+    private function calculateScorePerButirBobot($data, $calculator, $bobotRumusCollection)
     {
-        // 1. Panggil helper private untuk mendapatkan koleksi bobot
-        $bobotCollection = $this->_getBobotCollection($prodiId);
-
         // Jika tidak ada data bobot, kembalikan koleksi kosong untuk menghindari error
-        if ($bobotCollection->isEmpty()) {
+        if ($bobotRumusCollection->isEmpty()) {
             return collect(); 
         }
 
-        // 2. Untuk efisiensi, ubah koleksi menjadi map dengan key 'butir'
         // Ini membuat pencarian bobot menjadi sangat cepat (O(1) lookup)
-        $bobotMap = $bobotCollection->keyBy('butir');
+        $bobotMap = $bobotRumusCollection->keyBy('butir');
 
         // 3. Lakukan mapping pada data skor
         return $data->map(function ($item) use ($calculator, $bobotMap) {
@@ -188,95 +190,12 @@ class ButirController extends Controller
             ->values();
     }
 
-    // private function getBobotButir($prodiId)
-    // {
-    //     try {
-    //         $prodi = Prodi::findOrFail($prodiId);
-    //         $lamId = (string) $prodi->lamId;
-    //         $strataId = (string) $prodi->strataId;
-
-    //         $dataBobot = BobotButir::where('lamId', $lamId)
-    //             ->where('strataId', $strataId)
-    //             ->get();
-
-    //         // --- PERUBAHAN DIMULAI DI SINI ---
-
-    //         // 1. Transformasi koleksi menggunakan metode map()
-    //         // Metode map() akan mengiterasi setiap item dalam koleksi $dataBobot
-    //         // dan membuat array baru hanya dengan data yang kita inginkan.
-    //         $transformedData = $dataBobot->map(function ($item) {
-    //             // Beberapa nilai 'bobot' di data Anda seperti "02.09".
-    //             // Menggunakan (float) akan mengonversinya dengan benar menjadi 2.09.
-    //             return [
-    //                 'butir' => (int) $item->butir, // Konversi 'butir' menjadi integer
-    //                 'bobot' => (float) $item->bobot, // Konversi 'bobot' menjadi float
-    //             ];
-    //         });
-
-    //         return response()->json([
-    //             'status' => 'success',
-    //             'data' => $transformedData->values()->all()
-    //         ]);
-    //     } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-    //         return response()->json([
-    //             'status' => 'error',
-    //             'message' => "Prodi not found with ID: {$prodiId}"
-    //         ], 404);
-    //     } catch (\Throwable $th) {
-    //         // Optional: log the error
-    //         \Log::error($th);
-
-    //         return response()->json([
-    //             'status' => 'error',
-    //             'message' => "Bobot Butir Not Found"
-    //         ], 500);
-    //     }
-    // }
-
-    /**
-     * Fungsi PUBLIK untuk endpoint API.
-     * Mengambil data bobot butir dan mengembalikannya sebagai JSON.
-     */
-    public function getBobotButir($prodiId)
-    {
-        try {
-            // Panggil fungsi helper private untuk mendapatkan data
-            $bobotCollection = $this->_getBobotCollection($prodiId);
-
-            // Jika tidak ada data, kembalikan error not found
-            if ($bobotCollection->isEmpty()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => "Bobot Butir Not Found for Prodi ID: {$prodiId}"
-                ], 404);
-            }
-
-            // Jika ada, kembalikan respons sukses
-            return response()->json([
-                'status' => 'success',
-                'data' => $bobotCollection->values()->all()
-            ]);
-
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => "Prodi not found with ID: {$prodiId}"
-            ], 404);
-        } catch (\Throwable $th) {
-            \Log::error($th);
-            return response()->json([
-                'status' => 'error',
-                'message' => "An internal error occurred."
-            ], 500);
-        }
-    }
-
     /**
      * Fungsi HELPER PRIVATE.
      * Mengambil data dari DB dan mentransformasinya menjadi collection.
      * Ini yang akan digunakan untuk kalkulasi internal.
      */
-    private function _getBobotCollection($prodiId)
+    public function _getBobotRumusCollection($prodiId)
     {
         // findOrFail akan melempar exception jika Prodi tidak ada, 
         // yang akan ditangkap oleh fungsi publik di atas.
@@ -293,6 +212,7 @@ class ButirController extends Controller
             return [
                 'butir' => (int) $item->butir,
                 'bobot' => (float) $item->bobot,
+                'rumus' => (string) $item->rumus,
             ];
         });
     }
