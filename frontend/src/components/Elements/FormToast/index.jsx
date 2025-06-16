@@ -39,7 +39,7 @@ export function FormToast({
         />
       </form>
       <Button
-        className="bg-primary w-40 hover:bg-white hover:text-primary text-zinc-800 text-sm font-semibold"
+        className="bg-primary text-white w-40 hover:bg-white hover:text-primary text-sm font-semibold"
         onClick={handleSubmit}
       >
         Submit

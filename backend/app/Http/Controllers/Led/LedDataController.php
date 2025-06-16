@@ -19,19 +19,57 @@ class LedDataController extends Controller
     **/
     public function getLatest($taskId)
     {
-        $ledData = LedData::with('user')
-            ->where('taskId', $taskId)
-            ->orderBy('created_at', 'desc')
-            ->first();
+        try {
+            $ledData = LedData::with('user')
+                ->where('taskId', $taskId)
+                ->orderBy('created_at', 'desc')
+                ->first();
 
-        if (!$ledData) {
+            if (!$ledData) {
+                return response()->json([
+                    'status' => 'error', 
+                    'message' => 'No data found'
+                ], 404);
+            }
+
+            $ledData->username = $ledData->user?->name ?? 'Unknown';
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Berhasil mengambil data', 
+                'data' => $ledData
+            ], 200);
+        } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error', 
-                'message' => 'No data found'
+                'message' => "something wrong {$e->getMessage()}", 
+            ], 500);
+        }
+        
+    }
+
+    /**
+     * untuk mendapatkan banyak data dari LED data menggunakan taskId dan prodiId
+     * ini untuk menampilkan riwayat penyusunan LED
+    **/
+    public function getAllByTask(Request $request)
+    {
+        $taskId = $request->input('taskId');
+        $ledData = LedData::with('user', 'task')
+            ->where('taskId', $taskId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        if ($ledData->isEmpty()) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => "No data found with task ${taskId}"
             ], 404);
         }
 
-        $ledData->username = $ledData->user?->name ?? 'Unknown';
+        foreach ($ledData as $ld) {
+            $ld->username = $ld->user?->name ?? 'Unknown';
+        }
 
         return response()->json([
             'status' => 'success', 
@@ -43,9 +81,10 @@ class LedDataController extends Controller
      * untuk mendapatkan banyak data dari LED data menggunakan taskId dan prodiId
      * ini untuk menampilkan riwayat penyusunan LED
     **/
-    public function getAll($taskId)
+    public function getLatestByTask(Request $request)
     {
-        $ledData = LedData::with('user')
+        $taskId = $request->input('taskId');
+        $ledData = LedData::with('user', 'task')
             ->where('taskId', $taskId)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -53,7 +92,7 @@ class LedDataController extends Controller
         if ($ledData->isEmpty()) {
             return response()->json([
                 'status' => 'error', 
-                'message' => 'No data found'
+                'message' => "No data found with task ${taskId}"
             ], 404);
         }
 
@@ -97,92 +136,40 @@ class LedDataController extends Controller
                 ], 404);
             }
 
-            foreach ($filteredLedData as $ld) {
-                $user = User::find($ld->userId);
-                $ld->username = $user ? $user->name : null;
-            }
+            $latestPerTask = $filteredLedData
+                ->sortByDesc('created_at')
+                ->unique('taskId');
 
-            return response()->json([
-                'status' => 'success',
-                'count data' => $filteredLedData->count(),
-                'data' => $filteredLedData->values(), // reset index
-            ], 200);
-        } catch (Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function getSkorPerButir($prodiId)
-    {
-        try {
-            $ledData = LedData::orderBy('created_at', 'desc')
-                ->get();
-
-            $filteredLedData = $ledData->filter(function ($item) use ($prodiId) {
-                return $item->task && $item->task->tasklist &&
-                    $item->task->tasklist->project &&
-                    $item->task->tasklist->project->prodiId === $prodiId &&
-                    $item->task->tasklist->project->status === 'ACTIVE';
-            });         
-
-            if ($filteredLedData->isEmpty()) {
-                Log::warning("LED not found :", [
-                    'prodiId' => $prodiId,
-                    'count' => $ledData->count(),
-                    // 'led data 1' => $ledData->task->tasklist->project
-                    // 'led data sebelum filter' => $ledData,
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No data found',
-                ], 404);
-            }
-
-            $uniqueByTaskId = $filteredLedData
-                ->groupBy('taskId')
-                ->map(function ($group) {
-                    return $group->sortByDesc('created_at')->first(); // Ambil yang terbaru
-                })
-                ->values();
-
-            $result = $uniqueByTaskId->map(function ($item) {
+            $result = $latestPerTask->map(function ($item) {
+                $user = User::find($item->userId);
                 return [
-                    'no' => $item->task && $item->task->ledItem ? $item->task->ledItem->no : null,
-                    'nilai' => isset($item->nilai) 
-                        ? $item->nilai 
-                        : (isset($item->details[0]['nilai']) 
-                            ? $item->details[0]['nilai'] 
-                            : null),
+                    'id' => $item->id,
+                    'userId' => $item->userId,
+                    'username' => $user ? $user->name : null,
+                    'commit' => $item->commit,
+                    'taskId' => $item->taskId,
+                    'nilai' => $item->nilai,
+                    'masukan' => $item->masukan,
+                    'details' => $item->details,
+                    'created_at' => $item->created_at,
+                    'updated_at' => $item->updated_at,
+                    'task' => $item->task ? [
+                        'id' => $item->id,
+                        'nama' => $item->task->nama,
+                        'progress' => $item->task->progress,
+                        'led_item' => $item->task && $item->task->ledItem ? [
+                            'no' => $item->task->ledItem->no,
+                            'sub' => $item->task->ledItem->sub,
+                        ] : null,
+                    ] : null,
+                    
                 ];
             });
 
-
-           $grouped = $result->groupBy('no');
-
-            // Hitung rata-rata nilai jika ada lebih dari 1 sub dengan no yang sama
-            $finalResult = $grouped->map(function ($items, $no) {
-                $average = $items->map(function ($i) {
-                    return is_numeric($i['nilai']) ? (float) $i['nilai'] : 0;
-                })->avg();
-
-                return [
-                    'no' => $no,
-                    'nilai' => number_format($average, 2), // string dengan 2 desimal
-                ];
-            })->values();
-
-            // foreach ($uniqueByTaskId as $ld) {
-            //     $user = User::find($ld->userId);
-            //     $ld->skor = $user ? $user->name : null;
-            // }
-
             return response()->json([
                 'status' => 'success',
-                'count data' => $finalResult->count(),
-                'data' => $finalResult, // reset index
+                'count data' => $result->count(),
+                'data' => $result->values(),
             ], 200);
         } catch (Exception $e) {
             return response()->json([
@@ -191,6 +178,7 @@ class LedDataController extends Controller
             ], 500);
         }
     }
+
 
     public function getScorePerNoSubByProdi()
     {
@@ -306,6 +294,11 @@ class LedDataController extends Controller
         $task = Task::where('_id', $validatedData['taskId'])->first();
         if ($task) {
             $task->progress = $progress;
+            if($progress > 0 && $progress < 100){
+                $task->status = "IN PROGRESS";
+            }else if($progress == 100){
+                $task->status = "COMPLETED";
+            }
             $task->save();
         }        
         

@@ -111,25 +111,26 @@ import axiosInstance from "../utils/axiosConfig"
 import { useNavigate } from "react-router-dom"
 
 
+export const fetchLedDataByTaskId = async (taskId) => {
+  try {
+    const responseVersion = await axiosInstance.get(`/led-data/get-all-by-task`,{ params: { 
+        taskId: taskId 
+      }
+    })
+
+    return responseVersion.data.data
+  } catch (error) {
+    throw new Error("Gagal mengambil data program studi")
+  }
+}
+
 export const fetchUserTask = async () => {
   try {
     const responseTask = await axiosInstance.get(`/tasks`)
     console.log("user task :", responseTask.data.data)
 
     const dataRespon = responseTask.data.data
-
-    // console.log("respon :", dataRespon.length);
-    // console.log("no sub :", no, sub)
-
     return dataRespon
-
-    // if ((no && sub) || dataRespon.length > 0) {
-    //     console.log("checking...", responseTask.data.data);
-    //     checkAndRedirect(responseTask.data.data)
-    // } else {
-    //     console.log("tidak ada no dan sub")
-    //     setNumDesc(false)
-    // }
   } catch (error) {
     throw new Error("Gagal mengambil data program studi")
   }
@@ -431,8 +432,8 @@ export const fetchMasukanAndScoreFromAI = async (
   dataIsian
 ) => {
   try {
-    console.log("data matriks sebelum ke GPT : ", dataKriteriaIndikator)
-    console.log("data isian sebelum ke GPT : ", dataIsian)
+    console.log("data matriks sebelum ke Gemini : ", dataKriteriaIndikator)
+    console.log("data isian sebelum ke Gemini : ", dataIsian)
 
     const combinedIsianAsesi = dataIsian.map((item, index) => {
       return `${parseDraftContent(item.isianAsesi)}`
@@ -448,26 +449,18 @@ export const fetchMasukanAndScoreFromAI = async (
           type : dataIsian.type
     }
 
-    // dataIsianToScoring["Isian Asesi"] = extractText(dataIsianToScoring["isianAsesi"])
-
-    const responseGPT = await axiosInstance.post("/scoring-led", {
+    const responseGemini = await axiosInstance.post("/scoring-led", {
       dataLedItem: dataKriteriaIndikator,
       dataIsian: dataIsianToScoring,
     })
 
-    // console.log("Respon dari GPT:", responseGPT.data)
-
-    // let content = responseGPT.data.data.choices[0].message.content
-
     try {
-      console.log("hasil response gpt", responseGPT)
-      return responseGPT.data.mapping
+      console.log("hasil response Gemini", responseGemini)
+      return responseGemini.data.mapping
     } catch (jsonError) {
-      console.error("❌ Gagal parsing JSON dari GPT:", jsonError)
       throw new Error("Gagal parsing JSON dari OpenAI.")
     }
   } catch (error) {
-    console.error("❌ Gagal mengambil data masukan dan score:", error)
     throw new Error(`Gagal mengambil data masukan dan score: ${error.message}`)
   }
 }

@@ -21,7 +21,25 @@ class JsonController extends Controller
     {
         \Log::info("Fetching SpreadsheetInfo with ID: 67cd639116aa75ca300971e9");
 
-        $spreadsheet_infos = SpreadsheetInfo::get(); 
+        // $spreadsheet_infos = SpreadsheetInfo::get(); 
+        $lamId = $request->input('lamId');
+        $strataId = $request->input('strataId');
+        $sheets = $request->input('sheets');
+        $spreadsheetId = $request->input('spreadsheetId');
+
+        \Log::info("Received payload", $request->all());
+
+        if (!$lamId || !$strataId || !$sheets || !$spreadsheetId) {
+            return response()->json(['error' => 'Missing required fields in payload'], 400);
+        }
+
+         // Bungkus jadi array agar tetap bisa pakai foreach seperti sebelumnya
+        $spreadsheet_infos = collect([[
+            'lamId' => $lamId,
+            'strataId' => $strataId,
+            'sheets' => $sheets,
+            'spreadsheetId' => $spreadsheetId,
+        ]]);
         
         if ($spreadsheet_infos->isEmpty()) {
             return response()->json(['error' => 'SpreadsheetInfo not found'], 404);
@@ -29,8 +47,8 @@ class JsonController extends Controller
 
         \Log::info("SpreadsheetInfo found: ", $spreadsheet_infos->toArray());
         foreach ($spreadsheet_infos as $spreadsheet_info) {
-            $SPREADSHEET_ID = $this->extractSpreadsheetId($spreadsheet_info->spreadsheetId);
-            $RANGETOTAL = $spreadsheet_info->sheets;
+            $SPREADSHEET_ID = $this->extractSpreadsheetId($spreadsheet_info['spreadsheetId']);
+            $RANGETOTAL = $spreadsheet_info['sheets'];
 
             if (!$SPREADSHEET_ID || empty($RANGETOTAL)) {
                 return response()->json(['error' => "Missing required parameters for spreadsheet ID {$SPREADSHEET_ID}"], 400);
@@ -64,8 +82,8 @@ class JsonController extends Controller
 
                         $existingLedItem = LedItem::where('no', $data['No.'])
                             ->where('sub', $data['Sub'])
-                            ->where('lamId', $spreadsheet_info->lamId)
-                            ->where('strataId', $spreadsheet_info->strataId)
+                            ->where('lamId', $spreadsheet_info['lamId'])
+                            ->where('strataId', $spreadsheet_info['strataId'])
                             ->first();
 
                         if ($existingLedItem) {
@@ -75,8 +93,8 @@ class JsonController extends Controller
                             ]);
                         } else {
                             LedItem::create([
-                                'strataId' => $spreadsheet_info->strataId,
-                                'lamId' => $spreadsheet_info->lamId,
+                                'strataId' => $spreadsheet_info['strataId'],
+                                'lamId' => $spreadsheet_info['lamId'],
                                 'kriteria' => $data['C'],
                                 'no' => $data['No.'],
                                 'sub' => $data['Sub'],
@@ -137,9 +155,14 @@ class JsonController extends Controller
     {
         $header = array_shift($rows);
 
-        $data = collect($rows)->map(function ($row) use ($header) {
+        $data = collect($rows)->map(function ($row, $index) use ($header) {
+            if (count($row) > count($header)) {
+                \Log::warning("Row {$index} has more columns than header. Skipping.", ['row' => $row]);
+                return null;
+            }
+
             return array_combine($header, array_pad($row, count($header), null));
-        });
+        })->filter();
 
         return $data->groupBy(fn($item) => isset($item['No.']) && isset($item['Sub']) 
             ? "{$item['No.']}|{$item['Sub']}" 
@@ -160,7 +183,7 @@ class JsonController extends Controller
                         'Masukan' => $item['Masukan'] ?? null,
                     ])->values()->toArray(),
                 ];
-            })->values();
+            })->filter()->values(); 
     }
 
     /**

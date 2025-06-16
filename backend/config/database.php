@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', ' mongodb'),
+    'default' => env('DB_CONNECTION', 'mongodb'),
 
     /*
     |--------------------------------------------------------------------------
@@ -44,8 +44,8 @@ return [
 
         'mongodb' => [
             'driver' => 'mongodb',
-            'dsn' => env('MONGODB_URI', 'mongodb+srv://stefanusrico70:bobgaming@spme.minqz.mongodb.net'),
-            'database' => env('MONGODB_DATABASE', 'SPME'),
+            'dsn' => env('MONGODB_URI'),
+            'database' => env('MONGODB_DATABASE', 'spmev2'),
         ],
 
         'mysql' => [

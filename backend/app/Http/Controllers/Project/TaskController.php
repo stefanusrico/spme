@@ -559,7 +559,7 @@ class TaskController extends Controller
                 Log::warning("Task not found in updateOwners", [
                     'no' => $no,
                     'sub' => $sub,
-                    'prodiId' => $prodi,
+                    'prodiId' => $prodiId,
                     'owners' => $request->owners,
                 ]);
 
@@ -623,8 +623,13 @@ class TaskController extends Controller
                 ->get()
                 ->map(function ($task) {
                     // Ensure task details are populated
-                    $task = $this->populateTaskDetails($task);
-
+                    return $this->populateTaskDetails($task);
+                })
+                ->filter(function ($task) {
+                    // Jangan kembalikan task jika sub-nya "LKPS"
+                    return $task->sub !== 'LKPS';
+                })
+                ->map(function ($task) {
                     $owners = is_string($task->owners) ? json_decode($task->owners, true) : $task->owners;
                     $project = $task->tasklist->project ?? null;
 

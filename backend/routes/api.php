@@ -6,7 +6,7 @@ use App\Http\Controllers\User\{UserController, RoleController};
 use App\Http\Controllers\Lam\{LamController, JadwalLamController};
 use App\Http\Controllers\Jurusan\{JurusanController};
 use App\Http\Controllers\Prodi\{ProdiController, StrataController};
-use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController};
+use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController, ButirController};
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, WordController};
 use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController};

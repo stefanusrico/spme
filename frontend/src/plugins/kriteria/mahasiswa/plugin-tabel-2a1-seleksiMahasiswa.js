@@ -216,6 +216,13 @@ export class SeleksiMahasiswaPlugin extends BasePlugin {
       rasio: this.truncateToTwoDecimals(metrics.rasioSeleksi),
       A: metrics.componentA,
       B: this.truncateToTwoDecimals(metrics.componentB),
+      details: [
+        {
+          no: 13,
+          sub: "B",
+          nilai: this.truncateToTwoDecimals(metrics.componentB),
+        }
+      ],
       NM: metrics.totalMahasiswaAktif,
     }
   }

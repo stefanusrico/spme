@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Led\LedItem;
 use App\Models\Prodi\Prodi;
 use App\Models\Lam\Lam;
+use App\Traits\ObjectIdConversion;
 use Illuminate\Http\Request;
 use MongoDB\BSON\ObjectId;
 
 class LedItemController extends Controller
 {
+    use ObjectIdConversion;
     /**
      * Display a listing of the resource.
      */
@@ -98,46 +100,114 @@ class LedItemController extends Controller
         $lamId = $prodi->lamId;
         $strataId = $prodi->strataId;
 
-        \Log::info('lamId:', [$lamId]);
-        \Log::info('strataId:', [$strataId]);
+        $lamIdString = $this->convertObjectIdToString($lamId);
+        $strataIdString = $this->convertObjectIdToString($strataId);
 
-        $ledItem = LedItem::where('lamId',$lamId)
-                  ->where('strataId', $strataId)
-                  ->get();
-        
+        \Log::info('Original IDs from Prodi:', [
+            'lamId' => $lamId,
+            'strataId' => $strataId,
+            'lamIdType' => gettype($lamId),
+            'strataIdType' => gettype($strataId)
+        ]);
+
+        \Log::info('Converted IDs for LedItem query:', [
+            'lamIdString' => $lamIdString,
+            'strataIdString' => $strataIdString,
+            'lamIdStringType' => gettype($lamIdString),
+            'strataIdStringType' => gettype($strataIdString)
+        ]);
+
+        // First attempt: search with both lamId and strataId as strings
+        $ledItem = LedItem::where('lamId', $lamIdString)
+            ->where('strataId', $strataIdString)
+            ->get();
+
+        \Log::info('First query result count:', [$ledItem->count()]);
+
+        // If empty, try different approaches
         if ($ledItem->isEmpty()) {
-            $lamBanpt = Lam::where('name', 'BAN-PT')->first();
-            
-            if ($lamBanpt) {
-                \Log::info('Pencarian ulang dengan lamId BAN-PT:', [$lamBanpt->id]);
+            \Log::info('First query empty, trying alternative approaches...');
 
-                // Cek apakah lamId saat ini memang sama dengan lamBanpt->id
-                if ((string) $lamId === (string) $lamBanpt->id) {
-                    // Jika sama, cari berdasarkan strataId saja
-                    $ledItem = LedItem::where('strataId', $strataId)->get();
-                } else {
-                    // Jika berbeda, cari berdasarkan lamBanpt dan strataId
-                    $ledItem = LedItem::where('lamId', new ObjectId($lamBanpt->id))
-                        ->where('strataId', $strataId)
-                        ->get();
+            // Try with only strataId
+            $ledItem = LedItem::where('strataId', $strataIdString)->get();
+            \Log::info('Query with strataId only result count:', [$ledItem->count()]);
+
+            if ($ledItem->isEmpty()) {
+                // Try to find BAN-PT LAM and search with it
+                $lamBanpt = Lam::where('name', 'BAN-PT')->first();
+
+                if ($lamBanpt) {
+                    $lamBanptIdString = $this->convertObjectIdToString($lamBanpt->id);
+
+                    \Log::info('Searching with BAN-PT LAM:', [
+                        'lamBanptId' => $lamBanpt->id,
+                        'lamBanptIdString' => $lamBanptIdString
+                    ]);
+
+                    // Check if current lamId is same as BAN-PT lamId
+                    if ($lamIdString === $lamBanptIdString) {
+                        // Same LAM, try with strataId only (already tried above)
+                        \Log::info('LAM is already BAN-PT, strataId-only search already performed');
+                    } else {
+                        // Different LAM, try with BAN-PT LAM and strataId
+                        $ledItem = LedItem::where('lamId', $lamBanptIdString)
+                            ->where('strataId', $strataIdString)
+                            ->get();
+
+                        \Log::info('Query with BAN-PT LAM and strataId result count:', [$ledItem->count()]);
+                    }
+                }
+            }
+
+            // If still empty, try more flexible approaches
+            if ($ledItem->isEmpty()) {
+                \Log::info('All specific queries failed, trying flexible approaches...');
+
+                // Debug: Show all available lamIds and strataIds in LedItem
+                $allLamIds = LedItem::distinct('lamId')->pluck('lamId')->toArray();
+                $allStrataIds = LedItem::distinct('strataId')->pluck('strataId')->toArray();
+
+                \Log::info('All available lamIds in LedItem:', $allLamIds);
+                \Log::info('All available strataIds in LedItem:', $allStrataIds);
+
+                // Try case-insensitive search for strataId
+                $ledItemCaseInsensitive = LedItem::whereRaw("LOWER(strataId) = ?", [strtolower($strataIdString)])->get();
+                \Log::info('Case insensitive strataId search result count:', [$ledItemCaseInsensitive->count()]);
+
+                if ($ledItemCaseInsensitive->isNotEmpty()) {
+                    $ledItem = $ledItemCaseInsensitive;
                 }
             }
         }
 
         if ($ledItem->isEmpty()) {
+            // Get debug info for the error message
+            $allLamIds = LedItem::distinct('lamId')->pluck('lamId')->take(5)->toArray();
+            $allStrataIds = LedItem::distinct('strataId')->pluck('strataId')->take(5)->toArray();
+
             return response()->json([
                 'status' => 'error',
-                'message' => "Tidak ada data dengan lamId : {$lamId} dan strataId : {$strataId} tersebut"
+                'message' => "Tidak ada data LED Item yang ditemukan",
+                'debug_info' => [
+                    'searched_lamId' => $lamIdString,
+                    'searched_strataId' => $strataIdString,
+                    'sample_available_lamIds' => $allLamIds,
+                    'sample_available_strataIds' => $allStrataIds,
+                    'total_ledItems' => LedItem::count()
+                ]
             ], 404);
         }
 
         return response()->json([
             'status' => 'success',
             'total_data' => $ledItem->count(),
+            'search_info' => [
+                'lamId_used' => $lamIdString,
+                'strataId_used' => $strataIdString
+            ],
             'data' => $ledItem
         ], 200);
     }
-
 
     /**
      * Update the specified resource in storage.

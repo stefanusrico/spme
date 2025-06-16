@@ -48,11 +48,9 @@ export const dosenTetapFieldMapping = {
     type: "text",
   },
   sertifikat_pendidik_profesional: {
-    type: "boolean",
-    processor: PluginUtils.parseBoolean,
+    type: "text",
   },
   sertifikat_kompetensi: {
-    type: "boolean",
-    processor: PluginUtils.parseBoolean,
+    type: "text",
   },
 }

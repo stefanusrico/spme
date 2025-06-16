@@ -12,7 +12,7 @@ export const PluginUtils = {
 
       if (nonEmptyValues.length <= 1) return false
 
-      // Skip jika semua nilai adalah angka
+      // Skip baris jika semua nilai adalah angka
       const allNumbers = nonEmptyValues.every(
         (val) =>
           typeof val === "number" ||
@@ -28,8 +28,29 @@ export const PluginUtils = {
           .trim()
         return summaryLabels.includes(normalized)
       })
+      if (hasSummaryLabel) return false
 
-      return !hasSummaryLabel
+      // Tambahan: jika baris mengandung sel "info" dan sisanya seluruhnya angka,
+      // maka skip baris tersebut.
+      const containsInfo = row.some(
+        (cell) =>
+          String(cell || "")
+            .toLowerCase()
+            .trim() === "info"
+      )
+      if (containsInfo) {
+        const otherCells = nonEmptyValues.filter(
+          (val) => String(val).toLowerCase().trim() !== "info"
+        )
+        const othersAllNumeric = otherCells.every(
+          (val) =>
+            typeof val === "number" ||
+            (typeof val === "string" && !isNaN(val) && val.trim() !== "")
+        )
+        if (othersAllNumeric && otherCells.length > 0) return false
+      }
+
+      return true
     })
   },
 
@@ -242,7 +263,6 @@ export const PluginUtils = {
     if (typeof value === "number") return true
     if (typeof value !== "string") return false
 
-    // Check if string is numeric
     return !isNaN(value) && !isNaN(parseFloat(value)) && value.trim() !== ""
   },
 
@@ -251,57 +271,76 @@ export const PluginUtils = {
       return defaultValue
     }
 
-    // If it's already a string, return as is (assuming it's a valid date string)
-    if (typeof value === "string") {
-      return value.trim()
+    if (typeof value === "number") {
+      try {
+        if (value > 1 && value < 2958466) {
+          const adjustedValue = value > 59 ? value - 1 : value
+          // Excel epoch starts from 1899-12-30 (not 1900-01-01)
+          const excelDate = new Date(1899, 11, 30)
+          excelDate.setDate(excelDate.getDate() + adjustedValue)
+
+          if (!isNaN(excelDate.getTime())) {
+            return excelDate.toISOString().split("T")[0]
+          }
+        }
+
+        const date = new Date(value)
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split("T")[0]
+        }
+      } catch (e) {
+        return defaultValue
+      }
     }
 
-    // If it's a Date object, convert to ISO string or readable format
+    if (typeof value === "string") {
+      const trimmed = value.trim()
+      if (!trimmed) return defaultValue
+
+      const indonesianDateRegex = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/
+      const match = trimmed.match(indonesianDateRegex)
+
+      if (match) {
+        const [, day, month, year] = match
+        const isoDate = `${year}-${month.padStart(2, "0")}-${day.padStart(
+          2,
+          "0"
+        )}`
+
+        // Validate the constructed date
+        const testDate = new Date(isoDate)
+        if (!isNaN(testDate.getTime())) {
+          return isoDate
+        }
+      }
+
+      try {
+        const parsed = new Date(trimmed)
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toISOString().split("T")[0]
+        }
+      } catch (e) {}
+
+      return trimmed
+    }
+
     if (value instanceof Date) {
       if (isNaN(value.getTime())) {
         return defaultValue
       }
-      // Return in YYYY-MM-DD format
       return value.toISOString().split("T")[0]
     }
 
-    // If it's a number (timestamp), convert to date
-    if (typeof value === "number") {
-      try {
-        const date = new Date(value)
-        if (isNaN(date.getTime())) {
-          return defaultValue
-        }
-        return date.toISOString().split("T")[0]
-      } catch (e) {
-        return defaultValue
-      }
-    }
-
-    // For Excel date serial numbers (common in Excel files)
-    if (typeof value === "number" && value > 25569) {
-      try {
-        // Excel date serial number conversion
-        const excelDate = new Date((value - 25569) * 86400 * 1000)
-        if (isNaN(excelDate.getTime())) {
-          return defaultValue
-        }
-        return excelDate.toISOString().split("T")[0]
-      } catch (e) {
-        return defaultValue
-      }
-    }
-
-    // Try to parse as string
     try {
       const parsed = new Date(String(value))
-      if (isNaN(parsed.getTime())) {
-        return defaultValue
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split("T")[0]
       }
-      return parsed.toISOString().split("T")[0]
     } catch (e) {
       return defaultValue
     }
+
+    return defaultValue
   },
 
   /**

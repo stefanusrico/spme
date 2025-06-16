@@ -26,17 +26,17 @@ const ExportData = ({ projectId }) => {
   const [selectedTables, setSelectedTables] = useState([])
   const [tableStructure, setTableStructure] = useState([])
   const [ledCriteria, setLedCriteria] = useState([
-    { code: "C1", name: "Kriteria A: Visi, Misi, Tujuan, dan Strategi" },
+    { code: "C1", name: "Kriteria 1: Visi, Misi, Tujuan, dan Strategi" },
     {
-      code: "C2", name: "Kriteria B: Tata Pamong, Tata Kelola, dan Kerjasama",
+      code: "C2", name: "Kriteria 2: Tata Pamong, Tata Kelola, dan Kerjasama",
     },
-    { code: "C3", name: "Kriteria C: Mahasiswa" },
-    { code: "C4", name: "Kriteria D: Sumber Daya Manusia" },
-    { code: "C5", name: "Kriteria E: Keuangan, Sarana, dan Prasarana" },
-    { code: "C6", name: "Kriteria F: Pendidikan" },
-    { code: "C7", name: "Kriteria G: Penelitian" },
-    { code: "C8", name: "Kriteria H: Pengabdian kepada Masyarakat" },
-    { code: "C9", name: "Kriteria I: Luaran dan Capaian Tridharma" },
+    { code: "C3", name: "Kriteria 3: Mahasiswa" },
+    { code: "C4", name: "Kriteria 4: Sumber Daya Manusia" },
+    { code: "C5", name: "Kriteria 5: Keuangan, Sarana, dan Prasarana" },
+    { code: "C6", name: "Kriteria 6: Pendidikan" },
+    { code: "C7", name: "Kriteria 7: Penelitian" },
+    { code: "C8", name: "Kriteria 8: Pengabdian kepada Masyarakat" },
+    { code: "C9", name: "Kriteria 9: Luaran dan Capaian Tridharma" },
   ])
 
   useEffect(() => {

@@ -167,24 +167,21 @@ export default function ScrollableTabs({
     let bgColorArray = new Array(tabsData.length).fill(
       color[0]?.value || "#f38383"
     )
-    // const json = allLedData
-    console.log("json : ", allLedData)
-    console.log("tabsData : ", tabsData)
+
+    console.log("json : ", json)
+    console.log("tabsdata : ", tabsData);
+    console.log("color ", color);
+
     for (let i = 0; i < json.length; i++) {
       for (let index = 0; index < tabsData.length; index++) {
+        const ledItem = allLedData[i]?.task?.led_item
+        
         if (
-          json[i]?.task?.led_item?.no === String(tabsData[index]?.no) &&
-          json[i]?.task?.led_item?.sub === tabsData[index]?.sub
+          ledItem?.no === String(tabsData[index]?.no) &&
+          ledItem?.sub === tabsData[index]?.sub
         ) {
->>>>>>> dbv2
-          // Hitung total skor
-          let totalScore = 0
-          let count = 0
-          console.log('total skor ', totalScore)
-
-          
-          totalScore = parseInt(json[i].nilai) || 0
-               
+          const nilaiStr = allLedData[i]?.nilai
+          const totalScore = parseFloat(nilaiStr)
 
 <<<<<<< HEAD
           for (let indexDetail = 0; indexDetail < json[i].details.length; indexDetail++) {
@@ -325,17 +322,4 @@ export default function ScrollableTabs({
       </Modal>
     </>
   )
-}
-
-ScrollableTabs.propTypes = {
-  tabsData: PropTypes.arrayOf(
-    PropTypes.shape({
-      name: PropTypes.string.isRequired,
-      no: PropTypes.string,
-      sub: PropTypes.string,
-    })
-  ).isRequired,
-  no: PropTypes.string,
-  sub: PropTypes.string,
-  onClick: PropTypes.func,
 }

@@ -34,6 +34,7 @@ const API_BASE_URL =
 const TaskItem = ({ task, date, owner, status }) => {
   const statusConfig = {
     ACTIVE: { color: "bg-blue-100 text-blue-800", icon: Clock },
+    "IN PROGRESS": { color: "bg-orange-100 text-orange-800", icon: Activity },
     COMPLETED: { color: "bg-green-100 text-green-800", icon: CheckCircle },
     UNASSIGNED: { color: "bg-gray-100 text-gray-800", icon: Users },
     OVERDUE: { color: "bg-red-100 text-red-800", icon: AlertTriangle },
@@ -151,14 +152,16 @@ const TaskProgressCard = ({
 const TaskStatusChart = ({ statistics }) => {
   const active = statistics?.activeTasks ?? 0
   const completed = statistics?.completedTasks ?? 0
+  const inProgress = statistics?.inProgressTasks ?? 0 // Tambahkan ini
   const unassigned = statistics?.unassignedTasks ?? 0
   const overdue = statistics?.overdueTasks ?? 0
   const cancelled = statistics?.cancelledTasks ?? 0
 
-  const chartLabels = ["Active", "Completed", "Unassigned"]
-  const chartData = [active, completed, unassigned]
-  const chartBackgroundColors = ["#38bdf8", "#4ade80", "#FF0000"]
-  const chartBorderColors = ["#0284c7", "#16a34a", "#FF0000"]
+  // Update chart labels dan data untuk include IN PROGRESS
+  const chartLabels = ["Active", "In Progress", "Completed", "Unassigned"]
+  const chartData = [active, inProgress, completed, unassigned]
+  const chartBackgroundColors = ["#38bdf8", "#f97316", "#4ade80", "#94a3b8"]
+  const chartBorderColors = ["#0284c7", "#ea580c", "#16a34a", "#64748b"]
 
   if (overdue > 0) {
     chartLabels.push("Overdue")
@@ -222,7 +225,6 @@ const TaskStatusChart = ({ statistics }) => {
 
   return (
     <div className="relative h-[280px] w-full flex items-center justify-center">
-      {" "}
       <Doughnut data={data} options={options} />
       <div className="absolute flex flex-col items-center justify-center inset-0 pointer-events-none">
         <span className="text-3xl font-bold text-gray-800">
@@ -478,6 +480,7 @@ const DashboardProject = ({ projectDetails }) => {
   const totalTasks = statistics?.totalTasks ?? 0
   const completedTasks = statistics?.completedTasks ?? 0
   const activeTasksCount = statistics?.activeTasks ?? 0
+  const inProgressTasksCount = statistics?.inProgressTasks ?? 0 // Tambahkan ini
   const todaysTasksCount = statistics?.tasksDueToday ?? 0
   const overdueTasksCount = statistics?.overdueTasks ?? 0
 
@@ -506,10 +509,10 @@ const DashboardProject = ({ projectDetails }) => {
           colorClass="bg-amber-500"
         />
         <TaskProgressCard
-          title="Active Tasks"
-          value={activeTasksCount}
+          title="In Progress Tasks" // Update ini dari "Active Tasks"
+          value={inProgressTasksCount}
           icon={Activity}
-          colorClass="bg-violet-500"
+          colorClass="bg-orange-500" // Ubah warna untuk membedakan
         />
         <TaskProgressCard
           title="Overdue Tasks"
@@ -573,7 +576,6 @@ const DashboardProject = ({ projectDetails }) => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                {" "}
                 {todaysTasks.length > 0 ? (
                   todaysTasks.map((task) => (
                     <TaskItem
@@ -602,7 +604,6 @@ const DashboardProject = ({ projectDetails }) => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                {" "}
                 {overdueTasks.length > 0 ? (
                   overdueTasks.map((task) => (
                     <TaskItem
@@ -690,7 +691,6 @@ const DashboardProject = ({ projectDetails }) => {
         <TabsContent value="analytics" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <TaskCompletionRate statistics={statistics} />
-
             <ResourceAllocation allocationData={resourceAllocation} />
           </div>
         </TabsContent>

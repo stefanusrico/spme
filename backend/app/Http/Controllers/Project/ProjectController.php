@@ -732,23 +732,31 @@ class ProjectController extends Controller
                 ->orderBy('order', 'asc')
                 ->get();
 
-            // 5. Batch processing for large collections
+            // 5. Calculate statistics from all tasks
+            $allTasks = collect();
+            foreach ($taskLists as $taskList) {
+                $allTasks = $allTasks->merge($taskList->tasks);
+            }
+
+            $statistics = $this->calculateTaskListStatistics($allTasks);
+
+            // 6. Batch processing for large collections
             $result = [
                 'status' => 'success',
                 'data' => [
                     'projectId' => $project->projectId,
                     'projectName' => $project->name,
                     'taskLists' => [],
-                    'statistics' => $this->calculateStatistics($taskLists)
+                    'statistics' => $statistics
                 ]
             ];
 
-            // 6. Preload related data to avoid repeated lookups
+            // 7. Preload related data to avoid repeated lookups
             $taskOwners = $this->preloadTaskOwners($taskLists);
             $ledItems = $this->preloadLedItems($taskLists);
             $lkpsTables = $this->preloadLkpsTables($taskLists);
 
-            // 7. Process each task list efficiently
+            // 8. Process each task list efficiently
             foreach ($taskLists as $taskList) {
                 $listName = "Kriteria {$taskList->kriteria}";
                 $processedTasks = [];
@@ -785,7 +793,7 @@ class ProjectController extends Controller
                 ];
             }
 
-            // 8. Cache the result
+            // 9. Cache the result
             Cache::put($cacheKey, $result, $cacheDuration);
 
             return response()->json($result);
@@ -804,6 +812,65 @@ class ProjectController extends Controller
                     : 'An error occurred.'
             ], 500);
         }
+    }
+
+    /**
+     * Calculate task list statistics
+     */
+    private function calculateTaskListStatistics($tasks)
+    {
+        $statistics = [
+            'totalTasks' => 0,
+            'completedTasks' => 0,
+            'activeTasks' => 0,
+            'inProgressTasks' => 0,
+            'unassignedTasks' => 0,
+            'cancelledTasks' => 0,
+        ];
+
+        foreach ($tasks as $task) {
+            $statistics['totalTasks']++;
+
+            switch ($task->status) {
+                case 'COMPLETED':
+                    $statistics['completedTasks']++;
+                    break;
+                case 'ACTIVE':
+                    $statistics['activeTasks']++;
+                    break;
+                case 'IN PROGRESS':
+                    $statistics['inProgressTasks']++;
+                    break;
+                case 'UNASSIGNED':
+                    $statistics['unassignedTasks']++;
+                    break;
+                case 'CANCELLED':
+                    $statistics['cancelledTasks']++;
+                    break;
+            }
+        }
+
+        // Calculate percentage for each status
+        $total = $statistics['totalTasks'];
+        if ($total > 0) {
+            $statistics['percentages'] = [
+                'completed' => round(($statistics['completedTasks'] / $total) * 100, 1),
+                'active' => round(($statistics['activeTasks'] / $total) * 100, 1),
+                'inProgress' => round(($statistics['inProgressTasks'] / $total) * 100, 1),
+                'unassigned' => round(($statistics['unassignedTasks'] / $total) * 100, 1),
+                'cancelled' => round(($statistics['cancelledTasks'] / $total) * 100, 1),
+            ];
+        } else {
+            $statistics['percentages'] = [
+                'completed' => 0,
+                'active' => 0,
+                'inProgress' => 0,
+                'unassigned' => 0,
+                'cancelled' => 0,
+            ];
+        }
+
+        return $statistics;
     }
 
     /**

@@ -364,6 +364,7 @@ import AddFileModal from "../Modals/AddFileModal"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { Spin } from "antd"
+import { Loader2 } from "lucide-react"
 import axiosInstance from "../../../utils/axiosConfig"
 
 function PengisianLedTableNew({
@@ -376,6 +377,7 @@ function PengisianLedTableNew({
   noSub
 }) {
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingCheck, setIsLoadingCheck] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [dataToUpload, setDataToUpload] = useState([])
   const [globalDetails, setGlobalDetails] = useState({})
@@ -456,6 +458,7 @@ function PengisianLedTableNew({
   }
 
   const handleButtonCheck = async (seq, index) => {
+    setIsLoadingCheck(true)
     try {
       const toInt = parseInt(seq, 10) - 1
 
@@ -466,16 +469,8 @@ function PengisianLedTableNew({
 
       const data = await fetchMasukanAndScoreFromAI(
         dataKriteriaIndikator,
-        // dataIsian.details[toInt]
         dataIsian.details
       )
-
-      // if (!data || !data.nilai || !data.masukan) {
-      //   throw new Error("Data dari GPT tidak lengkap!")
-      // }
-
-      console.log("hasil dari prompting")
-      toast.info("skor prompting")
 
       // updateDataIsian(updatedDetails)
       const updatedDataIsian = {
@@ -485,12 +480,12 @@ function PengisianLedTableNew({
       };
 
       updateDataIsian(updatedDataIsian);
-      setSelectedDetails(updatedDetails)
-      console.log("data respon  : ", )
       toast.success("Berhasil prompting ", )
     } catch (error) {
       toast.info("skor prompting",)
       toast.error("Gagal prompting ")
+    } finally{
+      setIsLoadingCheck(false)
     }
   }
 
@@ -640,8 +635,9 @@ function PengisianLedTableNew({
         </h1>
       )}
       
-      <Stack spacing={2} className="mb-4 center-stack">
+      <Stack spacing={2} className="mb-4 center-stack flex center">
         <Pagination
+          className="flex justify-center"
           count={totalPages || 1}
           page={currentPage}
           onChange={handlePageChange}
@@ -709,22 +705,25 @@ function PengisianLedTableNew({
           </div>
 
           <div className="mt-4 flex justify-end">
-            <Button
-              className="bg-black w-80 hover:bg-white hover:text-primary mr-2"
-              aria-label="Update"
-              onClick={() => setIsOpenModalUploadFile(true)}
-              disabled={type === "readonly" || type === "readonlyVersion"}
-            >
-              Upload file Data Pendukung
-            </Button>
-            <Button
-              className="bg-primary w-40 hover:bg-white hover:text-black"
-              aria-label="Check"
-              onClick={() => handleButtonCheck(detail.seq, index)}
-              disabled={type === "readonly" || type === "readonlyVersion"}
-            >
-              Check
-            </Button>
+            {type !== "readonly" && type !== "readonlyVersion" ? (
+              <Button
+                className={`bg-primary flex items-center gap-2 hover:bg-white hover:text-black ${isLoadingCheck ? 'opacity-50 cursor-not-allowed' : ''}`}
+                aria-label="Check"
+                onClick={() => handleButtonCheck(detail.seq, index)}
+                disabled={isLoadingCheck}
+              >
+                {isLoadingCheck ? (
+                  <>
+                    <span>Check...</span>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    <span>Check</span>
+                  </>
+                )}
+              </Button>
+            ) : null}
           </div>
 
           <div className="w-full items-center gap-1.5 mt-4">
@@ -732,11 +731,11 @@ function PengisianLedTableNew({
             <textarea
               id={`masukan_${index}`}
               placeholder="Masukan dari GPT"
-              className="w-full p-2 border rounded-md min-h-[40px] resize-none"
+              className="w-full p-2 border rounded-md min-h-[80px] resize-none"
               value={dataIsian.masukan || ""}
               readOnly
               onInput={(e) => {
-                e.target.style.height = "40px"
+                e.target.style.height = "80px"
                 e.target.style.height = `${e.target.scrollHeight}px`
               }}
             ></textarea>
