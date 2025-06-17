@@ -1,5 +1,4 @@
 <?php
-// filepath: c:\Users\ACER\Desktop\post-seminar3\backend\app\Http\Controllers\Lkps\GoogleSheetController.php
 
 namespace App\Http\Controllers\Lkps;
 
