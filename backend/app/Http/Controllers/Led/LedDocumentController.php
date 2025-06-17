@@ -18,7 +18,7 @@ use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\SimpleType\Jc;
 use PhpOffice\PhpWord\Shared\Html;
 
-class WordController extends Controller
+class LedDocumentController extends Controller
 {
     // Import Document of LED
     public function importTemplateLed(Request $request)

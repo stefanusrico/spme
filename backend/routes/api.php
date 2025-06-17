@@ -7,8 +7,8 @@ use App\Http\Controllers\Lam\{LamController, JadwalLamController};
 use App\Http\Controllers\Jurusan\{JurusanController};
 use App\Http\Controllers\Prodi\{ProdiController, StrataController};
 use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController, ButirController};
-use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
-use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, WordController};
+use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController, LkpsImportController};
+use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, LedDocumentController};
 use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController, SpreadsheetController};
 use App\Http\Controllers\Akreditasi\{DataAkreditasiController};
 use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
@@ -22,7 +22,6 @@ use App\Http\Controllers\{
     RumusController,
     SectionController,
     ColorController,
-    GoogleSheetController,
 
 };
 use App\Http\Middleware\JwtMiddleware;
@@ -104,27 +103,27 @@ Route::get('/lkps/sections/all/data', [LkpsExportController::class, 'getAllSecti
 Route::post('/templates/upload', [LkpsExportController::class, 'uploadTemplate']);
 Route::get('/templates/info', [LkpsExportController::class, 'getTemplateInfo']);
 Route::post('/lkps/export-data', [LkpsExportController::class, 'exportData']);
-Route::post('/led/export-data', [WordController::class, 'exportData']);
-Route::post('/led/import-data', [WordController::class, 'importTemplateLed']);
+Route::post('/led/export-data', [LedDocumentController::class, 'exportData']);
+Route::post('/led/import-data', [LedDocumentController::class, 'importTemplateLed']);
 
 Route::get('/led/{sheet}', [DataController::class, 'getLembarIsianLed']);
 Route::get('/stortasklist/{projectId}', [TaskListController::class, 'storeFromLed']);
 Route::post('/projects/{projectId}/tasks/led', [TaskController::class, 'storeFromLed']);
-// Route::get('/sheets/colored-cells', [GoogleSheetController::class, 'getColoredCells']);
-Route::get('/available-tables', [GoogleSheetController::class, 'getAvailableTables']);
-Route::get('/colored-cells', [GoogleSheetController::class, 'getColoredCells']);
-Route::get('/colored-cells/table/{tableRef?}', [GoogleSheetController::class, 'getColoredCellsByTable']);
+// Route::get('/sheets/colored-cells', [LkpsImportController::class, 'getColoredCells']);
+Route::get('/available-tables', [LkpsImportController::class, 'getAvailableTables']);
+Route::get('/colored-cells', [LkpsImportController::class, 'getColoredCells']);
+Route::get('/colored-cells/table/{tableRef?}', [LkpsImportController::class, 'getColoredCellsByTable']);
 
 // Legacy route with sheet_gid (keep for backward compatibility)
-Route::get('/colored-cells/gid', [GoogleSheetController::class, 'getColoredCells']);
+Route::get('/colored-cells/gid', [LkpsImportController::class, 'getColoredCells']);
 
 // API version endpoints (optional)
 Route::prefix('v1')->group(function () {
-    Route::get('tables', [GoogleSheetController::class, 'getAvailableTables']);
-    Route::get('tables/{tableRef}/colored-cells', [GoogleSheetController::class, 'getColoredCellsByTable']);
+    Route::get('tables', [LkpsImportController::class, 'getAvailableTables']);
+    Route::get('tables/{tableRef}/colored-cells', [LkpsImportController::class, 'getColoredCellsByTable']);
 });
 
-Route::get('table/{tableRef}', [GoogleSheetController::class, 'getColoredCellsByTable']);
+Route::get('table/{tableRef}', [LkpsImportController::class, 'getColoredCellsByTable']);
 
 Route::get('/scrape/{perguruan_tinggi}/{strata}', [ScraperController::class, 'scrape']);
 Route::post('/jurusan', [JurusanController::class, 'store']);

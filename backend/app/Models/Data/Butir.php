@@ -6,7 +6,7 @@ use App\Models\Lam\Lam;
 use App\Models\Prodi\Strata;
 use MongoDB\Laravel\Eloquent\Model;
 
-class BobotButir extends Model
+class Butir extends Model
 {
     protected $connection = 'mongodb'; 
     protected $collection = 'bobot_butir'; 

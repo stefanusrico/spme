@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Http\Controllers\Lkps\GoogleSheetController;
+use App\Http\Controllers\Lkps\LkpsImportController;
 use App\Models\Lkps\LkpsTable;
 use App\Models\Lkps\LkpsColumn;
 use Illuminate\Support\Facades\Log;
@@ -33,9 +33,9 @@ class LkpsSyncCommand extends Command
     protected $description = 'Sinkronisasi struktur LKPS dari Google Sheets (tabel, kolom) dalam satu command';
 
     /**
-     * GoogleSheetController yang digunakan
+     * LkpsImportController yang digunakan
      */
-    private $googleSheetController;
+    private $lkpsImportController;
 
     /**
      * Spreadsheet ID
@@ -79,8 +79,8 @@ class LkpsSyncCommand extends Command
             $this->spreadsheetId = $this->ask('Masukkan ID Google Spreadsheet');
         }
 
-        // Inisialisasi GoogleSheetController
-        $this->googleSheetController = new GoogleSheetController(new Request(['spreadsheet_id' => $this->spreadsheetId]));
+        // Inisialisasi LkpsImportController
+        $this->lkpsImportController = new LkpsImportController(new Request(['spreadsheet_id' => $this->spreadsheetId]));
 
         // Cek apakah perlu hapus struktur lama
         if ($this->option('clear')) {
@@ -155,7 +155,7 @@ class LkpsSyncCommand extends Command
         $this->info('Mengambil data dari Google Sheets...');
 
         $request = new Request(['spreadsheet_id' => $this->spreadsheetId]);
-        $response = $this->googleSheetController->getAvailableTables($request);
+        $response = $this->lkpsImportController->getAvailableTables($request);
 
         if (!isset($response->original)) {
             $this->error('Response tidak memiliki property "original"');
@@ -434,7 +434,7 @@ class LkpsSyncCommand extends Command
                 'table_ref' => $nameSheet
             ]);
 
-            $response = $this->googleSheetController->getColoredCellsByTable($request, $nameSheet);
+            $response = $this->lkpsImportController->getColoredCellsByTable($request, $nameSheet);
 
             if ($this->debug) {
                 $this->info("  Response getColoredCellsByTable untuk {$nameSheet}: " . json_encode($response->original ?? 'No original data'));

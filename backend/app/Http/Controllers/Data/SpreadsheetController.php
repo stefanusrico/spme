@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Data;
 
 use App\Http\Controllers\Controller;
 use App\Models\Led\LedItem;
-use App\Models\Data\BobotButir;
+use App\Models\Data\Butir;
 use App\Models\Data\SyaratPerluPeringkat;
 use App\Models\Data\SyaratPerluTerakreditasi;
 use App\Models\Data\SpreadsheetInfo;
@@ -79,7 +79,7 @@ class SpreadsheetController extends Controller
                 $spreadsheet_infos,
                 fn($data) => $this->transformDataBobotButir($data),
                 function ($data, $info) {
-                    $existing = BobotButir::where('butir', $data['butir'])
+                    $existing = Butir::where('butir', $data['butir'])
                         ->where('lamId', $info['lamId'])
                         ->where('strataId', $info['strataId'])
                         ->first();
@@ -92,7 +92,7 @@ class SpreadsheetController extends Controller
                             'rumus' => $data['rumus'] ?? null,
                         ]);
                     } else {
-                        BobotButir::create([
+                        Butir::create([
                             'strataId' => $info['strataId'],
                             'lamId' => $info['lamId'],
                             'butir' => $data['butir'] ?? null,
@@ -475,7 +475,7 @@ class SpreadsheetController extends Controller
             // $lamIdString = $this->convertObjectIdToString($lamId);
             // $strataIdString = $this->convertObjectIdToString($strataId);
 
-            $data = BobotButir::where('lamId', $lamId)
+            $data = Butir::where('lamId', $lamId)
                 ->where('strataId', $strataId)
                 ->get();
 

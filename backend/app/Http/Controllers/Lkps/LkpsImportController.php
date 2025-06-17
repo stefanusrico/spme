@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 use App\Models\Lkps\LkpsColumn;
 use App\Models\Lkps\LkpsTable;
 
-class GoogleSheetController extends Controller
+class LkpsImportController extends Controller
 {
     private $spreadsheetId;
     private $client;

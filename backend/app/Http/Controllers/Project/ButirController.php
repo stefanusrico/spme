@@ -8,10 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Led\LedData;
 use App\Models\Lkps\LkpsData;
 use App\Models\Project\Project;
-use App\Models\Project\TaskList;
-use App\Models\Project\Task;
 use App\Models\Prodi\Prodi;
-use App\Models\Data\BobotButir;
+use App\Models\Data\Butir;
 use App\Services\Calculations\ScoreCalculator;
 
 use Illuminate\Support\Facades\Log;
@@ -203,7 +201,7 @@ class ButirController extends Controller
         $lamId = (string) $prodi->lamId;
         $strataId = (string) $prodi->strataId;
 
-        $dataBobot = BobotButir::where('lamId', $lamId)
+        $dataBobot = Butir::where('lamId', $lamId)
             ->where('strataId', $strataId)
             ->get();
 
