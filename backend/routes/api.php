@@ -7,15 +7,15 @@ use App\Http\Controllers\Lam\{LamController, JadwalLamController};
 use App\Http\Controllers\Jurusan\{JurusanController};
 use App\Http\Controllers\Prodi\{ProdiController, StrataController};
 use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController, ButirController};
-use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController, LkpsImportController};
+use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController, LkpsImportController, LkpsSyncController};
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, LedDocumentController};
 use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController, KomponenPenilaianController};
 use App\Http\Controllers\Akreditasi\{DataAkreditasiController};
 use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
+use App\Http\Controllers\Notification\NotificationController;
 
 
 use App\Http\Controllers\{
-    NotificationController,
     DataController,
     ScraperController,
     MenuController,
@@ -86,17 +86,14 @@ Route::prefix('lkps')->group(function () {
     Route::get('/tables/{tableCode}/task', [LkpsDataController::class, 'getTaskIdForTable']);
     Route::get('/export/{tableCode?}', [LkpsDataController::class, 'exportData']);
 
-    Route::post('/fetch', [LkpsFetchController::class, 'syncLkpsStructure']);
 
-    Route::post('/fetch/debug', [App\Http\Controllers\Lkps\LkpsFetchController::class, 'debugGoogleSheets']);
-
-    Route::post('/sync', [App\Http\Controllers\Lkps\LkpsSyncController::class, 'syncLkpsStructure']);
+    Route::post('/sync', [LkpsSyncController::class, 'syncLkpsStructure']);
 
     // Get sync status
-    Route::get('/sync/status', [App\Http\Controllers\Lkps\LkpsSyncController::class, 'getSyncStatus']);
+    Route::get('/sync/status', [LkpsSyncController::class, 'getSyncStatus']);
 
     // Debug Google Sheets connection
-    Route::post('/sync/debug', [App\Http\Controllers\Lkps\LkpsSyncController::class, 'debugGoogleSheets']);
+    Route::post('/sync/debug', [LkpsSyncController::class, 'debugGoogleSheets']);
 
 });
 

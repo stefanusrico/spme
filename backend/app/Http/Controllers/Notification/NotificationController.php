@@ -1,12 +1,14 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Notification;
 
-use App\Models\User;
+use App\Http\Controllers\Controller;
+
+use App\Models\User\User;
 use App\Notifications\GeneralNotification;
 use Illuminate\Http\Request;
 use App\Notifications\TestNotification;
-use App\Models\DatabaseNotification;
+use App\Models\Notification\Notification;
 use App\Models\Project\Project;
 
 class NotificationController extends Controller
@@ -16,7 +18,7 @@ class NotificationController extends Controller
         try {
             $user = auth()->user();
 
-            $notifications = DatabaseNotification::where('notifiable_id', $user->_id)
+            $notifications = Notification::where('notifiable_id', $user->_id)
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -86,7 +88,7 @@ class NotificationController extends Controller
                 'status' => 'success',
                 'data' => [
                     'notifications' => $notificationsWithProjectId,
-                    'unread_count' => DatabaseNotification::where('notifiable_id', $user->_id)
+                    'unread_count' => Notification::where('notifiable_id', $user->_id)
                         ->whereNull('read_at')
                         ->count()
                 ]
@@ -120,7 +122,7 @@ class NotificationController extends Controller
 
     public function markAllAsRead()
     {
-        DatabaseNotification::where('notifiable_id', auth()->user()->_id)
+        Notification::where('notifiable_id', auth()->user()->_id)
             ->where('read_at', null)
             ->update(['read_at' => now()]);
 
@@ -160,7 +162,7 @@ class NotificationController extends Controller
 
     public function sendProjectAddedNotification($user, $project, $addedBy)
     {
-        DatabaseNotification::create([
+        Notification::create([
             'type' => 'App\Notifications\ProjectMemberAddedNotification',
             'notifiable_type' => User::class,
             'notifiable_id' => $user->_id,
