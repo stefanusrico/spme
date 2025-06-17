@@ -3,7 +3,7 @@
 namespace App\Models\Project;
 
 use App\Models\User\User;
-use App\Models\led\ledItem;
+use App\Models\Led\LedItem;
 use MongoDB\Laravel\Eloquent\Model;
 
 class Task extends Model

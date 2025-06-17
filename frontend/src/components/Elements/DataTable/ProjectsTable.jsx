@@ -348,6 +348,7 @@ const ProjectsTable = ({ isCollapsed }) => {
         draggable
         pauseOnHover
         theme="light"
+        style={{ zIndex: 11001 }}
       />
 
       <div className="flex justify-between items-center mb-4">

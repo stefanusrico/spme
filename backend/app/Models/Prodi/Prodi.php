@@ -57,11 +57,6 @@ class Prodi extends Model
         return $this->belongsTo(Strata::class, 'strataId', '_id');
     }
 
-    public function versions()
-    {
-        return $this->hasMany(Version::class, 'prodiId', '_id');
-    }
-
     public function users()
     {
         return $this->hasMany(User::class, 'prodiId', '_id');
@@ -70,11 +65,6 @@ class Prodi extends Model
     public function lam()
     {
         return $this->belongsTo(Lam::class, 'lamId', '_id');
-    }
-
-    public function jadwalLam()
-    {
-        return $this->belongsTo(JadwalLam::class, 'jadwalLamId', '_id');
     }
 
     public function activeProject()
@@ -86,47 +76,6 @@ class Prodi extends Model
     public function projects()
     {
         return $this->hasMany(Project::class, 'prodiId', '_id');
-    }
-
-    public function lkpsDocuments()
-    {
-        return $this->hasMany(Lkps::class, 'prodiId', '_id');
-    }
-
-    /**
-     * Get the active LKPS document for this prodi
-     */
-    public function activeLkps()
-    {
-        return $this->hasOne(Lkps::class, 'prodiId', '_id')
-            ->where('isActive', true);
-    }
-
-    /**
-     * Get LKPS for current accreditation period
-     */
-    public function currentPeriodLkps()
-    {
-        if (!isset($this->akreditasi['tanggalKedaluwarsa'])) {
-            return null;
-        }
-
-        $periode = Lkps::calculatePeriode($this->akreditasi['tanggalKedaluwarsa']);
-
-        return $this->hasOne(Lkps::class, 'prodiId', '_id')
-            ->where('periode', $periode)
-            ->latest();
-    }
-
-    public function getOrCreateLkps($tahunAkademik, $userId)
-    {
-        if (!isset($this->akreditasi['tanggalKedaluwarsa'])) {
-            throw new \Exception('Tanggal kedaluwarsa akreditasi belum ditetapkan');
-        }
-
-        $periode = Lkps::calculatePeriode($this->akreditasi['tanggalKedaluwarsa']);
-
-        return Lkps::createForProdi($this->_id, $periode, $tahunAkademik, $userId);
     }
 
     public function getJurusanKeyword($name = null)
@@ -187,62 +136,6 @@ class Prodi extends Model
         return null;
     }
 
-    public function assignJadwalLam()
-    {
-        \Log::info("Starting assignJadwalLam for " . $this->name);
-
-        if (
-            isset($this->jadwalLamId) &&
-            isset($this->tanggalSubmit) &&
-            isset($this->tanggalPengumuman)
-        ) {
-            \Log::info("Skip: already has complete schedule");
-            return;
-        }
-
-        if (!isset($this->akreditasi['tanggalKedaluwarsa'])) {
-            \Log::info("No tanggalKedaluwarsa");
-            return;
-        }
-
-        $lam = Lam::find($this->lamId);
-        if (!$lam) {
-            \Log::info("No LAM found with ID: " . $this->lamId);
-            return;
-        }
-        \Log::info("Found LAM: " . $lam->name);
-
-        $tanggalKedaluwarsa = Carbon::parse($this->akreditasi['tanggalKedaluwarsa']);
-        \Log::info("Looking for schedule for year: " . $tanggalKedaluwarsa->year);
-
-        $firstSchedule = JadwalLam::where('lamId', $this->lamId)
-            ->where('tahun', $tanggalKedaluwarsa->year)
-            ->first();
-        \Log::info("First schedule found: " . ($firstSchedule ? 'yes' : 'no'));
-
-        if (!$firstSchedule) {
-            \Log::info("No schedule found for year");
-            return;
-        }
-        \Log::info("Has batch: " . ($firstSchedule->hasBatch ? 'yes' : 'no'));
-
-        $jadwal = $this->findAppropriateSchedule($lam, $tanggalKedaluwarsa);
-        if ($jadwal) {
-            \Log::info("Found schedule:", [
-                'jadwalLamId' => $jadwal->_id,
-                'tanggalSubmit' => $jadwal->tanggalSubmit,
-                'tanggalPengumuman' => $jadwal->tanggalPengumuman
-            ]);
-
-            $this->jadwalLamId = $jadwal->_id;
-            $this->tanggalSubmit = $jadwal->tanggalSubmit;
-            $this->tanggalPengumuman = $jadwal->tanggalPengumuman;
-            $this->save();
-        } else {
-            \Log::info("No appropriate schedule found");
-        }
-    }
-
     private function setLamId(): void
     {
         if (!isset($this->akreditasi['lembagaAkreditasi'])) {
@@ -260,57 +153,17 @@ class Prodi extends Model
         $this->lamId = $lam ? $this->convertToObjectId($lam->_id) : null;
     }
 
-    private function findAppropriateSchedule($lam, $tanggalKedaluwarsa)
-    {
-        $baseQuery = JadwalLam::where('lamId', $lam->_id);
-
-        if ($lam->hasBatch) {
-            $jadwal = $baseQuery
-                ->where('tanggalPengumuman', '<=', $tanggalKedaluwarsa)
-                ->orderBy('tanggalPengumuman', 'desc')
-                ->first();
-
-            if (!$jadwal) {
-                $jadwal = $baseQuery
-                    ->where('tanggalPengumuman', '>', $tanggalKedaluwarsa)
-                    ->orderBy('tanggalPengumuman', 'asc')
-                    ->first();
-            }
-            return $jadwal;
-        } else {
-            $jadwal = $baseQuery
-                ->where('tahun', $tanggalKedaluwarsa->year)
-                ->first();
-
-            if (!$jadwal) {
-                $jadwal = $baseQuery
-                    ->where('tahun', $tanggalKedaluwarsa->year + 1)
-                    ->first();
-            }
-            return $jadwal;
-        }
-    }
-
     protected static function boot()
     {
         parent::boot();
 
         static::creating(function ($prodi) {
             $prodi->setLamId();
-            if (isset($prodi->akreditasi['lembagaAkreditasi'])) {
-                $prodi->assignJadwalLam();
-            }
         });
 
         static::updating(function ($prodi) {
             if ($prodi->isDirty('akreditasi.lembagaAkreditasi')) {
                 $prodi->setLamId();
-            }
-            if (
-                $prodi->isDirty('akreditasi.tanggalKedaluwarsa') ||
-                $prodi->isDirty('akreditasi.lembagaAkreditasi')
-            ) {
-                $prodi->assignJadwalLam();
             }
         });
     }

@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Lkps\LkpsTable;
 use App\Models\Lkps\LkpsColumn;
 use App\Models\Lkps\LkpsData;
-use App\Models\Prodi;
+use App\Models\Prodi\Strata;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -21,14 +21,47 @@ class LkpsTableController extends Controller
     public function getAllTables()
     {
         try {
-            $tables = LkpsTable::select('kode', 'judul')->orderBy('judul')->get();
+            $divStrata = Strata::where('name', 'D-IV')->first();
 
-            \Log::info('LKPS Tables count: ' . $tables->count());
+            if (!$divStrata) {
+                \Log::error('D-IV strata not found in database');
+                return response()->json([
+                    'message' => 'D-IV strata not found',
+                    'error' => 'Strata D-IV tidak ditemukan di database'
+                ], 404);
+            }
+
+            \Log::info('Found D-IV strata with ID: ' . $divStrata->_id);
+
+            // Filter tables by D-IV strata only
+            $tables = LkpsTable::where('strataId', $divStrata->_id)
+                ->select('kode', 'judul', 'strataId')
+                ->orderBy('kode') // Changed to order by kode for better table ordering
+                ->with('strata:_id,name') // Include strata relationship
+                ->get();
+
+            \Log::info('LKPS Tables count for D-IV: ' . $tables->count());
+
+            // Debug: Log some sample tables
+            $sampleTables = $tables->take(3);
+            foreach ($sampleTables as $table) {
+                \Log::info("Sample LKPS table: {$table->kode} - {$table->judul} (strata: " . ($table->strata ? $table->strata->name : 'null') . ")");
+            }
 
             return response()->json([
                 'message' => 'Success',
                 'count' => $tables->count(),
-                'data' => $tables
+                'strata_filter' => 'D-IV',
+                'strata_id' => (string) $divStrata->_id,
+                'data' => $tables->map(function ($table) {
+                    return [
+                        '_id' => (string) $table->_id,
+                        'kode' => $table->kode,
+                        'judul' => $table->judul,
+                        'strataId' => (string) $table->strataId,
+                        'strata_name' => $table->strata ? $table->strata->name : null
+                    ];
+                })
             ]);
         } catch (\Exception $e) {
             \Log::error('Error in getAllTables: ' . $e->getMessage());
@@ -78,7 +111,7 @@ class LkpsTableController extends Controller
 
     /**
      * Get a specific table with columns
-     * 
+     *
      * @param string $tableCode
      * @return \Illuminate\Http\JsonResponse
      */
@@ -117,97 +150,141 @@ class LkpsTableController extends Controller
 
     /**
      * Get table configuration
-     * 
+     *
      * @param string $tableCode Table code
      * @return \Illuminate\Http\JsonResponse
      */
     public function getTableConfig($tableCode)
     {
-        $table = LkpsTable::where('kode', $tableCode)->first();
+        try {
+            // Get D-IV strata ID
+            $divStrata = Strata::where('name', 'D-IV')->first();
 
-        if (!$table) {
-            return response()->json(['message' => 'Table not found'], 404);
-        }
-
-        $config = [
-            'kode' => $table->kode,
-            'judul' => $table->judul,
-            'barisAwalExcel' => $table->barisAwalExcel,
-            'columns' => []
-        ];
-
-        // Get all columns for this table
-        $allColumns = LkpsColumn::where('kodeTabel', $tableCode)->get();
-
-        // Organize columns by parent/child relationship
-        $parentColumns = $allColumns->where('parentId', null)->sortBy('order');
-
-        $config['columns'] = $parentColumns->map(function ($column) use ($allColumns) {
-            $result = [
-                'id' => $column->_id,
-                'indeksData' => $column->indeksData,
-                'judul' => $column->judul,
-                'type' => $column->type,
-                'fillable' => $column->fillable,
-                'lebar' => $column->lebar,
-                'align' => $column->align,
-                'order' => $column->order,
-                'isGroup' => $column->isGroup
-            ];
-
-            if ($column->isGroup) {
-                // Get direct children of this column
-                $children = $allColumns->where('parentId', $column->_id)->sortBy('order');
-
-                // Process each child, checking if they also have children
-                $processedChildren = [];
-                foreach ($children as $child) {
-                    $childData = [
-                        'id' => $child->_id,
-                        'indeksData' => $child->indeksData,
-                        'judul' => $child->judul,
-                        'type' => $child->type,
-                        'fillable' => $column->fillable,
-                        'lebar' => $child->lebar,
-                        'align' => $child->align,
-                        'order' => $child->order,
-                        'isGroup' => $child->isGroup
-                    ];
-
-                    // Check if this child is also a group and has its own children
-                    if ($child->isGroup) {
-                        // Find grandchildren
-                        $grandchildren = $allColumns->where('parentId', $child->_id)->sortBy('order');
-                        $childData['children'] = $grandchildren->map(function ($grandchild) {
-                            return [
-                                'id' => $grandchild->_id,
-                                'indeksData' => $grandchild->indeksData,
-                                'judul' => $grandchild->judul,
-                                'type' => $grandchild->type,
-                                'fillable' => $grandchild->fillable,
-                                'lebar' => $grandchild->lebar,
-                                'align' => $grandchild->align,
-                                'order' => $grandchild->order,
-                                'isGroup' => $grandchild->isGroup
-                            ];
-                        })->values()->toArray();
-                    }
-
-                    $processedChildren[] = $childData;
-                }
-
-                $result['children'] = array_values($processedChildren);
+            if (!$divStrata) {
+                \Log::error('D-IV strata not found in database');
+                return response()->json([
+                    'message' => 'D-IV strata not found',
+                    'error' => 'Strata D-IV tidak ditemukan di database'
+                ], 404);
             }
 
-            return $result;
-        })->values()->toArray();
+            // Find table with D-IV strata filter
+            $table = LkpsTable::where('kode', $tableCode)
+                ->where('strataId', $divStrata->_id)
+                ->first();
 
-        return response()->json($config);
+            if (!$table) {
+                return response()->json([
+                    'message' => 'Table not found or not available for D-IV strata',
+                    'table_code' => $tableCode,
+                    'strata_filter' => 'D-IV'
+                ], 404);
+            }
+
+            \Log::info("Getting config for table: {$tableCode} (D-IV strata)");
+
+            $config = [
+                'kode' => $table->kode,
+                'judul' => $table->judul,
+                'barisAwalExcel' => $table->barisAwalExcel,
+                'strataId' => (string) $table->strataId,
+                'strata_name' => 'D-IV',
+                'columns' => []
+            ];
+
+            // Get all columns for this table using lkpsTableId relationship
+            $allColumns = LkpsColumn::where('lkpsTableId', (string) $table->_id)->get();
+
+            \Log::info("Found " . $allColumns->count() . " columns for table {$tableCode}");
+
+            if ($allColumns->isEmpty()) {
+                \Log::warning("No columns found for table {$tableCode}");
+                return response()->json($config);
+            }
+
+            // Organize columns by parent/child relationship
+            $parentColumns = $allColumns->where('parentId', null)->sortBy('order');
+
+            $config['columns'] = $parentColumns->map(function ($column) use ($allColumns) {
+                $result = [
+                    'id' => (string) $column->_id,
+                    'indeksData' => $column->indeksData,
+                    'judul' => $column->judul,
+                    'type' => $column->type,
+                    'fillable' => $column->fillable,
+                    'lebar' => $column->lebar,
+                    'align' => $column->align,
+                    'order' => $column->order,
+                    'isGroup' => $column->isGroup,
+                    'indeksExcel' => $column->indeksExcel ?? null
+                ];
+
+                if ($column->isGroup) {
+                    // Get direct children of this column
+                    $children = $allColumns->where('parentId', $column->_id)->sortBy('order');
+
+                    // Process each child, checking if they also have children
+                    $processedChildren = [];
+                    foreach ($children as $child) {
+                        $childData = [
+                            'id' => (string) $child->_id,
+                            'indeksData' => $child->indeksData,
+                            'judul' => $child->judul,
+                            'type' => $child->type,
+                            'fillable' => $child->fillable,
+                            'lebar' => $child->lebar,
+                            'align' => $child->align,
+                            'order' => $child->order,
+                            'isGroup' => $child->isGroup,
+                            'indeksExcel' => $child->indeksExcel ?? null
+                        ];
+
+                        // Check if this child is also a group and has its own children
+                        if ($child->isGroup) {
+                            // Find grandchildren
+                            $grandchildren = $allColumns->where('parentId', $child->_id)->sortBy('order');
+                            $childData['children'] = $grandchildren->map(function ($grandchild) {
+                                return [
+                                    'id' => (string) $grandchild->_id,
+                                    'indeksData' => $grandchild->indeksData,
+                                    'judul' => $grandchild->judul,
+                                    'type' => $grandchild->type,
+                                    'fillable' => $grandchild->fillable,
+                                    'lebar' => $grandchild->lebar,
+                                    'align' => $grandchild->align,
+                                    'order' => $grandchild->order,
+                                    'isGroup' => $grandchild->isGroup,
+                                    'indeksExcel' => $grandchild->indeksExcel ?? null
+                                ];
+                            })->values()->toArray();
+                        }
+
+                        $processedChildren[] = $childData;
+                    }
+
+                    $result['children'] = array_values($processedChildren);
+                }
+
+                return $result;
+            })->values()->toArray();
+
+            \Log::info("Successfully built config for table {$tableCode} with " . count($config['columns']) . " parent columns");
+
+            return response()->json($config);
+
+        } catch (\Exception $e) {
+            \Log::error("Error in getTableConfig for {$tableCode}: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Error retrieving table configuration',
+                'error' => $e->getMessage(),
+                'table_code' => $tableCode
+            ], 500);
+        }
     }
 
     /**
      * Get table data for a specific prodi
-     * 
+     *
      * @param \Illuminate\Http\Request $request
      * @param string $tableCode Table code
      * @return \Illuminate\Http\JsonResponse
@@ -234,7 +311,7 @@ class LkpsTableController extends Controller
 
     /**
      * Save table data
-     * 
+     *
      * @param \Illuminate\Http\Request $request
      * @param string $tableCode Table code
      * @return \Illuminate\Http\JsonResponse
@@ -283,7 +360,7 @@ class LkpsTableController extends Controller
 
     /**
      * Calculate score for a table based on provided data
-     * 
+     *
      * @param \Illuminate\Http\Request $request
      * @param string $tableCode Table code
      * @return \Illuminate\Http\JsonResponse
@@ -321,7 +398,7 @@ class LkpsTableController extends Controller
 
     /**
      * Update a table
-     * 
+     *
      * @param \Illuminate\Http\Request $request
      * @param string $tableCode
      * @return \Illuminate\Http\JsonResponse
@@ -358,7 +435,7 @@ class LkpsTableController extends Controller
 
     /**
      * Delete a table
-     * 
+     *
      * @param string $tableCode
      * @return \Illuminate\Http\JsonResponse
      */

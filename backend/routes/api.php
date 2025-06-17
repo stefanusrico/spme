@@ -86,6 +86,18 @@ Route::prefix('lkps')->group(function () {
     Route::get('/tables/{tableCode}/task', [LkpsDataController::class, 'getTaskIdForTable']);
     Route::get('/export/{tableCode?}', [LkpsDataController::class, 'exportData']);
 
+    Route::post('/fetch', [LkpsFetchController::class, 'syncLkpsStructure']);
+
+    Route::post('/fetch/debug', [App\Http\Controllers\Lkps\LkpsFetchController::class, 'debugGoogleSheets']);
+
+    Route::post('/sync', [App\Http\Controllers\Lkps\LkpsSyncController::class, 'syncLkpsStructure']);
+
+    // Get sync status
+    Route::get('/sync/status', [App\Http\Controllers\Lkps\LkpsSyncController::class, 'getSyncStatus']);
+
+    // Debug Google Sheets connection
+    Route::post('/sync/debug', [App\Http\Controllers\Lkps\LkpsSyncController::class, 'debugGoogleSheets']);
+
 });
 
 Route::get('/score-details', [LkpsDataController::class, 'getScoreDetail']);

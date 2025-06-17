@@ -1,4 +1,5 @@
 <?php
+// filepath: c:\Users\ACER\Desktop\post-seminar3\backend\app\Http\Controllers\Lkps\GoogleSheetController.php
 
 namespace App\Http\Controllers\Lkps;
 
@@ -19,7 +20,7 @@ class LkpsImportController extends Controller
     private $service;
     private $sheetNamesMap = [];
     private $titleMap = [];
-    private $debug = [];
+    private $strataMap = [];
 
     private $targetColorRGB = [
         'red' => 0.55,
@@ -58,23 +59,836 @@ class LkpsImportController extends Controller
     }
 
     /**
-     * Update indeksData for records with parentId by incorporating parent title
-     * Example: If child indeksData = "reguler" and parent title = "Jumlah Mahasiswa Aktif"
-     * Then new child indeksData = "reguler_jumlah_mahasiswa_aktif"
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * Load sheet names and strata mapping from "Daftar Tabel" sheet ONLY
      */
+    private function loadSheetNames($debug = false)
+    {
+        $cacheKey = "sheet_names_map_{$this->spreadsheetId}";
+
+        if (!$debug) {
+            $sheetMapCacheKey = $cacheKey . "_sheetmap";
+            $strataMapCacheKey = $cacheKey . "_stratamap";
+
+            if (Cache::has($sheetMapCacheKey) && Cache::has($strataMapCacheKey)) {
+                $this->sheetNamesMap = Cache::get($sheetMapCacheKey);
+                $this->strataMap = Cache::get($strataMapCacheKey);
+                return;
+            }
+        }
+
+        try {
+            $spreadsheet = $this->service->spreadsheets->get($this->spreadsheetId);
+            $sheets = $spreadsheet->getSheets();
+
+            $masterSheetTitle = $this->findMasterSheetTitle($sheets);
+            if (!$masterSheetTitle) {
+                return;
+            }
+
+            $range = "{$masterSheetTitle}";
+            $response = $this->service->spreadsheets_values->get($this->spreadsheetId, $range);
+            $values = $response->getValues();
+
+            if (empty($values)) {
+                return;
+            }
+
+            // Cari header row
+            $headerRowIndex = $this->findHeaderRowIndex($values);
+            if ($headerRowIndex === -1) {
+                return;
+            }
+
+            // Parse header untuk menemukan kolom strata
+            $headerRow = $values[$headerRowIndex];
+            $strataColumns = $this->findStrataColumns($headerRow);
+
+            $startRow = $headerRowIndex + 1;
+            $map = [];
+            $titleToCodeMap = [];
+            $strataMapping = [];
+
+            for ($i = $startRow; $i < count($values); $i++) {
+                if (!isset($values[$i][0]) || !isset($values[$i][2])) {
+                    continue;
+                }
+
+                $index = $values[$i][0];
+                $sheet = $values[$i][2];
+
+                if (empty($sheet)) {
+                    continue;
+                }
+
+                $code = $sheet;
+                $map[$code] = $sheet;
+
+                // Get table title
+                $title = '';
+                if (isset($values[$i][1]) && !empty($values[$i][1])) {
+                    $title = (string) $values[$i][1];
+                }
+
+                if (empty($title)) {
+                    $title = "Tabel " . $code;
+                }
+
+                $titleToCodeMap[$title] = $code;
+
+                // Parse strata information dari kolom program di Daftar Tabel
+                $tableStrata = $this->parseTableStrata($values[$i], $strataColumns);
+                $strataMapping[$code] = $tableStrata;
+            }
+
+            $this->sheetNamesMap = $map;
+            $this->titleMap = $titleToCodeMap;
+            $this->strataMap = $strataMapping;
+
+            // Cache results
+            if (!$debug && !empty($this->sheetNamesMap)) {
+                Cache::put("sheet_names_map_{$this->spreadsheetId}_sheetmap", $this->sheetNamesMap, now()->addDay());
+                Cache::put("sheet_names_map_{$this->spreadsheetId}_titlemap", $this->titleMap, now()->addDay());
+                Cache::put("sheet_names_map_{$this->spreadsheetId}_stratamap", $this->strataMap, now()->addDay());
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error loading sheet names and strata: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Find master sheet title (Daftar Tabel prioritas utama)
+     */
+    private function findMasterSheetTitle($sheets)
+    {
+        $priorityNames = [
+            "Daftar Tabel",
+            "daftar tabel",
+            "PS",
+            "Menu",
+            "Index"
+        ];
+
+        foreach ($priorityNames as $searchName) {
+            foreach ($sheets as $sheet) {
+                $title = $sheet->getProperties()->getTitle();
+                if (strcasecmp($title, $searchName) === 0) {
+                    return $title;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find header row index in values array
+     */
+    private function findHeaderRowIndex($values)
+    {
+        for ($i = 0; $i < min(10, count($values)); $i++) {
+            if (isset($values[$i][0]) && isset($values[$i][2])) {
+                $colA = (string) $values[$i][0];
+                $colC = (string) $values[$i][2];
+
+                if (
+                    ($colA === "No" || stripos($colA, "Nomor") !== false) &&
+                    (stripos($colC, "Nama") !== false && stripos($colC, "Sheet") !== false)
+                ) {
+                    return $i;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * Find columns that contain strata information (hanya D3 dan STr) - dengan lebih flexible detection
+     */
+    private function findStrataColumns($headerRow)
+    {
+        $strataColumns = [
+            'D3' => [],
+            'STr' => []
+        ];
+
+        foreach ($headerRow as $colIndex => $headerValue) {
+            $headerValue = trim((string) $headerValue);
+            $headerLower = strtolower($headerValue);
+
+            // More flexible pattern matching untuk D3
+            if (
+                $headerValue === 'D3' ||
+                $headerValue === 'D-III' ||
+                $headerValue === 'DIII' ||
+                $headerLower === 'd3' ||
+                $headerLower === 'd-iii' ||
+                $headerLower === 'diii' ||
+                strpos($headerLower, 'd3') !== false ||
+                strpos($headerLower, 'd-iii') !== false ||
+                strpos($headerLower, 'diploma tiga') !== false ||
+                strpos($headerLower, 'diploma 3') !== false
+            ) {
+                $strataColumns['D3'][] = $colIndex;
+            }
+
+            // More flexible pattern matching untuk STr
+            elseif (
+                $headerValue === 'STr' ||
+                $headerValue === 'D-IV' ||
+                $headerValue === 'DIV' ||
+                $headerLower === 'str' ||
+                $headerLower === 'd-iv' ||
+                $headerLower === 'div' ||
+                strpos($headerLower, 'str') !== false ||
+                strpos($headerLower, 'd-iv') !== false ||
+                strpos($headerLower, 'sarjana terapan') !== false ||
+                strpos($headerLower, 'diploma 4') !== false
+            ) {
+                $strataColumns['STr'][] = $colIndex;
+            }
+        }
+
+        return $strataColumns;
+    }
+
+    /**
+     * Parse strata information from table row (D3 atau STr saja, tidak ada kombinasi)
+     */
+    private function parseTableStrata($row, $strataColumns)
+    {
+        $strata = [
+            'D3' => false,
+            'STr' => false,
+            'detected_strata' => null,
+            'debug_info' => [] // Add debug info
+        ];
+
+        // Check D3 column
+        foreach ($strataColumns['D3'] as $colIndex) {
+            if (isset($row[$colIndex])) {
+                $cellValue = trim((string) $row[$colIndex]);
+
+                $strata['debug_info']['D3'][] = [
+                    'col_index' => $colIndex,
+                    'raw_value' => $cellValue,
+                    'is_empty' => empty($cellValue),
+                    'length' => strlen($cellValue)
+                ];
+
+                // More flexible checkmark detection
+                if (
+                    !empty($cellValue) &&
+                    $cellValue !== '-' &&
+                    $cellValue !== 'x' &&
+                    $cellValue !== 'X' &&
+                    $cellValue !== '0' &&
+                    strtolower($cellValue) !== 'false' &&
+                    strtolower($cellValue) !== 'no'
+                ) {
+                    $strata['D3'] = true;
+                    break; // Found checkmark, no need to check other D3 columns
+                }
+            }
+        }
+
+        // Check STr column
+        foreach ($strataColumns['STr'] as $colIndex) {
+            if (isset($row[$colIndex])) {
+                $cellValue = trim((string) $row[$colIndex]);
+
+                $strata['debug_info']['STr'][] = [
+                    'col_index' => $colIndex,
+                    'raw_value' => $cellValue,
+                    'is_empty' => empty($cellValue),
+                    'length' => strlen($cellValue)
+                ];
+
+                // More flexible checkmark detection
+                if (
+                    !empty($cellValue) &&
+                    $cellValue !== '-' &&
+                    $cellValue !== 'x' &&
+                    $cellValue !== 'X' &&
+                    $cellValue !== '0' &&
+                    strtolower($cellValue) !== 'false' &&
+                    strtolower($cellValue) !== 'no'
+                ) {
+                    $strata['STr'] = true;
+                    break; // Found checkmark, no need to check other STr columns
+                }
+            }
+        }
+
+        // Determine final strata (D3 OR STr, tidak ada kombinasi)
+        if ($strata['STr']) {
+            $strata['detected_strata'] = 'Sarjana Terapan';
+        } elseif ($strata['D3']) {
+            $strata['detected_strata'] = 'Diploma Tiga';
+        }
+        // Jika kedua kolom ada checkmark, prioritas STr (Sarjana Terapan)
+
+        return $strata;
+    }
+
+    /**
+     * Get available tables with enhanced debugging
+     */
+    public function getAvailableTables(Request $request)
+    {
+        $forceRefresh = $request->has('force_refresh') ? $request->input('force_refresh') : true;
+
+        if ($request->has('spreadsheet_id')) {
+            $this->spreadsheetId = $request->input('spreadsheet_id');
+        }
+
+        if ($forceRefresh) {
+            Cache::forget("sheet_names_map_{$this->spreadsheetId}_sheetmap");
+            Cache::forget("sheet_names_map_{$this->spreadsheetId}_titlemap");
+            Cache::forget("sheet_names_map_{$this->spreadsheetId}_stratamap");
+        }
+
+        $this->loadSheetNames($forceRefresh);
+
+        $sheetCodes = array_keys($this->sheetNamesMap);
+        $sheetNames = array_values($this->sheetNamesMap);
+
+        // Skip first sheet if it's the master sheet
+        $skipCount = 1;
+        if (count($sheetCodes) > $skipCount) {
+            $sheetCodes = array_slice($sheetCodes, $skipCount);
+            $sheetNames = array_slice($sheetNames, $skipCount);
+        }
+
+        // Filter title mappings (skip first)
+        $filteredTitleMap = [];
+        $firstSheetCode = reset($this->sheetNamesMap);
+        foreach ($this->titleMap as $title => $code) {
+            if ($code === $firstSheetCode) {
+                continue;
+            }
+            $filteredTitleMap[$title] = $code;
+        }
+
+        // Create enhanced mapping with strata info dari Daftar Tabel
+        $enhancedMapping = [];
+        foreach ($filteredTitleMap as $title => $code) {
+            $strataInfo = $this->strataMap[$code] ?? null;
+
+            $enhancedMapping[$code] = [
+                'title' => $title,
+                'sheet_name' => $this->sheetNamesMap[$code] ?? $code,
+                'strata_info' => $strataInfo,
+                'detected_strata' => $strataInfo['detected_strata'] ?? null
+            ];
+        }
+
+        $response = [
+            'success' => true,
+            'spreadsheet_id' => $this->spreadsheetId,
+            'total_tables' => count($enhancedMapping),
+            'sheet_names' => $sheetNames,
+            'title_mappings' => $filteredTitleMap,
+            'mapping' => $enhancedMapping,
+            'strata_summary' => $this->getStrataSummary(),
+            'strata_detection_method' => 'daftar_tabel_enhanced'
+        ];
+
+        if ($request->has('debug') || $request->input('debug') === true) {
+            $response['debug'] = [
+                'raw_strata_map' => $this->strataMap,
+                'strata_columns_found' => $this->getStrataColumnsSummary(),
+                'first_sheet_skipped' => $firstSheetCode,
+                'detection_details' => $this->getDetectionDetails()
+            ];
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Get detailed detection information for debugging
+     */
+    private function getDetectionDetails()
+    {
+        $details = [
+            'total_tables_processed' => count($this->strataMap),
+            'strata_detected' => 0,
+            'no_strata' => 0,
+            'sample_detections' => []
+        ];
+
+        $sampleCount = 0;
+        foreach ($this->strataMap as $code => $strataInfo) {
+            if ($strataInfo['detected_strata']) {
+                $details['strata_detected']++;
+
+                // Add sample for debugging (first 5 items)
+                if ($sampleCount < 5) {
+                    $details['sample_detections'][] = [
+                        'code' => $code,
+                        'detected_strata' => $strataInfo['detected_strata'],
+                        'D3' => $strataInfo['D3'],
+                        'STr' => $strataInfo['STr'],
+                        'debug_info' => $strataInfo['debug_info'] ?? null
+                    ];
+                    $sampleCount++;
+                }
+            } else {
+                $details['no_strata']++;
+            }
+        }
+
+        return $details;
+    }
+
+    /**
+     * Get summary of strata distribution (hanya D3 dan STr)
+     */
+    private function getStrataSummary()
+    {
+        $summary = [
+            'Diploma Tiga' => 0,
+            'Sarjana Terapan' => 0,
+            'No Strata' => 0
+        ];
+
+        foreach ($this->strataMap as $code => $strataInfo) {
+            $detectedStrata = $strataInfo['detected_strata'] ?? null;
+
+            if ($detectedStrata && isset($summary[$detectedStrata])) {
+                $summary[$detectedStrata]++;
+            } else {
+                $summary['No Strata']++;
+            }
+        }
+
+        return $summary;
+    }
+
+    private function getStrataColumnsSummary()
+    {
+        return [
+            'info' => 'Strata detection: D3 column -> Diploma Tiga, STr column -> Sarjana Terapan (no combinations)'
+        ];
+    }
+
+    /**
+     * Get colored cells by sheet name (NO red text detection)
+     */
+    private function getColoredCellsBySheetName(Request $request)
+    {
+        try {
+            ini_set('memory_limit', '1024M');
+
+            $sheetName = $request->input('sheet_name');
+            $tableRef = $request->input('table_ref');
+            $program = $request->input('program'); // NEW: Get program from request
+
+            $rangeToCheck = $sheetName . '!A1:Z150';
+
+            $response = $this->service->spreadsheets->get($this->spreadsheetId, [
+                'includeGridData' => true,
+                'ranges' => $rangeToCheck
+            ]);
+
+            $sheets = $response->getSheets();
+
+            if (!$sheets || empty($sheets[0]->getData())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tidak ada data yang tersedia atau format tidak didukung'
+                ]);
+            }
+
+            $data = $sheets[0]->getData()[0];
+            $rowData = $data->getRowData();
+
+            // SPECIAL CASE: Check if this is table 8c or 8d1
+            $isSpecialTable = $this->isSpecialTable($tableRef);
+            $specialCaseInfo = null;
+
+            if ($isSpecialTable && $program) {
+                $specialCaseInfo = $this->findRedTextBoundaries($rowData, $program);
+                // Remove addLog call - just store info
+            }
+
+            $coloredCells = [];
+            $yellowCells = [];
+            $yellowColumns = [];
+            $firstYellowRow = null;
+            $yellowRowsFound = [];
+            $coloredColumns = [];
+
+            // Get strata from Daftar Tabel mapping ONLY
+            $tableStrata = null;
+            if ($tableRef && isset($this->strataMap[$tableRef])) {
+                $strataInfo = $this->strataMap[$tableRef];
+                $tableStrata = $strataInfo['detected_strata'] ?? null;
+            }
+
+            $blueColorTolerance = $this->colorTolerance;
+            $yellowColorTolerance = 0.1;
+
+            $isSimilarColor = function ($color1, $color2, $tolerance) {
+                if (!isset($color1['red']) || !isset($color2['red']))
+                    return false;
+
+                foreach (['red', 'green', 'blue'] as $component) {
+                    $val1 = $color1[$component] ?? 0;
+                    $val2 = $color2[$component] ?? 0;
+                    if (abs($val1 - $val2) > $tolerance) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            $toHex = function ($rgb) {
+                return sprintf(
+                    "#%02x%02x%02x",
+                    (int) ($rgb['red'] * 255),
+                    (int) ($rgb['green'] * 255),
+                    (int) ($rgb['blue'] * 255)
+                );
+            };
+
+            // Yellow color variants
+            $yellowTargetRGB = [
+                'red' => 0.97,
+                'green' => 0.90,
+                'blue' => 0.07
+            ];
+
+            $yellowAlternatives = [
+                ['red' => 1.0, 'green' => 1.0, 'blue' => 0.0],
+                ['red' => 1.0, 'green' => 0.92, 'blue' => 0.0],
+                ['red' => 0.98, 'green' => 0.89, 'blue' => 0.05],
+            ];
+
+            foreach ($rowData as $rowIndex => $row) {
+                if (!$row->getValues()) {
+                    continue;
+                }
+
+                $currentRow = $rowIndex + 1;
+
+                // SPECIAL CASE: Skip rows outside the boundary
+                if ($specialCaseInfo) {
+                    if (
+                        $currentRow < $specialCaseInfo['detection_start'] ||
+                        ($specialCaseInfo['detection_end'] && $currentRow > $specialCaseInfo['detection_end'])
+                    ) {
+                        continue; // Skip this row
+                    }
+                }
+
+                $rowHasYellowCell = false;
+
+                foreach ($row->getValues() as $colIndex => $cell) {
+                    if (!$cell) {
+                        continue;
+                    }
+
+                    $effectiveFormat = $cell->getEffectiveFormat();
+                    if (!$effectiveFormat) {
+                        continue;
+                    }
+
+                    $backgroundColor = $effectiveFormat->getBackgroundColor();
+                    if (!$backgroundColor) {
+                        continue;
+                    }
+
+                    $cellColor = [
+                        'red' => $backgroundColor->getRed() ?? 0,
+                        'green' => $backgroundColor->getGreen() ?? 0,
+                        'blue' => $backgroundColor->getBlue() ?? 0
+                    ];
+
+                    // Check for blue cells (table headers)
+                    if ($isSimilarColor($cellColor, $this->targetColorRGB, $blueColorTolerance)) {
+                        $value = $this->getCellValue($cell);
+                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
+
+                        $coloredColumns[$columnLetter] = true;
+
+                        $coloredCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value,
+                            'color' => $toHex($cellColor),
+                            'special_case' => $isSpecialTable ? ($specialCaseInfo['search_text'] ?? null) : null
+                        ];
+                    }
+
+                    // Check for yellow cells (fillable columns)
+                    $isYellow = false;
+
+                    if ($isSimilarColor($cellColor, $yellowTargetRGB, $yellowColorTolerance)) {
+                        $isYellow = true;
+                    }
+
+                    if (!$isYellow) {
+                        foreach ($yellowAlternatives as $altYellow) {
+                            if ($isSimilarColor($cellColor, $altYellow, $yellowColorTolerance)) {
+                                $isYellow = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (
+                        !$isYellow &&
+                        $cellColor['red'] > 0.85 &&
+                        $cellColor['green'] > 0.85 &&
+                        $cellColor['blue'] < 0.2
+                    ) {
+                        $isYellow = true;
+                    }
+
+                    if ($isYellow) {
+                        $value = $this->getCellValue($cell);
+                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
+
+                        $rowHasYellowCell = true;
+
+                        $yellowCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value,
+                            'color' => $toHex($cellColor),
+                            'rgb_actual' => $cellColor,
+                            'special_case' => $isSpecialTable ? ($specialCaseInfo['search_text'] ?? null) : null
+                        ];
+
+                        if (!isset($yellowColumns[$columnLetter])) {
+                            $yellowColumns[$columnLetter] = [];
+                        }
+                        $yellowColumns[$columnLetter][] = $currentRow;
+                    }
+                }
+
+                // Track yellow rows
+                if ($rowHasYellowCell) {
+                    $yellowRowsFound[] = $currentRow;
+
+                    if ($firstYellowRow === null || $currentRow < $firstYellowRow) {
+                        $firstYellowRow = $currentRow;
+                    }
+                }
+            }
+
+            if (empty($coloredCells)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tidak ditemukan sel dengan warna #8db3e1' . ($isSpecialTable ? " dalam range special case" : "")
+                ]);
+            }
+
+            $restructuredData = $this->restructureHierarchicalHeaders($coloredCells);
+
+            // Determine data start row
+            $dataStartRow = null;
+            $headerLastRow = 0;
+
+            if (!empty($restructuredData) && isset($restructuredData[0]['header_row'])) {
+                $headerLastRow = $restructuredData[0]['header_row'];
+
+                if (isset($restructuredData[0]['subheader_row']) && $restructuredData[0]['subheader_row'] > $headerLastRow) {
+                    $headerLastRow = $restructuredData[0]['subheader_row'];
+                }
+
+                if (isset($restructuredData[0]['sub_subheader_row']) && $restructuredData[0]['sub_subheader_row'] > $headerLastRow) {
+                    $headerLastRow = $restructuredData[0]['sub_subheader_row'];
+                }
+            }
+
+            if (!empty($yellowRowsFound)) {
+                sort($yellowRowsFound);
+                foreach ($yellowRowsFound as $yellowRow) {
+                    if ($yellowRow > $headerLastRow) {
+                        $dataStartRow = $yellowRow + 1;
+                        break;
+                    }
+                }
+            }
+
+            if ($dataStartRow === null && $headerLastRow > 0) {
+                $dataStartRow = $headerLastRow + 1;
+            }
+
+            $response = [
+                'success' => true,
+                'message' => 'Berhasil mendapatkan sel-sel dengan warna biru dan struktur tabel' . ($isSpecialTable ? " (Special case detected)" : ""),
+                'spreadsheet_id' => $this->spreadsheetId,
+                'sheet_name' => $sheetName,
+                'table_ref' => $tableRef,
+                'target_color' => '#8db3e1',
+                'colored_cells' => $coloredCells,
+                'yellow_cells_count' => count($yellowCells),
+                'yellow_rows_found' => $yellowRowsFound,
+                'yellow_columns' => $yellowColumns,
+                'yellow_columns_list' => array_keys($yellowColumns),
+                'first_yellow_row' => $firstYellowRow,
+                'header_last_row' => $headerLastRow,
+                'data_start_row' => $dataStartRow,
+                'restructured_data' => $restructuredData,
+                'total_colored_cells_found' => count($coloredCells),
+
+                // Special case info
+                'is_special_table' => $isSpecialTable,
+                'special_case_info' => $specialCaseInfo,
+
+                // Strata info dari Daftar Tabel ONLY - NO red text detection
+                'detected_strata' => $tableStrata,
+                'strata_source' => 'daftar_tabel_only',
+                'strata_info' => $this->strataMap[$tableRef] ?? null,
+                'strata_detection_method' => 'daftar_tabel_only'
+            ];
+
+            return response()->json($response);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Terjadi kesalahan: ' . $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
+     * Check if table is special case (8c or 8d1)
+     */
+    private function isSpecialTable($tableRef)
+    {
+        if (!$tableRef)
+            return false;
+
+        $tableRef = strtolower(trim($tableRef));
+        return in_array($tableRef, ['8c', '8d1']);
+    }
+
+    /**
+     * Find red text boundaries for special tables
+     */
+    private function findRedTextBoundaries($rowData, $program)
+    {
+        $searchText = '';
+        switch (strtoupper($program)) {
+            case 'D-III':
+                $searchText = 'Diploma Tiga';
+                break;
+            case 'D-IV':
+                $searchText = 'Sarjana Terapan';
+                break;
+            default:
+                return null;
+        }
+
+        $redTextRows = [];
+        $targetTextRow = null;
+
+        // Red color detection parameters
+        $redColorThreshold = [
+            'red' => 0.7,    // At least 70% red
+            'green' => 0.3,  // Less than 30% green
+            'blue' => 0.3    // Less than 30% blue
+        ];
+
+        foreach ($rowData as $rowIndex => $row) {
+            if (!$row->getValues()) {
+                continue;
+            }
+
+            foreach ($row->getValues() as $colIndex => $cell) {
+                if (!$cell) {
+                    continue;
+                }
+
+                // Check text color (not background color)
+                $effectiveFormat = $cell->getEffectiveFormat();
+                if (!$effectiveFormat || !$effectiveFormat->getTextFormat()) {
+                    continue;
+                }
+
+                $textFormat = $effectiveFormat->getTextFormat();
+                $foregroundColor = $textFormat->getForegroundColor();
+
+                if (!$foregroundColor) {
+                    continue;
+                }
+
+                $textColor = [
+                    'red' => $foregroundColor->getRed() ?? 0,
+                    'green' => $foregroundColor->getGreen() ?? 0,
+                    'blue' => $foregroundColor->getBlue() ?? 0
+                ];
+
+                // Check if text is red
+                $isRedText = (
+                    $textColor['red'] >= $redColorThreshold['red'] &&
+                    $textColor['green'] <= $redColorThreshold['green'] &&
+                    $textColor['blue'] <= $redColorThreshold['blue']
+                );
+
+                if ($isRedText) {
+                    $cellValue = $this->getCellValue($cell);
+                    $currentRow = $rowIndex + 1;
+
+                    $redTextRows[] = [
+                        'row' => $currentRow,
+                        'text' => $cellValue,
+                        'column' => $this->columnIndexToLetter($colIndex + 1)
+                    ];
+
+                    // Check if this is our target text
+                    if ($cellValue && stripos($cellValue, $searchText) !== false) {
+                        $targetTextRow = $currentRow;
+                    }
+                }
+            }
+        }
+
+        if ($targetTextRow === null) {
+            return null;
+        }
+
+        // Find next red text after target text
+        $nextRedTextRow = null;
+        foreach ($redTextRows as $redText) {
+            if ($redText['row'] > $targetTextRow) {
+                $nextRedTextRow = $redText['row'];
+                break;
+            }
+        }
+
+        return [
+            'search_text' => $searchText,
+            'target_row' => $targetTextRow,
+            'detection_start' => $targetTextRow + 1, // Start from next row after red text
+            'detection_end' => $nextRedTextRow ? $nextRedTextRow - 1 : null, // End before next red text
+            'all_red_texts' => $redTextRows,
+            'program' => $program
+        ];
+    }
+
+    // Keep all existing helper methods
     public function updateDataIndicesWithParent(Request $request)
     {
         try {
-            // Get table code from request
-            $tableCode = $request->input('table_code', null);
+            // Get table ID from request
+            $tableId = $request->input('table_id', null);
 
-            // Get all records for a specific table if table_code is provided
+            // Get all records for a specific table if table_id is provided
             // Otherwise get all records across all tables
-            if ($tableCode) {
-                $records = LkpsColumn::where('kodeTabel', $tableCode)->get();
+            if ($tableId) {
+                $records = LkpsColumn::where('lkpsTableId', (string) $tableId)->get();
             } else {
                 $records = LkpsColumn::all();
             }
@@ -110,6 +924,8 @@ class LkpsImportController extends Controller
                             $possibleParentId = $possibleParent->_id->{'$oid'};
                         } elseif (is_string($possibleParent->_id)) {
                             $possibleParentId = $possibleParent->_id;
+                        } else {
+                            $possibleParentId = (string) $possibleParent->_id;
                         }
 
                         if ($possibleParentId && $possibleParentId === $parentId) {
@@ -119,24 +935,29 @@ class LkpsImportController extends Controller
                     }
 
                     if ($parent) {
-                        // Create new indeksData with parent title
-                        $parentTitle = $this->formatTitleForIndex($parent->judul);
-                        $originalIndex = $record->indeksData;
+                        // PERUBAHAN UTAMA: Format parent_children untuk indeksData
+                        $parentDataIndex = $this->formatTitleForIndex($parent->judul);
+                        $childDataIndex = $this->formatTitleForIndex($record->judul);
 
-                        // Check if the indeksData already contains the parent's title
-                        if (strpos(strtolower($originalIndex), strtolower($parentTitle)) === false) {
-                            // Apply the new indeksData
-                            $newDataIndex = $originalIndex . '_' . $parentTitle;
+                        // Format: parent_children (bukan children_parent)
+                        $newDataIndex = $parentDataIndex . '_' . $childDataIndex;
+
+                        // Only update if it's different from current indeksData
+                        if ($record->indeksData !== $newDataIndex) {
+                            $originalIndex = $record->indeksData;
 
                             // Update the record
                             $record->indeksData = $newDataIndex;
                             $record->save();
 
                             $updatedRecords[] = [
-                                'id' => is_object($record->_id) ? $record->_id->{'$oid'} : $record->_id,
+                                'id' => is_object($record->_id) ? (string) $record->_id : $record->_id,
+                                'table_id' => $record->lkpsTableId,
                                 'old_data_index' => $originalIndex,
                                 'new_data_index' => $newDataIndex,
-                                'parent_title' => $parent->judul
+                                'parent_title' => $parent->judul,
+                                'child_title' => $record->judul,
+                                'pattern' => 'parent_children'
                             ];
                         }
                     }
@@ -145,9 +966,11 @@ class LkpsImportController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Data indices updated with parent titles',
+                'message' => 'Data indices updated with parent_children pattern using lkpsTableId relation',
                 'total_updated' => count($updatedRecords),
-                'updated_records' => $updatedRecords
+                'updated_records' => $updatedRecords,
+                'relation_used' => 'lkpsTableId (string) → LkpsTable._id',
+                'pattern_used' => 'parent_children (e.g., tingkat_internasional)'
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -159,93 +982,19 @@ class LkpsImportController extends Controller
         }
     }
 
-    /**
-     * Direct method to update MongoDB documents
-     * This can be used once to immediately update all records in the database
-     */
-    public function directUpdateDataIndices()
-    {
-        try {
-            // Connect to MongoDB directly
-            $mongo = new \MongoDB\Client(env('MONGODB_URI', 'mongodb://localhost:27017'));
-            $database = $mongo->selectDatabase(env('MONGODB_DATABASE', 'your_database'));
-            $collection = $database->selectCollection('lkps_columns'); // Use your actual collection name
-
-            // Get all records
-            $records = $collection->find([]);
-
-            // Convert cursor to array for processing
-            $recordsArray = [];
-            foreach ($records as $record) {
-                $recordsArray[(string) $record->_id] = $record;
-            }
-
-            // Track updated records
-            $updatedRecords = [];
-
-            // Process each record with a parent_id
-            foreach ($recordsArray as $record) {
-                if (!empty($record->parentId)) {
-                    // Find the parent record
-                    $parentId = (string) $record->parentId;
-                    if (isset($recordsArray[$parentId])) {
-                        $parent = $recordsArray[$parentId];
-
-                        // Create new indeksData with parent title
-                        $parentTitle = $this->formatTitleForIndex($parent->judul);
-                        $originalIndex = $record->indeksData;
-
-                        // Check if the indeksData already contains the parent's title
-                        if (strpos(strtolower($originalIndex), strtolower($parentTitle)) === false) {
-                            // Apply the new indeksData
-                            $newDataIndex = $originalIndex . '_' . $parentTitle;
-
-                            // Update the record in the database
-                            $collection->updateOne(
-                                ['_id' => $record->_id],
-                                ['$set' => ['indeksData' => $newDataIndex]]
-                            );
-
-                            $updatedRecords[] = [
-                                'id' => (string) $record->_id,
-                                'old_data_index' => $originalIndex,
-                                'new_data_index' => $newDataIndex,
-                                'parent_title' => $parent->judul
-                            ];
-                        }
-                    }
-                }
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Data indices updated with parent titles',
-                'total_updated' => count($updatedRecords),
-                'updated_records' => $updatedRecords
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to update data indices: ' . $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ], 500);
-        }
-    }
-
-    /**
-     * Format a title into a snake_case string for use in a data_index
-     * 
-     * @param string $title
-     * @return string
-     */
     private function formatTitleForIndex($title)
     {
-        // Convert to lowercase
-        $formattedTitle = strtolower($title);
+        // Convert to lowercase first
+        $formattedTitle = strtolower(trim($title));
 
-        // Replace spaces and special characters with underscores
-        $formattedTitle = preg_replace('/[^a-z0-9]+/', '_', $formattedTitle);
+        // Replace forward slash with underscore
+        $formattedTitle = str_replace('/', '_', $formattedTitle);
+
+        // Replace spaces and other special characters with underscores
+        $formattedTitle = preg_replace('/[^a-z0-9_]/', '_', $formattedTitle);
+
+        // Remove multiple consecutive underscores
+        $formattedTitle = preg_replace('/_+/', '_', $formattedTitle);
 
         // Remove leading/trailing underscores
         $formattedTitle = trim($formattedTitle, '_');
@@ -253,303 +1002,6 @@ class LkpsImportController extends Controller
         return $formattedTitle;
     }
 
-    /**
-     * Alternative implementation using direct data array
-     * This can be used if you don't have models or need to process data directly
-     *
-     * @param array $data Array of records with parent-child relationships
-     * @return array Updated data with new data_index values
-     */
-    public function processDataIndicesWithParentFromArray($data)
-    {
-        // Group data by ID for easy lookup
-        $recordsById = [];
-        foreach ($data as $record) {
-            $id = $record['_id'];
-            if (is_array($id) && isset($id['$oid'])) {
-                $id = $id['$oid'];
-            }
-            $recordsById[$id] = $record;
-        }
-
-        // Process each record that has a parent_id
-        foreach ($data as &$record) {
-            if (!empty($record['parentId'])) {
-                $parentId = $record['parentId'];
-                if (is_array($parentId) && isset($parentId['$oid'])) {
-                    $parentId = $parentId['$oid'];
-                }
-
-                if (isset($recordsById[$parentId])) {
-                    $parent = $recordsById[$parentId];
-
-                    // Format parent title for data_index
-                    $parentTitle = $this->formatTitleForIndex($parent['judul']);
-
-                    // Update data_index to include parent title
-                    if (!strpos($record['indeksData'], $parentTitle)) {
-                        $record['indeksData'] = $record['indeksData'] . '_' . $parentTitle;
-                    }
-                }
-            }
-        }
-
-        return $data;
-    }
-
-    /**
-     * Load sheet names from the "Daftar Tabel" sheet
-     */
-    private function loadSheetNames($debug = false)
-    {
-        $cacheKey = "sheet_names_map_{$this->spreadsheetId}";
-
-        if (!$debug) {
-            $sheetMapCacheKey = $cacheKey . "_sheetmap";
-
-            if (Cache::has($sheetMapCacheKey)) {
-                $this->sheetNamesMap = Cache::get($sheetMapCacheKey);
-                return;
-            }
-        }
-
-        try {
-            $spreadsheet = $this->service->spreadsheets->get($this->spreadsheetId);
-            $sheets = $spreadsheet->getSheets();
-
-            $masterSheetTitle = null;
-            foreach ($sheets as $sheet) {
-                $title = $sheet->getProperties()->getTitle();
-
-                if ($title === "Daftar Tabel") {
-                    $masterSheetTitle = $title;
-                    break;
-                }
-            }
-
-            if (!$masterSheetTitle) {
-                foreach ($sheets as $sheet) {
-                    $title = $sheet->getProperties()->getTitle();
-
-                    if (strtolower($title) === "daftar tabel") {
-                        $masterSheetTitle = $title;
-                        break;
-                    }
-                }
-            }
-
-            if (!$masterSheetTitle) {
-                $possibleNames = ['menu', 'ps', 'index', 'master'];
-
-                foreach ($sheets as $sheet) {
-                    $title = $sheet->getProperties()->getTitle();
-                    $lowerTitle = strtolower($title);
-
-                    if ($title === "PS") {
-                        $masterSheetTitle = $title;
-                        break;
-                    }
-
-                    foreach ($possibleNames as $name) {
-                        if (strpos($lowerTitle, $name) !== false) {
-                            $masterSheetTitle = $title;
-                            break 2;
-                        }
-                    }
-                }
-            }
-
-            if (!$masterSheetTitle) {
-                return;
-            }
-
-            $range = "{$masterSheetTitle}";
-            $response = $this->service->spreadsheets_values->get(
-                $this->spreadsheetId,
-                $range
-            );
-
-            $values = $response->getValues();
-
-            if (empty($values)) {
-                return;
-            }
-
-            $headerRowIndex = -1;
-
-            for ($i = 0; $i < min(10, count($values)); $i++) {
-                if (isset($values[$i][0]) && isset($values[$i][2])) {
-                    $colA = (string) $values[$i][0];
-                    $colC = (string) $values[$i][2];
-
-                    if (
-                        ($colA === "No" || stripos($colA, "Nomor") !== false) &&
-                        (stripos($colC, "Nama") !== false && stripos($colC, "Sheet") !== false)
-                    ) {
-                        $headerRowIndex = $i;
-                        break;
-                    }
-                }
-            }
-
-            if ($headerRowIndex === -1) {
-                for ($i = 2; $i < min(15, count($values)); $i++) {
-                    if (isset($values[$i][0]) && isset($values[$i][2])) {
-                        if (is_numeric($values[$i][0]) && !empty($values[$i][2])) {
-                            $headerRowIndex = $i - 1;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            $startRow = $headerRowIndex + 1;
-
-            $map = [];
-            $titleToCodeMap = [];
-
-            for ($i = $startRow; $i < count($values); $i++) {
-                if (!isset($values[$i][0]) || !isset($values[$i][2])) {
-                    continue;
-                }
-
-                $index = $values[$i][0];
-                $sheet = $values[$i][2];
-
-                if (empty($sheet)) {
-                    continue;
-                }
-
-                $code = $sheet;
-                $map[$code] = $sheet;
-
-                $title = '';
-                if (isset($values[$i][1]) && !empty($values[$i][1])) {
-                    $title = (string) $values[$i][1];
-                }
-
-                if (empty($title)) {
-                    for ($j = $i - 1; $j >= $startRow; $j--) {
-                        if (
-                            isset($values[$j][1]) && !empty($values[$j][1]) &&
-                            stripos($values[$j][1], 'tabel') !== false
-                        ) {
-                            $title = $values[$j][1];
-                            break;
-                        }
-                    }
-
-                    if (empty($title)) {
-                        $title = "Tabel " . $code;
-                    }
-                }
-
-                $titleToCodeMap[$title] = $code;
-            }
-
-            if (count($titleToCodeMap) == 0) {
-                foreach ($map as $code => $sheetName) {
-                    $defaultTitle = "Tabel " . $code;
-                    $titleToCodeMap[$defaultTitle] = $code;
-                }
-            }
-
-            $this->sheetNamesMap = $map;
-            $this->titleMap = $titleToCodeMap;
-
-            if (!$debug && !empty($this->sheetNamesMap)) {
-                Cache::put("sheet_names_map_{$this->spreadsheetId}_sheetmap", $this->sheetNamesMap, now()->addDay());
-                Cache::put("sheet_names_map_{$this->spreadsheetId}_titlemap", $this->titleMap, now()->addDay());
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Error loading sheet names: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Get a list of available tables and their sheet names
-     */
-    public function getAvailableTables(Request $request)
-    {
-        $forceRefresh = true;
-
-        if ($request->has('spreadsheet_id')) {
-            $this->spreadsheetId = $request->input('spreadsheet_id');
-        }
-
-        Cache::forget("sheet_names_map_{$this->spreadsheetId}_sheetmap");
-        Cache::forget("sheet_names_map_{$this->spreadsheetId}_titlemap");
-
-        $this->loadSheetNames($forceRefresh);
-
-        $sheetCodes = array_keys($this->sheetNamesMap);
-        $sheetNames = array_values($this->sheetNamesMap);
-
-        $skipCount = 1;
-        if (count($sheetCodes) > $skipCount) {
-            $sheetCodes = array_slice($sheetCodes, $skipCount);
-            $sheetNames = array_slice($sheetNames, $skipCount);
-        }
-
-        $filteredTitleMap = [];
-        $firstSheetCode = reset($this->sheetNamesMap);
-        foreach ($this->titleMap as $title => $code) {
-            if ($code === $firstSheetCode) {
-                continue;
-            }
-            $filteredTitleMap[$title] = $code;
-        }
-
-        $codeToTitleMap = [];
-        foreach ($filteredTitleMap as $title => $code) {
-            $codeToTitleMap[$code] = $title;
-        }
-
-        foreach ($sheetCodes as $code) {
-            if (!isset($codeToTitleMap[$code])) {
-                $codeToTitleMap[$code] = "Tabel " . $code;
-            }
-        }
-
-        $response = [
-            'success' => true,
-            'spreadsheet_id' => $this->spreadsheetId,
-            'sheet_names' => $sheetNames,
-            'title_mappings' => $filteredTitleMap,
-            'mapping' => $codeToTitleMap
-        ];
-
-        if ($request->has('debug')) {
-            try {
-                $spreadsheet = $this->service->spreadsheets->get($this->spreadsheetId);
-                $sheets = $spreadsheet->getSheets();
-
-                $allSheets = [];
-                foreach ($sheets as $sheet) {
-                    $allSheets[] = [
-                        'title' => $sheet->getProperties()->getTitle(),
-                        'sheet_id' => $sheet->getProperties()->getSheetId()
-                    ];
-                }
-
-                $response['debug'] = [
-                    'all_sheets' => $allSheets,
-                    'total_sheets' => count($this->sheetNamesMap),
-                    'filtered_sheets' => count($sheetNames),
-                    'first_sheet_skipped' => $firstSheetCode
-                ];
-            } catch (\Exception $e) {
-                $response['debug_error'] = $e->getMessage();
-            }
-        }
-
-        return response()->json($response);
-    }
-
-    /**
-     * Get colored cells data by table reference
-     */
     public function getColoredCellsByTable(Request $request, $tableRef = null)
     {
         try {
@@ -624,407 +1076,6 @@ class LkpsImportController extends Controller
         }
     }
 
-    private function getColoredCellsBySheetName(Request $request)
-    {
-        try {
-            ini_set('memory_limit', '1024M');
-
-            $sheetName = $request->input('sheet_name');
-            $tableRef = $request->input('table_ref');
-
-            // Increase range to check more rows but keep it reasonable
-            $rangeToCheck = $sheetName . '!A1:Z150';
-
-            $response = $this->service->spreadsheets->get($this->spreadsheetId, [
-                'includeGridData' => true,
-                'ranges' => $rangeToCheck
-            ]);
-
-            $sheets = $response->getSheets();
-
-            if (!$sheets || empty($sheets[0]->getData())) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Tidak ada data yang tersedia atau format tidak didukung'
-                ]);
-            }
-
-            $data = $sheets[0]->getData()[0];
-            $rowData = $data->getRowData();
-
-            $coloredCells = [];
-            $yellowCells = [];
-            $greenCells = [];
-            $yellowColumns = []; // Tracking untuk yellow columns
-            $firstYellowRow = null;
-            $yellowRowsFound = [];
-            $coloredColumns = [];
-            $tableSections = [];
-            $currentTableSection = null;
-            $tableData = [];
-            $allCellColors = []; // Debug: track semua warna yang ditemukan
-
-            $blueColorTolerance = $this->colorTolerance;
-            $yellowColorTolerance = 0.1; // Naikkan toleransi untuk kuning
-            $greenColorTolerance = 0.05;
-
-            $isSimilarColor = function ($color1, $color2, $tolerance) {
-                if (!isset($color1['red']) || !isset($color2['red']))
-                    return false;
-
-                foreach (['red', 'green', 'blue'] as $component) {
-                    $val1 = $color1[$component] ?? 0;
-                    $val2 = $color2[$component] ?? 0;
-                    if (abs($val1 - $val2) > $tolerance) {
-                        return false;
-                    }
-                }
-                return true;
-            };
-
-            $toHex = function ($rgb) {
-                return sprintf(
-                    "#%02x%02x%02x",
-                    (int) ($rgb['red'] * 255),
-                    (int) ($rgb['green'] * 255),
-                    (int) ($rgb['blue'] * 255)
-                );
-            };
-
-            // Nilai RGB untuk warna kuning - coba beberapa variasi
-            $yellowTargetRGB = [
-                'red' => 0.97,
-                'green' => 0.90,
-                'blue' => 0.07
-            ];
-
-            // Alternatif warna kuning yang mungkin
-            $yellowAlternatives = [
-                ['red' => 1.0, 'green' => 1.0, 'blue' => 0.0], // Pure yellow
-                ['red' => 1.0, 'green' => 0.92, 'blue' => 0.0], // Bright yellow
-                ['red' => 0.98, 'green' => 0.89, 'blue' => 0.05], // Slightly different yellow
-            ];
-
-            foreach ($rowData as $rowIndex => $row) {
-                if (!$row->getValues()) {
-                    continue;
-                }
-
-                $isTableHeader = false;
-                $tableTitle = '';
-
-                if ($row->getValues() && count($row->getValues()) > 0) {
-                    $firstCell = $row->getValues()[0];
-                    if ($firstCell && $firstCell->getFormattedValue()) {
-                        $value = $firstCell->getFormattedValue();
-                        if (strpos($value, 'Diisi oleh pengusul dari Program Studi pada Program') !== false) {
-                            $isTableHeader = true;
-                            $tableTitle = $value;
-
-                            $currentTableSection = [
-                                'title' => $tableTitle,
-                                'start_row' => $rowIndex,
-                                'end_row' => null,
-                                'columns' => [],
-                                'rows' => []
-                            ];
-                            $tableSections[] = &$currentTableSection;
-                        }
-                    }
-                }
-
-                $rowHasYellowCell = false;
-
-                foreach ($row->getValues() as $colIndex => $cell) {
-                    if (!$cell) {
-                        continue;
-                    }
-
-                    if ($currentTableSection !== null) {
-                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
-                        $value = $this->getCellValue($cell);
-
-                        if (!isset($currentTableSection['rows'][$rowIndex])) {
-                            $currentTableSection['rows'][$rowIndex] = [];
-                        }
-
-                        $currentTableSection['rows'][$rowIndex][$columnLetter] = [
-                            'value' => $value,
-                            'row' => $rowIndex + 1,
-                            'column' => $columnLetter,
-                            'cell' => $columnLetter . ($rowIndex + 1)
-                        ];
-                    }
-
-                    $effectiveFormat = $cell->getEffectiveFormat();
-                    if (!$effectiveFormat) {
-                        continue;
-                    }
-
-                    $backgroundColor = $effectiveFormat->getBackgroundColor();
-                    if (!$backgroundColor) {
-                        continue;
-                    }
-
-                    $cellColor = [
-                        'red' => $backgroundColor->getRed() ?? 0,
-                        'green' => $backgroundColor->getGreen() ?? 0,
-                        'blue' => $backgroundColor->getBlue() ?? 0
-                    ];
-
-                    // Debug: Track all colors found in first few rows
-                    if ($rowIndex < 10) {
-                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
-                        $colorHex = $toHex($cellColor);
-
-                        // Only track non-white colors
-                        if ($cellColor['red'] < 0.99 || $cellColor['green'] < 0.99 || $cellColor['blue'] < 0.99) {
-                            $allCellColors[] = [
-                                'cell' => $columnLetter . ($rowIndex + 1),
-                                'hex' => $colorHex,
-                                'rgb' => $cellColor
-                            ];
-                        }
-                    }
-
-                    // Cek warna biru
-                    if ($isSimilarColor($cellColor, $this->targetColorRGB, $blueColorTolerance)) {
-                        $value = $this->getCellValue($cell);
-                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
-
-                        $coloredColumns[$columnLetter] = true;
-
-                        $coloredCells[] = [
-                            'row' => $rowIndex + 1,
-                            'column' => $columnLetter,
-                            'cell' => $columnLetter . ($rowIndex + 1),
-                            'value' => $value,
-                            'color' => $toHex($cellColor),
-                            'table_index' => count($tableSections) - 1
-                        ];
-
-                        if ($currentTableSection !== null) {
-                            if (isset($currentTableSection['rows'][$rowIndex][$columnLetter])) {
-                                $currentTableSection['rows'][$rowIndex][$columnLetter]['color'] = $toHex($cellColor);
-                            }
-
-                            if (!in_array($columnLetter, $currentTableSection['columns'])) {
-                                $currentTableSection['columns'][] = $columnLetter;
-                            }
-                        }
-                    }
-
-                    // Cek sel warna kuning - dengan multiple alternatives
-                    $isYellow = false;
-
-                    // Cek primary yellow
-                    if ($isSimilarColor($cellColor, $yellowTargetRGB, $yellowColorTolerance)) {
-                        $isYellow = true;
-                    }
-
-                    // Cek alternative yellows jika belum match
-                    if (!$isYellow) {
-                        foreach ($yellowAlternatives as $altYellow) {
-                            if ($isSimilarColor($cellColor, $altYellow, $yellowColorTolerance)) {
-                                $isYellow = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    // Fallback: cek apakah ini warna kuning berdasarkan heuristic
-                    // Kuning memiliki red & green tinggi, blue rendah
-                    if (
-                        !$isYellow &&
-                        $cellColor['red'] > 0.85 &&
-                        $cellColor['green'] > 0.85 &&
-                        $cellColor['blue'] < 0.2
-                    ) {
-                        $isYellow = true;
-                    }
-
-                    if ($isYellow) {
-                        $value = $this->getCellValue($cell);
-                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
-
-                        $rowHasYellowCell = true;
-
-                        $yellowCells[] = [
-                            'row' => $rowIndex + 1,
-                            'column' => $columnLetter,
-                            'cell' => $columnLetter . ($rowIndex + 1),
-                            'value' => $value,
-                            'color' => $toHex($cellColor),
-                            'rgb_actual' => $cellColor // Debug: simpan RGB actual
-                        ];
-
-                        // Track yellow columns untuk fillable
-                        if (!isset($yellowColumns[$columnLetter])) {
-                            $yellowColumns[$columnLetter] = [];
-                        }
-                        $yellowColumns[$columnLetter][] = $rowIndex + 1;
-
-                        // Debug log
-                        Log::info("Yellow cell detected: Column {$columnLetter}, Row " . ($rowIndex + 1) . ", Color: " . $toHex($cellColor) . ", RGB: " . json_encode($cellColor));
-                    }
-
-                    // Cek sel warna hijau #c2d69b
-                    if ($isSimilarColor($cellColor, $this->greenColorRGB, $greenColorTolerance)) {
-                        $value = $this->getCellValue($cell);
-                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
-
-                        $greenCells[] = [
-                            'row' => $rowIndex + 1,
-                            'column' => $columnLetter,
-                            'cell' => $columnLetter . ($rowIndex + 1),
-                            'value' => $value,
-                            'color' => $toHex($cellColor)
-                        ];
-                    }
-                }
-
-                // Setelah memproses semua sel dalam baris
-                if ($rowHasYellowCell) {
-                    $currentRow = $rowIndex + 1;
-                    $yellowRowsFound[] = $currentRow;
-
-                    if ($firstYellowRow === null || $currentRow < $firstYellowRow) {
-                        $firstYellowRow = $currentRow;
-                    }
-                }
-            }
-
-            // Proses table sections dan data (sama seperti sebelumnya)
-            if (empty($tableSections) && !empty($coloredCells)) {
-                $tableSection = [
-                    'title' => 'Full Sheet',
-                    'start_row' => 0,
-                    'end_row' => count($rowData) - 1,
-                    'columns' => array_keys($coloredColumns),
-                    'rows' => []
-                ];
-
-                $tableSections[] = $tableSection;
-
-                foreach ($coloredCells as &$cell) {
-                    $cell['table_index'] = 0;
-                }
-
-                $tableData[] = [
-                    'title' => 'Full Sheet',
-                    'start_row' => 1,
-                    'end_row' => count($rowData),
-                    'columns' => array_keys($coloredColumns)
-                ];
-            } else {
-                for ($i = 0; $i < count($tableSections); $i++) {
-                    if ($i < count($tableSections) - 1) {
-                        $tableSections[$i]['end_row'] = $tableSections[$i + 1]['start_row'] - 1;
-                    } else {
-                        $lastRowIndex = 0;
-                        foreach ($tableSections[$i]['rows'] as $rowIdx => $rowData) {
-                            $lastRowIndex = max($lastRowIndex, $rowIdx);
-                        }
-                        $tableSections[$i]['end_row'] = $lastRowIndex;
-                    }
-
-                    $tableData[] = [
-                        'title' => $tableSections[$i]['title'],
-                        'start_row' => $tableSections[$i]['start_row'] + 1,
-                        'end_row' => $tableSections[$i]['end_row'] + 1,
-                        'columns' => $tableSections[$i]['columns'],
-                    ];
-                }
-            }
-
-            if (empty($coloredCells)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Tidak ditemukan sel dengan warna #8db3e1'
-                ]);
-            }
-
-            $restructuredData = $this->restructureHierarchicalHeaders($coloredCells);
-
-            // Tentukan data_start_row berdasarkan yellow cells
-            $dataStartRow = null;
-            $headerLastRow = 0;
-
-            if (!empty($restructuredData) && isset($restructuredData[0]['header_row'])) {
-                $headerLastRow = $restructuredData[0]['header_row'];
-
-                if (isset($restructuredData[0]['subheader_row']) && $restructuredData[0]['subheader_row'] > $headerLastRow) {
-                    $headerLastRow = $restructuredData[0]['subheader_row'];
-                }
-
-                if (isset($restructuredData[0]['sub_subheader_row']) && $restructuredData[0]['sub_subheader_row'] > $headerLastRow) {
-                    $headerLastRow = $restructuredData[0]['sub_subheader_row'];
-                }
-            }
-
-            if (!empty($yellowRowsFound)) {
-                sort($yellowRowsFound);
-                foreach ($yellowRowsFound as $yellowRow) {
-                    if ($yellowRow > $headerLastRow) {
-                        $dataStartRow = $yellowRow + 1;
-                        break;
-                    }
-                }
-            }
-
-            if ($dataStartRow === null && $headerLastRow > 0) {
-                $dataStartRow = $headerLastRow + 1;
-            }
-
-            // Log yellow columns untuk debugging
-            if (!empty($yellowColumns)) {
-                Log::info("Yellow columns found: " . json_encode(array_keys($yellowColumns)));
-                Log::info("Total yellow columns: " . count($yellowColumns));
-            } else {
-                Log::warning("No yellow columns detected!");
-                if (!empty($allCellColors)) {
-                    Log::info("Colors found in first 10 rows: " . json_encode($allCellColors));
-                }
-            }
-
-            $response = [
-                'success' => true,
-                'message' => 'Berhasil mendapatkan sel-sel dengan warna biru (#8db3e1/#8db3e2)',
-                'spreadsheet_id' => $this->spreadsheetId,
-                'sheet_name' => $sheetName,
-                'table_ref' => $tableRef,
-                'target_color' => '#8db3e1',
-                'colored_cells' => $coloredCells,
-                'yellow_cells_count' => count($yellowCells),
-                'yellow_rows_found' => $yellowRowsFound,
-                'yellow_columns' => $yellowColumns,
-                'yellow_columns_list' => array_keys($yellowColumns), // Explicit list
-                'green_cells' => $greenCells,
-                'green_cells_count' => count($greenCells),
-                'first_yellow_row' => $firstYellowRow,
-                'header_last_row' => $headerLastRow,
-                'data_start_row' => $dataStartRow,
-                'restructured_data' => $restructuredData,
-                'total_colored_cells_found' => count($coloredCells),
-                'total_tables_found' => count($tableData),
-                'debug_colors' => $allCellColors // Debug info
-            ];
-
-            return response()->json($response);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Terjadi kesalahan: ' . $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
-            ], 500);
-        }
-    }
-
-    /**
-     * Helper to get cell value
-     */
     private function getCellValue($cell)
     {
         $value = null;
@@ -1048,9 +1099,34 @@ class LkpsImportController extends Controller
         return $value;
     }
 
+    private function columnLetterToIndex($column)
+    {
+        $column = strtoupper($column);
+        $result = 0;
+
+        for ($i = 0; $i < strlen($column); $i++) {
+            $result = $result * 26 + (ord($column[$i]) - ord('A') + 1);
+        }
+
+        return $result;
+    }
+
     /**
-     * Restructure headers with hierarchical approach
+     * Convert column index to letter (1=A, 2=B, 26=Z, 27=AA, etc.)
      */
+    private function columnIndexToLetter($index)
+    {
+        $result = '';
+
+        while ($index > 0) {
+            $remainder = ($index - 1) % 26;
+            $result = chr(ord('A') + $remainder) . $result;
+            $index = intdiv($index - $remainder - 1, 26);
+        }
+
+        return $result;
+    }
+
     private function restructureHierarchicalHeaders($coloredCells)
     {
         $tableGroups = [];
@@ -1131,9 +1207,6 @@ class LkpsImportController extends Controller
         return array_values($result);
     }
 
-    /**
-     * Process multiheader columns (subheaders and sub-subheaders)
-     */
     private function processMultiheaderColumns(&$tableResult, $headerRows, $mainHeaderCells)
     {
         $headerIndices = array_keys($tableResult);
@@ -1348,9 +1421,6 @@ class LkpsImportController extends Controller
         }
     }
 
-    /**
-     * Clean up and sort header structure
-     */
     private function cleanupHeaderStructure(&$tableResult)
     {
         foreach ($tableResult as &$header) {
@@ -1382,36 +1452,5 @@ class LkpsImportController extends Controller
         }
 
         ksort($tableResult);
-    }
-
-    /**
-     * Convert column letter to index (A=1, B=2, Z=26, AA=27, etc.)
-     */
-    private function columnLetterToIndex($column)
-    {
-        $column = strtoupper($column);
-        $result = 0;
-
-        for ($i = 0; $i < strlen($column); $i++) {
-            $result = $result * 26 + (ord($column[$i]) - ord('A') + 1);
-        }
-
-        return $result;
-    }
-
-    /**
-     * Convert column index to letter (1=A, 2=B, 26=Z, 27=AA, etc.)
-     */
-    private function columnIndexToLetter($index)
-    {
-        $result = '';
-
-        while ($index > 0) {
-            $remainder = ($index - 1) % 26;
-            $result = chr(ord('A') + $remainder) . $result;
-            $index = intdiv($index - $remainder - 1, 26);
-        }
-
-        return $result;
     }
 }

@@ -26,7 +26,7 @@ class GeminiDataMappingController extends Controller
             // Extract request data
             $dbColumns = $request->input('database_columns');
             $excelHeaders = $request->input('excel_headers');
-            $semanticThreshold = $request->input('semantic_threshold', 0.6); // Default 0.6
+            $semanticThreshold = $request->input('semantic_threshold', 0.65); // Ubah default dari 0.6 ke 0.65
 
             // Filter out empty Excel headers
             $excelHeaders = array_filter($excelHeaders, fn($header) => !empty(trim($header)));
@@ -50,16 +50,47 @@ class GeminiDataMappingController extends Controller
                 );
             }
 
+            // Validate confidence levels in the response
+            $validatedMapping = $this->validateConfidenceLevels($jsonResult, $semanticThreshold);
+
             // Return successful response with mapping
             return response()->json([
                 'success' => true,
-                'mapping' => $jsonResult,
+                'mapping' => $validatedMapping,
                 'threshold_used' => $semanticThreshold
             ]);
 
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage());
         }
+    }
+
+    /**
+     * Validate and filter mappings based on confidence threshold.
+     *
+     * @param array $mapping The mapping result from Gemini
+     * @param float $threshold The minimum confidence threshold
+     * @return array Filtered mapping with only confident matches
+     */
+    private function validateConfidenceLevels(array $mapping, float $threshold): array
+    {
+        $validatedMapping = [];
+
+        foreach ($mapping as $dbColumn => $mappingData) {
+            // Ensure the mapping data has the required structure
+            if (!is_array($mappingData) || !isset($mappingData['confidence'])) {
+                continue;
+            }
+
+            $confidence = (float) $mappingData['confidence'];
+
+            // Only include mappings that meet or exceed the threshold
+            if ($confidence >= $threshold) {
+                $validatedMapping[$dbColumn] = $mappingData;
+            }
+        }
+
+        return $validatedMapping;
     }
 
     /**
@@ -80,16 +111,18 @@ class GeminiDataMappingController extends Controller
 Match each database column (indeksData) to the most appropriate Excel column header based on semantic understanding. You must evaluate the confidence/similarity level for each potential match.
 
 ## Confidence Threshold
+- MINIMUM REQUIRED CONFIDENCE: {$thresholdPercentage}% ({$semanticThreshold})
 - Only create mappings where your confidence level is >= {$thresholdPercentage}% ({$semanticThreshold})
 - If no Excel header meets the confidence threshold for a database column, DO NOT include it in the mapping
 - Consider semantic meaning, not just text similarity
+- Be STRICT with the confidence scoring - only high-quality matches should exceed the threshold
 
 ## Evaluation Criteria
-1. **Exact semantic match** (100% confidence): The Excel header means exactly the same thing
-2. **Strong semantic match** (80-99% confidence): Very similar meaning with minor differences
-3. **Moderate semantic match** (60-79% confidence): Related concepts but with some differences
-4. **Weak semantic match** (40-59% confidence): Some relation but significant differences
-5. **Poor/No match** (0-39% confidence): Different concepts entirely
+1. **Exact semantic match** (95-100% confidence): The Excel header means exactly the same thing
+2. **Strong semantic match** (80-94% confidence): Very similar meaning with minor differences
+3. **Moderate semantic match** (65-79% confidence): Related concepts but with some differences
+4. **Weak semantic match** (40-64% confidence): Some relation but significant differences - DO NOT INCLUDE
+5. **Poor/No match** (0-39% confidence): Different concepts entirely - DO NOT INCLUDE
 
 ## Input Data
 1. DATABASE_COLUMNS: " . json_encode($dbColumns) . "
@@ -97,18 +130,19 @@ Match each database column (indeksData) to the most appropriate Excel column hea
 
 ## Expected Output Format
 Return a JSON object where:
-- Keys are the database column indeksData values (only for mappings that meet the threshold)
+- Keys are the database column indeksData values (only for mappings with confidence >= {$semanticThreshold})
 - Values are objects containing:
   - excelIndex: The index of the matched Excel header (0-based)
   - excelHeader: The matched Excel header text
-  - confidence: Your confidence score (0.0 - 1.0)
+  - confidence: Your confidence score (0.0 - 1.0) - MUST be >= {$semanticThreshold}
   - reasoning: Brief explanation of why this mapping was chosen
 
 ## Important Notes
-- Only include mappings where confidence >= {$semanticThreshold}
+- STRICT REQUIREMENT: Only include mappings where confidence >= {$semanticThreshold}
 - Each Excel header should only be mapped to ONE database column (choose the best match)
 - If multiple database columns could match the same Excel header, choose the one with highest confidence
 - Consider context clues like numbering, parenthetical notes, and hierarchical structure
+- Be conservative with confidence scores - better to have fewer high-quality matches than many low-quality ones
 
 ## Example Output Format
 {

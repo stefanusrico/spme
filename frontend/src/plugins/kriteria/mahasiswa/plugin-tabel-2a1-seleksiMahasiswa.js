@@ -94,7 +94,6 @@ export class SeleksiMahasiswaPlugin extends BasePlugin {
     const processedData = filteredData.map((row, index) => {
       const item = {
         key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
         tahun_akademik: 0,
         daya_tampung: 0,
         pendaftar_jumlah_calon_mahasiswa: 0,
@@ -221,7 +220,7 @@ export class SeleksiMahasiswaPlugin extends BasePlugin {
           no: 13,
           sub: "B",
           nilai: this.truncateToTwoDecimals(metrics.componentB),
-        }
+        },
       ],
       NM: metrics.totalMahasiswaAktif,
     }

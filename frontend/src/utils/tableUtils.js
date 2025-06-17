@@ -375,7 +375,7 @@ const processHierarchicalHeaders = (headerRows) => {
 export const mapColumnsUsingAI = async (
   dbColumns,
   excelHeaders,
-  semanticThreshold = 0.6
+  semanticThreshold = 0.65
 ) => {
   try {
     const formattedDbColumns = dbColumns.map((column) => ({
@@ -405,7 +405,7 @@ export const mapColumnsUsingAI = async (
     const response = await axiosInstance.post("/data-mapping", {
       database_columns: formattedDbColumns,
       excel_headers: filteredHeaders,
-      semantic_threshold: semanticThreshold,
+      semantic_threshold: semanticThreshold, // Kirim threshold 0.65
     })
 
     if (response.data && response.data.success && response.data.mapping) {

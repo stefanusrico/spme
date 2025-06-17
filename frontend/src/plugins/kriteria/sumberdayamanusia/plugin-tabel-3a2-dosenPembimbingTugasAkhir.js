@@ -39,19 +39,6 @@ export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
         key: `excel-${index + 1}-${Date.now()}`,
         no: index + 1,
         selected: true,
-        nama_dosen_2: "",
-        ts_2_pada_ps_yang_diakreditasi_3: 0,
-        ts_1_pada_ps_yang_diakreditasi_3: 0,
-        ts_pada_ps_yang_diakreditasi_3: 0,
-        rata_rata_pada_ps_yang_diakreditasi_3: 0,
-        ts_2_pada_ps_lain_di_pt_4: 0,
-        ts_1_pada_ps_lain_di_pt_4: 0,
-        ts_pada_ps_lain_di_pt_4: 0,
-        rata_rata_pada_ps_lain_di_pt_4: 0,
-        rata_rata_jumlah_bimbingan_di_semua_program_semester_5: 0,
-        ts_2_nomor_sk_penugasan_pembimbing: "",
-        ts_1_nomor_sk_penugasan_pembimbing: "",
-        ts_nomor_sk_penugasan_pembimbing: "",
       }
 
       Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
@@ -59,28 +46,37 @@ export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
 
         const value = row[colIndex]
 
+        // Text fields
         if (
-          fieldName === "no" ||
           fieldName === "nama_dosen_2" ||
-          fieldName === "ts_2_nomor_sk_penugasan_pembimbing" ||
-          fieldName === "ts_1_nomor_sk_penugasan_pembimbing" ||
-          fieldName === "ts_nomor_sk_penugasan_pembimbing"
+          fieldName === "nomor_sk_penugasan_pembimbing_ts_2" ||
+          fieldName === "nomor_sk_penugasan_pembimbing_ts_1" ||
+          fieldName === "nomor_sk_penugasan_pembimbing_ts"
         ) {
           item[fieldName] = PluginUtils.normalizeTextField(value)
-        } else if (
+        }
+        // Numeric fields including calculated fields
+        else if (
           [
-            "ts_2_pada_ps_yang_diakreditasi_3",
-            "ts_1_pada_ps_yang_diakreditasi_3",
-            "ts_pada_ps_yang_diakreditasi_3",
-            "rata_rata_pada_ps_yang_diakreditasi_3",
-            "ts_2_pada_ps_lain_di_pt_4",
-            "ts_1_pada_ps_lain_di_pt_4",
-            "ts_pada_ps_lain_di_pt_4",
-            "rata_rata_pada_ps_lain_di_pt_4",
+            "pada_ps_yang_diakreditasi_3_ts_2",
+            "pada_ps_yang_diakreditasi_3_ts_1",
+            "pada_ps_yang_diakreditasi_3_ts",
+            "pada_ps_lain_di_pt_4_ts_2",
+            "pada_ps_lain_di_pt_4_ts_1",
+            "pada_ps_lain_di_pt_4_ts",
+            // ADD: Include calculated fields
+            "pada_ps_yang_diakreditasi_3_rata_rata",
+            "pada_ps_lain_di_pt_4_rata_rata",
             "rata_rata_jumlah_bimbingan_di_semua_program_semester_5",
           ].includes(fieldName)
         ) {
-          item[fieldName] = PluginUtils.parseNumber(value, 0)
+          // Parse and format numeric fields to 2 decimal places
+          const numValue = PluginUtils.parseNumber(value, 0)
+          item[fieldName] = parseFloat(PluginUtils.formatNumber(numValue, 2))
+        }
+        // Special handling for 'no' field as integer
+        else if (fieldName === "no") {
+          item[fieldName] = PluginUtils.parseInt(value, 0)
         } else {
           item[fieldName] = PluginUtils.normalizeTextField(value)
         }
@@ -131,11 +127,11 @@ export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
       scores: [
         {
           butir: 21,
-          nilai: PluginUtils.roundToDecimal(score),
+          nilai: parseFloat(PluginUtils.formatNumber(score, 2)),
         },
       ],
       scoreDetail: {
-        RDPU: PluginUtils.roundToDecimal(Math.round(RDPU * 100) / 100),
+        RDPU: parseFloat(PluginUtils.formatNumber(RDPU, 2)),
       },
     }
   }
@@ -146,26 +142,45 @@ export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
    */
   getCalculatedFields() {
     return {
-      rata_rata_pada_ps_yang_diakreditasi_3: (row) => {
-        const ts2 = parseFloat(row.ts_2_pada_ps_yang_diakreditasi_3 || 0)
-        const ts1 = parseFloat(row.ts_1_pada_ps_yang_diakreditasi_3 || 0)
-        const ts = parseFloat(row.ts_pada_ps_yang_diakreditasi_3 || 0)
-        return Number(((ts2 + ts1 + ts) / 3).toFixed(2))
+      // Average for PS yang diakreditasi (columns from TS-2, TS-1, TS)
+      pada_ps_yang_diakreditasi_3_rata_rata: (row) => {
+        const ts2 = PluginUtils.parseNumber(
+          row.pada_ps_yang_diakreditasi_3_ts_2,
+          0
+        )
+        const ts1 = PluginUtils.parseNumber(
+          row.pada_ps_yang_diakreditasi_3_ts_1,
+          0
+        )
+        const ts = PluginUtils.parseNumber(
+          row.pada_ps_yang_diakreditasi_3_ts,
+          0
+        )
+        const average = (ts2 + ts1 + ts) / 3
+        return parseFloat(PluginUtils.formatNumber(average, 2))
       },
 
       // Average for PS lain di PT (columns from TS-2, TS-1, TS)
-      rata_rata_pada_ps_lain_di_pt_4: (row) => {
-        const ts2 = parseFloat(row.ts_2_pada_ps_lain_di_pt_4 || 0)
-        const ts1 = parseFloat(row.ts_1_pada_ps_lain_di_pt_4 || 0)
-        const ts = parseFloat(row.ts_pada_ps_lain_di_pt_4 || 0)
-        return Number(((ts2 + ts1 + ts) / 3).toFixed(2))
+      pada_ps_lain_di_pt_4_rata_rata: (row) => {
+        const ts2 = PluginUtils.parseNumber(row.pada_ps_lain_di_pt_4_ts_2, 0)
+        const ts1 = PluginUtils.parseNumber(row.pada_ps_lain_di_pt_4_ts_1, 0)
+        const ts = PluginUtils.parseNumber(row.pada_ps_lain_di_pt_4_ts, 0)
+        const average = (ts2 + ts1 + ts) / 3
+        return parseFloat(PluginUtils.formatNumber(average, 2))
       },
 
       // Total average across both PS types
       rata_rata_jumlah_bimbingan_di_semua_program_semester_5: (row) => {
-        const avgPS = parseFloat(row.rata_rata_pada_ps_yang_diakreditasi_3 || 0)
-        const avgOther = parseFloat(row.rata_rata_pada_ps_lain_di_pt_4 || 0)
-        return Number(((avgPS + avgOther) / 2).toFixed(2))
+        const avgPS = PluginUtils.parseNumber(
+          row.pada_ps_yang_diakreditasi_3_rata_rata,
+          0
+        )
+        const avgOther = PluginUtils.parseNumber(
+          row.pada_ps_lain_di_pt_4_rata_rata,
+          0
+        )
+        const totalAverage = avgPS + avgOther
+        return parseFloat(PluginUtils.formatNumber(totalAverage, 2))
       },
     }
   }
@@ -202,37 +217,54 @@ export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
     const normalizedData = super.normalizeData
       ? super.normalizeData(data)
       : data.map((item) => {
-          // Your existing normalization code
           const result = { ...item }
 
+          // Numeric fields that should be formatted to 2 decimal places
           const numericFields = [
-            "no",
-            "ts_2_pada_ps_yang_diakreditasi_3",
-            "ts_1_pada_ps_yang_diakreditasi_3",
-            "ts_pada_ps_yang_diakreditasi_3",
-            "ts_2_pada_ps_lain_di_pt_4",
-            "ts_1_pada_ps_lain_di_pt_4",
-            "ts_pada_ps_lain_di_pt_4",
+            "pada_ps_yang_diakreditasi_3_ts_2",
+            "pada_ps_yang_diakreditasi_3_ts_1",
+            "pada_ps_yang_diakreditasi_3_ts",
+            "pada_ps_lain_di_pt_4_ts_2",
+            "pada_ps_lain_di_pt_4_ts_1",
+            "pada_ps_lain_di_pt_4_ts",
+            // ADD: Include calculated fields for normalization too
+            "pada_ps_yang_diakreditasi_3_rata_rata",
+            "pada_ps_lain_di_pt_4_rata_rata",
+            "rata_rata_jumlah_bimbingan_di_semua_program_semester_5",
           ]
 
+          // Text fields
           const textFields = [
             "nama_dosen_2",
-            "ts_2_nomor_sk_penugasan_pembimbing",
-            "ts_1_nomor_sk_penugasan_pembimbing",
-            "ts_nomor_sk_penugasan_pembimbing",
+            "nomor_sk_penugasan_pembimbing_ts_2",
+            "nomor_sk_penugasan_pembimbing_ts_1",
+            "nomor_sk_penugasan_pembimbing_ts",
           ]
 
+          // Process text fields
           textFields.forEach((field) => {
-            result[field] = PluginUtils.normalizeTextField(result[field])
+            if (result[field] !== undefined) {
+              result[field] = PluginUtils.normalizeTextField(result[field])
+            }
           })
 
+          // Process numeric fields with formatting
           numericFields.forEach((field) => {
-            result[field] = PluginUtils.parseNumber(result[field], 0)
+            if (result[field] !== undefined) {
+              const numValue = PluginUtils.parseNumber(result[field], 0)
+              result[field] = parseFloat(PluginUtils.formatNumber(numValue, 2))
+            }
           })
+
+          // Handle 'no' field as integer
+          if (result.no !== undefined) {
+            result.no = PluginUtils.parseInt(result.no, 0)
+          }
 
           return result
         })
 
+    // Apply calculations after normalization
     return this.recalculateData(normalizedData)
   }
 
@@ -244,32 +276,35 @@ export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
       if (!item.nama_dosen_2) {
         errors.push(`Row ${index + 1}: Nama dosen harus diisi`)
       }
-      if (!item.ts_2_nomor_sk_penugasan_pembimbing) {
+      if (!item.nomor_sk_penugasan_pembimbing_ts_2) {
         errors.push(`Row ${index + 1}: Nomor SK TS-2 harus diisi`)
       }
-      if (!item.ts_1_nomor_sk_penugasan_pembimbing) {
+      if (!item.nomor_sk_penugasan_pembimbing_ts_1) {
         errors.push(`Row ${index + 1}: Nomor SK TS-1 harus diisi`)
       }
-      if (!item.ts_nomor_sk_penugasan_pembimbing) {
+      if (!item.nomor_sk_penugasan_pembimbing_ts) {
         errors.push(`Row ${index + 1}: Nomor SK TS harus diisi`)
       }
 
-      // Helper untuk cek jumlah mahasiswa dibimbing
+      // Helper untuk cek jumlah mahasiswa dibimbing dengan increased tolerance
       const validateJumlahMahasiswa = (rataRata, ts2, ts1, ts) => {
-        const tolerance = 0.0001
+        const tolerance = 0.01 // Increased tolerance for floating point precision
         const total =
-          parseFloat(ts2 || 0) + parseFloat(ts1 || 0) + parseFloat(ts || 0)
-        const avg = total / 3
-        return Math.abs(parseFloat(rataRata || 0) - avg) <= tolerance
+          PluginUtils.parseNumber(ts2, 0) +
+          PluginUtils.parseNumber(ts1, 0) +
+          PluginUtils.parseNumber(ts, 0)
+        const expectedAvg = total / 3
+        const actualAvg = PluginUtils.parseNumber(rataRata, 0)
+        return Math.abs(actualAvg - expectedAvg) <= tolerance
       }
 
       // Validasi PS yang diakreditasi
       if (
         !validateJumlahMahasiswa(
-          item.rata_rata_pada_ps_yang_diakreditasi_3,
-          item.ts_2_pada_ps_yang_diakreditasi_3,
-          item.ts_1_pada_ps_yang_diakreditasi_3,
-          item.ts_pada_ps_yang_diakreditasi_3
+          item.pada_ps_yang_diakreditasi_3_rata_rata,
+          item.pada_ps_yang_diakreditasi_3_ts_2,
+          item.pada_ps_yang_diakreditasi_3_ts_1,
+          item.pada_ps_yang_diakreditasi_3_ts
         )
       ) {
         errors.push(
@@ -282,10 +317,10 @@ export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
       // Validasi PS lain di PT
       if (
         !validateJumlahMahasiswa(
-          item.rata_rata_pada_ps_lain_di_pt_4,
-          item.ts_2_pada_ps_lain_di_pt_4,
-          item.ts_1_pada_ps_lain_di_pt_4,
-          item.ts_pada_ps_lain_di_pt_4
+          item.pada_ps_lain_di_pt_4_rata_rata,
+          item.pada_ps_lain_di_pt_4_ts_2,
+          item.pada_ps_lain_di_pt_4_ts_1,
+          item.pada_ps_lain_di_pt_4_ts
         )
       ) {
         errors.push(

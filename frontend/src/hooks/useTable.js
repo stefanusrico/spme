@@ -159,8 +159,22 @@ export const useTable = (tableCode, navigate) => {
 
     // Process tables into structure
     tables.forEach((table) => {
+      // FIX: Ensure table.kode is a string
+      const kodeString = String(table.kode || "")
+
+      if (!kodeString) {
+        console.warn("Table with missing kode:", table)
+        return
+      }
+
       // Extract parent code (first digit of the table code)
-      const mainCode = table.kode.match(/^(\d)/)[1]
+      const mainCodeMatch = kodeString.match(/^(\d)/)
+      if (!mainCodeMatch) {
+        console.warn("Invalid table code format:", kodeString)
+        return
+      }
+
+      const mainCode = mainCodeMatch[1]
 
       // Create main table if it doesn't exist
       if (!tableMap[mainCode]) {
@@ -176,14 +190,14 @@ export const useTable = (tableCode, navigate) => {
 
       // Add table as a table
       const tableEntry = {
-        code: table.kode,
-        title: table.judul,
+        code: kodeString,
+        title: String(table.judul || ""),
         type: "content",
-        tableCode: table.kode,
+        tableCode: kodeString,
       }
 
       // Check if the table code is exactly the same as the main code
-      if (table.kode === mainCode) {
+      if (kodeString === mainCode) {
         // This is the main table content
         Object.assign(tableMap[mainCode], tableEntry)
       } else {

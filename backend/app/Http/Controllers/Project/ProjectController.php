@@ -826,6 +826,15 @@ class ProjectController extends Controller
                     $taskDetails = $this->getTaskDetails($task, $ledItems, $lkpsTables);
                     $ownerDetails = isset($taskOwners[$task->_id]) ? $taskOwners[$task->_id] : [];
 
+                    // Calculate different duration metrics
+                    $totalDuration = $this->calculateDuration($task->startDate, $task->endDate);
+                    $remainingDuration = $this->calculateRemainingDuration($task->startDate, $task->endDate, $task->status);
+
+                    // Determine task urgency
+                    $isOverdue = $task->endDate && Carbon::parse($task->endDate)->lt(Carbon::now()) && $task->status !== 'COMPLETED';
+                    $isDueToday = $task->endDate && Carbon::parse($task->endDate)->isSameDay(Carbon::now());
+                    $isDueSoon = $task->endDate && Carbon::parse($task->endDate)->between(Carbon::now(), Carbon::now()->addDays(3));
+
                     $processedTasks[] = [
                         'id' => $task->_id,
                         'ledItemId' => $task->ledItemId,
@@ -837,7 +846,11 @@ class ProjectController extends Controller
                         'progress' => $task->progress,
                         'startDate' => $this->formatDate($task->startDate),
                         'endDate' => $this->formatDate($task->endDate),
-                        'duration' => $this->calculateDuration($task->startDate, $task->endDate),
+                        'duration' => $totalDuration, // Total duration from start to end
+                        'remainingDuration' => $remainingDuration, // Days remaining
+                        'isOverdue' => $isOverdue,
+                        'isDueToday' => $isDueToday,
+                        'isDueSoon' => $isDueSoon,
                         'order' => $task->order,
                         'taskListId' => $task->taskListId,
                         'owners' => $ownerDetails
@@ -1110,7 +1123,7 @@ class ProjectController extends Controller
     }
 
     /**
-     * Calculate duration between dates
+     * Calculate duration between dates in days
      */
     private function calculateDuration($startDate, $endDate)
     {
@@ -1119,19 +1132,80 @@ class ProjectController extends Controller
         }
 
         try {
-            $carbonStartDate = Carbon::parse($startDate);
-            $carbonEndDate = Carbon::parse($endDate);
+            $carbonStartDate = Carbon::parse($startDate)->startOfDay();
+            $carbonEndDate = Carbon::parse($endDate)->startOfDay();
+
+            // Calculate total duration from start to end (including weekends)
+            $totalDuration = $carbonStartDate->diffInDays($carbonEndDate) + 1; // +1 to include both start and end dates
+
+            // If you want to exclude weekends, uncomment the following:
+            // $totalDuration = $this->calculateWorkingDays($carbonStartDate, $carbonEndDate);
+
+            return max(0, $totalDuration); // Ensure duration is never negative
+
+        } catch (\Exception $e) {
+            Log::warning("Failed to calculate duration for dates '{$startDate}' to '{$endDate}': " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Calculate working days between two dates (excluding weekends)
+     * Uncomment this if you want to exclude weekends from duration calculation
+     */
+    private function calculateWorkingDays($startDate, $endDate)
+    {
+        if ($startDate->gt($endDate)) {
+            return 0;
+        }
+
+        $workingDays = 0;
+        $currentDate = $startDate->copy();
+
+        while ($currentDate->lte($endDate)) {
+            // Monday = 1, Sunday = 7
+            if ($currentDate->dayOfWeek >= 1 && $currentDate->dayOfWeek <= 5) {
+                $workingDays++;
+            }
+            $currentDate->addDay();
+        }
+
+        return $workingDays;
+    }
+
+    /**
+     * Calculate remaining duration for active tasks
+     */
+    private function calculateRemainingDuration($startDate, $endDate, $status)
+    {
+        if (empty($startDate) || empty($endDate)) {
+            return 0;
+        }
+
+        try {
+            $carbonStartDate = Carbon::parse($startDate)->startOfDay();
+            $carbonEndDate = Carbon::parse($endDate)->startOfDay();
             $today = Carbon::now()->startOfDay();
 
+            // If task hasn't started yet
             if ($today->lt($carbonStartDate)) {
-                return $carbonStartDate->diffInDays($carbonEndDate);
-            } else if ($today->lte($carbonEndDate)) {
-                return $today->diffInDays($carbonEndDate);
+                return $carbonStartDate->diffInDays($carbonEndDate) + 1;
+            }
+
+            // If task is in progress or overdue
+            if ($today->lte($carbonEndDate)) {
+                return $today->diffInDays($carbonEndDate) + 1;
+            }
+
+            // If task is overdue
+            if ($today->gt($carbonEndDate)) {
+                return 0; // or return negative number for overdue days: $carbonEndDate->diffInDays($today) * -1
             }
 
             return 0;
+
         } catch (\Exception $e) {
-            Log::warning("Failed to calculate duration: " . $e->getMessage());
+            Log::warning("Failed to calculate remaining duration: " . $e->getMessage());
             return 0;
         }
     }

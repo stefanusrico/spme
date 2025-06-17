@@ -11,7 +11,7 @@ class LkpsColumn extends Model
     protected $collection = 'lkps_columns';
 
     protected $fillable = [
-        'kodeTabel',
+        'lkpsTableId',
         'indeksData',
         'judul',
         'type',
@@ -48,11 +48,19 @@ class LkpsColumn extends Model
     }
 
     /**
-     * Get the table this column belongs to
+     * Get the table this column belongs to (menggunakan lkpsTableId)
+     */
+    public function table()
+    {
+        return $this->belongsTo(LkpsTable::class, 'lkpsTableId', '_id');
+    }
+
+    /**
+     * Legacy method untuk backward compatibility
      */
     public function tabel()
     {
-        return $this->belongsTo(LkpsTable::class, 'kodeTabel', 'kode');
+        return $this->table();
     }
 
     /**
@@ -100,11 +108,27 @@ class LkpsColumn extends Model
                 throw new \Exception('Parent column is not a group column');
             }
 
-            if ($parentColumn->kodeTabel !== $attributes['kodeTabel']) {
+            if ($parentColumn->lkpsTableId !== $attributes['lkpsTableId']) {
                 throw new \Exception('Parent column belongs to a different table');
             }
         }
 
         return self::create($attributes);
+    }
+
+    /**
+     * Scope to filter by table ID
+     */
+    public function scopeByTableId($query, $tableId)
+    {
+        return $query->where('lkpsTableId', (string) $tableId);
+    }
+
+    /**
+     * Get table ID as string (helper method)
+     */
+    public function getTableIdAttribute()
+    {
+        return (string) $this->lkpsTableId;
     }
 }

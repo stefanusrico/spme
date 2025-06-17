@@ -27,13 +27,11 @@ class LamController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|unique:lam,name',
-            'hasBatch' => 'required|boolean'
+            'name' => 'required|string|unique:lam,name'
         ]);
 
         $lam = Lam::create([
             'name' => $request->name,
-            'hasBatch' => $request->hasBatch
         ]);
 
         return response()->json($lam, 201);
