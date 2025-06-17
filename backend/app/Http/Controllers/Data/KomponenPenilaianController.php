@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use App\Traits\ObjectIdConversion;
 
-class SpreadsheetController extends Controller
+class KomponenPenilaianController extends Controller
 {
     /**
      * Menyimpan data LED item dari spreadsheet ke database.
@@ -472,12 +472,14 @@ class SpreadsheetController extends Controller
                 ], 400);
             }
 
+            \Log::info('Get Bobot Butir', [
+                'lamId' => $lamId,
+                'strataId' => $strataId
+            ]);
             // $lamIdString = $this->convertObjectIdToString($lamId);
             // $strataIdString = $this->convertObjectIdToString($strataId);
 
-            $data = Butir::where('lamId', $lamId)
-                ->where('strataId', $strataId)
-                ->get();
+            $data = Butir::get();
 
             return response()->json([
                 'status' => 'success',

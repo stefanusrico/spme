@@ -10,7 +10,7 @@ class LamController extends Controller
 {
     public function index()
     {
-        return response()->json(Lam::with(['jadwals'])->get());
+        return response()->json(Lam::get());
     }
 
     public function show($id)

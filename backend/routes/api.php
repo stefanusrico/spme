@@ -9,7 +9,7 @@ use App\Http\Controllers\Prodi\{ProdiController, StrataController};
 use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController, ButirController};
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController, LkpsImportController};
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, LedDocumentController};
-use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController, SpreadsheetController};
+use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController, KomponenPenilaianController};
 use App\Http\Controllers\Akreditasi\{DataAkreditasiController};
 use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
 
@@ -242,7 +242,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::post('/calculate/{nomor}/{sub?}', [RumusController::class, 'calculate']);
         });
 
-        Route::controller(SpreadsheetController::class)->group(function () {
+        Route::controller(KomponenPenilaianController::class)->group(function () {
             Route::post('/save-json', 'importLedItem');
             Route::post('/save-bobot-butir', 'importBobotButir');
             Route::post('/save-syarat-perlu-terakreditasi', 'importSyaratPerluTerakreditasi');
