@@ -699,34 +699,24 @@ class ProjectController extends Controller
                 ->map(function ($task) {
                     return [
                         'id' => $task->_id,
-                        'name' => $task->nama,
-                        'status' => $task->status,
                         'no' => $task->ledItem->no,
                         'sub' => $task->ledItem->sub,
                         'project' => [
                             'id' => $task->taskList->project->_id,
                         ],
-                        'owners' => $task->users->map(function ($user) {
-                            return [
-                                'id' => $user->id,
-                                'name' => $user->name
-                            ];
-                        })->values()
                     ];
-                });
+                })->sortBy([
+                    ['no', 'asc'],
+                    ['sub', 'asc'],
+                ])
+                ->values();
 
             // Bangun response
             return response()->json([
                 'status' => 'success',
                 'data' => [
                     'projectId' => $project->_id,
-                    'projectName' => $project->name,
-                    'prodiName' => $project->prodi->name ?? null,
-                    'prodiId' => $project->prodi->id ?? null,
-                    'createdAt' => $project->created_at,
-                    'statistics' => [
-                        'totalTasks' => $formattedTasks->count()
-                    ],
+                    'totalTasks' => $formattedTasks->count(),
                     'tasks' => $formattedTasks
                 ]
             ]);

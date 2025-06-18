@@ -16,6 +16,30 @@ export const fetchLedDataByTaskId = async (taskId) => {
   }
 }
 
+export const fetchLatestLedDataByTaskId = async (taskId) => {
+  try {
+    const responseVersion = await axiosInstance.get(`/led-data/get-latest-by-task`,{ params: { 
+        taskId: taskId 
+      }
+    })
+
+    return responseVersion.data.data
+  } catch (error) {
+    throw new Error("Gagal mengambil data program studi")
+  }
+}
+
+export const fetchLedItemLatestByTaskId = async (taskId) => {
+  try {
+    const responseLedItemByProdi = await axiosInstance.get(
+      `/get-led-item-latest-by-task/${taskId}`
+    )
+    return responseLedItemByProdi.data.data
+  } catch (error) {
+    throw new Error("Gagal mengambil data Led Item berdasarkan prodi")
+  }
+}
+
 export const fetchUserTask = async () => {
   try {
     const responseTask = await axiosInstance.get(`/tasks`)
@@ -30,7 +54,7 @@ export const fetchUserTask = async () => {
 
 export const fetchAllTaskByProdi = async (prodiId) => {
   try {
-    const responseTasks = await axiosInstance.get(`/projectsByProdi/${prodiId}`)
+    const responseTasks = await axiosInstance.get(`/all-tasks-by-prodi/${prodiId}`)
     const data = responseTasks.data.data.tasks
     console.log("reposen all tasks : ", data)
     return data
@@ -71,7 +95,7 @@ export const fetchAllProdi = async () => {
 
 export const fetchLedDataByProdi = async (prodiId) => {
   try {
-    const responseLedData = await axiosInstance.get(`/ledData/byProdi/${prodiId}`)
+    const responseLedData = await axiosInstance.get(`/led-data-by-prodi/${prodiId}`)
     if (!responseLedData.data || !responseLedData.data.data || responseLedData.data.data.length === 0) {
       console.warn("LED data kosong atau tidak ditemukan");
       return []; // Atau null tergantung bagaimana kamu ingin menanganinya

@@ -167,6 +167,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
     Route::get('tasks', [TaskController::class, 'myTasks']);
     Route::patch('tasks/updateOwner/{no}/{sub}/{prodiId}', [TaskController::class, 'updateOwners']);
+    Route::get('all-tasks-by-prodi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);
     Route::get('allTaskByProdi/{prodiId}', [TaskController::class, 'getAllTaskByProdi']);
 
     Route::controller(JurusanController::class)->group(function () {
@@ -194,7 +195,6 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::get('projects-with-owners', [ProjectController::class, 'projectsWithOwners']);
         Route::get('projects/all', [ProjectController::class, 'index']);
         Route::get('projects', [ProjectController::class, 'myProjects']);
-        Route::get('projectsByProdi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);
 
         Route::get('projects/{projectId}', [ProjectController::class, 'getProjectDetails']);
         Route::get('projects/{projectId}/members', [ProjectController::class, 'getMembers']);
@@ -277,8 +277,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/led-data/get-all-by-task', 'getAllByTask');
             Route::get('/led-data/get-by-task', 'getAllByTask');
             Route::get('/ledData/{taskId}/latest', 'getLatest');
-            Route::get('/ledData/byProdi/{prodiId}', 'getLedDataByProdi');
-
+            Route::get('/led-data-by-prodi/{prodiId}', 'getLedDataByProdi');
             Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
         });
 

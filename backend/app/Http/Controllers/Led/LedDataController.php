@@ -87,7 +87,7 @@ class LedDataController extends Controller
         $ledData = LedData::with('user', 'task')
             ->where('taskId', $taskId)
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->first();
 
         if ($ledData->isEmpty()) {
             return response()->json([

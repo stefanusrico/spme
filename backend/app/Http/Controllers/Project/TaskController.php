@@ -647,22 +647,14 @@ class TaskController extends Controller
                         'no' => $task->no,
                         'sub' => $task->sub,
                         'name' => $task->nama,
-                        'status' => $task->status,
-                        'progress' => $task->progress,
-                        'startDate' => $task->startDate,
-                        'endDate' => $task->endDate,
-                        'owners' => $owners ?? [],
                         'project' => $project ? [
                             'id' => $project->_id,
-                            'projectId' => $project->projectId,
-                            'name' => $project->name
                         ] : null,
-                        'taskList' => [
-                            'id' => $task->tasklist?->_id,
-                            'name' => $task->tasklist?->kriteria
-                        ]
                     ];
-                });
+                })->sortBy([
+                    ['no', 'asc'],
+                    ['sub', 'asc'],
+                ])->values()->all();
 
             return response()->json([
                 'status' => 'success',
