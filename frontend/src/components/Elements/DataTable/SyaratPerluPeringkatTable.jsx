@@ -8,8 +8,11 @@ import {
 } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button" // Pastikan kamu punya komponen Button ini
 import axiosInstance from "../../../utils/axiosConfig"
+import { Modal } from 'antd'
 
 const SyaratPerluPeringkatTable = () => {
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editData, setEditData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [syaratPerluPeringkat, setSyaratPerluPeringkat] = useState([])
@@ -31,6 +34,33 @@ const SyaratPerluPeringkatTable = () => {
 
     fetchSyaratPerluPeringkat();
   }, []);
+
+  const handleEdit = (rowData) => {
+    setEditData(rowData)
+    setIsEditModalOpen(true)
+  }
+
+  const handleDelete = (id, butir) => {
+    Modal.confirm({
+      title: "Hapus Data",
+      content: `Yakin ingin menghapus data butir "${butir}"?`,
+      okText: "Hapus",
+      okType: "danger",
+      cancelText: "Batal",
+      onOk: async () => {
+        try {
+          await axiosInstance.delete(`/delete-syarat-perlu-peringkat/${id}`);
+          setSyaratPerluPeringkat((prev) => prev.filter((item) => item.id !== id));
+        } catch (err) {
+          console.error("Gagal menghapus data:", err);
+          Modal.error({
+            title: "Gagal",
+            content: "Terjadi kesalahan saat menghapus data.",
+          });
+        }
+      },
+    });
+  };
 
   const columns = useMemo(
     () => [
@@ -65,10 +95,18 @@ const SyaratPerluPeringkatTable = () => {
         size: 150,
         cell: ({ row }) => (
           <div className="flex items-center justify-center gap-2">
-            <Button variant="ghost" size="icon">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => handleEdit(row.original)}
+            >
               <Icon icon="heroicons-outline:pencil" className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => handleDelete(row.original.id, row.original.butir)}
+            >
               <Icon icon="heroicons-outline:trash" className="h-4 w-4" />
             </Button>
           </div>
@@ -196,6 +234,83 @@ const SyaratPerluPeringkatTable = () => {
           </div>
         </div>
       </div>
+      {isEditModalOpen && (
+        <Modal
+          title="Edit Data"
+          open={isEditModalOpen}
+          onCancel={() => setIsEditModalOpen(false)}
+          onOk={async () => {
+            try {
+              await axiosInstance.put(`/update-syarat-perlu-peringkat/${editData.id}`, editData)
+              setSyaratPerluPeringkat((prev) =>
+                prev.map((item) =>
+                  item.id === editData.id ? { ...item, ...editData } : item
+                )
+              )
+              setIsEditModalOpen(false)
+            } catch (error) {
+              console.error("Gagal update data:", error)
+              Modal.error({
+                title: "Error",
+                content: "Gagal mengupdate data.",
+              })
+            }
+          }}
+          okText="Simpan"
+          cancelText="Batal"
+        >
+          <div className="flex flex-col gap-4">
+            <label>
+              Butir:
+              <input
+                type="text"
+                value={editData?.butir || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, butir: e.target.value })
+                }
+                className="w-full border px-3 py-1 rounded mt-1"
+              />
+            </label>
+            <label>
+              Aspek Penilaian:
+              <input
+                type="text"
+                value={editData?.aspek_penilaian || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, aspek_penilaian: e.target.value })
+                }
+                className="w-full border px-3 py-1 rounded mt-1"
+              />
+            </label>
+            <label>
+              Minimal Syarat Unggul:
+              <input
+                type="number"
+                max={4}
+                value={editData?.minimal_syarat_unggul || ""}
+                onChange={(e) => {
+                  const value = Math.min(Number(e.target.value), 4)
+                  setEditData({ ...editData, minimal_syarat_unggul: value })
+                }}
+                className="w-full border px-3 py-1 rounded mt-1"
+              />
+            </label>
+            <label>
+              Minimal Syarat Baik Sekali:
+              <input
+                type="number"
+                max={4}
+                value={editData?.minimal_syarat_baik_sekali || ""}
+                onChange={(e) => {
+                  const value = Math.min(Number(e.target.value), 4)
+                  setEditData({ ...editData, minimal_syarat_baik_sekali: value })
+                }}
+                className="w-full border px-3 py-1 rounded mt-1"
+              />
+            </label>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

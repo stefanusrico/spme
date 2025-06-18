@@ -11,12 +11,47 @@ use App\Models\Project\Project;
 use App\Models\Prodi\Prodi;
 use App\Models\Data\Butir;
 use App\Services\Calculations\ScoreCalculator;
-
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
 class ButirController extends Controller
 {
+    public function getBobotButir($lamId, $strataId)
+    {
+        try {
+            // Validasi request
+            if (!$lamId || !$strataId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'lamId dan strataId wajib diisi'
+                ], 400);
+            }
+
+            \Log::info('Get Bobot Butir', [
+                'lamId' => $lamId,
+                'strataId' => $strataId
+            ]);
+            // $lamIdString = $this->convertObjectIdToString($lamId);
+            // $strataIdString = $this->convertObjectIdToString($strataId);
+
+            $data = Butir::get()->sortBy(function ($item) {
+                return (int) $item->butir;
+            })->values();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'trace' => config('app.debug') ? $e->getTrace() : []
+            ], 500);
+        }
+    }
+    
     public function getSkorPerButir($prodiId)
     {
         try {
@@ -89,6 +124,59 @@ class ButirController extends Controller
         );
 
         return [$filteredLedData, $filteredLkpsData];
+    }
+
+    public function updateButir(Request $request, $id)
+    {
+        try {
+            $butir = Butir::findOrFail($id);
+
+            if (!$butir) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Data tidak ditemukan.',
+                ], 404);
+            }
+            $butir->update($request->all());
+
+            return response()->json([
+                'message' => 'Data berhasil diupdate',
+                'data' => $butir,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Terjadi kesalahan saat memperbarui data.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function deleteButir($id)
+    {
+        try {
+            $butir = Butir::find($id);
+
+            if (!$butir) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Data tidak ditemukan.',
+                ], 404);
+            }
+
+            $butir->delete();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Data berhasil dihapus.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Terjadi kesalahan saat menghapus data.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     private function respondNotFound($projectId)
