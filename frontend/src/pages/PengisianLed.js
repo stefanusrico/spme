@@ -174,21 +174,17 @@ const parseDraftContent = (isianAsesiJson, dataPendukung = []) => {
     .filter(b => b.type === 'unstyled' && b.text.trim() !== "")
     .map(b => b.text.trim());
 
-  // Ambil gambar dari entityMap dan cocokkan dengan file_name di dataPendukung
+  // Ambil gambar dari entityMap 
   const imageUrls = Object.values(entityMap)
     .filter(e => e.type === "IMAGE")
     .map(e => {
-      const localUrl = e.data?.src;
-      const fileName = decodeURIComponent(localUrl).split("/").pop();
-
-      const matched = dataPendukung.find(dp => dp.file_name === fileName);
-
-      return matched ? `Gambar : ${matched.file_url}` : ""; // Kosongkan jika tidak ada
+      const src = e.data?.src;
+      return src ? `Gambar : ${src}` : "";
     })
-    .filter(Boolean); // Hapus yang kosong
+    .filter(Boolean);
 
-  return textParts.concat(imageUrls).join("\n\n");
-};
+    return textParts.concat(imageUrls).join("\n\n");
+  };
 
 
 export const fetchMasukanAndScoreFromAI = async (

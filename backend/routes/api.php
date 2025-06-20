@@ -11,7 +11,7 @@ use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTab
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, LedDocumentController};
 use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController, KomponenPenilaianController, SyaratPerluTerakreditasiController, SyaratPerluPeringkatController};
 use App\Http\Controllers\Akreditasi\{DataAkreditasiController};
-use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
+use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFileTestController, GeminiDataMappingController, GeminiScoringLedController};
 use App\Http\Controllers\Notification\NotificationController;
 
 

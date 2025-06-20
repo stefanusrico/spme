@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 use App\Models\User\User;
 use App\Models\DatabaseNotification;
 use App\Notifications\TaskAssignedNotification;
-use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Notification\NotificationController;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
