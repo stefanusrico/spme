@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import SyaratPerluTerakreditasiTable from "../components/Elements/DataTable/SyaratPerluTerakreditasiTable"
 import SyaratPerluPeringkatTable from "../components/Elements/DataTable/SyaratPerluPeringkatTable"
 import { Spin } from 'antd'
+import { useUser } from "../context/userContext"
 
 const { Dragger } = Upload;
 
@@ -25,10 +26,13 @@ const ImportData = ({}) => {
     const [fileList, setFileList] = useState([])
     const [isUploading, setIsUploading] = useState(false)
     const [uploadingCount, setUploadingCount] = useState(0)
+    const { userData } = useUser()
 
     useEffect(() => {
+        if (!userData) return;
+        console.log("userData :", userData)
         fetchFilesFromStorage(setFileList)
-    }, [])
+    }, [userData])
 
     const allowedTypes = [
         "image/png",
@@ -90,6 +94,7 @@ const ImportData = ({}) => {
     }
 
     useEffect(() => {
+        console.log("userData :", userData)
         console.log("import type :", importType)
     }, [importType])
 
@@ -97,10 +102,10 @@ const ImportData = ({}) => {
         <>
             <Card>
                 <CardHeader>
-                    <CardTitle>Import Data</CardTitle>
+                    <CardTitle>Komponen Penilaian</CardTitle>
     
                     <CardDescription>
-                        Memasukan data untuk kebutuhan aplikasi, seperti file untuk kebutuhan penyusunan LED dan LKPS, Import data bobot Butir, dan Syarat Perlu
+                        Komponen penilaian untuk kebutuhan aplikasi, seperti file untuk kebutuhan penyusunan LED dan LKPS, Import data bobot Butir, dan Syarat Perlu
                     </CardDescription>
                 </CardHeader>
     
@@ -115,14 +120,15 @@ const ImportData = ({}) => {
                             </TabsList>
 
                             {
-                                importType !== 'importFile' &&
-                                <Button
-                                    onClick={() => setIsModalOpen(true)} 
-                                    disabled={isLoading}
-                                    className="flex bg-primary items-center gap-2"
-                                >
-                                    Import From Spreadsheet
-                                </Button>
+                                importType !== 'importFile' && userData?.role === "Admin" && (
+                                    <Button
+                                        onClick={() => setIsModalOpen(true)} 
+                                        disabled={isLoading}
+                                        className="flex bg-primary items-center gap-2"
+                                    >
+                                        Import From Spreadsheet
+                                    </Button>
+                                )
                             }
                         </div>
 
@@ -132,17 +138,22 @@ const ImportData = ({}) => {
                                     files={fileList}
                                     onDelete={(file) => handleDeleteFile(file, setFileList)}
                                     onDownload={handleDownloadFile}
+                                    userData={userData}
                                 />
                             </div>
-                            <Dragger {...props}>
-                                <p className="ant-upload-drag-icon">
-                                    <InboxOutlined />
-                                </p>
-                                <p className="ant-upload-text">Click or drag file to this area to upload</p>
-                                <p className="ant-upload-hint">
-                                    Format yang didukung: .png, .jpg, .jpeg, .webp, .pdf, .xls, .xlsx, .doc, .docx
-                                </p>
-                            </Dragger>
+                            {
+                                userData?.role === "Admin" && (
+                                    <Dragger {...props}>
+                                        <p className="ant-upload-drag-icon">
+                                            <InboxOutlined />
+                                        </p>
+                                        <p className="ant-upload-text">Click or drag file to this area to upload</p>
+                                        <p className="ant-upload-hint">
+                                            Format yang didukung: .png, .jpg, .jpeg, .webp, .pdf, .xls, .xlsx, .doc, .docx
+                                        </p>
+                                    </Dragger>
+                                )
+                            }
                             {uploadingCount > 0 && (
                                 <div className="mt-4 flex justify-center items-center">
                                     <Spin tip={`Mengunggah ${uploadingCount} file...`} size="small" />
@@ -151,15 +162,15 @@ const ImportData = ({}) => {
                         </TabsContent>
 
                         <TabsContent value="syaratPerluTerakreditasi" className="mt-4">
-                            {!isModalOpen && <SyaratPerluTerakreditasiTable />}
+                            {!isModalOpen && <SyaratPerluTerakreditasiTable userData={userData}/>}
                         </TabsContent>
 
                         <TabsContent value="syaratPerluPeringkat" className="mt-4">
-                            {!isModalOpen && <SyaratPerluPeringkatTable />}
+                            {!isModalOpen && <SyaratPerluPeringkatTable userData={userData}/>}
                         </TabsContent>
 
                         <TabsContent value="bobot" className="mt-4">
-                            {!isModalOpen && <BobotTable />}
+                            {!isModalOpen && <BobotTable userData={userData}/>}
                         </TabsContent>
                     </Tabs>
                 </CardContent>

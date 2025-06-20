@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button" // Pastikan kamu punya komponen 
 import axiosInstance from "../../../utils/axiosConfig"
 import { Modal } from 'antd'
 
-const SyaratPerluPeringkatTable = () => {
+const SyaratPerluPeringkatTable = ({userData}) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editData, setEditData] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -95,22 +95,29 @@ const SyaratPerluPeringkatTable = () => {
         size: 150,
         cell: ({ row }) => (
           <div className="flex items-center justify-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => handleEdit(row.original)}
-            >
-              <Icon icon="heroicons-outline:pencil" className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => handleDelete(row.original.id, row.original.butir)}
-            >
-              <Icon icon="heroicons-outline:trash" className="h-4 w-4" />
-            </Button>
+            {userData.role === "Admin" ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleEdit(row.original)}
+                >
+                  <Icon icon="heroicons-outline:pencil" className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDelete(row.original.id, row.original.butir)}
+                >
+                  <Icon icon="heroicons-outline:trash" className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <span className="text-gray-400">-</span> // placeholder
+            )}
           </div>
-        ),
+        )
       },
     ],
     []
