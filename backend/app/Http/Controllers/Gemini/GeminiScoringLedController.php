@@ -118,7 +118,7 @@ class GeminiScoringLedController extends Controller
    */
   private function buildPrompt(array $dataLedItem, array $dataIsian): string
   {
-    $details = $this->extractDetails($dataLedItem['details']);
+    $details = $this->extractRubrikPenilaian($dataLedItem['details']);
     $isianAsesi = $dataIsian['isianAsesi'];
 
     return <<<PROMPT
@@ -180,7 +180,7 @@ class GeminiScoringLedController extends Controller
         ],
         "nilai": "<skor akhir>",
         "masukan": "<penjelasan ringkas, dan beri tahu apa yang kurang jika nilai tidak maskimal, dan beri komentar bukti pendukung jika tersedia>"
-        "apakah ada bukti pendukung?" : "<jelaskan gambar bukti pendukung tersebut>"
+        "apakah ada bukti pendukung?" : "<jika ada bukti pendukung, jelaskan gambar tersebut>"
     }
     PROMPT;
   }
@@ -241,7 +241,7 @@ class GeminiScoringLedController extends Controller
       return $blobs;
   }
 
-  private function extractDetails(array $details): array
+  private function extractRubrikPenilaian(array $details): array
     {
         $result = [
             'element' => '',

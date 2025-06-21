@@ -621,7 +621,8 @@ class TaskController extends Controller
         $this->logRouteParams('myTasks');
 
         try {
-            $userId = auth()->user()->_id;
+            $user = auth()->user();
+            $userId = $user->id;
 
             $tasks = Task::with(['tasklist.project', 'users'])
                 ->where(function ($query) use ($userId) {
@@ -655,7 +656,7 @@ class TaskController extends Controller
                     ['no', 'asc'],
                     ['sub', 'asc'],
                 ])->values()->all();
-
+                      
             return response()->json([
                 'status' => 'success',
                 'data' => $tasks

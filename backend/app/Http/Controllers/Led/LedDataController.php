@@ -244,89 +244,114 @@ class LedDataController extends Controller
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'taskId' => 'required|string',
-            'commit' => 'required|string',
-            'nilai' => 'nullable|string',
-            'masukan' => 'nullable|string',
-            'details' => 'required|array',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors()
-            ], 400);
-        }
-
-        $validatedData = $validator->validated();
-        
-        $totalDetails = count($validatedData['details']);
-        $filledCount = 0;
-
-        foreach ($validatedData['details'] as $index => $detail) {
-            $isian = $detail['isianAsesi'] ?? null;
-
-            // Coba decode JSON
-            $decoded = json_decode($isian, true);
-
-            // Cek apakah valid dan ada teks tidak kosong dalam salah satu block
-            if (
-                is_array($decoded) &&
-                isset($decoded['blocks']) &&
-                is_array($decoded['blocks'])
-            ) {
-                $hasText = false;
-                foreach ($decoded['blocks'] as $block) {
-                    if (!empty(trim($block['text'] ?? ''))) {
-                        $hasText = true;
-                        break;
-                    }
-                }
-
-                if ($hasText) {
-                    $filledCount++;
-                }
-            }
-        }
-        $progress = $totalDetails > 0 ? round(($filledCount / $totalDetails) * 100, 1) : 0;
-
-        $task = Task::where('_id', $validatedData['taskId'])->first();
-        if ($task) {
-            $task->progress = $progress;
-            if($progress > 0 && $progress < 100){
-                $task->status = "IN PROGRESS";
-            }else if($progress == 100){
-                $task->status = "COMPLETED";
-            }
-            $task->save();
-        }        
-        
-        Log::info("Task  :", [
-            'Task' => $task,
-            'totalDetails' => $totalDetails,
-            'filled count' => $filledCount,
-            'Progress ' => $progress,
-        ]);
-        
-        try {
-            LedData::create([
-                'userId' => auth()->id(),
-                'taskId' => $validatedData['taskId'],
-                'commit' => $validatedData['commit'] ?? null,
-                'nilai' => $validatedData['nilai'] ?? null,
-                'masukan' => $validatedData['masukan'] ?? null,
-                'details' => $validatedData['details'],
+        try{
+            $validator = Validator::make($request->all(), [
+                'taskId' => 'required|string',
+                'commit' => 'required|string',
+                'nilai' => 'nullable|string',
+                'masukan' => 'nullable|string',
+                'details' => 'required|array',
             ]);
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Data successfully saved',
-            ], 201);
-        } catch (Exception $e) {
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            $validatedData = $validator->validated();
+
+            $task = Task::where('_id', $validatedData['taskId'])->with(['taskList.project'])->first();
+            Log::info("Task  :", [
+                'Task' => $task,
+            ]);
+
+            if (
+                !$task->tasklist || 
+                !$task->tasklist->project || 
+                $task->tasklist->project->status === "INACTIVE"
+            ) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Project tidak ditemukan atau sudah tidak aktif"
+                ], 400);
+            }
+            
+            $totalDetails = count($validatedData['details']);
+            $filledCount = 0;
+
+            foreach ($validatedData['details'] as $index => $detail) {
+                $isian = $detail['isianAsesi'] ?? null;
+
+                // Coba decode JSON
+                $decoded = json_decode($isian, true);
+
+                // Cek apakah valid dan ada teks tidak kosong dalam salah satu block
+                if (
+                    is_array($decoded) &&
+                    isset($decoded['blocks']) &&
+                    is_array($decoded['blocks'])
+                ) {
+                    $hasText = false;
+                    foreach ($decoded['blocks'] as $block) {
+                        if (!empty(trim($block['text'] ?? ''))) {
+                            $hasText = true;
+                            break;
+                        }
+                    }
+
+                    if ($hasText) {
+                        $filledCount++;
+                    }
+                }
+            }
+            $progress = $totalDetails > 0 ? round(($filledCount / $totalDetails) * 100, 1) : 0;
+
+            if ($task) {
+                $task->progress = $progress;
+                if($progress > 0 && $progress < 100){
+                    $task->status = "IN PROGRESS";
+                }else if($progress == 100){
+                    $task->status = "COMPLETED";
+                }
+                $task->save();
+            }        
+            
+            Log::info("Task  :", [
+                'Task' => $task,
+                'totalDetails' => $totalDetails,
+                'filled count' => $filledCount,
+                'Progress ' => $progress,
+            ]);
+            
+            try {
+                LedData::create([
+                    'userId' => auth()->id(),
+                    'taskId' => $validatedData['taskId'],
+                    'commit' => $validatedData['commit'] ?? null,
+                    'nilai' => $validatedData['nilai'] ?? null,
+                    'masukan' => $validatedData['masukan'] ?? null,
+                    'details' => $validatedData['details'],
+                ]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Data berhasil disimpan',
+                    'task' => $task
+                ], 201);
+            } catch (Exception $e) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Gagal menyimpan data. coba lagi',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }catch (Exception $e){
             return response()->json([
                 'status' => 'error',
-                'message' => $e->getMessage()
+                'message' => 'Kesalahan dalam sistem. coba lagi',
+                'error' => $e->getMessage()
             ], 500);
         }
     }

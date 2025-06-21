@@ -113,7 +113,7 @@ const ImportData = ({}) => {
                     <Tabs defaultValue="importFile" onValueChange={handleTabChange}>
                         <div className="mt-2 flex justify-between items-center">
                             <TabsList>
-                                <TabsTrigger value="importFile">Upload File</TabsTrigger>
+                                <TabsTrigger value="importFile">Supporting File</TabsTrigger>
                                 <TabsTrigger value="syaratPerluTerakreditasi">Syarat Perlu Terakreditasi</TabsTrigger>
                                 <TabsTrigger value="syaratPerluPeringkat">Syarat Perlu Peringkat</TabsTrigger>
                                 <TabsTrigger value="bobot">Bobot Butir</TabsTrigger>

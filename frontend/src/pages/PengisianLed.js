@@ -313,6 +313,7 @@ export const storeLedData = async (commit, dataIsian, noSub) => {
   console.log("data to store :", dataToStore)
 
   const response = await axiosInstance.post(`/ledData`, dataToStore)
+  return response.data;
   console.log("response post LedData :", response)
 }
 

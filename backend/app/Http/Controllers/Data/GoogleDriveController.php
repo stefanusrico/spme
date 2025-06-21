@@ -179,7 +179,7 @@ class GoogleDriveController extends Controller
                 $path = "uploads/{$subFolderName}/{$noSub}/{$noKriteria}";
             }else{
                 $fileName = $file->getClientOriginalName();
-                $path = "/app/public/uploads/{$subFolderName}/";
+                $path = "uploads/{$subFolderName}/";
             }
 
             // Simpan file ke storage publik
@@ -190,7 +190,7 @@ class GoogleDriveController extends Controller
             }
 
             // Return full URL
-            return url('storage/' . implode('/', array_map('rawurlencode', explode('/', $storedPath))));
+            return asset('storage/' . $storedPath);
         } catch (\Exception $e) {
             // Log error untuk debugging
             \Log::error('Upload ke local storage gagal: ' . $e->getMessage());

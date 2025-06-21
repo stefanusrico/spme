@@ -264,6 +264,21 @@ const PengisianLed = () => {
   }
 
   const handleShowToast = () => {
+    const handleSubmit = async (commit, dataIsian, noSub) => {
+      try {
+        const result = await storeLedData(commit, dataIsian, noSub);
+
+        if (result.status === "success") {
+          toast.success(result.message || "Data berhasil disimpan!");
+        } else {
+          toast.error(result.message || "Terjadi kesalahan saat menyimpan data.");
+        }
+      } catch (error) {
+        console.error("Gagal menyimpan data:", error);
+        const errMsg = error?.response?.data?.message || "Gagal menyimpan data.";
+        toast.error(errMsg);
+      }
+    };
     toast(
       <FormToast
         closeToast={() => toast.dismiss()}
@@ -271,7 +286,7 @@ const PengisianLed = () => {
         noSub={`${no}${sub}`}
         title="Versi Baru Dibuat"
         message="Tambahkan pesan untuk perubahan"
-        onSubmit={storeLedData}
+        onSubmit={handleSubmit}
       />,
       {
         position: "bottom-right", // Posisi toast
@@ -316,7 +331,7 @@ const PengisianLed = () => {
           height: "300px",
         }}
       >
-        <Spin tip="Loading data..." size="large" />
+        <Spin tip="Loading data..." size="medium" />
       </div>
     )
   }
