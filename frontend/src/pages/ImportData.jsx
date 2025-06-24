@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { InboxOutlined } from '@ant-design/icons';
 import { message, Upload } from 'antd';
 import BobotTable from "../components/Elements/DataTable/BobotTable"
+import PengisianLedP2mpp from "../components/Elements/DataTable/PengisianLedP2mpp"
 import AddDataFromSpreadsheetModal from "../components/Elements/Modals/AddDataFromSpreadsheetModal"
 import UploadedFileList from "../components/Elements/File/UploadedFileList"
 import { handleDeleteFile, handleDownloadFile, fetchFilesFromStorage } from "../utils/fileHandlers"
@@ -16,6 +17,7 @@ import SyaratPerluTerakreditasiTable from "../components/Elements/DataTable/Syar
 import SyaratPerluPeringkatTable from "../components/Elements/DataTable/SyaratPerluPeringkatTable"
 import { Spin } from 'antd'
 import { useUser } from "../context/userContext"
+import LedItemTable from "../components/Elements/DataTable/LedItemTable"
 
 const { Dragger } = Upload;
 
@@ -65,7 +67,7 @@ const ImportData = ({}) => {
 
             const formData = new FormData()
             formData.append("file[]", file)
-            formData.append("folder", "file Pendukung")
+            formData.append("folder", "Supporting File")
 
             try {
                 await axiosInstance.post("/upload-to-drive-supporting-file", formData, {
@@ -117,10 +119,13 @@ const ImportData = ({}) => {
                                 <TabsTrigger value="syaratPerluTerakreditasi">Syarat Perlu Terakreditasi</TabsTrigger>
                                 <TabsTrigger value="syaratPerluPeringkat">Syarat Perlu Peringkat</TabsTrigger>
                                 <TabsTrigger value="bobot">Bobot Butir</TabsTrigger>
+                                <TabsTrigger value="ledItem">LED Item</TabsTrigger>
+                                {userData?.role === "Admin" && (<TabsTrigger value="pengisianLed">Pengisian LED</TabsTrigger>)}
+                                
                             </TabsList>
 
                             {
-                                importType !== 'importFile' && userData?.role === "Admin" && (
+                                (importType !== 'importFile' && importType !== 'pengisianLed') && userData?.role === "Admin" && (
                                     <Button
                                         onClick={() => setIsModalOpen(true)} 
                                         disabled={isLoading}
@@ -171,6 +176,14 @@ const ImportData = ({}) => {
 
                         <TabsContent value="bobot" className="mt-4">
                             {!isModalOpen && <BobotTable userData={userData}/>}
+                        </TabsContent>
+
+                        <TabsContent value="ledItem" className="mt-4">
+                           {!isModalOpen && <LedItemTable userData={userData}/>}
+                        </TabsContent>
+                        
+                        <TabsContent value="pengisianLed" className="mt-4">
+                            <PengisianLedP2mpp userData={userData}/>
                         </TabsContent>
                     </Tabs>
                 </CardContent>

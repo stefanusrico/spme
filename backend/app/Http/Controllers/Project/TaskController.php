@@ -616,7 +616,7 @@ class TaskController extends Controller
     /**
      * Get tasks assigned to the current user.
      */
-    public function myTasks()
+    public function myTasks($projectId)
     {
         $this->logRouteParams('myTasks');
 
@@ -626,10 +626,13 @@ class TaskController extends Controller
 
             $tasks = Task::with(['tasklist.project', 'users'])
                 ->where(function ($query) use ($userId) {
-                    $query->whereRaw(['owners' => ['$regex' => $userId]]);
+                    $query->where('owners', 'like', '%' . $userId . '%');
                 })
                 ->orderBy('no', 'asc')
                 ->get()
+                ->filter(function ($task) use ($projectId) {
+                    return optional(optional($task->tasklist)->project)->_id == $projectId;
+                })
                 ->map(function ($task) {
                     // Ensure task details are populated
                     return $this->populateTaskDetails($task);
@@ -673,6 +676,72 @@ class TaskController extends Controller
             ], 500);
         }
     }
+
+    public function p2mppTasks()
+    {
+        $this->logRouteParams('p2mppTasksxixixix');
+        Log::info('masuk ke p2mppTasks', [
+                'message' => "p2mpp",
+            ]);
+
+        try {
+            $project = Project::where('name', 'P2MPP')->first();
+            $user = auth()->user();
+            $userId = $user->id;
+
+            $tasks = Task::with(['tasklist.project', 'users'])
+                ->where(function ($query) use ($userId) {
+                    $query->where('owners', 'like', '%' . $userId . '%');
+                })
+                ->orderBy('no', 'asc')
+                ->get()
+                ->filter(function ($task) use ($project) {
+                    return optional(optional($task->tasklist)->project)->_id == $project->id;
+                })
+                ->map(function ($task) {
+                    // Ensure task details are populated
+                    return $this->populateTaskDetails($task);
+                })
+                ->filter(function ($task) {
+                    // Jangan kembalikan task jika sub-nya "LKPS"
+                    return $task->sub !== 'LKPS';
+                })
+                ->map(function ($task) {
+                    $owners = is_string($task->owners) ? json_decode($task->owners, true) : $task->owners;
+                    $project = $task->tasklist->project ?? null;
+
+                    return [
+                        'id' => $task->_id,
+                        'taskId' => $task->taskId,
+                        'no' => $task->no,
+                        'sub' => $task->sub,
+                        'name' => $task->nama,
+                        'project' => $project ? [
+                            'id' => $project->_id,
+                        ] : null,
+                    ];
+                })->sortBy([
+                    ['no', 'asc'],
+                    ['sub', 'asc'],
+                ])->values()->all();
+                      
+            return response()->json([
+                'status' => 'success',
+                'data' => $tasks
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in TaskController::myTasks', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'An error occurred while fetching your tasks: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 
     /**
      * Update a specific task.

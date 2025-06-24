@@ -71,7 +71,7 @@ const PengisianLed = () => {
         console.log("userData :", userData)
         const [prodiData, userTasks, allTasks, ledData, ledItems] = await Promise.all([
           fetchAllProdi(),
-          fetchUserTask(),
+          fetchUserTask(projectId),
           fetchAllTaskByProdi(userData?.prodiId),
           fetchLedDataByProdi(userData?.prodiId),
           fetchLedItemByProdi(userData?.prodiId)

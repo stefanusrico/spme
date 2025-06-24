@@ -40,9 +40,9 @@ export const fetchLedItemLatestByTaskId = async (taskId) => {
   }
 }
 
-export const fetchUserTask = async () => {
+export const fetchUserTask = async (projectId) => {
   try {
-    const responseTask = await axiosInstance.get(`/tasks`)
+    const responseTask = await axiosInstance.get(`/tasks/${projectId}`)
     console.log("user task :", responseTask.data.data)
 
     const dataRespon = responseTask.data.data

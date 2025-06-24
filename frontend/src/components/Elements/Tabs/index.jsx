@@ -34,6 +34,7 @@ export default function ScrollableTabs({
     }
   }, [allDataTasks])
 
+  // Update data saat props berubah
   useEffect(() => {
     if (dataColor && dataColor.length > 0) {
       setColor(dataColor)
@@ -42,8 +43,19 @@ export default function ScrollableTabs({
       console.log("masukkk", allLedData)
       setJson(allLedData)
     }
-    setBgColor()
   }, [dataColor, allLedData])
+
+  // Set background color hanya setelah semua data siap
+  useEffect(() => {
+    // Pastikan semua data yang diperlukan sudah tersedia
+    if (
+      tabsData.length > 0 && 
+      color.length > 0 && 
+      json.length > 0
+    ) {
+      setBgColor()
+    }
+  }, [tabsData, color, json]) // Dependencies yang tepat
 
   useEffect(() => {
     if (!Array.isArray(tabsData) || tabsData.length === 0) {
@@ -58,14 +70,7 @@ export default function ScrollableTabs({
     if (defaultIndex >= 0) {
       setValue(defaultIndex)
     }
-
-    setBgColor()
   }, [tabsData, no, sub])
-
-
-  useEffect(() => {
-    setBgColor()
-  }, [])
 
   const handleChange = (event, newValue) => {
     setValue(newValue)
@@ -100,6 +105,12 @@ export default function ScrollableTabs({
   }
 
   const setBgColor = () => {
+    // Pastikan data yang diperlukan tersedia
+    if (!tabsData.length || !color.length || !json.length) {
+      console.log("Data belum siap untuk setBgColor")
+      return
+    }
+
     let bgColorArray = new Array(tabsData.length).fill(
       color[0]?.value || "#f38383"
     )
@@ -110,13 +121,13 @@ export default function ScrollableTabs({
 
     for (let i = 0; i < json.length; i++) {
       for (let index = 0; index < tabsData.length; index++) {
-        const ledItem = allLedData[i]?.task?.led_item
+        const ledItem = json[i]?.task?.led_item // Menggunakan json bukan allLedData
         
         if (
           ledItem?.no === String(tabsData[index]?.no) &&
           ledItem?.sub === tabsData[index]?.sub
         ) {
-          const nilaiStr = allLedData[i]?.nilai
+          const nilaiStr = json[i]?.nilai
           const totalScore = parseFloat(nilaiStr)
 
           if (!isNaN(totalScore)) {
@@ -156,7 +167,7 @@ export default function ScrollableTabs({
               sx={{
                 padding: "8px 16px",
                 cursor: "pointer",
-                bgcolor: colorBg[index],
+                bgcolor: colorBg[index] || (color[0]?.value || "#f38383"), // Fallback color
                 color: value === index ? "white" : "black",
                 borderRadius: "4px",
                 margin: "0 2px 4px",
@@ -202,8 +213,8 @@ export default function ScrollableTabs({
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: 350, // Lebar modal
-            height: 100, // Tinggi modal
+            width: 350,
+            height: 100,
             bgcolor: "white",
             boxShadow: 24,
             borderRadius: "8px",
@@ -216,8 +227,6 @@ export default function ScrollableTabs({
           <Grid container spacing={1}>
             {dataAllTasks.map((tab, index) => (
               <Grid item xs={12 / 7} key={index}>
-                {" "}
-                {/* 1 baris 7 kotak */}
                 <Box
                   sx={{
                     bgcolor: "grey.300",

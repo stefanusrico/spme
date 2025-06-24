@@ -114,14 +114,14 @@ function PengisianLedTableNew({
     try {
       const toInt = parseInt(seq, 10) - 1
 
-      if (!dataIsian.details || !dataIsian.details[toInt]) {
+      if (!dataIsian?.details || !dataIsian?.details[toInt]) {
         toast.error("DataIsian belum lengkap atau indeks tidak ditemukan")
         return
       }
 
       const data = await fetchMasukanAndScoreFromAI(
         dataKriteriaIndikator,
-        dataIsian.details
+        dataIsian?.details
       )
 
       // updateDataIsian(updatedDetails)
@@ -156,14 +156,14 @@ function PengisianLedTableNew({
       // const plainText = newEditorState.getCurrentContent().getPlainText()
       const rawContent = convertToRaw(newEditorState.getCurrentContent());
 
-      if (!dataIsian || !dataIsian.details) {
+      if (!dataIsian || !dataIsian?.details) {
         toast.error("Data belum siap!");
         return;
       }
 
       const updatedDataIsian = {
         ...dataIsian,
-        details: (dataIsian.details || []).map((item) =>
+        details: (dataIsian?.details || []).map((item) =>
           // item.seq === seq ? { ...item, isianAsesi: plainText } : item
           item.seq === seq ? { ...item, isianAsesi: JSON.stringify(rawContent) } : item
         ),
@@ -310,7 +310,7 @@ function PengisianLedTableNew({
               {detail.seq}. Kriteria Indikator: {detail.reference || ""}
             </div>
             <Button className="bg-primary w-auto text-sm py-0" disabled={true}>
-              Score: {dataIsian.nilai || "-"}
+              Score: {dataIsian?.nilai || "-"}
             </Button>
           </div>
 
@@ -384,7 +384,7 @@ function PengisianLedTableNew({
               id={`masukan_${index}`}
               placeholder="Masukan dari GPT"
               className="w-full p-2 border rounded-md min-h-[80px] resize-none"
-              value={dataIsian.masukan || ""}
+              value={dataIsian?.masukan || ""}
               readOnly
               onInput={(e) => {
                 e.target.style.height = "80px"

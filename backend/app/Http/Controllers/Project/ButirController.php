@@ -209,7 +209,7 @@ class ButirController extends Controller
         foreach ($uniqueLkps as $item) {
             $kriteria = $item->task->tasklist->kriteria ?? null;
 
-            $details = $item->detailNilai['details'] ?? $item['nilai'] ?? [];
+            $details = $item['nilai'] ?? [];
             foreach ($details as $d) {
                 $combined->push([
                     'no' => $d['no'] ?? $d['butir'] ?? null,

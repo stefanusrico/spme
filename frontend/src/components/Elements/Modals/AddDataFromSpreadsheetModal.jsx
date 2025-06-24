@@ -87,7 +87,7 @@ const AddDataFromSpreadsheetModal = ({ isOpen, onClose, importType }) => {
           responsePost = await axiosInstance.post("/save-syarat-perlu-peringkat", payload)
           break
 
-        default:
+        case 'ledItem':
           responsePost = await axiosInstance.post("/save-json", payload)
           break
       }

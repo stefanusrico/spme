@@ -6,7 +6,7 @@ import {
   getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Button } from "@/components/ui/button" // Pastikan kamu punya komponen Button ini
+import { Button } from "@/components/ui/button"
 import axiosInstance from "../../../utils/axiosConfig"
 import { Modal } from 'antd'
 
@@ -158,6 +158,12 @@ const BobotTable = ({userData}) => {
     <div className="w-full">
       <div className="bg-white rounded-xl shadow-lg w-full relative">
         {loading && <LoadingBar />}
+
+        <div className="p-4 border-b">
+          <h2 className="text-lg font-semibold">Butir Management</h2>
+          <p className="text-sm text-gray-500">Total: {bobot.length} items</p>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm">
             <thead className="bg-gray-100">

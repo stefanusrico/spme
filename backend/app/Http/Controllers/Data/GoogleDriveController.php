@@ -121,7 +121,7 @@ class GoogleDriveController extends Controller
         $files = $request->file('file');
         $subFolderName = $request->input('folder');
 
-        $parentFolderId = env('GOOGLE_DRIVE_FOLDER_ID');
+        $parentFolderId = env('GOOGLE_DRIVE_SUPPORTING_FILE_FOLDER_ID');
 
         $service = $this->getDriveService();
 
@@ -278,7 +278,7 @@ class GoogleDriveController extends Controller
 
     public function getSupportingFiles(Request $request)
     {
-        $folderName = $request->query('folder') ?? 'file Pendukung';
+        $folderName = $request->query('folder') ?? 'Supporting File';
 
         if (!$folderName) {
             \Log::warning('getSupportingFiles: Parameter folder tidak diberikan');
@@ -289,7 +289,7 @@ class GoogleDriveController extends Controller
 
         try {
             $service = $this->getDriveService();
-            $parentFolderId = env('GOOGLE_DRIVE_FOLDER_ID');
+            $parentFolderId = env('GOOGLE_DRIVE_SUPPORTING_FILE_FOLDER_ID');
 
             $folderId = $this->getOrCreateFolder($folderName, $parentFolderId, $service);
             \Log::info("getSupportingFiles: Folder ID ditemukan/terbuat: {$folderId}");
@@ -333,11 +333,11 @@ class GoogleDriveController extends Controller
             'localUrl' => 'nullable|string',
         ]);
 
-        $folderName = $request->query('folder') ?? 'file Pendukung';
+        $folderName = $request->query('folder') ?? 'Supporting File';
         $localUrl = $request->input('localUrl');
 
         $service = $this->getDriveService();
-        $parentFolderId = env('GOOGLE_DRIVE_FOLDER_ID');
+        $parentFolderId = env('GOOGLE_DRIVE_SUPPORTING_FILE_FOLDER_ID');
 
         $folderId = $this->getOrCreateFolder($folderName, $parentFolderId, $service);
         $trashId = $this->getOrCreateFolder("Folder Sampah", $folderId, $service);
@@ -372,7 +372,7 @@ class GoogleDriveController extends Controller
         $filename = $request->input('filename');
 
         // Validasi tambahan bisa ditambahkan di sini
-        $path = storage_path("app/public/uploads/file Pendukung/{$filename}");
+        $path = storage_path("app/public/uploads/Supporting File/{$filename}");
 
         if (!file_exists($path)) {
             return response()->json([

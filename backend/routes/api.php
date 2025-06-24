@@ -165,7 +165,8 @@ Route::controller(JadwalLamController::class)->group(function () {
 Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
-    Route::get('tasks', [TaskController::class, 'myTasks']);
+    Route::get('tasks/{projectId}', [TaskController::class, 'myTasks']);
+    Route::get('tasks/get/p2mpp', [TaskController::class, 'p2mppTasks']);
     Route::patch('tasks/updateOwner/{no}/{sub}/{prodiId}', [TaskController::class, 'updateOwners']);
     Route::get('all-tasks-by-prodi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);
     Route::get('allTaskByProdi/{prodiId}', [TaskController::class, 'getAllTaskByProdi']);
@@ -276,6 +277,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/ledData/{taskId}/latest', 'getLatest');
             Route::get('/led-data-by-prodi/{prodiId}', 'getLedDataByProdi');
             Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
+            Route::get('/get-led-data-by-nosub/:no/:sub', 'getByNoSub');
         });
 
         Route::post('/analyze-gpt', [GPTController::class, 'analyze']);
@@ -306,8 +308,8 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/ledItem/{no}/{sub}', 'showNoSub');
             Route::get('/getLedItemByProdi/{prodiId}', 'getledItemByProdi');
             Route::post('/ledItem', 'store');
-            Route::put('/ledItem/{id}', 'update');
-            Route::delete('/ledItem/{id}', 'destroy');
+            Route::put('/update-led-item/{id}', 'update');
+            Route::delete('/delete-led-item/{id}', 'destroy');
         });
 
 

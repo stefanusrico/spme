@@ -120,7 +120,7 @@ const SyaratPerluTerakreditasiTable = ({userData}) => {
         )
       },
     ],
-    []
+    [userData.role]
   )
 
   const table = useReactTable({
@@ -158,6 +158,12 @@ const SyaratPerluTerakreditasiTable = ({userData}) => {
     <div className="w-full">
       <div className="bg-white rounded-xl shadow-lg w-full relative">
         {loading && <LoadingBar />}
+
+        <div className="p-4 border-b">
+          <h2 className="text-lg font-semibold">Syarat Perlu Terakreditasi Management</h2>
+          <p className="text-sm text-gray-500">Total: {syaratPerluTerakreditasi.length} items</p>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm">
             <thead className="bg-gray-100">
