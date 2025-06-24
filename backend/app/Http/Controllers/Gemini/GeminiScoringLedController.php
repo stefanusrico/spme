@@ -62,17 +62,29 @@ class GeminiScoringLedController extends Controller
             \Log::info('Daftar URL gambar yang diekstrak dari isian asesi:', [
                 'imageUrls' => $imageUrls
             ]);
+
+            // Extract pdf URLs from the submission text
+            $pdfUrls = $this->extractPdfUrls($dataIsian['isianAsesi']);
+            \Log::info('Daftar URL pdf yang diekstrak dari isian asesi:', [
+                'pdfUrls' => $pdfUrls
+            ]);
             
             // Convert image URLs to blob data for AI processing
             $imageBlobs = $this->createImageBlobs($imageUrls);
             \Log::info('Daftar blob gambar yang berhasil:', [
                 'imageBlobs' => $imageBlobs
             ]);
+
+            // Convert image URLs to blob data for AI processing
+            $pdfBlobs = $this->createPdfBlobs($pdfUrls);
+            \Log::info('Daftar blob pdf yang berhasil:', [
+                'pdfBlobs' => $pdfBlobs
+            ]);
             
             \Log::info('End download image at: ' . now());
 
             // Combine text prompt with image blobs for multimodal AI analysis
-            $contents = array_merge($messages, $imageBlobs);
+            $contents = array_merge($messages, $imageBlobs, $pdfBlobs);
 
             // Send request to Gemini AI for scoring analysis
             $result = Gemini::generativeModel(model: 'gemini-2.0-flash')
@@ -117,6 +129,31 @@ class GeminiScoringLedController extends Controller
             ], 500);
         }
     }
+
+    // Method gabungan untuk memproses semua jenis file
+    private function processAllFiles(string $isianAsesi): array
+    {
+        $allBlobs = [];
+        
+        // Proses gambar
+        $imageUrls = $this->extractImageUrls($isianAsesi);
+        if (!empty($imageUrls)) {
+            \Log::info('Memproses gambar:', ['imageUrls' => $imageUrls]);
+            $imageBlobs = $this->createImageBlobs($imageUrls);
+            $allBlobs = array_merge($allBlobs, $imageBlobs);
+        }
+        
+        // Proses PDF
+        $pdfUrls = $this->extractPdfUrls($isianAsesi);
+        if (!empty($pdfUrls)) {
+            \Log::info('Memproses PDF:', ['pdfUrls' => $pdfUrls]);
+            $pdfBlobs = $this->createPdfBlobs($pdfUrls);
+            $allBlobs = array_merge($allBlobs, $pdfBlobs);
+        }
+        
+        return $allBlobs;
+    }
+
 
     /**
      * Build a comprehensive prompt for Gemini AI evaluation.
@@ -196,7 +233,9 @@ class GeminiScoringLedController extends Controller
                 ],
                 "nilai": "<skor akhir>",
                 "masukan": "<penjelasan ringkas, dan beri tahu apa yang kurang jika nilai tidak maskimal, dan beri komentar bukti pendukung jika tersedia>"  
-                "apakah memerlukan bukti pendukung?" : <jawaban dari langkah no 7>   
+                "apakah memerlukan bukti pendukung?" : <jawaban dari langkah no 7>  
+                "apakah ada bukti pendukung gambar?" : <sebutkan semua bukti pendukung gambar dan jelaskan bukti pendukung yang terlampir> 
+                "apakah ada bukti pendukung pdf?" : <sebutkan semua bukti pendukung pdf dan jelaskan bukti pendukung yang terlampir> 
             }
           PROMPT;
     }
@@ -235,9 +274,12 @@ class GeminiScoringLedController extends Controller
         // Remove lines containing "Gambar : ..." and following empty lines
         $text = preg_replace('/Gambar\s*:\s*.+(?:\r?\n)?/i', '', $text);
 
+        // Remove baris yang mengandung "PDF : ..." atau "Dokumen : ..."
+        $text = preg_replace('/(?:PDF|Dokumen)\s*:\s*.+(?:\r?\n)?/i', '', $text);
+
         // Remove excessive blank lines (more than one newline)
         $text = preg_replace("/(\r?\n){2,}/", "\n\n", $text);
-
+        
         return trim($text);
     }
 
@@ -292,6 +334,54 @@ class GeminiScoringLedController extends Controller
 
         return $blobs;
     }
+
+    // Tambahkan method baru untuk mengekstrak URL PDF
+    private function extractPdfUrls(string $isianAsesi): array
+    {
+        // Pattern untuk mendeteksi PDF: "PDF : [URL]" atau "Dokumen : [URL]"
+        preg_match_all('/(?:PDF|Dokumen)\s*:\s*(.+\.pdf)/i', $isianAsesi, $matches);
+        
+        $urls = array_map('trim', $matches[1] ?? []);
+        return $urls;
+    }
+
+    // Method untuk membuat PDF blob
+    private function createPdfBlobs(array $urls): array
+    {
+        $blobs = [];
+
+        foreach ($urls as $url) {
+            try {
+                // Convert URL ke path lokal
+                $parsedUrl = parse_url($url);
+                $relativePath = urldecode($parsedUrl['path']);
+                $localPath = public_path($relativePath);
+
+                // Check apakah file PDF ada
+                if (!file_exists($localPath)) {
+                    \Log::warning("PDF tidak ditemukan: $localPath");
+                    continue;
+                }
+
+                // Baca konten PDF
+                $pdfData = file_get_contents($localPath);
+
+                // Buat blob untuk PDF
+                $blobs[] = new Blob(
+                    mimeType: MimeType::APPLICATION_PDF,
+                    data: base64_encode($pdfData)
+                );
+                
+                \Log::info("PDF berhasil diproses: $url");
+                
+            } catch (\Exception $e) {
+                \Log::warning("Gagal membaca PDF dari path: $url. Pesan: " . $e->getMessage());
+            }
+        }
+
+        return $blobs;
+    }
+
 
     /**
      * Extract and organize rubric scoring criteria from structured data.

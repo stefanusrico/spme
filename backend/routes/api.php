@@ -262,6 +262,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
 
         Route::controller(GoogleDriveController::class)->group(function () {
             Route::post('/upload-to-drive', 'uploadFile');
+            Route::post('/upload-pdf-to-drive', 'uploadFilePdf');
             Route::post('/upload-to-drive-supporting-file', 'uploadFileSupporting');
             Route::get('/get-files', 'getFiles');
             Route::delete('/delete-files', 'deleteFile');

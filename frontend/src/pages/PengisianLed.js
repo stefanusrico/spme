@@ -183,8 +183,24 @@ const parseDraftContent = (isianAsesiJson, dataPendukung = []) => {
     })
     .filter(Boolean);
 
-    return textParts.concat(imageUrls).join("\n\n");
-  };
+  // Ambil pdf dari entityMap 
+  const pdfLinksFromEditor = Object.values(entityMap)
+    .filter(e => e.type === "LINK" && e.data?.url?.endsWith(".pdf"))
+    .map(e => `PDF: ${e.data.url}`)
+    .filter(Boolean);
+
+  // Ambil pdf dari luar editor 
+  // const extraPdfLinks = Array.isArray(dataPendukung)
+  //   ? dataPendukung
+  //       .filter(pdf => pdf?.local_url)
+  //       .map(pdf => `PDF: ${pdf.file_name} - ${pdf.local_url}`)
+  //   : [];
+
+  // Gabungkan semuanya
+  return [...textParts, ...imageUrls, ...pdfLinksFromEditor]
+    .filter(Boolean)
+    .join("\n\n");
+};
 
 
 export const fetchMasukanAndScoreFromAI = async (
