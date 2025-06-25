@@ -53,99 +53,184 @@ class LkpsDataController extends Controller
      */
     public function getTableData(Request $request)
     {
-        $validator = \Validator::make($request->all(), [
-            'projectId' => 'required|string',
-            'tableCode' => 'required|string',
-        ]);
+        try {
+            $tableCode = $request->input('tableCode');
+            $projectId = $request->input('projectId');
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+            if (!$tableCode || !$projectId) {
+                return response()->json([
+                    'message' => 'Missing required parameters',
+                    'required' => ['tableCode', 'projectId']
+                ], 400);
+            }
 
-        $tableCode = $request->input('tableCode');
-        $projectId = $request->input('projectId');
+            Log::info("Getting data for table: {$tableCode} in project: {$projectId}");
 
-        $divStrata = \App\Models\Prodi\Strata::where('name', 'D-IV')->first();
+            // Find D-IV strata
+            $divStrata = \App\Models\Prodi\Strata::where('name', 'D-IV')->first();
+            if (!$divStrata) {
+                return response()->json(['message' => 'D-IV strata not found'], 404);
+            }
 
-        if (!$divStrata) {
-            return response()->json(['message' => 'D-IV strata not found'], 404);
-        }
+            Log::info("Found D-IV strata with ID: {$divStrata->_id}");
 
-        $table = LkpsTable::where('kode', $tableCode)
-            ->where('strataId', $divStrata->_id)
-            ->first();
-
-        if (!$table) {
-            return response()->json([
-                'message' => 'Table not found for D-IV strata',
-                'tableCode' => $tableCode,
-                'strata' => 'D-IV'
-            ], 404);
-        }
-
-        $project = \App\Models\Project\Project::find($projectId);
-        if (!$project) {
-            return response()->json(['message' => 'Project not found'], 404);
-        }
-
-        $taskId = null;
-        $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
-
-        if (!$taskLists->isEmpty()) {
-            $taskListIds = $taskLists->pluck('_id')->toArray();
-            $tableIdString = (string) $table->_id;
-
-            $task = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
-                ->where('lkpsTableId', $tableIdString)
+            // Find the table
+            $table = LkpsTable::where('kode', $tableCode)
+                ->where('strataId', $divStrata->_id)
                 ->first();
 
-            if ($task) {
-                $taskId = $task->_id;
+            if (!$table) {
+                return response()->json([
+                    'message' => 'Table not found for D-IV strata',
+                    'tableCode' => $tableCode,
+                    'strata' => 'D-IV'
+                ], 404);
             }
-        }
 
-        if (!$taskId) {
+            Log::info("Found table {$tableCode} with ID: {$table->_id}");
+
+            // Find project
+            $project = \App\Models\Project\Project::find($projectId);
+            if (!$project) {
+                return response()->json(['message' => 'Project not found'], 404);
+            }
+
+            // Find task for this table in the project
+            $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
+            $task = null;
+            $taskId = null;
+
+            if (!$taskLists->isEmpty()) {
+                $taskListIds = $taskLists->pluck('_id')->toArray();
+                $tableIdString = (string) $table->_id;
+
+                $task = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
+                    ->where('lkpsTableId', $tableIdString)
+                    ->first();
+
+                if ($task) {
+                    $taskId = $task->_id;
+                    Log::info("Found task for table {$tableCode}: {$taskId}");
+                }
+            }
+
+            if (!$taskId) {
+                return response()->json([
+                    'message' => 'No task found for this D-IV table in the project',
+                    'tableCode' => $tableCode,
+                    'strata' => 'D-IV'
+                ], 404);
+            }
+
+            // Look for existing LkpsData
+            $tableIdString = (string) $table->_id;
+            $taskIdString = (string) $taskId;
+
+            $lkpsData = LkpsData::where('lkpsTableId', $tableIdString)
+                ->where('taskId', $taskIdString)
+                ->first();
+
+            $taskDataCount = LkpsData::where('taskId', $taskIdString)->count();
+            $tableDataCount = LkpsData::where('lkpsTableId', $tableIdString)->count();
+
+            // ✅ AUTO-CREATE LkpsData jika tidak ditemukan
+            if (!$lkpsData) {
+                Log::info("No LkpsData found for D-IV table {$tableCode} (ID: {$tableIdString}) and task {$taskIdString} in project {$projectId}. TaskDataCount: {$taskDataCount}, TableDataCount: {$tableDataCount}");
+
+                Log::info("Creating new LkpsData record for table {$tableCode}");
+
+                try {
+                    $lkpsData = LkpsData::create([
+                        'lkpsTableId' => $tableIdString,
+                        'taskId' => $taskIdString,
+                        'kodeTabel' => $tableCode,
+                        'data' => [],
+                        'nilai' => [],
+                        'detailNilai' => []
+                    ]);
+
+                    Log::info("Successfully created new LkpsData", [
+                        'id' => $lkpsData->_id,
+                        'tableCode' => $tableCode,
+                        'taskId' => $taskIdString,
+                        'lkpsTableId' => $tableIdString
+                    ]);
+
+                    // Return success response with newly created data
+                    return response()->json([
+                        'message' => 'New data record created for table',
+                        'tableCode' => $tableCode,
+                        'strataId' => (string) $table->strataId,
+                        'strata' => 'D-IV',
+                        'taskId' => $taskIdString,
+                        'data' => [],
+                        'nilai' => [],
+                        'detailNilai' => [],
+                        'newly_created' => true,
+                        'debug' => [
+                            'tableId' => $tableIdString,
+                            'taskId' => $taskIdString,
+                            'lkpsDataId' => (string) $lkpsData->_id
+                        ]
+                    ]);
+
+                } catch (\Exception $e) {
+                    Log::error("Failed to create new LkpsData: {$e->getMessage()}", [
+                        'tableCode' => $tableCode,
+                        'taskId' => $taskIdString,
+                        'tableId' => $tableIdString,
+                        'trace' => $e->getTraceAsString()
+                    ]);
+
+                    return response()->json([
+                        'message' => 'Failed to create data record',
+                        'tableCode' => $tableCode,
+                        'error' => $e->getMessage(),
+                        'debug' => [
+                            'tableId' => $tableIdString,
+                            'taskId' => $taskIdString,
+                            'taskDataCount' => $taskDataCount,
+                            'tableDataCount' => $tableDataCount
+                        ]
+                    ], 500);
+                }
+            }
+
+            // LkpsData exists, return it
+            Log::info("Found existing LkpsData for table {$tableCode}");
+
             return response()->json([
-                'message' => 'No task found for this D-IV table in the project',
                 'tableCode' => $tableCode,
-                'strata' => 'D-IV'
-            ], 404);
-        }
-
-        $tableIdString = (string) $table->_id;
-        $taskIdString = (string) $taskId;
-
-        $lkpsData = LkpsData::where('lkpsTableId', $tableIdString)
-            ->where('taskId', $taskIdString)
-            ->first();
-
-        if (!$lkpsData) {
-            $allTaskDataCount = LkpsData::where('taskId', $taskIdString)->count();
-            $allTableDataCount = LkpsData::where('lkpsTableId', $tableIdString)->count();
-            Log::info("No LkpsData found for D-IV table {$tableCode} (ID: {$tableIdString}) and task {$taskIdString} in project {$projectId}. TaskDataCount: {$allTaskDataCount}, TableDataCount: {$allTableDataCount}");
-
-            return response()->json([
-                'message' => 'No data found for this D-IV table in the project',
-                'tableCode' => $tableCode,
+                'strataId' => (string) $table->strataId,
                 'strata' => 'D-IV',
+                'taskId' => $taskIdString,
+                'data' => $lkpsData->data ?? [],
+                'nilai' => $lkpsData->nilai ?? [],
+                'detailNilai' => $lkpsData->detailNilai ?? [],
+                'newly_created' => false,
                 'debug' => [
                     'tableId' => $tableIdString,
                     'taskId' => $taskIdString,
-                    'taskDataCount' => $allTaskDataCount,
-                    'tableDataCount' => $allTableDataCount
+                    'lkpsDataId' => (string) $lkpsData->_id,
+                    'hasData' => !empty($lkpsData->data),
+                    'hasNilai' => !empty($lkpsData->nilai),
+                    'hasDetailNilai' => !empty($lkpsData->detailNilai)
                 ]
-            ], 404);
-        }
+            ]);
 
-        return response()->json([
-            'tableCode' => $tableCode,
-            'strataId' => (string) $table->strataId,
-            'strata' => 'D-IV',
-            'taskId' => $taskIdString,
-            'data' => $lkpsData->data ?? [],
-            'nilai' => $lkpsData->nilai ?? [],
-            'detailNilai' => $lkpsData->detailNilai ?? []
-        ]);
+        } catch (\Exception $e) {
+            Log::error("Error in getTableData: {$e->getMessage()}", [
+                'tableCode' => $request->input('tableCode'),
+                'projectId' => $request->input('projectId'),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error retrieving table data: ' . $e->getMessage(),
+                'tableCode' => $request->input('tableCode'),
+                'projectId' => $request->input('projectId')
+            ], 500);
+        }
     }
 
     /**
@@ -407,32 +492,137 @@ class LkpsDataController extends Controller
         try {
             $results = [];
 
+            // ✅ First, find or create LkpsData record
+            $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
+            $taskId = null;
+
+            if (!$taskLists->isEmpty()) {
+                $taskListIds = $taskLists->pluck('_id')->toArray();
+                $tableIdString = (string) $table->_id;
+
+                $task = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
+                    ->where('lkpsTableId', $tableIdString)
+                    ->first();
+
+                if ($task) {
+                    $taskId = $task->_id;
+                }
+            }
+
+            if (!$taskId) {
+                return response()->json([
+                    'message' => 'No task found for this table in the project',
+                    'tableCode' => $table->kode
+                ], 404);
+            }
+
+            // ✅ Get or create LkpsData
+            $tableIdString = (string) $table->_id;
+            $taskIdString = (string) $taskId;
+
+            $lkpsData = LkpsData::updateOrCreate(
+                [
+                    'lkpsTableId' => $tableIdString,
+                    'taskId' => $taskIdString
+                ],
+                [
+                    'kodeTabel' => $table->kode,
+                    'data' => $data,
+                    'nilai' => [],
+                    'detailNilai' => [],
+                    'dataHash' => md5(json_encode($data))
+                ]
+            );
+
+            // ✅ Calculate formulas and save to detailNilai
             if ($table->hasRumus()) {
                 $rumusResults = $table->hitungRumus($data);
                 $results['rumus_results'] = $rumusResults;
 
-                $currentDetailNilai = [];
+                // Update detailNilai with formula results
+                $currentDetailNilai = $lkpsData->detailNilai ?? [];
+                if (is_object($currentDetailNilai)) {
+                    $currentDetailNilai = (array) $currentDetailNilai;
+                }
+
                 foreach ($rumusResults as $variabel => $result) {
                     $currentDetailNilai[$variabel] = $result['value'] ?? 0;
                 }
+
+                // ✅ SAVE detailNilai to database
+                $lkpsData->detailNilai = $currentDetailNilai;
+                $lkpsData->save();
+
                 $results['detail_nilai'] = $currentDetailNilai;
+
+                Log::info("Saved rumus results to LkpsData", [
+                    'tableCode' => $table->kode,
+                    'taskId' => $taskIdString,
+                    'detailNilai' => $currentDetailNilai
+                ]);
             }
 
+            // ✅ Calculate scores and save to nilai
             if ($table->hasKondisi()) {
                 $skorResults = $table->hitungSkor($data);
                 $results['skor_results'] = $skorResults;
+
+                // ✅ SAVE skorResults to database
+                $lkpsData->nilai = $skorResults;
+                $lkpsData->save();
+
+                Log::info("Saved skor results to LkpsData", [
+                    'tableCode' => $table->kode,
+                    'taskId' => $taskIdString,
+                    'skorResults' => $skorResults
+                ]);
             }
+
+            // ✅ Update task status
+            $task = \App\Models\Project\Task::find($taskIdString);
+            if ($task) {
+                $task->progress = 100;
+                $task->status = 'COMPLETED';
+                $task->save();
+
+                // Update project progress
+                $this->updateProjectProgress($projectId);
+
+                Log::info("Updated task status", [
+                    'taskId' => $taskIdString,
+                    'status' => 'COMPLETED',
+                    'progress' => 100
+                ]);
+            }
+
+            // ✅ Refresh data untuk response
+            $lkpsData->refresh();
 
             return response()->json([
                 'message' => 'Data saved and calculated in parallel',
                 'parallel_processing' => true,
-                'results' => $results
+                'tableCode' => $table->kode,
+                'taskId' => $taskIdString,
+                'saved_to_database' => true,
+                'results' => $results,
+                'database_info' => [
+                    'lkpsDataId' => (string) $lkpsData->_id,
+                    'detailNilai_count' => count($lkpsData->detailNilai ?? []),
+                    'nilai_count' => count($lkpsData->nilai ?? []),
+                    'data_count' => count($lkpsData->data ?? [])
+                ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error("Error in parallel calculation: {$e->getMessage()}");
+            Log::error("Error in parallel calculation: {$e->getMessage()}", [
+                'trace' => $e->getTraceAsString(),
+                'tableCode' => $table->kode ?? 'unknown',
+                'projectId' => $projectId
+            ]);
+
             return response()->json([
-                'message' => 'Error in parallel calculation: ' . $e->getMessage()
+                'message' => 'Error in parallel calculation: ' . $e->getMessage(),
+                'tableCode' => $table->kode ?? 'unknown'
             ], 500);
         }
     }
