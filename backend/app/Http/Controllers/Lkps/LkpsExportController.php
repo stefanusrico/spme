@@ -13,17 +13,13 @@ use App\Models\Project\Project;
 use App\Models\Project\Task;
 use App\Models\Project\TaskList;
 use Illuminate\Support\Facades\Auth;
-
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class LkpsExportController extends Controller
 {
-    /**
-     * Export data using uploaded template with all sheets
-     * Uses EXACT SAME LOGIC as getTableData for consistency
-     */
+
     public function exportData(Request $request)
     {
         try {

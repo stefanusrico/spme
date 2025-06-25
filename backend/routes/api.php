@@ -34,6 +34,21 @@ Route::get('test', function () {
     ]);
 });
 
+Route::post('/lkps/debug-magenta', [LkpsImportController::class, 'debugMagentaDetection']);
+
+Route::post('/lkps/test-formula-parser', [LkpsDataController::class, 'testFormulaParser']);
+Route::get('/lkps/table-structure', [LkpsDataController::class, 'getTableStructure']);
+Route::post('/lkps/calculate-rumus', [LkpsDataController::class, 'calculateRumus']);
+Route::post('/lkps/debug-kondisi-evaluation', [LkpsDataController::class, 'debugKondisiEvaluation']);
+Route::get('/lkps/debug-info-structure', [LkpsSyncController::class, 'debugInfoStructure']);
+
+Route::post('/lkps/debug-calculate-table', [LkpsDataController::class, 'debugCalculateTableFormulas']);
+
+Route::post('/lkps/force-recalculate', [LkpsDataController::class, 'forceRecalculateTableFormulas']);
+
+
+Route::post('/lkps/debug-kondisi-columns', [LkpsImportController::class, 'debugKondisiColumns']);
+
 Route::get('/lkps/project-scores', [DataAkreditasiController::class, 'getProjectScores']);
 Route::get('/lkps/score-syarat-perlu', [DataAkreditasiController::class, 'getScoreSyaratPerluPeringkat']);
 Route::post('/generate-text', [GeminiController::class, 'generateText']);

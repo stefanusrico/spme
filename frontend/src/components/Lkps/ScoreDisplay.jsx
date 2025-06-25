@@ -44,6 +44,14 @@ const ScoreDisplay = ({ score, scoreDetail }) => {
   // PERBAIKAN: Gunakan OR operator
   if (!Array.isArray(score) || score.length === 0) return null
 
+  // ✅ Helper function untuk format label butir
+  const formatButirLabel = (item) => {
+    if (item.sub) {
+      return `Butir ${item.butir}-${item.sub}`
+    }
+    return `Butir ${item.butir}`
+  }
+
   // Helper function to render different value types
   const renderValue = (value, keyName) => {
     if (value === null || value === undefined) {
@@ -150,7 +158,10 @@ const ScoreDisplay = ({ score, scoreDetail }) => {
             <div className="flex-1">
               <div className="space-y-2">
                 {score.map((item) => (
-                  <div key={item.butir} className="flex items-center gap-2">
+                  <div
+                    key={`${item.butir}-${item.sub || "no-sub"}`}
+                    className="flex items-center gap-2"
+                  >
                     <div
                       className={`w-2 h-2 rounded-full ${
                         parseFloat(item.nilai) > 3
@@ -159,8 +170,18 @@ const ScoreDisplay = ({ score, scoreDetail }) => {
                       }`}
                     />
                     <span className="text-lg font-medium">
-                      Skor Butir {item.butir} : {item.nilai}
+                      {/* ✅ PERBAIKAN: Gunakan format yang dinamis berdasarkan ada tidaknya sub */}
+                      Skor {formatButirLabel(item)} : {item.nilai}
                     </span>
+                    {/* ✅ TAMBAHAN: Badge untuk menunjukkan sub jika ada */}
+                    {item.sub && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                      >
+                        Sub {item.sub}
+                      </Badge>
+                    )}
                   </div>
                 ))}
               </div>

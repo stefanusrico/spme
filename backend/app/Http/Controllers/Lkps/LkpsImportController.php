@@ -39,6 +39,24 @@ class LkpsImportController extends Controller
         'blue' => 0.61
     ];
 
+    private $magentaColorRGB = [
+        'red' => 1.0,
+        'green' => 0.0,
+        'blue' => 1.0
+    ];
+
+    private $orangeColorRGB = [
+        'red' => 1.0,
+        'green' => 0.6,
+        'blue' => 0.0
+    ];
+
+    private $orangeColorRGB2 = [
+        'red' => 0.965,
+        'green' => 0.596,
+        'blue' => 0.016
+    ];
+
     private $colorTolerance = 0.1;
 
     public function __construct(Request $request = null)
@@ -57,9 +75,6 @@ class LkpsImportController extends Controller
         $this->loadSheetNames();
     }
 
-    /**
-     * Load sheet names and strata mapping from "Daftar Tabel" sheet ONLY
-     */
     private function loadSheetNames($debug = false)
     {
         $cacheKey = "sheet_names_map_{$this->spreadsheetId}";
@@ -92,13 +107,11 @@ class LkpsImportController extends Controller
                 return;
             }
 
-            // Cari header row
             $headerRowIndex = $this->findHeaderRowIndex($values);
             if ($headerRowIndex === -1) {
                 return;
             }
 
-            // Parse header untuk menemukan kolom strata
             $headerRow = $values[$headerRowIndex];
             $strataColumns = $this->findStrataColumns($headerRow);
 
@@ -122,7 +135,6 @@ class LkpsImportController extends Controller
                 $code = $sheet;
                 $map[$code] = $sheet;
 
-                // Get table title
                 $title = '';
                 if (isset($values[$i][1]) && !empty($values[$i][1])) {
                     $title = (string) $values[$i][1];
@@ -133,8 +145,6 @@ class LkpsImportController extends Controller
                 }
 
                 $titleToCodeMap[$title] = $code;
-
-                // Parse strata information dari kolom program di Daftar Tabel
                 $tableStrata = $this->parseTableStrata($values[$i], $strataColumns);
                 $strataMapping[$code] = $tableStrata;
             }
@@ -143,7 +153,6 @@ class LkpsImportController extends Controller
             $this->titleMap = $titleToCodeMap;
             $this->strataMap = $strataMapping;
 
-            // Cache results
             if (!$debug && !empty($this->sheetNamesMap)) {
                 Cache::put("sheet_names_map_{$this->spreadsheetId}_sheetmap", $this->sheetNamesMap, now()->addDay());
                 Cache::put("sheet_names_map_{$this->spreadsheetId}_titlemap", $this->titleMap, now()->addDay());
@@ -155,9 +164,6 @@ class LkpsImportController extends Controller
         }
     }
 
-    /**
-     * Find master sheet title (Daftar Tabel prioritas utama)
-     */
     private function findMasterSheetTitle($sheets)
     {
         $priorityNames = [
@@ -180,9 +186,6 @@ class LkpsImportController extends Controller
         return null;
     }
 
-    /**
-     * Find header row index in values array
-     */
     private function findHeaderRowIndex($values)
     {
         for ($i = 0; $i < min(10, count($values)); $i++) {
@@ -202,9 +205,6 @@ class LkpsImportController extends Controller
         return -1;
     }
 
-    /**
-     * Find columns that contain strata information (hanya D3 dan STr) - dengan lebih flexible detection
-     */
     private function findStrataColumns($headerRow)
     {
         $strataColumns = [
@@ -216,7 +216,6 @@ class LkpsImportController extends Controller
             $headerValue = trim((string) $headerValue);
             $headerLower = strtolower($headerValue);
 
-            // More flexible pattern matching untuk D3
             if (
                 $headerValue === 'D3' ||
                 $headerValue === 'D-III' ||
@@ -230,10 +229,7 @@ class LkpsImportController extends Controller
                 strpos($headerLower, 'diploma 3') !== false
             ) {
                 $strataColumns['D3'][] = $colIndex;
-            }
-
-            // More flexible pattern matching untuk STr
-            elseif (
+            } elseif (
                 $headerValue === 'STr' ||
                 $headerValue === 'D-IV' ||
                 $headerValue === 'DIV' ||
@@ -252,19 +248,15 @@ class LkpsImportController extends Controller
         return $strataColumns;
     }
 
-    /**
-     * Parse strata information from table row (D3 atau STr saja, tidak ada kombinasi)
-     */
     private function parseTableStrata($row, $strataColumns)
     {
         $strata = [
             'D3' => false,
             'STr' => false,
             'detected_strata' => null,
-            'debug_info' => [] // Add debug info
+            'debug_info' => []
         ];
 
-        // Check D3 column
         foreach ($strataColumns['D3'] as $colIndex) {
             if (isset($row[$colIndex])) {
                 $cellValue = trim((string) $row[$colIndex]);
@@ -276,7 +268,6 @@ class LkpsImportController extends Controller
                     'length' => strlen($cellValue)
                 ];
 
-                // More flexible checkmark detection
                 if (
                     !empty($cellValue) &&
                     $cellValue !== '-' &&
@@ -287,12 +278,11 @@ class LkpsImportController extends Controller
                     strtolower($cellValue) !== 'no'
                 ) {
                     $strata['D3'] = true;
-                    break; // Found checkmark, no need to check other D3 columns
+                    break;
                 }
             }
         }
 
-        // Check STr column
         foreach ($strataColumns['STr'] as $colIndex) {
             if (isset($row[$colIndex])) {
                 $cellValue = trim((string) $row[$colIndex]);
@@ -304,7 +294,6 @@ class LkpsImportController extends Controller
                     'length' => strlen($cellValue)
                 ];
 
-                // More flexible checkmark detection
                 if (
                     !empty($cellValue) &&
                     $cellValue !== '-' &&
@@ -315,25 +304,20 @@ class LkpsImportController extends Controller
                     strtolower($cellValue) !== 'no'
                 ) {
                     $strata['STr'] = true;
-                    break; // Found checkmark, no need to check other STr columns
+                    break;
                 }
             }
         }
 
-        // Determine final strata (D3 OR STr, tidak ada kombinasi)
         if ($strata['STr']) {
             $strata['detected_strata'] = 'Sarjana Terapan';
         } elseif ($strata['D3']) {
             $strata['detected_strata'] = 'Diploma Tiga';
         }
-        // Jika kedua kolom ada checkmark, prioritas STr (Sarjana Terapan)
 
         return $strata;
     }
 
-    /**
-     * Get available tables with enhanced debugging
-     */
     public function getAvailableTables(Request $request)
     {
         $forceRefresh = $request->has('force_refresh') ? $request->input('force_refresh') : true;
@@ -353,14 +337,12 @@ class LkpsImportController extends Controller
         $sheetCodes = array_keys($this->sheetNamesMap);
         $sheetNames = array_values($this->sheetNamesMap);
 
-        // Skip first sheet if it's the master sheet
         $skipCount = 1;
         if (count($sheetCodes) > $skipCount) {
             $sheetCodes = array_slice($sheetCodes, $skipCount);
             $sheetNames = array_slice($sheetNames, $skipCount);
         }
 
-        // Filter title mappings (skip first)
         $filteredTitleMap = [];
         $firstSheetCode = reset($this->sheetNamesMap);
         foreach ($this->titleMap as $title => $code) {
@@ -370,7 +352,6 @@ class LkpsImportController extends Controller
             $filteredTitleMap[$title] = $code;
         }
 
-        // Create enhanced mapping with strata info dari Daftar Tabel
         $enhancedMapping = [];
         foreach ($filteredTitleMap as $title => $code) {
             $strataInfo = $this->strataMap[$code] ?? null;
@@ -406,9 +387,6 @@ class LkpsImportController extends Controller
         return response()->json($response);
     }
 
-    /**
-     * Get detailed detection information for debugging
-     */
     private function getDetectionDetails()
     {
         $details = [
@@ -423,7 +401,6 @@ class LkpsImportController extends Controller
             if ($strataInfo['detected_strata']) {
                 $details['strata_detected']++;
 
-                // Add sample for debugging (first 5 items)
                 if ($sampleCount < 5) {
                     $details['sample_detections'][] = [
                         'code' => $code,
@@ -442,9 +419,6 @@ class LkpsImportController extends Controller
         return $details;
     }
 
-    /**
-     * Get summary of strata distribution (hanya D3 dan STr)
-     */
     private function getStrataSummary()
     {
         $summary = [
@@ -473,9 +447,6 @@ class LkpsImportController extends Controller
         ];
     }
 
-    /**
-     * Get colored cells by sheet name (NO red text detection)
-     */
     private function getColoredCellsBySheetName(Request $request)
     {
         try {
@@ -483,7 +454,7 @@ class LkpsImportController extends Controller
 
             $sheetName = $request->input('sheet_name');
             $tableRef = $request->input('table_ref');
-            $program = $request->input('program'); // NEW: Get program from request
+            $program = $request->input('program');
 
             $rangeToCheck = $sheetName . '!A1:Z150';
 
@@ -504,24 +475,26 @@ class LkpsImportController extends Controller
             $data = $sheets[0]->getData()[0];
             $rowData = $data->getRowData();
 
-            // SPECIAL CASE: Check if this is table 8c or 8d1
             $isSpecialTable = $this->isSpecialTable($tableRef);
             $specialCaseInfo = null;
 
             if ($isSpecialTable && $program) {
                 $specialCaseInfo = $this->findRedTextBoundaries($rowData, $program);
-                // Remove addLog call - just store info
             }
 
             $coloredCells = [];
             $yellowCells = [];
             $yellowColumns = [];
+            $magentaCells = [];
+            $infoSections = [];
+            $infoCells = [];
+            $orangeCells = [];
+            $kondisiSections = [];
+            $kondisiCells = [];
             $firstYellowRow = null;
             $yellowRowsFound = [];
-            $coloredColumns = [];
-
-            // Get strata from Daftar Tabel mapping ONLY
             $tableStrata = null;
+
             if ($tableRef && isset($this->strataMap[$tableRef])) {
                 $strataInfo = $this->strataMap[$tableRef];
                 $tableStrata = $strataInfo['detected_strata'] ?? null;
@@ -529,10 +502,13 @@ class LkpsImportController extends Controller
 
             $blueColorTolerance = $this->colorTolerance;
             $yellowColorTolerance = 0.1;
+            $magentaColorTolerance = 0.05;
+            $orangeColorTolerance = 0.1;
 
             $isSimilarColor = function ($color1, $color2, $tolerance) {
-                if (!isset($color1['red']) || !isset($color2['red']))
+                if (!isset($color1['red']) || !isset($color2['red'])) {
                     return false;
+                }
 
                 foreach (['red', 'green', 'blue'] as $component) {
                     $val1 = $color1[$component] ?? 0;
@@ -553,17 +529,22 @@ class LkpsImportController extends Controller
                 );
             };
 
-            // Yellow color variants
-            $yellowTargetRGB = [
-                'red' => 0.97,
-                'green' => 0.90,
-                'blue' => 0.07
-            ];
-
+            $yellowTargetRGB = ['red' => 0.97, 'green' => 0.90, 'blue' => 0.07];
             $yellowAlternatives = [
                 ['red' => 1.0, 'green' => 1.0, 'blue' => 0.0],
                 ['red' => 1.0, 'green' => 0.92, 'blue' => 0.0],
                 ['red' => 0.98, 'green' => 0.89, 'blue' => 0.05],
+            ];
+
+            $magentaColorRGB = ['red' => 1.0, 'green' => 0.0, 'blue' => 1.0];
+
+            $orangeColorVariants = [
+                ['red' => 1.0, 'green' => 0.6, 'blue' => 0.0],
+                ['red' => 0.965, 'green' => 0.596, 'blue' => 0.016],
+                ['red' => 1.0, 'green' => 0.65, 'blue' => 0.0],
+                ['red' => 0.9, 'green' => 0.5, 'blue' => 0.0],
+                ['red' => 1.0, 'green' => 0.55, 'blue' => 0.1],
+                ['red' => 0.98, 'green' => 0.58, 'blue' => 0.02],
             ];
 
             foreach ($rowData as $rowIndex => $row) {
@@ -573,13 +554,12 @@ class LkpsImportController extends Controller
 
                 $currentRow = $rowIndex + 1;
 
-                // SPECIAL CASE: Skip rows outside the boundary
                 if ($specialCaseInfo) {
                     if (
                         $currentRow < $specialCaseInfo['detection_start'] ||
                         ($specialCaseInfo['detection_end'] && $currentRow > $specialCaseInfo['detection_end'])
                     ) {
-                        continue; // Skip this row
+                        continue;
                     }
                 }
 
@@ -606,24 +586,174 @@ class LkpsImportController extends Controller
                         'blue' => $backgroundColor->getBlue() ?? 0
                     ];
 
-                    // Check for blue cells (table headers)
+                    $value = $this->getCellValue($cell);
+                    $columnLetter = $this->columnIndexToLetter($colIndex + 1);
+
+                    $isOrangeColor = false;
+                    foreach ($orangeColorVariants as $orangeVariant) {
+                        if ($isSimilarColor($cellColor, $orangeVariant, $orangeColorTolerance)) {
+                            $isOrangeColor = true;
+                            break;
+                        }
+                    }
+
+                    if (!$isOrangeColor) {
+                        if (
+                            $cellColor['red'] > 0.8 &&
+                            $cellColor['green'] > 0.4 &&
+                            $cellColor['green'] < 0.8 &&
+                            $cellColor['blue'] < 0.3
+                        ) {
+                            $isOrangeColor = true;
+                        }
+                    }
+
+                    if (!$isOrangeColor) {
+                        $r = $cellColor['red'];
+                        $g = $cellColor['green'];
+                        $b = $cellColor['blue'];
+
+                        if ($r > $g && $g > $b && $r > 0.7 && $g > 0.3 && $b < 0.4) {
+                            $isOrangeColor = true;
+                        }
+                    }
+
+                    if ($isOrangeColor) {
+                        \Log::info("✅ ORANGE DETECTED", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $toHex($cellColor), 'method' => 'enhanced_multi_variant_detection']);
+
+                        $orangeCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value,
+                            'color' => $toHex($cellColor),
+                            'rgb_actual' => $cellColor,
+                            'detection_method' => 'color_match'
+                        ];
+
+                        if (
+                            $value && (strtoupper(trim($value)) === 'KONDISI' ||
+                                stripos($value, 'kondisi') !== false)
+                        ) {
+                            $kondisiSections[] = [
+                                'kondisi_row' => $currentRow,
+                                'kondisi_column' => $columnLetter,
+                                'kondisi_cell' => $columnLetter . $currentRow,
+                                'data_below' => []
+                            ];
+
+                            \Log::info("✅ KONDISI SECTION CREATED", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $toHex($cellColor), 'is_orange' => true]);
+                        }
+                    }
+
+                    $isMagentaColor = $isSimilarColor($cellColor, $magentaColorRGB, $magentaColorTolerance);
+
+                    if ($isMagentaColor) {
+                        \Log::info("✅ MAGENTA DETECTED", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $toHex($cellColor)]);
+
+                        $magentaCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value,
+                            'color' => $toHex($cellColor),
+                            'rgb_actual' => $cellColor,
+                            'detection_method' => 'color_match'
+                        ];
+
+                        if ($value && strtoupper(trim($value)) === 'INFO') {
+                            $infoSections[] = [
+                                'info_row' => $currentRow,
+                                'info_column' => $columnLetter,
+                                'info_cell' => $columnLetter . $currentRow,
+                                'data_below' => []
+                            ];
+                        }
+                    }
+
+                    if (
+                        $value && (strtoupper(trim($value)) === 'KONDISI' ||
+                            stripos($value, 'kondisi') !== false ||
+                            stripos($value, 'condition') !== false ||
+                            stripos($value, 'syarat') !== false)
+                    ) {
+
+                        if ($isOrangeColor) {
+                            $kondisiCells[] = [
+                                'row' => $currentRow,
+                                'column' => $columnLetter,
+                                'cell' => $columnLetter . $currentRow,
+                                'value' => $value
+                            ];
+
+                            \Log::info("✅ KONDISI TEXT CONFIRMED (ORANGE)", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $toHex($cellColor), 'is_orange' => true]);
+
+                            $alreadyInSections = false;
+                            foreach ($kondisiSections as $section) {
+                                if ($section['kondisi_cell'] === $columnLetter . $currentRow) {
+                                    $alreadyInSections = true;
+                                    break;
+                                }
+                            }
+
+                            if (!$alreadyInSections) {
+                                $kondisiSections[] = [
+                                    'kondisi_row' => $currentRow,
+                                    'kondisi_column' => $columnLetter,
+                                    'kondisi_cell' => $columnLetter . $currentRow,
+                                    'data_below' => []
+                                ];
+                            }
+                        } else {
+                            \Log::info("❌ KONDISI TEXT REJECTED (NOT ORANGE)", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $toHex($cellColor), 'is_orange' => false, 'reason' => 'Text says KONDISI but cell is not orange color']);
+                        }
+                    }
+
+                    if ($value && strtoupper(trim($value)) === 'INFO') {
+                        $infoCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value
+                        ];
+
+                        if (!$isMagentaColor) {
+                            $hexColor = $toHex($cellColor);
+                            if ($hexColor !== '#8db3e1') {
+                                \Log::info("Force adding INFO cell to magenta cells (text detection)", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $hexColor]);
+
+                                $magentaCells[] = [
+                                    'row' => $currentRow,
+                                    'column' => $columnLetter,
+                                    'cell' => $columnLetter . $currentRow,
+                                    'value' => $value,
+                                    'color' => $hexColor,
+                                    'rgb_actual' => $cellColor,
+                                    'detection_method' => 'text_fallback'
+                                ];
+
+                                $infoSections[] = [
+                                    'info_row' => $currentRow,
+                                    'info_column' => $columnLetter,
+                                    'info_cell' => $columnLetter . $currentRow,
+                                    'data_below' => []
+                                ];
+                            }
+                        }
+                    }
+
                     if ($isSimilarColor($cellColor, $this->targetColorRGB, $blueColorTolerance)) {
-                        $value = $this->getCellValue($cell);
-                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
-
-                        $coloredColumns[$columnLetter] = true;
-
                         $coloredCells[] = [
                             'row' => $currentRow,
                             'column' => $columnLetter,
                             'cell' => $columnLetter . $currentRow,
                             'value' => $value,
                             'color' => $toHex($cellColor),
-                            'special_case' => $isSpecialTable ? ($specialCaseInfo['search_text'] ?? null) : null
+                            'rgb_actual' => $cellColor,
+                            'table_index' => 0
                         ];
                     }
 
-                    // Check for yellow cells (fillable columns)
                     $isYellow = false;
 
                     if ($isSimilarColor($cellColor, $yellowTargetRGB, $yellowColorTolerance)) {
@@ -649,9 +779,6 @@ class LkpsImportController extends Controller
                     }
 
                     if ($isYellow) {
-                        $value = $this->getCellValue($cell);
-                        $columnLetter = $this->columnIndexToLetter($colIndex + 1);
-
                         $rowHasYellowCell = true;
 
                         $yellowCells[] = [
@@ -671,7 +798,6 @@ class LkpsImportController extends Controller
                     }
                 }
 
-                // Track yellow rows
                 if ($rowHasYellowCell) {
                     $yellowRowsFound[] = $currentRow;
 
@@ -681,16 +807,10 @@ class LkpsImportController extends Controller
                 }
             }
 
-            if (empty($coloredCells)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Tidak ditemukan sel dengan warna #8db3e1' . ($isSpecialTable ? " dalam range special case" : "")
-                ]);
-            }
-
+            $infoSections = $this->processInfoSections($infoSections, $rowData);
+            $kondisiSections = $this->processKondisiSections($kondisiSections, $rowData);
             $restructuredData = $this->restructureHierarchicalHeaders($coloredCells);
 
-            // Determine data start row
             $dataStartRow = null;
             $headerLastRow = 0;
 
@@ -722,12 +842,13 @@ class LkpsImportController extends Controller
 
             $response = [
                 'success' => true,
-                'message' => 'Berhasil mendapatkan sel-sel dengan warna biru dan struktur tabel' . ($isSpecialTable ? " (Special case detected)" : ""),
+                'message' => 'Berhasil mendapatkan struktur tabel' . ($isSpecialTable ? " (Special case detected)" : ""),
                 'spreadsheet_id' => $this->spreadsheetId,
                 'sheet_name' => $sheetName,
                 'table_ref' => $tableRef,
                 'target_color' => '#8db3e1',
                 'colored_cells' => $coloredCells,
+                'yellow_cells' => $yellowCells,
                 'yellow_cells_count' => count($yellowCells),
                 'yellow_rows_found' => $yellowRowsFound,
                 'yellow_columns' => $yellowColumns,
@@ -737,16 +858,44 @@ class LkpsImportController extends Controller
                 'data_start_row' => $dataStartRow,
                 'restructured_data' => $restructuredData,
                 'total_colored_cells_found' => count($coloredCells),
-
-                // Special case info
+                'magenta_cells' => $magentaCells,
+                'magenta_cells_count' => count($magentaCells),
+                'info_sections' => $infoSections,
+                'info_sections_count' => count($infoSections),
+                'info_cells' => $infoCells,
+                'info_cells_count' => count($infoCells),
+                'orange_cells' => $orangeCells,
+                'orange_cells_count' => count($orangeCells),
+                'kondisi_sections' => $kondisiSections,
+                'kondisi_sections_count' => count($kondisiSections),
+                'kondisi_cells' => $kondisiCells,
+                'kondisi_cells_count' => count($kondisiCells),
                 'is_special_table' => $isSpecialTable,
                 'special_case_info' => $specialCaseInfo,
-
-                // Strata info dari Daftar Tabel ONLY - NO red text detection
                 'detected_strata' => $tableStrata,
                 'strata_source' => 'daftar_tabel_only',
                 'strata_info' => $this->strataMap[$tableRef] ?? null,
-                'strata_detection_method' => 'daftar_tabel_only'
+                'strata_detection_method' => 'daftar_tabel_only',
+                'strict_color_validation' => [
+                    'kondisi_requires_orange' => true,
+                    'info_prefers_magenta' => true,
+                    'blue_cells_excluded_from_info_kondisi' => true,
+                    'orange_detection_methods' => ['color_variants', 'rgb_analysis', 'hsv_detection']
+                ],
+                'debug_fallback_info' => [
+                    'has_restructured_data' => !empty($restructuredData),
+                    'has_colored_cells' => !empty($coloredCells),
+                    'has_yellow_cells' => !empty($yellowCells),
+                    'has_magenta_cells' => !empty($magentaCells),
+                    'has_orange_cells' => !empty($orangeCells),
+                    'total_cells_analyzed' => count($coloredCells) + count($yellowCells) + count($magentaCells) + count($orangeCells),
+                    'fallback_options_available' => [
+                        'blue_cells' => count($coloredCells),
+                        'yellow_cells' => count($yellowCells),
+                        'yellow_columns' => count(array_keys($yellowColumns)),
+                        'any_colored_cells' => count($coloredCells) + count($yellowCells) + count($magentaCells) + count($orangeCells)
+                    ]
+                ]
             ];
 
             return response()->json($response);
@@ -761,9 +910,6 @@ class LkpsImportController extends Controller
         }
     }
 
-    /**
-     * Check if table is special case (8c or 8d1)
-     */
     private function isSpecialTable($tableRef)
     {
         if (!$tableRef)
@@ -773,9 +919,6 @@ class LkpsImportController extends Controller
         return in_array($tableRef, ['8c', '8d1']);
     }
 
-    /**
-     * Find red text boundaries for special tables
-     */
     private function findRedTextBoundaries($rowData, $program)
     {
         $searchText = '';
@@ -793,11 +936,10 @@ class LkpsImportController extends Controller
         $redTextRows = [];
         $targetTextRow = null;
 
-        // Red color detection parameters
         $redColorThreshold = [
-            'red' => 0.7,    // At least 70% red
-            'green' => 0.3,  // Less than 30% green
-            'blue' => 0.3    // Less than 30% blue
+            'red' => 0.7,
+            'green' => 0.3,
+            'blue' => 0.3
         ];
 
         foreach ($rowData as $rowIndex => $row) {
@@ -810,7 +952,6 @@ class LkpsImportController extends Controller
                     continue;
                 }
 
-                // Check text color (not background color)
                 $effectiveFormat = $cell->getEffectiveFormat();
                 if (!$effectiveFormat || !$effectiveFormat->getTextFormat()) {
                     continue;
@@ -829,7 +970,6 @@ class LkpsImportController extends Controller
                     'blue' => $foregroundColor->getBlue() ?? 0
                 ];
 
-                // Check if text is red
                 $isRedText = (
                     $textColor['red'] >= $redColorThreshold['red'] &&
                     $textColor['green'] <= $redColorThreshold['green'] &&
@@ -846,7 +986,6 @@ class LkpsImportController extends Controller
                         'column' => $this->columnIndexToLetter($colIndex + 1)
                     ];
 
-                    // Check if this is our target text
                     if ($cellValue && stripos($cellValue, $searchText) !== false) {
                         $targetTextRow = $currentRow;
                     }
@@ -858,7 +997,6 @@ class LkpsImportController extends Controller
             return null;
         }
 
-        // Find next red text after target text
         $nextRedTextRow = null;
         foreach ($redTextRows as $redText) {
             if ($redText['row'] > $targetTextRow) {
@@ -870,42 +1008,125 @@ class LkpsImportController extends Controller
         return [
             'search_text' => $searchText,
             'target_row' => $targetTextRow,
-            'detection_start' => $targetTextRow + 1, // Start from next row after red text
-            'detection_end' => $nextRedTextRow ? $nextRedTextRow - 1 : null, // End before next red text
+            'detection_start' => $targetTextRow + 1,
+            'detection_end' => $nextRedTextRow ? $nextRedTextRow - 1 : null,
             'all_red_texts' => $redTextRows,
             'program' => $program
         ];
     }
 
-    // Keep all existing helper methods
+    private function processKondisiSections($kondisiSections, $rowData)
+    {
+        foreach ($kondisiSections as &$section) {
+            $kondisiRow = $section['kondisi_row'];
+            // Asumsi baseColumnIndex adalah kolom pertama dari section KONDISI, yaitu kolom BUTIR
+            $baseColumnIndex = $this->columnLetterToIndex($section['kondisi_column']) - 1;
+
+            \Log::info("🔍 Processing KONDISI section with STABLE adaptive logic", [
+                'kondisi_header_cell' => $section['kondisi_column'] . $kondisiRow,
+                'base_column_index' => $baseColumnIndex,
+            ]);
+
+            $dataBelow = [];
+            $lastButirValue = null;
+
+            for ($rowIndex = $kondisiRow; $rowIndex < min($kondisiRow + 20, count($rowData)); $rowIndex++) {
+                if (!isset($rowData[$rowIndex]) || !$rowData[$rowIndex]->getValues())
+                    continue;
+
+                $row = $rowData[$rowIndex];
+                $values = $row->getValues();
+                $currentRowNum = $rowIndex + 1;
+
+                // Selalu baca butir dari kolom pertama (base)
+                $currentButirValue = $lastButirValue;
+                if (isset($values[$baseColumnIndex])) {
+                    $butirValue = $this->getCellValue($values[$baseColumnIndex]);
+                    if (is_numeric($butirValue)) {
+                        $currentButirValue = (int) $butirValue;
+                        $lastButirValue = $currentButirValue;
+                    }
+                }
+
+                // ================== LOGIKA ADAPTIF BARU (STABIL) ==================
+
+                // Baca nilai dari 3 kolom potensial di sebelah butir
+                $col2_val = isset($values[$baseColumnIndex + 1]) ? trim((string) $this->getCellValue($values[$baseColumnIndex + 1])) : '';
+                $col3_val = isset($values[$baseColumnIndex + 2]) ? trim((string) $this->getCellValue($values[$baseColumnIndex + 2])) : '';
+                $col4_val = isset($values[$baseColumnIndex + 3]) ? trim((string) $this->getCellValue($values[$baseColumnIndex + 3])) : '';
+
+                $subText = null;
+                $kondisiText = null;
+                $formulaText = '0';
+
+                // Cek apakah ini layout 4 kolom (kolom ke-3, yaitu $col3_val, berisi teks kondisi yang panjang)
+                // Layout 4-kolom: butir | sub | kondisi | formula
+                // Kita anggap jika kolom ke-3 punya isi, ini adalah layout 4 kolom
+                if (!empty($col3_val)) {
+                    $subText = $col2_val;
+                    $kondisiText = $col3_val;
+                    if (isset($values[$baseColumnIndex + 3])) {
+                        $formula = $this->getCellFormula($values[$baseColumnIndex + 3]);
+                        $formulaText = $formula ?: $col4_val ?: '0';
+                    }
+                }
+                // Jika tidak, ini pasti layout 3 kolom
+                // Layout 3-kolom: butir | kondisi | formula
+                elseif (!empty($col2_val)) {
+                    $subText = null; // Tidak ada sub
+                    $kondisiText = $col2_val;
+                    if (isset($values[$baseColumnIndex + 2])) {
+                        $formula = $this->getCellFormula($values[$baseColumnIndex + 2]);
+                        $formulaText = $formula ?: $col3_val ?: '0';
+                    }
+                }
+
+                // =====================================================================
+
+                // Jika setelah semua logika, tidak ada teks kondisi, lewati baris ini.
+                if (empty($kondisiText)) {
+                    \Log::info("⚠️ Skipping row - No valid KONDISI text found.", ['row' => $currentRowNum]);
+                    continue;
+                }
+
+                $dataItem = [
+                    'butir' => $currentButirValue,
+                    'sub' => !empty($subText) ? $subText : null,
+                    'kondisi' => $kondisiText,
+                    'formula' => $formulaText,
+                ];
+
+                $dataBelow[] = $dataItem;
+            }
+
+            $section['data_below'] = $dataBelow;
+            $section['data_count'] = count($dataBelow);
+        }
+
+        return $kondisiSections;
+    }
+
     public function updateDataIndicesWithParent(Request $request)
     {
         try {
-            // Get table ID from request
             $tableId = $request->input('table_id', null);
 
-            // Get all records for a specific table if table_id is provided
-            // Otherwise get all records across all tables
             if ($tableId) {
                 $records = LkpsColumn::where('lkpsTableId', (string) $tableId)->get();
             } else {
                 $records = LkpsColumn::all();
             }
 
-            // Group records by ID to allow for easy lookup
             $recordsById = [];
             foreach ($records as $record) {
                 $idString = (string) $record->_id;
                 $recordsById[$idString] = $record;
             }
 
-            // Track updated records
             $updatedRecords = [];
 
-            // Process and update each record with a parent_id
             foreach ($records as $record) {
                 if (!empty($record->parentId)) {
-                    // Get parent ID as string
                     $parentId = null;
                     if (is_object($record->parentId) && property_exists($record->parentId, '$oid')) {
                         $parentId = $record->parentId->{'$oid'};
@@ -915,7 +1136,6 @@ class LkpsImportController extends Controller
                         $parentId = (string) $record->parentId;
                     }
 
-                    // Find the parent record
                     $parent = null;
                     foreach ($records as $possibleParent) {
                         $possibleParentId = null;
@@ -934,18 +1154,14 @@ class LkpsImportController extends Controller
                     }
 
                     if ($parent) {
-                        // PERUBAHAN UTAMA: Format parent_children untuk indeksData
                         $parentDataIndex = $this->formatTitleForIndex($parent->judul);
                         $childDataIndex = $this->formatTitleForIndex($record->judul);
 
-                        // Format: parent_children (bukan children_parent)
                         $newDataIndex = $parentDataIndex . '_' . $childDataIndex;
 
-                        // Only update if it's different from current indeksData
                         if ($record->indeksData !== $newDataIndex) {
                             $originalIndex = $record->indeksData;
 
-                            // Update the record
                             $record->indeksData = $newDataIndex;
                             $record->save();
 
@@ -983,22 +1199,181 @@ class LkpsImportController extends Controller
 
     private function formatTitleForIndex($title)
     {
-        // Convert to lowercase first
         $formattedTitle = strtolower(trim($title));
-
-        // Replace forward slash with underscore
         $formattedTitle = str_replace('/', '_', $formattedTitle);
-
-        // Replace spaces and other special characters with underscores
         $formattedTitle = preg_replace('/[^a-z0-9_]/', '_', $formattedTitle);
-
-        // Remove multiple consecutive underscores
         $formattedTitle = preg_replace('/_+/', '_', $formattedTitle);
-
-        // Remove leading/trailing underscores
         $formattedTitle = trim($formattedTitle, '_');
 
         return $formattedTitle;
+    }
+
+    public function debugKondisiColumns(Request $request)
+    {
+        try {
+            $tableRef = $request->input('table_ref', '3a2');
+            $maxRows = $request->input('max_rows', 20);
+
+            if (!isset($this->sheetNamesMap[$tableRef])) {
+                return response()->json(['error' => 'Table reference not found']);
+            }
+
+            $sheetName = $this->sheetNamesMap[$tableRef];
+            $rangeToCheck = $sheetName . '!A1:Z' . $maxRows;
+
+            $response = $this->service->spreadsheets->get($this->spreadsheetId, [
+                'includeGridData' => true,
+                'ranges' => $rangeToCheck
+            ]);
+
+            $sheets = $response->getSheets();
+            if (!$sheets || empty($sheets[0]->getData())) {
+                return response()->json(['error' => 'No data found']);
+            }
+
+            $data = $sheets[0]->getData()[0];
+            $rowData = $data->getRowData();
+
+            $kondisiSections = [];
+            $allCells = [];
+
+            foreach ($rowData as $rowIndex => $row) {
+                if (!$row->getValues())
+                    continue;
+
+                $currentRow = $rowIndex + 1;
+
+                foreach ($row->getValues() as $colIndex => $cell) {
+                    if (!$cell)
+                        continue;
+
+                    $value = $this->getCellValue($cell);
+                    $columnLetter = $this->columnIndexToLetter($colIndex + 1);
+
+                    $allCells[] = [
+                        'cell' => $columnLetter . $currentRow,
+                        'row' => $currentRow,
+                        'column' => $columnLetter,
+                        'column_index' => $colIndex,
+                        'value' => $value
+                    ];
+
+                    if ($value && strtoupper(trim($value)) === 'KONDISI') {
+                        $kondisiSections[] = [
+                            'kondisi_row' => $currentRow,
+                            'kondisi_column' => $columnLetter,
+                            'kondisi_cell' => $columnLetter . $currentRow,
+                        ];
+                    }
+                }
+            }
+
+            $processedSections = [];
+            foreach ($kondisiSections as $section) {
+                $kondisiRow = $section['kondisi_row'];
+                $kondisiColumnLetter = $section['kondisi_column'];
+                $kondisiColumnIndex = $this->columnLetterToIndex($kondisiColumnLetter) - 1;
+
+                $butirColumnIndex = $kondisiColumnIndex - 1;
+                $formulaColumnIndex = $kondisiColumnIndex + 1;
+
+                $columnAnalysis = [
+                    'kondisi_info' => [
+                        'row' => $kondisiRow,
+                        'column' => $kondisiColumnLetter,
+                        'column_index_0_based' => $kondisiColumnIndex,
+                        'column_index_1_based' => $kondisiColumnIndex + 1
+                    ],
+                    'calculated_columns' => [
+                        'butir' => [
+                            'column_index_0_based' => $butirColumnIndex,
+                            'column_letter' => $butirColumnIndex >= 0 ? $this->columnIndexToLetter($butirColumnIndex + 1) : 'none',
+                            'position' => 'LEFT of KONDISI'
+                        ],
+                        'kondisi_data' => [
+                            'column_index_0_based' => $kondisiColumnIndex,
+                            'column_letter' => $this->columnIndexToLetter($kondisiColumnIndex + 1),
+                            'position' => 'KONDISI column (middle)'
+                        ],
+                        'formula' => [
+                            'column_index_0_based' => $formulaColumnIndex,
+                            'column_letter' => $this->columnIndexToLetter($formulaColumnIndex + 1),
+                            'position' => 'RIGHT of KONDISI'
+                        ]
+                    ],
+                    'data_rows' => []
+                ];
+
+                for ($rowIndex = $kondisiRow; $rowIndex < min($kondisiRow + 5, count($rowData)); $rowIndex++) {
+                    if (!isset($rowData[$rowIndex]) || !$rowData[$rowIndex]->getValues()) {
+                        continue;
+                    }
+
+                    $row = $rowData[$rowIndex];
+                    $values = $row->getValues();
+                    $currentRowNum = $rowIndex + 1;
+
+                    $rowAnalysis = [
+                        'row' => $currentRowNum,
+                        'total_columns' => count($values),
+                        'butir_data' => [
+                            'column_index' => $butirColumnIndex,
+                            'column_letter' => $butirColumnIndex >= 0 ? $this->columnIndexToLetter($butirColumnIndex + 1) : 'none',
+                            'cell_exists' => $butirColumnIndex >= 0 && isset($values[$butirColumnIndex]),
+                            'raw_value' => $butirColumnIndex >= 0 && isset($values[$butirColumnIndex]) ?
+                                $this->getCellValue($values[$butirColumnIndex]) : null,
+                            'is_numeric' => $butirColumnIndex >= 0 && isset($values[$butirColumnIndex]) ?
+                                is_numeric($this->getCellValue($values[$butirColumnIndex])) : false
+                        ],
+                        'kondisi_data' => [
+                            'column_index' => $kondisiColumnIndex,
+                            'column_letter' => $this->columnIndexToLetter($kondisiColumnIndex + 1),
+                            'cell_exists' => isset($values[$kondisiColumnIndex]),
+                            'raw_value' => isset($values[$kondisiColumnIndex]) ?
+                                $this->getCellValue($values[$kondisiColumnIndex]) : null,
+                            'is_kondisi_header' => isset($values[$kondisiColumnIndex]) ?
+                                strtoupper(trim($this->getCellValue($values[$kondisiColumnIndex]) ?? '')) === 'KONDISI' : false
+                        ],
+                        'formula_data' => [
+                            'column_index' => $formulaColumnIndex,
+                            'column_letter' => $this->columnIndexToLetter($formulaColumnIndex + 1),
+                            'cell_exists' => isset($values[$formulaColumnIndex]),
+                            'raw_value' => isset($values[$formulaColumnIndex]) ?
+                                $this->getCellValue($values[$formulaColumnIndex]) : null
+                        ]
+                    ];
+
+                    $columnAnalysis['data_rows'][] = $rowAnalysis;
+                }
+
+                $processedSections[] = $columnAnalysis;
+            }
+
+            return response()->json([
+                'debug_info' => [
+                    'table_ref' => $tableRef,
+                    'sheet_name' => $sheetName,
+                    'range_checked' => $rangeToCheck,
+                    'kondisi_sections_found' => count($kondisiSections)
+                ],
+                'kondisi_sections' => $kondisiSections,
+                'detailed_analysis' => $processedSections,
+                'all_cells_sample' => array_slice($allCells, 0, 20),
+                'expected_structure' => [
+                    'if_kondisi_at_S9' => [
+                        'butir_column' => 'R (left of S)',
+                        'kondisi_column' => 'S (contains "RDPU > 10", etc.)',
+                        'formula_column' => 'T (right of S, contains "0", etc.)'
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
     }
 
     public function getColoredCellsByTable(Request $request, $tableRef = null)
@@ -1039,9 +1414,6 @@ class LkpsImportController extends Controller
         }
     }
 
-    /**
-     * Legacy method for backward compatibility - uses sheet GID
-     */
     public function getColoredCells(Request $request)
     {
         try {
@@ -1098,6 +1470,232 @@ class LkpsImportController extends Controller
         return $value;
     }
 
+    private function processInfoSections($infoSections, $rowData)
+    {
+        foreach ($infoSections as &$section) {
+            $infoRow = $section['info_row'];
+            $infoColumnLetter = $section['info_column'];
+            $infoColumnIndex = $this->columnLetterToIndex($infoColumnLetter) - 1;
+
+            \Log::info("🔍 Processing INFO section with 3-column structure", [
+                'info_cell' => $infoColumnLetter . $infoRow,
+                'info_column_letter' => $infoColumnLetter,
+                'info_column_index_0_based' => $infoColumnIndex
+            ]);
+
+            $dataBelow = [];
+
+            // ✅ 3-column layout: VARIABEL | KONDISI | FORMULA
+            $variabelColumnIndex = $infoColumnIndex;      // P (same as INFO header)
+            $kondisiColumnIndex = $infoColumnIndex + 1;   // Q (next column - condition)
+            $formulaColumnIndex = $infoColumnIndex + 2;   // R (third column - formula)
+
+            $variabelColumnLetter = $this->columnIndexToLetter($variabelColumnIndex + 1);
+            $kondisiColumnLetter = $this->columnIndexToLetter($kondisiColumnIndex + 1);
+            $formulaColumnLetter = $this->columnIndexToLetter($formulaColumnIndex + 1);
+
+            \Log::info("🔍 INFO Column mapping (3-column structure)", [
+                'variabel_column' => $variabelColumnLetter . ' (contains variabel like Rasio, NM)',
+                'kondisi_column' => $kondisiColumnLetter . ' (contains kondisi - optional)',
+                'formula_column' => $formulaColumnLetter . ' (contains formula)',
+                'layout' => "VARIABEL={$variabelColumnLetter}, KONDISI={$kondisiColumnLetter}, FORMULA={$formulaColumnLetter}"
+            ]);
+
+            // Look for data in rows below the INFO cell
+            for ($rowIndex = $infoRow; $rowIndex < min($infoRow + 20, count($rowData)); $rowIndex++) {
+                if (!isset($rowData[$rowIndex]) || !$rowData[$rowIndex]->getValues()) {
+                    continue;
+                }
+
+                $row = $rowData[$rowIndex];
+                $values = $row->getValues();
+                $currentRowNum = $rowIndex + 1;
+
+                // ✅ Get variabel from column P (same as INFO)
+                $variabelText = null;
+                if (isset($values[$variabelColumnIndex])) {
+                    $variabelCell = $values[$variabelColumnIndex];
+                    $variabelValue = $this->getCellValue($variabelCell);
+
+                    // Skip header atau empty cells
+                    if (!$variabelValue || trim($variabelValue) === '' || strtoupper(trim($variabelValue)) === 'INFO') {
+                        continue;
+                    }
+
+                    $variabelText = trim($variabelValue);
+                    \Log::info("✅ VARIABEL extracted", [
+                        'row' => $currentRowNum,
+                        'column' => $variabelColumnLetter,
+                        'variabel' => $variabelText
+                    ]);
+                } else {
+                    continue;
+                }
+
+                // ✅ FIXED: Get kondisi from column Q - harus benar-benar ada VALUE
+                $kondisiText = null;
+                if (isset($values[$kondisiColumnIndex])) {
+                    $kondisiCell = $values[$kondisiColumnIndex];
+                    $kondisiValue = $this->getCellValue($kondisiCell);
+
+                    \Log::info("🔍 Reading kondisi from column Q", [
+                        'row' => $currentRowNum,
+                        'column' => $kondisiColumnLetter,
+                        'raw_value' => $kondisiValue,
+                        'trimmed' => $kondisiValue ? trim($kondisiValue) : null,
+                        'is_empty' => empty($kondisiValue),
+                        'is_error' => $kondisiValue && (strpos($kondisiValue, '#') === 0)
+                    ]);
+
+                    // ✅ STRICT: Hanya ambil jika ada value yang bukan error dan bukan kosong
+                    if (
+                        $kondisiValue &&
+                        trim($kondisiValue) !== '' &&
+                        strpos($kondisiValue, '#') !== 0 && // Tidak boleh error value seperti #DIV/0!
+                        $kondisiValue !== '0'
+                    ) {
+
+                        $kondisiText = trim($kondisiValue);
+                        \Log::info("✅ KONDISI extracted", [
+                            'row' => $currentRowNum,
+                            'column' => $kondisiColumnLetter,
+                            'kondisi' => $kondisiText
+                        ]);
+                    } else {
+                        \Log::info("⚠️ KONDISI skipped - empty/error/zero", [
+                            'row' => $currentRowNum,
+                            'column' => $kondisiColumnLetter,
+                            'raw_value' => $kondisiValue,
+                            'reason' => empty($kondisiValue) ? 'empty' : (strpos($kondisiValue, '#') === 0 ? 'error_value' : 'zero_or_invalid')
+                        ]);
+                    }
+                }
+
+                // ✅ FIXED: Get formula from column R - prioritas FORMULA, bukan error value
+                $formulaText = '0';
+                if (isset($values[$formulaColumnIndex])) {
+                    $formulaCell = $values[$formulaColumnIndex];
+                    $formulaCellValue = $this->getCellValue($formulaCell);
+
+                    \Log::info("🔍 Reading formula from column R", [
+                        'row' => $currentRowNum,
+                        'column' => $formulaColumnLetter,
+                        'cell_value' => $formulaCellValue,
+                        'is_error' => $formulaCellValue && (strpos($formulaCellValue, '#') === 0)
+                    ]);
+
+                    // ✅ PRIORITAS: Coba ambil formula Excel dulu
+                    $actualFormula = $this->getCellFormula($formulaCell);
+
+                    if ($actualFormula && trim($actualFormula) !== '') {
+                        // Ada formula Excel yang sebenarnya
+                        $formulaText = trim($actualFormula);
+                        \Log::info("✅ FORMULA extracted (Excel formula)", [
+                            'row' => $currentRowNum,
+                            'column' => $formulaColumnLetter,
+                            'formula' => $formulaText,
+                            'type' => 'excel_formula'
+                        ]);
+                    } elseif (
+                        $formulaCellValue &&
+                        trim($formulaCellValue) !== '' &&
+                        strpos($formulaCellValue, '#') !== 0
+                    ) {
+                        // Jika tidak ada formula tapi ada value yang bukan error
+                        $formulaText = trim($formulaCellValue);
+                        \Log::info("✅ FORMULA extracted (cell value)", [
+                            'row' => $currentRowNum,
+                            'column' => $formulaColumnLetter,
+                            'formula' => $formulaText,
+                            'type' => 'cell_value'
+                        ]);
+                    } else {
+                        // Default atau error value
+                        $formulaText = '0';
+                        \Log::info("⚠️ FORMULA using default", [
+                            'row' => $currentRowNum,
+                            'column' => $formulaColumnLetter,
+                            'reason' => $formulaCellValue && strpos($formulaCellValue, '#') === 0 ? 'error_value_ignored' : 'empty_cell',
+                            'error_value' => $formulaCellValue && strpos($formulaCellValue, '#') === 0 ? $formulaCellValue : null,
+                            'default_formula' => '0'
+                        ]);
+                    }
+                }
+
+                if (!$variabelText) {
+                    continue;
+                }
+
+                // ✅ Build data item dengan kondisi field HANYA jika benar-benar ada value
+                $dataItem = [
+                    'row' => $currentRowNum,
+                    'variabel' => $variabelText,
+                    'formula' => $formulaText,
+                    'type' => 'variabel_data'
+                ];
+
+                // ✅ CRITICAL: Hanya tambahkan kondisi jika benar-benar ada VALUE (bukan error, bukan kosong)
+                if ($kondisiText !== null && $kondisiText !== '') {
+                    $dataItem['kondisi'] = $kondisiText;
+                    \Log::info("✅ INFO data item created WITH kondisi", [
+                        'row' => $currentRowNum,
+                        'variabel' => $variabelText,
+                        'kondisi' => $kondisiText,
+                        'formula' => $formulaText
+                    ]);
+                } else {
+                    \Log::info("✅ INFO data item created WITHOUT kondisi (empty/error/invalid)", [
+                        'row' => $currentRowNum,
+                        'variabel' => $variabelText,
+                        'formula' => $formulaText
+                    ]);
+                }
+
+                $dataBelow[] = $dataItem;
+            }
+
+            $section['data_below'] = $dataBelow;
+            $section['data_count'] = count($dataBelow);
+            $section['column_structure'] = [
+                'variabel_column' => $variabelColumnLetter,
+                'kondisi_column' => $kondisiColumnLetter,
+                'formula_column' => $formulaColumnLetter,
+                'three_column_structure' => true
+            ];
+
+            \Log::info("✅ INFO section completed", [
+                'info_cell' => $infoColumnLetter . $infoRow,
+                'data_count' => count($dataBelow),
+                'sample_data' => array_slice($dataBelow, 0, 2)
+            ]);
+        }
+
+        return $infoSections;
+    }
+
+    private function getCellFormula($cell)
+    {
+        try {
+            if ($cell->getUserEnteredValue()) {
+                $userValue = $cell->getUserEnteredValue();
+
+                if ($userValue->getFormulaValue()) {
+                    return $userValue->getFormulaValue();
+                }
+            }
+
+            $formattedValue = $cell->getFormattedValue();
+            if ($formattedValue && strpos($formattedValue, '=') === 0) {
+                return $formattedValue;
+            }
+
+            return null;
+
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
     private function columnLetterToIndex($column)
     {
         $column = strtoupper($column);
@@ -1110,9 +1708,291 @@ class LkpsImportController extends Controller
         return $result;
     }
 
-    /**
-     * Convert column index to letter (1=A, 2=B, 26=Z, 27=AA, etc.)
-     */
+    public function debugMagentaDetection(Request $request)
+    {
+        try {
+            $tableRef = $request->input('table_ref', '1-1');
+            $sheetName = $this->sheetNamesMap[$tableRef] ?? $tableRef;
+            $maxRows = $request->input('max_rows', 50);
+            $showAllColored = $request->input('show_all_colored', false);
+
+            $rangeToCheck = $sheetName . '!A1:Z' . $maxRows;
+            $response = $this->service->spreadsheets->get($this->spreadsheetId, [
+                'includeGridData' => true,
+                'ranges' => $rangeToCheck
+            ]);
+
+            $sheets = $response->getSheets();
+            if (!$sheets || empty($sheets[0]->getData())) {
+                return response()->json(['error' => 'No data found']);
+            }
+
+            $data = $sheets[0]->getData()[0];
+            $rowData = $data->getRowData();
+
+            $magentaCells = [];
+            $infoCells = [];
+            $orangeCells = [];
+            $kondisiCells = [];
+            $allColoredCells = [];
+            $colorDistribution = [];
+
+            $magentaColorTolerance = 0.05;
+            $orangeColorTolerance = 0.1;
+
+            $isSimilarColor = function ($color1, $color2, $tolerance) {
+                if (!isset($color1['red']) || !isset($color2['red'])) {
+                    \Log::info("debugMagentaDetection - isSimilarColor - Missing color components", ['color1' => $color1, 'color2' => $color2]);
+                    return false;
+                }
+
+                $differences = [];
+                $isMatch = true;
+
+                foreach (['red', 'green', 'blue'] as $component) {
+                    $val1 = $color1[$component] ?? 0;
+                    $val2 = $color2[$component] ?? 0;
+                    $diff = abs($val1 - $val2);
+                    $differences[$component] = $diff;
+
+                    if ($diff > $tolerance) {
+                        $isMatch = false;
+                    }
+                }
+
+                if ($color1['red'] > 0.9 && $color1['blue'] > 0.9 && $color1['green'] < 0.1) {
+                    \Log::info("debugMagentaDetection - Magenta color comparison", ['color1' => $color1, 'color2' => $color2, 'target_magenta' => $this->magentaColorRGB, 'tolerance' => $tolerance, 'differences' => $differences, 'is_match' => $isMatch]);
+                }
+
+                if ($color1['red'] > 0.8 && $color1['green'] > 0.4 && $color1['green'] < 0.8 && $color1['blue'] < 0.2) {
+                    \Log::info("debugMagentaDetection - Orange color comparison", ['color1' => $color1, 'color2_orange1' => $this->orangeColorRGB, 'color2_orange2' => $this->orangeColorRGB2, 'tolerance' => $tolerance, 'differences' => $differences, 'is_match' => $isMatch]);
+                }
+
+                return $isMatch;
+            };
+
+            $toHex = function ($rgb) {
+                return sprintf(
+                    "#%02x%02x%02x",
+                    (int) ($rgb['red'] * 255),
+                    (int) ($rgb['green'] * 255),
+                    (int) ($rgb['blue'] * 255)
+                );
+            };
+
+            foreach ($rowData as $rowIndex => $row) {
+                if (!$row->getValues())
+                    continue;
+
+                $currentRow = $rowIndex + 1;
+
+                foreach ($row->getValues() as $colIndex => $cell) {
+                    if (!$cell)
+                        continue;
+
+                    $effectiveFormat = $cell->getEffectiveFormat();
+                    if (!$effectiveFormat)
+                        continue;
+
+                    $backgroundColor = $effectiveFormat->getBackgroundColor();
+                    if (!$backgroundColor)
+                        continue;
+
+                    $cellColor = [
+                        'red' => $backgroundColor->getRed() ?? 0,
+                        'green' => $backgroundColor->getGreen() ?? 0,
+                        'blue' => $backgroundColor->getBlue() ?? 0
+                    ];
+
+                    $value = $this->getCellValue($cell);
+                    $columnLetter = $this->columnIndexToLetter($colIndex + 1);
+                    $colorHex = $toHex($cellColor);
+
+                    if (!isset($colorDistribution[$colorHex])) {
+                        $colorDistribution[$colorHex] = [
+                            'count' => 0,
+                            'color_rgb' => $cellColor,
+                            'sample_cells' => []
+                        ];
+                    }
+                    $colorDistribution[$colorHex]['count']++;
+
+                    if (count($colorDistribution[$colorHex]['sample_cells']) < 3) {
+                        $colorDistribution[$colorHex]['sample_cells'][] = [
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value
+                        ];
+                    }
+
+                    $isMagentaColor = $isSimilarColor($cellColor, $this->magentaColorRGB, $magentaColorTolerance);
+
+                    if ($isMagentaColor) {
+                        \Log::info("debugMagentaDetection - ✅ MAGENTA DETECTED", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $colorHex, 'color_rgb' => $cellColor, 'target_rgb' => $this->magentaColorRGB]);
+
+                        $magentaCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value,
+                            'color' => $colorHex,
+                            'rgb_actual' => $cellColor,
+                            'detection_method' => 'color_match'
+                        ];
+                    }
+
+                    $isOrangeColor1 = $isSimilarColor($cellColor, $this->orangeColorRGB, $orangeColorTolerance);
+                    $isOrangeColor2 = $isSimilarColor($cellColor, $this->orangeColorRGB2, $orangeColorTolerance);
+                    $isOrangeColor = $isOrangeColor1 || $isOrangeColor2;
+
+                    if ($isOrangeColor) {
+                        \Log::info("debugMagentaDetection - ✅ ORANGE DETECTED", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $colorHex, 'color_rgb' => $cellColor, 'target_rgb1' => $this->orangeColorRGB, 'target_rgb2' => $this->orangeColorRGB2]);
+
+                        $orangeCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value,
+                            'color' => $colorHex,
+                            'rgb_actual' => $cellColor,
+                            'detection_method' => 'color_match'
+                        ];
+                    }
+
+                    if ($value && strtoupper(trim($value)) === 'INFO') {
+                        $infoCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value,
+                            'color' => $colorHex,
+                            'rgb_actual' => $cellColor,
+                            'detection_method' => 'text_only'
+                        ];
+
+                        if (!$isMagentaColor) {
+                            \Log::info("debugMagentaDetection - Force adding INFO cell to magenta cells (text detection)", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $colorHex]);
+
+                            $magentaCells[] = [
+                                'row' => $currentRow,
+                                'column' => $columnLetter,
+                                'cell' => $columnLetter . $currentRow,
+                                'value' => $value,
+                                'color' => $colorHex,
+                                'rgb_actual' => $cellColor,
+                                'detection_method' => 'text_fallback'
+                            ];
+                        }
+                    }
+
+                    if ($value && strtoupper(trim($value)) === 'KONDISI') {
+                        $kondisiCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value,
+                            'color' => $colorHex,
+                            'rgb_actual' => $cellColor,
+                            'detection_method' => 'text_only'
+                        ];
+
+                        if (!$isOrangeColor) {
+                            \Log::info("debugMagentaDetection - Force adding KONDISI cell to orange cells (text detection)", ['cell' => $columnLetter . $currentRow, 'value' => $value, 'color' => $colorHex]);
+
+                            $orangeCells[] = [
+                                'row' => $currentRow,
+                                'column' => $columnLetter,
+                                'cell' => $columnLetter . $currentRow,
+                                'value' => $value,
+                                'color' => $colorHex,
+                                'rgb_actual' => $cellColor,
+                                'detection_method' => 'text_fallback'
+                            ];
+                        }
+                    }
+
+                    if ($cellColor['red'] < 0.95 || $cellColor['green'] < 0.95 || $cellColor['blue'] < 0.95) {
+                        $allColoredCells[] = [
+                            'row' => $currentRow,
+                            'column' => $columnLetter,
+                            'cell' => $columnLetter . $currentRow,
+                            'value' => $value,
+                            'color_hex' => $colorHex,
+                            'color_rgb' => $cellColor,
+                            'is_magenta' => $isMagentaColor,
+                            'is_orange' => $isOrangeColor,
+                            'is_info_text' => ($value && strtoupper(trim($value)) === 'INFO'),
+                            'is_kondisi_text' => ($value && strtoupper(trim($value)) === 'KONDISI')
+                        ];
+                    }
+                }
+            }
+
+            uasort($colorDistribution, function ($a, $b) {
+                return $b['count'] - $a['count'];
+            });
+
+            $potentialMagentaColors = [];
+            $potentialOrangeColors = [];
+
+            foreach ($colorDistribution as $hex => $colorInfo) {
+                $rgb = $colorInfo['color_rgb'];
+
+                if ($rgb['red'] > 0.5 && $rgb['blue'] > 0.5 && $rgb['green'] < $rgb['red'] && $rgb['green'] < $rgb['blue']) {
+                    $potentialMagentaColors[$hex] = $colorInfo;
+                }
+
+                if ($rgb['red'] > 0.7 && $rgb['green'] > 0.3 && $rgb['green'] < 0.8 && $rgb['blue'] < 0.3) {
+                    $potentialOrangeColors[$hex] = $colorInfo;
+                }
+            }
+
+            return response()->json([
+                'sheet_name' => $sheetName,
+                'table_ref' => $tableRef,
+                'rows_scanned' => count($rowData),
+                'target_magenta_color' => $this->magentaColorRGB,
+                'target_magenta_hex' => $toHex($this->magentaColorRGB),
+                'target_orange_color1' => $this->orangeColorRGB,
+                'target_orange_color2' => $this->orangeColorRGB2,
+                'target_orange_hex1' => $toHex($this->orangeColorRGB),
+                'target_orange_hex2' => $toHex($this->orangeColorRGB2),
+                'tolerance' => $magentaColorTolerance,
+                'total_colored_cells' => count($allColoredCells),
+                'unique_colors_found' => count($colorDistribution),
+                'color_distribution' => array_slice($colorDistribution, 0, 10),
+                'potential_magenta_colors' => $potentialMagentaColors,
+                'potential_orange_colors' => $potentialOrangeColors,
+                'magenta_cells_count' => count($magentaCells),
+                'magenta_cells' => $magentaCells,
+                'info_cells_count' => count($infoCells),
+                'info_cells' => $infoCells,
+                'orange_cells_count' => count($orangeCells),
+                'orange_cells' => $orangeCells,
+                'kondisi_cells_count' => count($kondisiCells),
+                'kondisi_cells' => $kondisiCells,
+                'all_colored_cells' => $showAllColored ? $allColoredCells : array_slice($allColoredCells, 0, 50),
+                'debug_notes' => [
+                    'target_magenta_color' => $toHex($this->magentaColorRGB) . ' (magenta)',
+                    'target_orange_colors' => $toHex($this->orangeColorRGB) . ' and ' . $toHex($this->orangeColorRGB2) . ' (orange variants)',
+                    'tolerance_used' => $magentaColorTolerance,
+                    'looking_for' => 'Cells with exact text "INFO" in magenta color and "KONDISI" in orange color',
+                    'rows_scanned' => "Scanned rows 1-{$maxRows}",
+                    'potential_magenta_found' => count($potentialMagentaColors) . ' colors with magenta characteristics',
+                    'potential_orange_found' => count($potentialOrangeColors) . ' colors with orange characteristics',
+                    'exact_magenta_match_found' => array_key_exists('#ff00ff', $colorDistribution) ? 'YES' : 'NO',
+                    'exact_orange_match_found' => (array_key_exists('#ff9900', $colorDistribution) || array_key_exists('#f69804', $colorDistribution)) ? 'YES' : 'NO',
+                    'detection_logic' => 'Using SAME logic as getColoredCellsBySheetName for both INFO and KONDISI detection'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
     private function columnIndexToLetter($index)
     {
         $result = '';

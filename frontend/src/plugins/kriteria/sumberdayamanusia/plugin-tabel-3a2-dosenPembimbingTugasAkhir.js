@@ -1,6 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 
 export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
   constructor() {
@@ -23,311 +22,334 @@ export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
   }
 
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    const result = await super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
 
-    if (rawData.length === 0) return { allRows: [] }
-
-    const filteredData = PluginUtils.filterDataRows(rawData)
-
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-      }
-
-      Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
-        if (colIndex === undefined || colIndex < 0) return
-
-        const value = row[colIndex]
-
-        // Text fields
-        if (
-          fieldName === "nama_dosen_2" ||
-          fieldName === "nomor_sk_penugasan_pembimbing_ts_2" ||
-          fieldName === "nomor_sk_penugasan_pembimbing_ts_1" ||
-          fieldName === "nomor_sk_penugasan_pembimbing_ts"
-        ) {
-          item[fieldName] = PluginUtils.normalizeTextField(value)
-        }
-        // Numeric fields including calculated fields
-        else if (
-          [
-            "pada_ps_yang_diakreditasi_3_ts_2",
-            "pada_ps_yang_diakreditasi_3_ts_1",
-            "pada_ps_yang_diakreditasi_3_ts",
-            "pada_ps_lain_di_pt_4_ts_2",
-            "pada_ps_lain_di_pt_4_ts_1",
-            "pada_ps_lain_di_pt_4_ts",
-            // ADD: Include calculated fields
-            "pada_ps_yang_diakreditasi_3_rata_rata",
-            "pada_ps_lain_di_pt_4_rata_rata",
-            "rata_rata_jumlah_bimbingan_di_semua_program_semester_5",
-          ].includes(fieldName)
-        ) {
-          // Parse and format numeric fields to 2 decimal places
-          const numValue = PluginUtils.parseNumber(value, 0)
-          item[fieldName] = parseFloat(PluginUtils.formatNumber(numValue, 2))
-        }
-        // Special handling for 'no' field as integer
-        else if (fieldName === "no") {
-          item[fieldName] = PluginUtils.parseInt(value, 0)
-        } else {
-          item[fieldName] = PluginUtils.normalizeTextField(value)
-        }
-      })
-
-      return item
-    })
-
-    return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+    // ✅ Recalculate setelah processing Excel data
+    if (result && result.allRows) {
+      result.allRows = result.allRows.map((item) => this.recalculateRow(item))
     }
+
+    return result
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    let RDPU = 0
-    let index = 0
-    let totalAverageFinalProjectSupervisor = 0
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    // Fungsi pengecekan isi field
-    data.forEach((item) => {
-      const value = item.rata_rata_jumlah_bimbingan_di_semua_program_semester_5
-      if (
-        value !== null &&
-        value !== undefined &&
-        value !== "" &&
-        value !== 0
-      ) {
-        index += 1
-        totalAverageFinalProjectSupervisor += parseFloat(value)
-      }
-    })
-
-    RDPU = index > 0 ? totalAverageFinalProjectSupervisor / index : 0
-
-    // Hitung skor
-    let score = 0
-    if (RDPU <= 6) {
-      score = 4
-    } else if (RDPU > 6 && RDPU <= 10) {
-      score = 7 - RDPU / 2
+    if (fieldLower.includes("sk") && fieldLower.includes("ts")) {
+      return "text"
     }
 
-    console.log("Hasil RDPU:", RDPU)
-    console.log("Score:", score)
+    // Number fields for guidance counts
+    if (
+      fieldLower.includes("ts_2") ||
+      fieldLower.includes("ts_1") ||
+      fieldLower.includes("ts") ||
+      fieldLower.includes("rata_rata") ||
+      fieldLower.includes("jumlah") ||
+      fieldLower.includes("pada_ps") ||
+      fieldLower.includes("ps_yang_diakreditasi") ||
+      fieldLower.includes("ps_lain")
+    ) {
+      return "formatted_number"
+    }
 
-    return {
-      scores: [
-        {
-          butir: 21,
-          nilai: parseFloat(PluginUtils.formatNumber(score, 2)),
-        },
+    return super.detectFieldType(fieldName, value)
+  }
+
+  // ✅ Dynamic field mapping yang lebih robust
+  getFieldNames(item) {
+    const fields = Object.keys(item)
+    console.log("Available fields:", fields)
+
+    const fieldMapping = {
+      nama_dosen: null,
+      // TS-2 fields
+      ps_diakreditasi_ts2: null,
+      ps_lain_ts2: null,
+      sk_ts2: null,
+      // TS-1 fields
+      ps_diakreditasi_ts1: null,
+      ps_lain_ts1: null,
+      sk_ts1: null,
+      // TS fields
+      ps_diakreditasi_ts: null,
+      ps_lain_ts: null,
+      sk_ts: null,
+      // Average fields
+      ps_diakreditasi_avg: null,
+      ps_lain_avg: null,
+      total_average: null,
+    }
+
+    // ✅ Pattern-based field detection
+    const patterns = {
+      nama_dosen: [/^.*nama.*dosen.*$/i, /^.*nama.*$/i, /^.*dosen.*$/i],
+      // TS-2 patterns
+      ps_diakreditasi_ts2: [
+        /^.*ps.*diakreditasi.*ts[-_]?2.*$/i,
+        /^.*yang.*diakreditasi.*ts[-_]?2.*$/i,
+        /^.*ps_yang_diakreditasi.*ts_2.*$/i,
       ],
-      scoreDetail: {
-        RDPU: parseFloat(PluginUtils.formatNumber(RDPU, 2)),
-      },
+      ps_lain_ts2: [/^.*ps.*lain.*ts[-_]?2.*$/i, /^.*lain.*ts[-_]?2.*$/i],
+      sk_ts2: [/^.*sk.*ts[-_]?2.*$/i, /^.*nomor.*sk.*ts[-_]?2.*$/i],
+      // TS-1 patterns
+      ps_diakreditasi_ts1: [
+        /^.*ps.*diakreditasi.*ts[-_]?1.*$/i,
+        /^.*yang.*diakreditasi.*ts[-_]?1.*$/i,
+        /^.*ps_yang_diakreditasi.*ts_1.*$/i,
+      ],
+      ps_lain_ts1: [/^.*ps.*lain.*ts[-_]?1.*$/i, /^.*lain.*ts[-_]?1.*$/i],
+      sk_ts1: [/^.*sk.*ts[-_]?1.*$/i, /^.*nomor.*sk.*ts[-_]?1.*$/i],
+      // TS patterns (current year)
+      ps_diakreditasi_ts: [
+        /^.*ps.*diakreditasi.*ts$/i,
+        /^.*yang.*diakreditasi.*ts$/i,
+      ],
+      ps_lain_ts: [/^.*ps.*lain.*ts$/i, /^.*lain.*ts$/i],
+      sk_ts: [/^.*sk.*ts$/i, /^.*nomor.*sk.*ts$/i],
+      // Average patterns
+      ps_diakreditasi_avg: [
+        /^.*ps.*diakreditasi.*rata.*rata.*$/i,
+        /^.*yang.*diakreditasi.*rata.*rata.*$/i,
+        /^.*rata.*rata.*ps.*diakreditasi.*$/i,
+      ],
+      ps_lain_avg: [
+        /^.*ps.*lain.*rata.*rata.*$/i,
+        /^.*lain.*rata.*rata.*$/i,
+        /^.*rata.*rata.*ps.*lain.*$/i,
+      ],
+      total_average: [
+        /^.*rata.*rata.*jumlah.*$/i,
+        /^.*jumlah.*rata.*rata.*$/i,
+        /^.*rata.*rata.*semua.*$/i,
+        /^.*total.*rata.*rata.*$/i,
+        /^.*rata.*rata.*total.*$/i,
+      ],
     }
+
+    // ✅ Find fields using patterns dengan prioritas
+    for (const [fieldType, regexList] of Object.entries(patterns)) {
+      for (const regex of regexList) {
+        const matchedField = fields.find((field) => regex.test(field))
+
+        if (matchedField) {
+          fieldMapping[fieldType] = matchedField
+          break // Gunakan yang pertama ditemukan
+        }
+      }
+    }
+
+    // ✅ Fallback ke default names jika tidak ditemukan
+    const result = {
+      nama_dosen: fieldMapping.nama_dosen || "nama_dosen",
+      // TS-2
+      ps_diakreditasi_ts2:
+        fieldMapping.ps_diakreditasi_ts2 || "ps_yang_diakreditasi_ts_2",
+      ps_lain_ts2: fieldMapping.ps_lain_ts2 || "ps_lain_di_pt_ts_2",
+      sk_ts2: fieldMapping.sk_ts2 || "nomor_sk_ts_2",
+      // TS-1
+      ps_diakreditasi_ts1:
+        fieldMapping.ps_diakreditasi_ts1 || "ps_yang_diakreditasi_ts_1",
+      ps_lain_ts1: fieldMapping.ps_lain_ts1 || "ps_lain_di_pt_ts_1",
+      sk_ts1: fieldMapping.sk_ts1 || "nomor_sk_ts_1",
+      // TS
+      ps_diakreditasi_ts:
+        fieldMapping.ps_diakreditasi_ts || "ps_yang_diakreditasi_ts",
+      ps_lain_ts: fieldMapping.ps_lain_ts || "ps_lain_di_pt_ts",
+      sk_ts: fieldMapping.sk_ts || "nomor_sk_ts",
+      // Averages
+      ps_diakreditasi_avg:
+        fieldMapping.ps_diakreditasi_avg || "rata_rata_ps_yang_diakreditasi",
+      ps_lain_avg: fieldMapping.ps_lain_avg || "rata_rata_ps_lain_di_pt",
+      total_average:
+        fieldMapping.total_average ||
+        "rata_rata_jumlah_bimbingan_pada_semua_program",
+    }
+
+    console.log("Field mapping result:", result)
+    console.log("Field existence check:", {
+      nama_dosen: item.hasOwnProperty(result.nama_dosen),
+      ps_diakreditasi_ts2: item.hasOwnProperty(result.ps_diakreditasi_ts2),
+      ps_diakreditasi_avg: item.hasOwnProperty(result.ps_diakreditasi_avg),
+      total_average: item.hasOwnProperty(result.total_average),
+    })
+
+    return result
   }
 
-  /**
-   * Define calculated fields and their formulas
-   * @returns {Object} - Map of field names to calculation functions
-   */
-  getCalculatedFields() {
-    return {
-      // Average for PS yang diakreditasi (columns from TS-2, TS-1, TS)
-      pada_ps_yang_diakreditasi_3_rata_rata: (row) => {
-        const ts2 = PluginUtils.parseNumber(
-          row.pada_ps_yang_diakreditasi_3_ts_2,
-          0
-        )
-        const ts1 = PluginUtils.parseNumber(
-          row.pada_ps_yang_diakreditasi_3_ts_1,
-          0
-        )
-        const ts = PluginUtils.parseNumber(
-          row.pada_ps_yang_diakreditasi_3_ts,
-          0
-        )
-        const average = (ts2 + ts1 + ts) / 3
-        return parseFloat(PluginUtils.formatNumber(average, 2))
-      },
-
-      // Average for PS lain di PT (columns from TS-2, TS-1, TS)
-      pada_ps_lain_di_pt_4_rata_rata: (row) => {
-        const ts2 = PluginUtils.parseNumber(row.pada_ps_lain_di_pt_4_ts_2, 0)
-        const ts1 = PluginUtils.parseNumber(row.pada_ps_lain_di_pt_4_ts_1, 0)
-        const ts = PluginUtils.parseNumber(row.pada_ps_lain_di_pt_4_ts, 0)
-        const average = (ts2 + ts1 + ts) / 3
-        return parseFloat(PluginUtils.formatNumber(average, 2))
-      },
-
-      // Total average across both PS types
-      rata_rata_jumlah_bimbingan_di_semua_program_semester_5: (row) => {
-        const avgPS = PluginUtils.parseNumber(
-          row.pada_ps_yang_diakreditasi_3_rata_rata,
-          0
-        )
-        const avgOther = PluginUtils.parseNumber(
-          row.pada_ps_lain_di_pt_4_rata_rata,
-          0
-        )
-        const totalAverage = avgPS + avgOther
-        return parseFloat(PluginUtils.formatNumber(totalAverage, 2))
-      },
-    }
-  }
-
-  /**
-   * Recalculate all calculated fields for a row
-   * @param {Object} row - Data row
-   * @returns {Object} - Updated row with calculated values
-   */
+  // ✅ Enhanced Dynamic row recalculation
   recalculateRow(row) {
-    const calculatedFields = this.getCalculatedFields()
+    const fields = this.getFieldNames(row)
     const updatedRow = { ...row }
 
-    Object.entries(calculatedFields).forEach(([fieldName, calcFunction]) => {
-      updatedRow[fieldName] = calcFunction(updatedRow)
+    // ✅ Calculate rata-rata PS yang diakreditasi
+    const ts2_ps = parseFloat(row[fields.ps_diakreditasi_ts2]) || 0
+    const ts1_ps = parseFloat(row[fields.ps_diakreditasi_ts1]) || 0
+    const ts_ps = parseFloat(row[fields.ps_diakreditasi_ts]) || 0
+    const avg_ps = (ts2_ps + ts1_ps + ts_ps) / 3
+
+    // ✅ Calculate rata-rata PS lain
+    const ts2_lain = parseFloat(row[fields.ps_lain_ts2]) || 0
+    const ts1_lain = parseFloat(row[fields.ps_lain_ts1]) || 0
+    const ts_lain = parseFloat(row[fields.ps_lain_ts]) || 0
+    const avg_lain = (ts2_lain + ts1_lain + ts_lain) / 3
+
+    // ✅ Calculate total average
+    const total_avg = (avg_ps + avg_lain) / 2
+
+    // Update calculated fields
+    updatedRow[fields.ps_diakreditasi_avg] = parseFloat(avg_ps.toFixed(2))
+    updatedRow[fields.ps_lain_avg] = parseFloat(avg_lain.toFixed(2))
+    updatedRow[fields.total_average] = parseFloat(total_avg.toFixed(2))
+
+    console.log(`Recalculating row:`, {
+      fields,
+      values: {
+        ps_values: { ts2_ps, ts1_ps, ts_ps, avg_ps },
+        lain_values: { ts2_lain, ts1_lain, ts_lain, avg_lain },
+        total_avg,
+      },
+      before: {
+        ps_avg: row[fields.ps_diakreditasi_avg],
+        lain_avg: row[fields.ps_lain_avg],
+        total: row[fields.total_average],
+      },
+      after: {
+        ps_avg: updatedRow[fields.ps_diakreditasi_avg],
+        lain_avg: updatedRow[fields.ps_lain_avg],
+        total: updatedRow[fields.total_average],
+      },
     })
 
     return updatedRow
   }
 
-  /**
-   * Update all calculated fields in the dataset
-   * @param {Array} data - Array of data rows
-   * @returns {Array} - Updated data with calculated fields
-   */
-  recalculateData(data) {
-    if (!Array.isArray(data)) return []
-    return data.map((row) => this.recalculateRow(row))
-  }
-
-  // Override the normalizeData method to include calculations
+  // ✅ Dynamic normalization dengan recalculation
   normalizeData(data) {
-    // First apply standard normalization
-    const normalizedData = super.normalizeData
-      ? super.normalizeData(data)
-      : data.map((item) => {
-          const result = { ...item }
+    if (!Array.isArray(data)) return []
 
-          // Numeric fields that should be formatted to 2 decimal places
-          const numericFields = [
-            "pada_ps_yang_diakreditasi_3_ts_2",
-            "pada_ps_yang_diakreditasi_3_ts_1",
-            "pada_ps_yang_diakreditasi_3_ts",
-            "pada_ps_lain_di_pt_4_ts_2",
-            "pada_ps_lain_di_pt_4_ts_1",
-            "pada_ps_lain_di_pt_4_ts",
-            // ADD: Include calculated fields for normalization too
-            "pada_ps_yang_diakreditasi_3_rata_rata",
-            "pada_ps_lain_di_pt_4_rata_rata",
-            "rata_rata_jumlah_bimbingan_di_semua_program_semester_5",
-          ]
+    const normalizedData = data.map((item, index) => {
+      const result = {
+        ...item,
+        id: item.id || `row-${Math.random().toString(36).substring(2, 9)}`,
+        key: item.key || `row-${Math.random().toString(36).substring(2, 9)}`,
+        no: index + 1,
+      }
 
-          // Text fields
-          const textFields = [
-            "nama_dosen_2",
-            "nomor_sk_penugasan_pembimbing_ts_2",
-            "nomor_sk_penugasan_pembimbing_ts_1",
-            "nomor_sk_penugasan_pembimbing_ts",
-          ]
+      const fields = this.getFieldNames(result)
 
-          // Process text fields
-          textFields.forEach((field) => {
-            if (result[field] !== undefined) {
-              result[field] = PluginUtils.normalizeTextField(result[field])
-            }
-          })
+      // Convert numeric fields
+      const numericFields = [
+        fields.ps_diakreditasi_ts2,
+        fields.ps_diakreditasi_ts1,
+        fields.ps_diakreditasi_ts,
+        fields.ps_lain_ts2,
+        fields.ps_lain_ts1,
+        fields.ps_lain_ts,
+      ]
 
-          // Process numeric fields with formatting
-          numericFields.forEach((field) => {
-            if (result[field] !== undefined) {
-              const numValue = PluginUtils.parseNumber(result[field], 0)
-              result[field] = parseFloat(PluginUtils.formatNumber(numValue, 2))
-            }
-          })
+      numericFields.forEach((field) => {
+        if (field && result[field] !== undefined) {
+          result[field] = parseFloat(result[field]) || 0
+        }
+      })
 
-          // Handle 'no' field as integer
-          if (result.no !== undefined) {
-            result.no = PluginUtils.parseInt(result.no, 0)
-          }
+      return result
+    })
 
-          return result
-        })
-
-    // Apply calculations after normalization
-    return this.recalculateData(normalizedData)
+    // ✅ Recalculate semua rows setelah normalization
+    return normalizedData.map((row) => this.recalculateRow(row))
   }
 
+  // ✅ Dynamic validation dengan auto-correction
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      // Daftar field wajib isi
-      if (!item.nama_dosen_2) {
+      const fields = this.getFieldNames(item)
+
+      // Check required fields
+      if (
+        !item[fields.nama_dosen] ||
+        String(item[fields.nama_dosen]).trim() === ""
+      ) {
         errors.push(`Row ${index + 1}: Nama dosen harus diisi`)
       }
-      if (!item.nomor_sk_penugasan_pembimbing_ts_2) {
-        errors.push(`Row ${index + 1}: Nomor SK TS-2 harus diisi`)
-      }
-      if (!item.nomor_sk_penugasan_pembimbing_ts_1) {
-        errors.push(`Row ${index + 1}: Nomor SK TS-1 harus diisi`)
-      }
-      if (!item.nomor_sk_penugasan_pembimbing_ts) {
-        errors.push(`Row ${index + 1}: Nomor SK TS harus diisi`)
-      }
 
-      // Helper untuk cek jumlah mahasiswa dibimbing dengan increased tolerance
-      const validateJumlahMahasiswa = (rataRata, ts2, ts1, ts) => {
-        const tolerance = 0.01 // Increased tolerance for floating point precision
-        const total =
-          PluginUtils.parseNumber(ts2, 0) +
-          PluginUtils.parseNumber(ts1, 0) +
-          PluginUtils.parseNumber(ts, 0)
-        const expectedAvg = total / 3
-        const actualAvg = PluginUtils.parseNumber(rataRata, 0)
-        return Math.abs(actualAvg - expectedAvg) <= tolerance
-      }
+      // Validate numeric fields
+      const numericFields = [
+        { field: fields.ps_diakreditasi_ts2, label: "PS Diakreditasi TS-2" },
+        { field: fields.ps_diakreditasi_ts1, label: "PS Diakreditasi TS-1" },
+        { field: fields.ps_diakreditasi_ts, label: "PS Diakreditasi TS" },
+        { field: fields.ps_lain_ts2, label: "PS Lain TS-2" },
+        { field: fields.ps_lain_ts1, label: "PS Lain TS-1" },
+        { field: fields.ps_lain_ts, label: "PS Lain TS" },
+      ]
 
-      // Validasi PS yang diakreditasi
-      if (
-        !validateJumlahMahasiswa(
-          item.pada_ps_yang_diakreditasi_3_rata_rata,
-          item.pada_ps_yang_diakreditasi_3_ts_2,
-          item.pada_ps_yang_diakreditasi_3_ts_1,
-          item.pada_ps_yang_diakreditasi_3_ts
-        )
-      ) {
-        errors.push(
+      numericFields.forEach(({ field, label }) => {
+        if (field && item[field] !== undefined) {
+          const num = parseFloat(item[field])
+          if (isNaN(num) || num < 0) {
+            errors.push(`Row ${index + 1}: ${label} harus berupa angka >= 0`)
+          }
+        }
+      })
+
+      // ✅ Auto-recalculate averages if needed
+      const ts2_ps = parseFloat(item[fields.ps_diakreditasi_ts2]) || 0
+      const ts1_ps = parseFloat(item[fields.ps_diakreditasi_ts1]) || 0
+      const ts_ps = parseFloat(item[fields.ps_diakreditasi_ts]) || 0
+      const expectedAvgPS = (ts2_ps + ts1_ps + ts_ps) / 3
+
+      const ts2_lain = parseFloat(item[fields.ps_lain_ts2]) || 0
+      const ts1_lain = parseFloat(item[fields.ps_lain_ts1]) || 0
+      const ts_lain = parseFloat(item[fields.ps_lain_ts]) || 0
+      const expectedAvgLain = (ts2_lain + ts1_lain + ts_lain) / 3
+
+      const expectedTotal = expectedAvgPS + expectedAvgLain
+
+      const actualAvgPS = parseFloat(item[fields.ps_diakreditasi_avg]) || 0
+      const actualAvgLain = parseFloat(item[fields.ps_lain_avg]) || 0
+      const actualTotal = parseFloat(item[fields.total_average]) || 0
+
+      // Auto-correct if differences found
+      if (Math.abs(expectedAvgPS - actualAvgPS) > 0.01) {
+        console.log(
           `Row ${
             index + 1
-          }: Rata-rata PS yang diakreditasi tidak sesuai dengan data TS`
+          }: Auto-correcting PS average from ${actualAvgPS} to ${expectedAvgPS.toFixed(
+            2
+          )}`
         )
+        item[fields.ps_diakreditasi_avg] = parseFloat(expectedAvgPS.toFixed(2))
       }
 
-      // Validasi PS lain di PT
-      if (
-        !validateJumlahMahasiswa(
-          item.pada_ps_lain_di_pt_4_rata_rata,
-          item.pada_ps_lain_di_pt_4_ts_2,
-          item.pada_ps_lain_di_pt_4_ts_1,
-          item.pada_ps_lain_di_pt_4_ts
-        )
-      ) {
-        errors.push(
+      if (Math.abs(expectedAvgLain - actualAvgLain) > 0.01) {
+        console.log(
           `Row ${
             index + 1
-          }: Rata-rata PS lain di PT tidak sesuai dengan data TS`
+          }: Auto-correcting PS Lain average from ${actualAvgLain} to ${expectedAvgLain.toFixed(
+            2
+          )}`
         )
+        item[fields.ps_lain_avg] = parseFloat(expectedAvgLain.toFixed(2))
+      }
+
+      if (Math.abs(expectedTotal - actualTotal) > 0.01) {
+        console.log(
+          `Row ${
+            index + 1
+          }: Auto-correcting total average from ${actualTotal} to ${expectedTotal.toFixed(
+            2
+          )}`
+        )
+        item[fields.total_average] = parseFloat(expectedTotal.toFixed(2))
       }
     })
 
@@ -336,11 +358,22 @@ export class DosenPembimbingTugasAkhirPlugin extends BasePlugin {
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
-// Export as named export
 export const dosenPembimbingTugasAkhirPlugin =
   new DosenPembimbingTugasAkhirPlugin()
-
-// Export as default for legacy imports
 export default dosenPembimbingTugasAkhirPlugin

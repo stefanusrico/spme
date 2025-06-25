@@ -1,6 +1,4 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
-import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 
 export class PembimbinganTugasAkhirPlugin extends BasePlugin {
   constructor() {
@@ -23,116 +21,117 @@ export class PembimbinganTugasAkhirPlugin extends BasePlugin {
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
+  }
 
-    if (rawData.length === 0) return { allRows: [] }
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
+    // Numeric fields
+    if (
+      fieldLower.includes("ts_2") ||
+      fieldLower.includes("ts_1") ||
+      fieldLower.includes("ts") ||
+      fieldLower.includes("jumlah") ||
+      fieldLower.includes("pertemuan") ||
+      fieldLower.includes("lama") ||
+      fieldLower.includes("bulan")
+    ) {
+      return "number"
+    }
 
-    const processedData = filteredData.map((row, index) => {
-      return {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        nama_dosen_pembimbing: PluginUtils.normalizeTextField(row[1]),
-        strata_pendidikan_status_dosen_pembimbing:
-          PluginUtils.normalizeTextField(row[2]),
-        jabatan_akademik_status_dosen_pembimbing:
-          PluginUtils.normalizeTextField(row[3]),
-        ts_2_jumlah_mahasiswa: PluginUtils.parseNumber(row[4], 0),
-        ts_1_jumlah_mahasiswa: PluginUtils.parseNumber(row[5], 0),
-        ts_jumlah_mahasiswa: PluginUtils.parseNumber(row[6], 0),
-        ts_2_jumlah_pertemuan_dengan_mahasiswa: PluginUtils.parseNumber(
-          row[7],
-          0
-        ),
-        ts_1_jumlah_pertemuan_dengan_mahasiswa: PluginUtils.parseNumber(
-          row[8],
-          0
-        ),
-        ts_jumlah_pertemuan_dengan_mahasiswa: PluginUtils.parseNumber(
-          row[9],
-          0
-        ),
-        ts_2_lama_penyelesaian_tugas_akhir_bulan: PluginUtils.parseNumber(
-          row[10],
-          0
-        ),
-        ts_1_lama_penyelesaian_tugas_akhir_bulan: PluginUtils.parseNumber(
-          row[11],
-          0
-        ),
-        ts_lama_penyelesaian_tugas_akhir_bulan: PluginUtils.parseNumber(
-          row[12],
-          0
-        ),
-      }
-    })
+    return super.detectFieldType(fieldName, value)
+  }
 
+  // ✅ Dynamic field mapping
+  mapPembimbinganFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      nama_dosen: this.findFieldByPattern(sampleItem, [
+        "nama_dosen",
+        "nama",
+        "pembimbing",
+      ]),
+      strata_pendidikan: this.findFieldByPattern(sampleItem, [
+        "strata_pendidikan",
+        "strata",
+        "pendidikan",
+        "status",
+      ]),
+      jabatan_akademik: this.findFieldByPattern(sampleItem, [
+        "jabatan_akademik",
+        "jabatan",
+      ]),
+      ts_2_mahasiswa:
+        this.findFieldByPattern(sampleItem, ["ts_2", "ts-2"]) &&
+        this.findFieldByPattern(sampleItem, ["mahasiswa"]),
+      ts_1_mahasiswa:
+        this.findFieldByPattern(sampleItem, ["ts_1", "ts-1"]) &&
+        this.findFieldByPattern(sampleItem, ["mahasiswa"]),
+      ts_mahasiswa:
+        this.findFieldByPattern(sampleItem, ["ts"]) &&
+        this.findFieldByPattern(sampleItem, ["mahasiswa"]) &&
+        !this.findFieldByPattern(sampleItem, ["ts_1", "ts_2"]),
+      ts_2_pertemuan:
+        this.findFieldByPattern(sampleItem, ["ts_2", "ts-2"]) &&
+        this.findFieldByPattern(sampleItem, ["pertemuan"]),
+      ts_1_pertemuan:
+        this.findFieldByPattern(sampleItem, ["ts_1", "ts-1"]) &&
+        this.findFieldByPattern(sampleItem, ["pertemuan"]),
+      ts_pertemuan:
+        this.findFieldByPattern(sampleItem, ["ts"]) &&
+        this.findFieldByPattern(sampleItem, ["pertemuan"]) &&
+        !this.findFieldByPattern(sampleItem, ["ts_1", "ts_2"]),
+      ts_2_lama_bulan:
+        this.findFieldByPattern(sampleItem, ["ts_2", "ts-2"]) &&
+        this.findFieldByPattern(sampleItem, ["lama", "bulan"]),
+      ts_1_lama_bulan:
+        this.findFieldByPattern(sampleItem, ["ts_1", "ts-1"]) &&
+        this.findFieldByPattern(sampleItem, ["lama", "bulan"]),
+      ts_lama_bulan:
+        this.findFieldByPattern(sampleItem, ["ts"]) &&
+        this.findFieldByPattern(sampleItem, ["lama", "bulan"]) &&
+        !this.findFieldByPattern(sampleItem, ["ts_1", "ts_2"]),
     }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    // TODO: Implement actual scoring logic
-    return {
-      scores: [
-        {
-          butir: 0, // Akan diisi setelah ada aturan scoring
-          nilai: 0,
-        },
-      ],
-      scoreDetail: {},
-    }
-  }
-
+  // ✅ Dynamic normalization
   normalizeData(data) {
-    return data.map((item) => {
+    return data.map((item) => {e
       const result = { ...item }
+      const fieldMap = this.mapPembimbinganFields(result)
 
-      const numericFields = [
-        "ts_2_jumlah_mahasiswa",
-        "ts_1_jumlah_mahasiswa",
-        "ts_jumlah_mahasiswa",
-        "ts_2_jumlah_pertemuan_dengan_mahasiswa",
-        "ts_1_jumlah_pertemuan_dengan_mahasiswa",
-        "ts_jumlah_pertemuan_dengan_mahasiswa",
-        "ts_2_lama_penyelesaian_tugas_akhir_bulan",
-        "ts_1_lama_penyelesaian_tugas_akhir_bulan",
-        "ts_lama_penyelesaian_tugas_akhir_bulan",
-      ]
-
-      const textFields = [
-        "nama_dosen_pembimbing",
-        "strata_pendidikan_status_dosen_pembimbing",
-        "jabatan_akademik_status_dosen_pembimbing",
-      ]
-
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
-      })
-
-      numericFields.forEach((field) => {
-        result[field] = PluginUtils.parseNumber(result[field], 0)
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          const fieldType = this.detectFieldType(fieldName, result[fieldName])
+          result[fieldName] = this.processFieldValue(
+            fieldName,
+            result[fieldName],
+            fieldType
+          )
+        }
       })
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.nama_dosen_pembimbing) {
+      const fieldMap = this.mapPembimbinganFields(item)
+
+      if (fieldMap.nama_dosen && !item[fieldMap.nama_dosen]) {
         errors.push(`Baris ${index + 1}: Nama Dosen Pembimbing harus diisi`)
       }
     })
@@ -142,8 +141,21 @@ export class PembimbinganTugasAkhirPlugin extends BasePlugin {
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
 export const pembimbinganTugasAkhirPlugin = new PembimbinganTugasAkhirPlugin()
-
 export default pembimbinganTugasAkhirPlugin

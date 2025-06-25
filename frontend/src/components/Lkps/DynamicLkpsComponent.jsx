@@ -35,7 +35,6 @@ import ScoreDisplay from "./ScoreDisplay"
 import TableFooter from "./TableFooter"
 import TridharmaScoreDetails from "./TridharmaScoreDetails"
 import DebugPanel from "./DebugPanel"
-import ExportToExcel from "../../utils/ExportToExcel"
 import ExcelTemplateUploader from "./ExcelTemplateUploader"
 
 const { TabPane } = Tabs
@@ -476,9 +475,6 @@ const DynamicLkpsContainer = () => {
             {!!next && <Button onClick={handleNext}>Next</Button>}
           </div>
           <div style={{ display: "flex" }}>
-            <div style={{ marginRight: "10px" }}>
-              <ExportToExcel userData={userData} tableCode={tableCode} />
-            </div>
             <Button type="primary" onClick={handleSave} loading={saving}>
               Save Data
             </Button>

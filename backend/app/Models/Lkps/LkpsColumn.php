@@ -75,21 +75,49 @@ class LkpsColumn extends Model
         return $this->belongsTo(self::class, 'parentId', '_id');
     }
 
-    /**
-     * Get child columns if this is a group column
-     */
     public function children()
+    {
+        // ✅ CRITICAL FIX: Always return relationship instance
+        // Laravel Eloquent requires relationship instance, not collection
+        return $this->hasMany(self::class, 'parentId', '_id')->orderBy('order');
+    }
+
+    /**
+     * ✅ ADD: Helper method untuk check if has children
+     */
+    public function hasChildren()
+    {
+        return $this->isGroup && $this->children()->count() > 0;
+    }
+
+    /**
+     * ✅ ADD: Get children as collection (untuk non-relationship usage)
+     */
+    public function getChildrenCollection()
     {
         if (!$this->isGroup) {
             return collect([]);
         }
 
-        return $this->hasMany(self::class, 'parentId', '_id')->orderBy('order');
+        return $this->children()->get();
+    }
+
+    /**
+     * ✅ ADD: Get children as array (untuk JSON serialization)
+     */
+    public function getChildrenAttribute()
+    {
+        if (!$this->isGroup) {
+            return [];
+        }
+
+        // ✅ IMPORTANT: Use get() to execute query and return collection
+        return $this->children()->get()->toArray();
     }
 
     /**
      * Create a column with proper parent-child validation
-     * 
+     *
      * @param array $attributes
      * @return static
      * @throws \Exception If parentId is invalid

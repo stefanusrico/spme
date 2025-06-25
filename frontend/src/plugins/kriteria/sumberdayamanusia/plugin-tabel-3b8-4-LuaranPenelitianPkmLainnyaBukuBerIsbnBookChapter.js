@@ -1,6 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
 
 export class LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin extends BasePlugin {
@@ -24,175 +23,122 @@ export class LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin extends BasePlugin {
     return false
   }
 
+  // ✅ Use dynamic base processing dengan konversi tanggal awal
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    const result = await super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
 
-    if (rawData.length === 0) return { allRows: [] }
+    // Segera konversi tanggal ke format yang benar setelah data diproses
+    if (result && result.allRows) {
+      result.allRows = result.allRows.map((item) => {
+        const fieldMap = this.mapLuaranBukuFields(item)
+        if (
+          fieldMap.tanggal &&
+          item[fieldMap.tanggal] &&
+          typeof item[fieldMap.tanggal] === "number"
+        ) {
+          item[fieldMap.tanggal] = PluginUtils.excelSerialDateToFormat(
+            item[fieldMap.tanggal]
+          )
+        }
+        return item
+      })
+    }
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
+    return result
+  }
 
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        luaran_penelitian_dan_pkm: "",
-        tanggal_hh_bb_tttt: "",
-        keterangan_nomor_isbn: "",
-      }
-
-      // Map based on column indices
-      if (row[1] !== undefined)
-        item.luaran_penelitian_dan_pkm = PluginUtils.normalizeTextField(row[1])
-      if (row[2] !== undefined)
-        item.tanggal_hh_bb_tttt = PluginUtils.normalizeTextField(row[2])
-      if (row[3] !== undefined)
-        item.keterangan_nomor_isbn = PluginUtils.normalizeTextField(row[3])
-
-      return item
-    })
-
+  // ✅ Dynamic field mapping - pastikan bisa mengenali field dari DB
+  mapLuaranBukuFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      luaran_penelitian: this.findFieldByPattern(sampleItem, [
+        "luaran_penelitian_dan_pkm",
+        "luaran_penelitian",
+        "luaran",
+        "penelitian",
+        "pkm",
+      ]),
+      tanggal: this.findFieldByPattern(sampleItem, [
+        "tanggal_hh_bb_tttt",
+        "tanggal",
+        "hh_bb_tttt",
+        "date",
+      ]),
+      isbn: this.findFieldByPattern(sampleItem, [
+        "keterangan_isbn",
+        "isbn",
+        "keterangan",
+        "nomor",
+      ]),
     }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    let ND = 0
-
-    const isValidField = (value) => {
-      if (typeof value === "string") {
-        return value.trim() !== ""
-      }
-      if (typeof value === "number") {
-        return !isNaN(value)
-      }
-      return false
-    }
-
-    data.forEach((item) => {
-      if (
-        isValidField(item.luaran_penelitian_dan_pkm) &&
-        isValidField(item.tanggal_hh_bb_tttt) &&
-        isValidField(item.keterangan_nomor_isbn)
-      ) {
-        ND += 1
-      }
-    })
-
-    // Fetch score details from other tables
-    const responseScoreDetail = await fetchScoreDetails(
-      "3a1",
-      additionalData.projectId
-    )
-    const responseScoreDetail1 = await fetchScoreDetails(
-      "3b8-1",
-      additionalData.projectId
-    )
-    const responseScoreDetail2 = await fetchScoreDetails(
-      "3b8-2",
-      additionalData.projectId
-    )
-    const responseScoreDetail3 = await fetchScoreDetails(
-      "3b8-3",
-      additionalData.projectId
-    )
-
-    if (
-      !responseScoreDetail ||
-      !responseScoreDetail1 ||
-      !responseScoreDetail2 ||
-      !responseScoreDetail3
-    ) {
-      console.warn("Masukan data dari tabel 3a1, 3b8-1, 3b8-2, dan 3b8-3")
-      return {
-        scores: [
-          {
-            butir: 31,
-            nilai: 0,
-          },
-        ],
-        scoreDetail: {},
-      }
-    }
-
-    const NDTPS = Number(responseScoreDetail?.NDTPS || 0)
-    const NA = Number(responseScoreDetail1?.NA || 0)
-    const NB = Number(responseScoreDetail2?.NB || 0)
-    const NC = Number(responseScoreDetail3?.NC || 0)
-
-    // Calculate RLP
-    const RLP =
-      NDTPS > 0
-        ? Math.round(((2 * (NA + NB + NC) + ND) / NDTPS) * 100) / 100
-        : 0
-
-    let score = 0
-    if (RLP >= 1) {
-      score = 4
-    } else {
-      score = 2 + 2 * RLP
-    }
-
-    console.log("Hasil RLP:", RLP)
-    console.log("Score:", score)
-
-    return {
-      scores: [
-        {
-          butir: 31,
-          nilai: score,
-        },
-      ],
-      scoreDetail: {
-        NA,
-        NB,
-        NC,
-        ND,
-        RLP,
-      },
-    }
-  }
-
+  // ✅ Dynamic normalization dengan konversi tanggal
   normalizeData(data) {
     return data.map((item) => {
       const result = { ...item }
+      const fieldMap = this.mapLuaranBukuFields(result)
 
-      const textFields = [
-        "luaran_penelitian_dan_pkm",
-        "tanggal_hh_bb_tttt",
-        "keterangan_nomor_isbn",
-      ]
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          if (key === "tanggal") {
+            const dateValue = result[fieldName]
 
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
+            // Format ISO dari database: "2021-07-27" -> "27/07/2021"
+            if (
+              typeof dateValue === "string" &&
+              /^\d{4}-\d{2}-\d{2}$/.test(dateValue)
+            ) {
+              const [year, month, day] = dateValue.split("-")
+              result[fieldName] = `${day}/${month}/${year}`
+            }
+            // Nilai Excel serial number
+            else if (typeof dateValue === "number") {
+              const jsDate = new Date((dateValue - 25569) * 86400 * 1000)
+              if (!isNaN(jsDate.getTime())) {
+                const day = String(jsDate.getDate()).padStart(2, "0")
+                const month = String(jsDate.getMonth() + 1).padStart(2, "0")
+                const year = jsDate.getFullYear()
+                result[fieldName] = `${day}/${month}/${year}`
+              }
+            }
+          } else {
+            result[fieldName] = PluginUtils.normalizeTextField(
+              result[fieldName]
+            )
+          }
+        }
       })
-
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.luaran_penelitian_dan_pkm) {
-        errors.push(
-          `Row ${index + 1}: Luaran Penelitian dan PkM harus diisi`
-        )
-      }
-      if (!item.tanggal_hh_bb_tttt) {
-        errors.push(`Row ${index + 1}: Tanggal (HH/BB/TTTT) harus diisi`)
-      }
-      if (!item.keterangan_nomor_isbn) {
-        errors.push(`Row ${index + 1}: Keterangan (Nomor ISBN) harus diisi`)
-      }
+      const fieldMap = this.mapLuaranBukuFields(item)
+
+      const requiredFields = [
+        {
+          field: fieldMap.luaran_penelitian,
+          name: "Luaran Penelitian dan PkM",
+        },
+        { field: fieldMap.tanggal, name: "Tanggal (HH/BB/TTTT)" },
+        { field: fieldMap.isbn, name: "Keterangan (Nomor ISBN)" },
+      ]
+
+      requiredFields.forEach(({ field, name }) => {
+        if (field && !item[field]) {
+          errors.push(`Row ${index + 1}: ${name} harus diisi`)
+        }
+      })
     })
 
     return {
@@ -200,9 +146,22 @@ export class LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin extends BasePlugin {
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
 export const luaranPenelitianPkmLainnyaBukuBerIsbnPlugin =
   new LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin()
-
 export default luaranPenelitianPkmLainnyaBukuBerIsbnPlugin

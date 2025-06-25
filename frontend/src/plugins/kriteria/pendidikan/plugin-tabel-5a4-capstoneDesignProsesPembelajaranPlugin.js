@@ -1,6 +1,4 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
-import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 
 export class CapstoneDesignProsesPembelajaranPlugin extends BasePlugin {
   constructor() {
@@ -23,86 +21,89 @@ export class CapstoneDesignProsesPembelajaranPlugin extends BasePlugin {
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
+  }
 
-    if (rawData.length === 0) return { allRows: [] }
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
+    // Boolean fields for aspects
+    if (
+      fieldLower.includes("aspek_1") ||
+      fieldLower.includes("aspek_2") ||
+      fieldLower.includes("aspek_3") ||
+      fieldLower.includes("aspek_4") ||
+      fieldLower.includes("aspek")
+    ) {
+      return "boolean"
+    }
 
-    const processedData = filteredData.map((row, index) => {
-      return {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        nama_mata_kuliah: PluginUtils.normalizeTextField(
-          row[detectedIndices.nama_mata_kuliah] || ""
-        ),
-        semester: PluginUtils.normalizeTextField(
-          row[detectedIndices.semester] || ""
-        ),
-        cakupan_bahasan: PluginUtils.normalizeTextField(
-          row[detectedIndices.cakupan_bahasan] || ""
-        ),
-        aspek_1: !!row[detectedIndices.aspek_1],
-        aspek_2: !!row[detectedIndices.aspek_2],
-        aspek_3: !!row[detectedIndices.aspek_3],
-        aspek_4: !!row[detectedIndices.aspek_4],
-      }
-    })
+    return super.detectFieldType(fieldName, value)
+  }
 
+  // ✅ Dynamic field mapping
+  mapCapstoneFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      nama_mata_kuliah: this.findFieldByPattern(sampleItem, [
+        "nama_mata_kuliah",
+        "mata_kuliah",
+        "nama",
+      ]),
+      semester: this.findFieldByPattern(sampleItem, ["semester"]),
+      cakupan_bahasan: this.findFieldByPattern(sampleItem, [
+        "cakupan_bahasan",
+        "cakupan",
+        "bahasan",
+      ]),
+      aspek_1: this.findFieldByPattern(sampleItem, ["aspek_1", "aspek 1"]),
+      aspek_2: this.findFieldByPattern(sampleItem, ["aspek_2", "aspek 2"]),
+      aspek_3: this.findFieldByPattern(sampleItem, ["aspek_3", "aspek 3"]),
+      aspek_4: this.findFieldByPattern(sampleItem, ["aspek_4", "aspek 4"]),
     }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    return {
-      scores: [
-        {
-          butir: 48,
-          nilai: 0,
-        },
-      ],
-      scoreDetail: {},
-    }
-  }
-
+  // ✅ Dynamic normalization
   normalizeData(data) {
     return data.map((item) => {
       const result = { ...item }
+      const fieldMap = this.mapCapstoneFields(result)
 
-      const textFields = ["nama_mata_kuliah", "semester", "cakupan_bahasan"]
-
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          const fieldType = this.detectFieldType(fieldName, result[fieldName])
+          result[fieldName] = this.processFieldValue(
+            fieldName,
+            result[fieldName],
+            fieldType
+          )
+        }
       })
-
-      // Normalize boolean fields
-      result.aspek_1 = !!result.aspek_1
-      result.aspek_2 = !!result.aspek_2
-      result.aspek_3 = !!result.aspek_3
-      result.aspek_4 = !!result.aspek_4
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.nama_mata_kuliah) {
+      const fieldMap = this.mapCapstoneFields(item)
+
+      if (fieldMap.nama_mata_kuliah && !item[fieldMap.nama_mata_kuliah]) {
         errors.push(`Row ${index + 1}: Nama Mata Kuliah wajib diisi`)
       }
 
-      if (!item.semester) {
+      if (fieldMap.semester && !item[fieldMap.semester]) {
         errors.push(`Row ${index + 1}: Semester wajib diisi`)
       }
     })
@@ -112,9 +113,22 @@ export class CapstoneDesignProsesPembelajaranPlugin extends BasePlugin {
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
 export const capstoneDesignProsesPembelajaranPlugin =
   new CapstoneDesignProsesPembelajaranPlugin()
-
 export default capstoneDesignProsesPembelajaranPlugin

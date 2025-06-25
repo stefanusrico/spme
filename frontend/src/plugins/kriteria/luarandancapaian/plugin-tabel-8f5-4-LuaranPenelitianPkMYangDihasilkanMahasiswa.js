@@ -1,7 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
-import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
 
 export class LuaranPenelitianPkmYangDihasilkanMahasiswaBukuPlugin extends BasePlugin {
   constructor() {
@@ -24,172 +22,114 @@ export class LuaranPenelitianPkmYangDihasilkanMahasiswaBukuPlugin extends BasePl
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
-
-    if (rawData.length === 0) return { allRows: [] }
-
-    const filteredData = PluginUtils.filterDataRows(rawData)
-
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        luaran_penelitian_dan_pkm: "",
-        tanggal_hh_bb_tttt: "",
-        nomor_isbn: "",
-      }
-
-      // Map based on column indices
-      if (row[1] !== undefined)
-        item.luaran_penelitian_dan_pkm = PluginUtils.normalizeTextField(row[1])
-      if (row[2] !== undefined)
-        item.tanggal_hh_bb_tttt = PluginUtils.normalizeTextField(row[2])
-      if (row[3] !== undefined)
-        item.nomor_isbn = PluginUtils.normalizeTextField(row[3])
-
-      return item
-    })
-
-    return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
-    }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    let ND = 0
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    const isValidField = (value) => {
-      if (typeof value === "string") {
-        return value.trim() !== ""
-      }
-      if (typeof value === "number") {
-        return !isNaN(value)
-      }
-      return false
+    // Date field
+    if (fieldLower.includes("tanggal")) {
+      return "text" // Will be processed as date string
     }
 
-    data.forEach((item) => {
-      if (
-        isValidField(item.luaran_penelitian_dan_pkm) &&
-        isValidField(item.tanggal_hh_bb_tttt) &&
-        isValidField(item.nomor_isbn)
-      ) {
-        ND += 1
-      }
-    })
-
-    // Fetch score details from other tables
-    const responseScoreDetail1 = await fetchScoreDetails(
-      "8f5-1",
-      additionalData.projectId
-    )
-    const responseScoreDetail2 = await fetchScoreDetails(
-      "8f5-2",
-      additionalData.projectId
-    )
-    const responseScoreDetail3 = await fetchScoreDetails(
-      "8f5-3",
-      additionalData.projectId
-    )
-
-    if (
-      !responseScoreDetail1 ||
-      !responseScoreDetail2 ||
-      !responseScoreDetail3
-    ) {
-      console.warn("Masukan data dari tabel 8f5-1, 8f5-2, dan 8f5-3")
-      return {
-        scores: [
-          {
-            butir: 71,
-            nilai: 0,
-          },
-        ],
-        scoreDetail: {},
-      }
-    }
-
-    const NA = Number(responseScoreDetail1?.NA || 0)
-    const NB = Number(responseScoreDetail2?.NB || 0)
-    const NC = Number(responseScoreDetail3?.NC || 0)
-
-    // Menghitung NLP
-    const NLP = 2 * (NA + NB + NC) + ND
-
-    let score = 0
-    if (NLP >= 1) {
-      score = 4
-    } else {
-      score = 2 + 2 * NLP
-    }
-
-    // Ensure score doesn't exceed 4
-    score = Math.min(4, score)
-
-    console.log("NA:", NA)
-    console.log("NB:", NB)
-    console.log("NC:", NC)
-    console.log("ND:", ND)
-    console.log("NLP:", NLP)
-    console.log("Score:", score)
-
-    return {
-      scores: [
-        {
-          butir: 71,
-          nilai: score,
-        },
-      ],
-      scoreDetail: {
-        NA,
-        NB,
-        NC,
-        ND,
-        NLP: Math.round(NLP * 100) / 100,
-      },
-    }
+    return super.detectFieldType(fieldName, value)
   }
 
-  normalizeData(data) {
-    return data.map((item) => {
-      const result = { ...item }
-
-      const textFields = [
+  // ✅ Dynamic field mapping
+  mapLuaranBukuFields(sampleItem) {
+    return {
+      luaran_penelitian_dan_pkm: this.findFieldByPattern(sampleItem, [
         "luaran_penelitian_dan_pkm",
+        "luaran",
+        "penelitian",
+        "pkm",
+        "judul",
+      ]),
+      tanggal_hh_bb_tttt: this.findFieldByPattern(sampleItem, [
         "tanggal_hh_bb_tttt",
+        "tanggal",
+        "hh_bb_tttt",
+        "date",
+      ]),
+      nomor_isbn: this.findFieldByPattern(sampleItem, [
         "nomor_isbn",
-      ]
+        "isbn",
+        "nomor",
+      ]),
+    }
+  }
 
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
+  // ✅ Helper untuk validasi field
+  isValidField(value) {
+    if (typeof value === "string") {
+      return value.trim() !== ""
+    }
+    if (typeof value === "number") {
+      return !isNaN(value)
+    }
+    return false
+  }
+
+  // ✅ Dynamic normalization
+  normalizeData(data) {
+    if (!Array.isArray(data)) return []
+
+    return data.map((item, index) => {
+      const result = {
+        ...item,
+        id: item.id || `row-${Math.random().toString(36).substring(2, 9)}`,
+        key: item.key || `row-${Math.random().toString(36).substring(2, 9)}`,
+        no: index + 1,
+      }
+
+      const fieldMap = this.mapLuaranBukuFields(result)
+
+      // ✅ Process semua field berdasarkan mapping
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          result[fieldName] = PluginUtils.normalizeTextField(result[fieldName])
+        }
       })
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
+    if (!Array.isArray(data)) {
+      errors.push("Data utama harus berupa array.")
+      return { valid: false, errors }
+    }
+
     data.forEach((item, index) => {
-      if (!item.luaran_penelitian_dan_pkm) {
+      const fieldMap = this.mapLuaranBukuFields(item)
+
+      if (
+        fieldMap.luaran_penelitian_dan_pkm &&
+        !item[fieldMap.luaran_penelitian_dan_pkm]
+      ) {
         errors.push(
-          `Row ${index + 1}: Judul Luaran Penelitian dan PkM harus diisi`
+          `Baris ${index + 1}: Judul Luaran Penelitian dan PkM harus diisi`
         )
       }
-      if (!item.tanggal_hh_bb_tttt) {
-        errors.push(`Row ${index + 1}: Tanggal (HH/BB/TTTT) harus diisi`)
+      if (fieldMap.tanggal_hh_bb_tttt && !item[fieldMap.tanggal_hh_bb_tttt]) {
+        errors.push(`Baris ${index + 1}: Tanggal (HH/BB/TTTT) harus diisi`)
       }
-      if (!item.nomor_isbn) {
-        errors.push(`Row ${index + 1}: Keterangan (Nomor ISBN) harus diisi`)
+      if (fieldMap.nomor_isbn && !item[fieldMap.nomor_isbn]) {
+        errors.push(`Baris ${index + 1}: Keterangan (Nomor ISBN) harus diisi`)
       }
     })
 
@@ -197,6 +137,20 @@ export class LuaranPenelitianPkmYangDihasilkanMahasiswaBukuPlugin extends BasePl
       valid: errors.length === 0,
       errors,
     }
+  }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
   }
 }
 

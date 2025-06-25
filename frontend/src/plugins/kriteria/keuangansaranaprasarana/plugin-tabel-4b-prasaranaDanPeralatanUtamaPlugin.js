@@ -1,7 +1,4 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
-import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
-import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
 
 export class PrasaranaDanPeralatanUtamaPlugin extends BasePlugin {
   constructor() {
@@ -23,103 +20,197 @@ export class PrasaranaDanPeralatanUtamaPlugin extends BasePlugin {
     return false
   }
 
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
+
+    // Use parent detection for other fields
+    return super.detectFieldType(fieldName, value)
+  }
+
+  // ✅ Override field processing for boolean fields
+  processFieldValue(fieldName, value, fieldType = "auto") {
+    if (fieldType === "auto") {
+      fieldType = this.detectFieldType(fieldName, value)
+    }
+
+    if (fieldType === "boolean") {
+      return this.processCheckboxValue(value)
+    }
+
+    // For non-boolean fields, use parent method
+    return super.processFieldValue(fieldName, value, fieldType)
+  }
+
+  // ✅ Helper method for checkbox processing - return boolean instead of string
+  processCheckboxValue(val) {
+    // Handle already boolean values
+    if (typeof val === "boolean") {
+      return val
+    }
+
+    // Handle numeric values
+    if (typeof val === "number") {
+      return val > 0
+    }
+
+    // Handle string values
+    if (typeof val === "string") {
+      const cleaned = val.trim().toLowerCase()
+
+      // True values
+      if (
+        [
+          "v",
+          "✔",
+          "✓",
+          "check",
+          "ada",
+          "terawat",
+          "sendiri",
+          "sewa",
+          "yes",
+          "ya",
+          "y",
+          "true",
+          "1",
+          "milik",
+        ].includes(cleaned)
+      ) {
+        return true
+      }
+
+      // False values
+      if (
+        [
+          "x",
+          "tidak",
+          "tidak_ada",
+          "tidak_terawat",
+          "no",
+          "n",
+          "false",
+          "0",
+          "",
+        ].includes(cleaned)
+      ) {
+        return false
+      }
+
+      // If it's a non-empty string that doesn't match our patterns
+      return cleaned !== ""
+    }
+
+    // Default - falsy values return false
+    return Boolean(val)
+  }
+
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
-
-    if (rawData.length === 0) return { allRows: [] }
-
-    const filteredData = PluginUtils.filterDataRows(rawData)
-
-    const isChecked = (val) => {
-      const cleaned = typeof val === "string" ? val.trim().toLowerCase() : ""
-      const isValid = ["v", "✔", "✓", "check", "ada", "terawat"].includes(
-        cleaned
-      )
-      return isValid ? "V" : ""
-    }
-
-    const processedData = filteredData.map((row, index) => {
-      return {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        nama_laboratorium: PluginUtils.normalizeTextField(row[1]),
-        jumlah_lab: PluginUtils.parseNumber(row[2], 0),
-        nama_alat_peraga: PluginUtils.normalizeTextField(row[3]),
-        standar_minimal_jumlah_alat: PluginUtils.parseNumber(row[4], 0),
-        yang_dimiliki_upps_jumlah_alat: PluginUtils.parseNumber(row[5], 0),
-        sendiri_kepemilikan: isChecked(row[6]),
-        sewa_kepemilikan: isChecked(row[7]),
-        terawat_kondisi: isChecked(row[8]),
-        tidak_terawat_kondisi: isChecked(row[9]),
-        ada_logbook_diisi_oleh_pengusul_vokasi: isChecked(row[10]),
-        tidak_ada_logbook_diisi_oleh_pengusul_vokasi: isChecked(row[11]),
-        rata_rata_waktu_penggunaan_jam_minggu_diisi_oleh_pengusul_vokasi:
-          PluginUtils.parseNumber(row[12], 0),
-      }
-    })
-
-    return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
-    }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    return {
-      scores: [
-        {
-          butir: 39,
-          nilai: 0, // Penilaian manual
-        },
-      ],
-      scoreDetail: {},
-    }
-  }
-
+  // ✅ Dynamic normalization
   normalizeData(data) {
+    if (!Array.isArray(data)) return []
+
     return data.map((item) => {
       const result = { ...item }
 
-      const numericFields = [
-        "jumlah_lab",
-        "standar_minimal_jumlah_alat",
-        "yang_dimiliki_upps_jumlah_alat",
-        "rata_rata_waktu_penggunaan_jam_minggu_diisi_oleh_pengusul_vokasi",
-      ]
-
-      const textFields = ["nama_laboratorium", "nama_alat_peraga"]
-
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
-      })
-
-      numericFields.forEach((field) => {
-        result[field] = PluginUtils.parseNumber(result[field], 0)
+      // Process each field dynamically
+      Object.keys(result).forEach((field) => {
+        const fieldType = this.detectFieldType(field, result[field])
+        result[field] = this.processFieldValue(field, result[field], fieldType)
       })
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.nama_laboratorium) {
+      // Find lab name field dynamically
+      const labNameField = this.findFieldByPattern(item, [
+        "nama_laboratorium",
+        "laboratorium",
+        "lab",
+        "nama_lab",
+      ])
+
+      if (labNameField && !item[labNameField]) {
         errors.push(`Baris ${index + 1}: Nama laboratorium harus diisi`)
       }
+
+      // Find equipment name field dynamically
+      const equipmentNameField = this.findFieldByPattern(item, [
+        "nama_alat_peraga",
+        "alat_peraga",
+        "nama_alat",
+        "peralatan",
+      ])
+
+      if (equipmentNameField && !item[equipmentNameField]) {
+        errors.push(`Baris ${index + 1}: Nama alat peraga harus diisi`)
+      }
+
+      // Validate numeric fields dynamically
+      const quantityFields = this.findFieldsByPatterns(item, {
+        jumlah_lab: ["jumlah_lab", "jumlah", "lab"],
+        standar_minimal: ["standar_minimal", "minimal", "standar"],
+        yang_dimiliki: ["yang_dimiliki", "dimiliki", "tersedia"],
+      })
+
+      Object.entries(quantityFields).forEach(([key, fieldName]) => {
+        if (fieldName && item[fieldName] !== undefined) {
+          const value = parseFloat(item[fieldName])
+          if (isNaN(value) || value < 0) {
+            errors.push(
+              `Baris ${
+                index + 1
+              }: ${fieldName} harus berupa angka yang valid (≥ 0)`
+            )
+          }
+        }
+      })
     })
 
     return {
       valid: errors.length === 0,
       errors,
     }
+  }
+
+  // Helper method for finding fields by pattern
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
+
+  // Helper method for finding multiple fields
+  findFieldsByPatterns(item, patternGroups) {
+    const result = {}
+
+    Object.entries(patternGroups).forEach(([key, patterns]) => {
+      result[key] = this.findFieldByPattern(item, patterns)
+    })
+
+    return result
   }
 }
 

@@ -1,6 +1,4 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
-import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 
 export class MasaStudiLulusanPlugin extends BasePlugin {
   constructor() {
@@ -23,109 +21,103 @@ export class MasaStudiLulusanPlugin extends BasePlugin {
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
+  }
 
-    if (rawData.length === 0) return { allRows: [] }
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
+    // Numeric fields
+    if (
+      fieldLower.includes("jumlah") ||
+      fieldLower.includes("mhs") ||
+      fieldLower.includes("ts") ||
+      fieldLower.includes("lulusan")
+    ) {
+      return "number"
+    }
 
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-masa-studi-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        tahun_masuk: "",
-        jumlah_mhs_ts6: 0,
-        jumlah_mhs_ts5: 0,
-        jumlah_mhs_ts4: 0,
-        jumlah_mhs_ts3: 0,
-        jumlah_mhs_ts2: 0,
-        jumlah_mhs_ts1: 0,
-        jumlah_mhs_ts: 0,
-        jumlah_lulusan_sd_ts: 0,
-      }
+    return super.detectFieldType(fieldName, value)
+  }
 
-      Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
-        if (colIndex === undefined || colIndex < 0) return
-        const value = row[colIndex]
-
-        if (fieldName === "tahun_masuk") {
-          item[fieldName] = PluginUtils.normalizeTextField(value)
-        } else if (
-          fieldName.startsWith("jumlah_mhs_ts") ||
-          fieldName === "jumlah_lulusan_sd_ts"
-        ) {
-          item[fieldName] = PluginUtils.parseNumber(value, 0)
-        }
-      })
-
-      return item
-    })
-
+  // ✅ Dynamic field mapping
+  mapMasaStudiFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      tahun_masuk: this.findFieldByPattern(sampleItem, [
+        "tahun_masuk",
+        "tahun",
+      ]),
+      jumlah_mhs_ts6: this.findFieldByPattern(sampleItem, ["ts6", "ts-6"]),
+      jumlah_mhs_ts5: this.findFieldByPattern(sampleItem, ["ts5", "ts-5"]),
+      jumlah_mhs_ts4: this.findFieldByPattern(sampleItem, ["ts4", "ts-4"]),
+      jumlah_mhs_ts3: this.findFieldByPattern(sampleItem, ["ts3", "ts-3"]),
+      jumlah_mhs_ts2: this.findFieldByPattern(sampleItem, ["ts2", "ts-2"]),
+      jumlah_mhs_ts1: this.findFieldByPattern(sampleItem, ["ts1", "ts-1"]),
+      jumlah_mhs_ts:
+        this.findFieldByPattern(sampleItem, ["ts"]) &&
+        !this.findFieldByPattern(sampleItem, [
+          "ts1",
+          "ts2",
+          "ts3",
+          "ts4",
+          "ts5",
+          "ts6",
+        ]),
+      jumlah_lulusan_sd_ts: this.findFieldByPattern(sampleItem, [
+        "lulusan_sd_ts",
+        "lulusan",
+      ]),
     }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    // TODO: Implement actual scoring logic
-    return {
-      scores: [
-        {
-          butir: 0,
-          nilai: 0,
-        },
-      ],
-      scoreDetail: {},
-    }
-  }
-
+  // ✅ Dynamic normalization
   normalizeData(data) {
     return data.map((item) => {
       const result = { ...item }
+      const fieldMap = this.mapMasaStudiFields(result)
 
-      const textFields = ["tahun_masuk"]
-      const numericFields = [
-        "jumlah_mhs_ts6",
-        "jumlah_mhs_ts5",
-        "jumlah_mhs_ts4",
-        "jumlah_mhs_ts3",
-        "jumlah_mhs_ts2",
-        "jumlah_mhs_ts1",
-        "jumlah_mhs_ts",
-        "jumlah_lulusan_sd_ts",
-      ]
-
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
-      })
-
-      numericFields.forEach((field) => {
-        result[field] = PluginUtils.parseNumber(result[field], 0)
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          const fieldType = this.detectFieldType(fieldName, result[fieldName])
+          result[fieldName] = this.processFieldValue(
+            fieldName,
+            result[fieldName],
+            fieldType
+          )
+        }
       })
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.tahun_masuk) {
+      const fieldMap = this.mapMasaStudiFields(item)
+
+      if (fieldMap.tahun_masuk && !item[fieldMap.tahun_masuk]) {
         errors.push(`Baris ${index + 1}: Tahun Masuk harus diisi`)
       }
 
-      const tahunMasuk = String(item.tahun_masuk).trim()
-      if (tahunMasuk.length !== 4 || isNaN(parseInt(tahunMasuk))) {
-        errors.push(`Baris ${index + 1}: Format Tahun Masuk tidak valid (YYYY)`)
+      if (fieldMap.tahun_masuk) {
+        const tahunMasuk = String(item[fieldMap.tahun_masuk]).trim()
+        if (tahunMasuk.length !== 4 || isNaN(parseInt(tahunMasuk))) {
+          errors.push(
+            `Baris ${index + 1}: Format Tahun Masuk tidak valid (YYYY)`
+          )
+        }
       }
     })
 
@@ -134,8 +126,21 @@ export class MasaStudiLulusanPlugin extends BasePlugin {
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
 export const masaStudiLulusanPlugin = new MasaStudiLulusanPlugin()
-
 export default masaStudiLulusanPlugin

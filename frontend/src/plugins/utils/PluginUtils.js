@@ -75,7 +75,6 @@ export const PluginUtils = {
       const infoLabels = [
         "info",
         "info:",
-        "keterangan",
         "catatan",
         "note",
         "link data",
@@ -348,6 +347,39 @@ export const PluginUtils = {
     return !isNaN(value) && !isNaN(parseFloat(value)) && value.trim() !== ""
   },
 
+  excelSerialDateToFormat(serial) {
+    if (!serial || (typeof serial === "string" && serial.trim() === "")) {
+      return ""
+    }
+
+    if (typeof serial === "string") {
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(serial)) {
+        const parts = serial.split("/")
+        return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(
+          2,
+          "0"
+        )}`
+      }
+
+      serial = parseFloat(serial)
+      if (isNaN(serial)) return serial
+    }
+
+    if (serial > 1000) {
+      const milliseconds = (serial - 25569) * 86400 * 1000
+      const jsDate = new Date(milliseconds)
+
+      if (!isNaN(jsDate.getTime())) {
+        const year = jsDate.getFullYear()
+        const month = String(jsDate.getMonth() + 1).padStart(2, "0")
+        const day = String(jsDate.getDate()).padStart(2, "0")
+        return `${year}-${month}-${day}`
+      }
+    }
+
+    return serial
+  },
+
   parseDateValue(value, defaultValue = "") {
     if (value === null || value === undefined || value === "") {
       return defaultValue
@@ -474,5 +506,32 @@ export const PluginUtils = {
     } catch (e) {
       return ""
     }
+  },
+
+  parseDateField(value) {
+    if (typeof value === "number" && value > 20000 && value < 60000) {
+      return value
+    }
+
+    if (value instanceof Date) {
+      const excelDate = Math.floor(
+        (value.getTime() - new Date(1899, 11, 30).getTime()) /
+          (24 * 60 * 60 * 1000)
+      )
+      return excelDate > 0 ? excelDate : null
+    }
+
+    if (typeof value === "string" && value.trim() !== "") {
+      const date = new Date(value)
+      if (!isNaN(date.getTime())) {
+        const excelDate = Math.floor(
+          (date.getTime() - new Date(1899, 11, 30).getTime()) /
+            (24 * 60 * 60 * 1000)
+        )
+        return excelDate > 0 ? excelDate : null
+      }
+    }
+
+    return null
   },
 }

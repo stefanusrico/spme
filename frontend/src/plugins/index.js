@@ -13,8 +13,6 @@ export { registerAllPlugins, default as registerPlugins } from "./register.js"
 
 // Base classes (for extending)
 export { BasePlugin } from "./core/BasePlugin.js"
-export { DosenPluginBase } from "./base/DosenPluginBase.js"
-export { GenericTablePlugin } from "./base/GenericTablePlugin.js"
 
 // Utilities
 export * as PluginUtils from "./utils/PluginUtils.js"

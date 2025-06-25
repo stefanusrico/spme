@@ -1,7 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { ExcelUtils } from "../../utils/ExcelUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
 
 export class DosenIndustriPraktisiPlugin extends BasePlugin {
@@ -24,196 +22,126 @@ export class DosenIndustriPraktisiPlugin extends BasePlugin {
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
+  }
 
-    if (rawData.length === 0) return { allRows: [] }
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
+    // Numeric fields
+    if (
+      fieldLower.includes("bobot") ||
+      fieldLower.includes("sks") ||
+      fieldLower.includes("kredit")
+    ) {
+      return "number"
+    }
 
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        nama_dosen_industri_praktisi: "",
-        nidk: "",
-        perusahaan_industri: "",
-        pendidikan_tertinggi: "",
-        bidang_keahlian: "",
-        bidang_sertifikasi_sertifikat_profesi_kompetensi_industri: "",
-        lembaga_penerbit_sertifikat_profesi_kompetensi_industri: "",
-        mata_kuliah_yang_diampu: "",
-        bobot_kredit_sks: 0,
-      }
+    return super.detectFieldType(fieldName, value)
+  }
 
-      Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
-        if (colIndex === undefined || colIndex < 0) return
-
-        const value = row[colIndex]
-
-        if (fieldName === "bobot_kredit_sks") {
-          item[fieldName] = PluginUtils.parseNumber(value, 0)
-        } else {
-          item[fieldName] = PluginUtils.normalizeTextField(value)
-        }
-      })
-
-      return item
-    })
-
+  // ✅ Dynamic field mapping
+  mapDosenIndustriFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      nama_dosen: this.findFieldByPattern(sampleItem, ["nama_dosen", "nama"]),
+      nidk: this.findFieldByPattern(sampleItem, ["nidk", "nip"]),
+      perusahaan: this.findFieldByPattern(sampleItem, [
+        "perusahaan",
+        "industri",
+      ]),
+      pendidikan: this.findFieldByPattern(sampleItem, [
+        "pendidikan_tertinggi",
+        "pendidikan",
+      ]),
+      bidang_keahlian: this.findFieldByPattern(sampleItem, [
+        "bidang_keahlian",
+        "keahlian",
+      ]),
+      sertifikasi: this.findFieldByPattern(sampleItem, [
+        "sertifikasi",
+        "sertifikat",
+      ]),
+      lembaga_penerbit: this.findFieldByPattern(sampleItem, [
+        "lembaga_penerbit",
+        "lembaga",
+      ]),
+      mata_kuliah: this.findFieldByPattern(sampleItem, [
+        "mata_kuliah",
+        "matkul",
+      ]),
+      bobot_sks: this.findFieldByPattern(sampleItem, [
+        "bobot",
+        "sks",
+        "kredit",
+      ]),
     }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    let uniqueMatkul = new Set()
-
-    data.forEach((item) => {
-      const matkul = item.mata_kuliah_yang_diampu
-      if (matkul && matkul.trim() !== "") {
-        uniqueMatkul.add(matkul.trim())
-      }
-    })
-
-    const MKKI = uniqueMatkul.size
-
-    // MKK = Jumlah mata kuliah kompetensi
-    const responseScoreDetail = await fetchScoreDetails(
-      "5a-1",
-      additionalData.projectId
-    )
-
-    if (!responseScoreDetail) {
-      console.warn('fetchScoreDetails("5a-1") did not return any data')
-      return {
-        scores: [
-          {
-            butir: 24,
-            nilai: 0,
-          },
-        ],
-        scoreDetail: {},
-      }
-    }
-
-    const MKK = responseScoreDetail?.jumlahMataKuliahKompetensi || 0
-
-    // PMKI = (MKKI / MKK) x 100%
-    const PMKI = MKK > 0 ? (MKKI / MKK) * 100 : 0
-
-    // Hitung skor
-    let score = 0
-    if (PMKI >= 20) {
-      score = 4
-    } else if (PMKI < 20) {
-      score = 2 + (10 * PMKI) / 100
-    }
-
-    score = Math.round(score * 100) / 100
-
-    console.log("Hasil PMKI :", PMKI, "%")
-    console.log("Score : ", score)
-
-    return {
-      scores: [
-        {
-          butir: 24,
-          nilai: PluginUtils.roundToDecimal(score),
-        },
-      ],
-      scoreDetail: {
-        MKK: PluginUtils.roundToDecimal(MKK),
-        MKKI: PluginUtils.roundToDecimal(MKKI),
-        PMKI: PluginUtils.roundToDecimal(PMKI),
-      },
-    }
-  }
-
+  // ✅ Dynamic normalization
   normalizeData(data) {
     return data.map((item) => {
       const result = { ...item }
+      const fieldMap = this.mapDosenIndustriFields(result)
 
-      const textFields = [
-        "nama_dosen_industri_praktisi",
-        "nidk",
-        "perusahaan_industri",
-        "pendidikan_tertinggi",
-        "bidang_keahlian",
-        "bidang_sertifikasi_sertifikat_profesi_kompetensi_industri",
-        "lembaga_penerbit_sertifikat_profesi_kompetensi_industri",
-        "mata_kuliah_yang_diampu",
-      ]
-
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          const fieldType = this.detectFieldType(fieldName, result[fieldName])
+          result[fieldName] = this.processFieldValue(
+            fieldName,
+            result[fieldName],
+            fieldType
+          )
+        }
       })
-
-      // Pastikan bobot_kredit_sks adalah angka
-      result.bobot_kredit_sks = PluginUtils.parseNumber(
-        result.bobot_kredit_sks,
-        0
-      )
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
+      const fieldMap = this.mapDosenIndustriFields(item)
+
       const requiredFields = [
+        { field: fieldMap.nama_dosen, name: "Nama dosen" },
+        { field: fieldMap.nidk, name: "NIDK" },
+        { field: fieldMap.perusahaan, name: "Perusahaan industri" },
+        { field: fieldMap.pendidikan, name: "Pendidikan tertinggi" },
+        { field: fieldMap.bidang_keahlian, name: "Bidang keahlian" },
+        { field: fieldMap.sertifikasi, name: "Bidang sertifikasi" },
         {
-          field: item.nama_dosen_industri_praktisi,
-          message: `Row ${index + 1}: Nama dosen harus diisi`,
+          field: fieldMap.lembaga_penerbit,
+          name: "Lembaga penerbit sertifikat",
         },
-        { field: item.nidk, message: `Row ${index + 1}: NIDK harus diisi` },
-        {
-          field: item.perusahaan_industri,
-          message: `Row ${index + 1}: Perusahaan industri harus diisi`,
-        },
-        {
-          field: item.pendidikan_tertinggi,
-          message: `Row ${index + 1}: Pendidikan tertinggi harus diisi`,
-        },
-        {
-          field: item.bidang_keahlian,
-          message: `Row ${index + 1}: Bidang keahlian harus diisi`,
-        },
-        {
-          field: item.bidang_sertifikasi_sertifikat_profesi_kompetensi_industri,
-          message: `Row ${index + 1}: Bidang sertifikasi harus diisi`,
-        },
-        {
-          field: item.lembaga_penerbit_sertifikat_profesi_kompetensi_industri,
-          message: `Row ${index + 1}: Lembaga penerbit sertifikat harus diisi`,
-        },
-        {
-          field: item.mata_kuliah_yang_diampu,
-          message: `Row ${index + 1}: Mata kuliah harus diisi`,
-        },
+        { field: fieldMap.mata_kuliah, name: "Mata kuliah" },
       ]
 
-      requiredFields.forEach(({ field, message }) => {
-        if (!field || field.trim() === "") errors.push(message)
+      requiredFields.forEach(({ field, name }) => {
+        if (field && (!item[field] || item[field].trim() === "")) {
+          errors.push(`Row ${index + 1}: ${name} harus diisi`)
+        }
       })
 
-      if (
-        item.bobot_kredit_sks === undefined ||
-        item.bobot_kredit_sks === null ||
-        item.bobot_kredit_sks === 0
-      ) {
-        errors.push(
-          `Row ${index + 1}: Bobot kredit SKS harus diisi dan tidak boleh 0`
-        )
+      // Validate SKS field
+      if (fieldMap.bobot_sks) {
+        const sks = item[fieldMap.bobot_sks]
+        if (sks === undefined || sks === null || sks === 0) {
+          errors.push(
+            `Row ${index + 1}: Bobot kredit SKS harus diisi dan tidak boleh 0`
+          )
+        }
       }
     })
 
@@ -222,8 +150,21 @@ export class DosenIndustriPraktisiPlugin extends BasePlugin {
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
-// Export
 export const dosenIndustriPraktisiPlugin = new DosenIndustriPraktisiPlugin()
 export default dosenIndustriPraktisiPlugin

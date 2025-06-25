@@ -1,3 +1,6 @@
+import { processExcelDataBase } from "../../utils/tableUtils.js"
+import { PluginUtils } from "../utils/PluginUtils.js"
+
 export class BasePlugin {
   constructor(pluginInfo) {
     if (!pluginInfo.code || !pluginInfo.name) {
@@ -14,26 +17,14 @@ export class BasePlugin {
     return config
   }
 
-  /**
-   * Check if this plugin should have default data
-   * Override in child classes that need default data
-   */
   hasDefaultData() {
     return false
   }
 
-  /**
-   * Get default data for a specific table
-   * Override in child classes to provide default data
-   */
   getDefaultData(tableCode, config = {}) {
     return []
   }
 
-  /**
-   * Merge default data with existing data
-   * Override for custom merge logic
-   */
   mergeWithDefaults(existingData, tableCode, config = {}) {
     if (!this.hasDefaultData()) {
       return existingData
@@ -41,19 +32,13 @@ export class BasePlugin {
 
     const defaultData = this.getDefaultData(tableCode, config)
 
-    // If no existing data, return defaults
     if (!existingData || existingData.length === 0) {
       return defaultData
     }
 
-    // If has existing data, return as is (child classes can override for merging)
     return existingData
   }
 
-  /**
-   * Initialize data with defaults if needed
-   * DO NOT OVERRIDE THIS IN CHILD CLASSES
-   */
   initializeData(config, prodiName, sectionCode, existingData = {}) {
     const initialTableData = {}
 
@@ -61,25 +46,19 @@ export class BasePlugin {
       config.tables.forEach((table) => {
         const tableCode = typeof table === "object" ? table.code : table
 
-        // Check if we have existing data
         if (existingData?.[tableCode]?.length > 0) {
-          // Use merge logic to ensure defaults exist if needed
           initialTableData[tableCode] = this.mergeWithDefaults(
             existingData[tableCode],
             tableCode,
             { config, prodiName, sectionCode }
           )
-        }
-        // If no existing data and plugin has defaults, use them
-        else if (this.hasDefaultData()) {
+        } else if (this.hasDefaultData()) {
           initialTableData[tableCode] = this.getDefaultData(tableCode, {
             config,
             prodiName,
             sectionCode,
           })
-        }
-        // Otherwise empty array
-        else {
+        } else {
           initialTableData[tableCode] = []
         }
       })
@@ -88,17 +67,117 @@ export class BasePlugin {
     return initialTableData
   }
 
-  // Other methods remain the same...
-  async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    throw new Error(
-      `processExcelData must be implemented by ${this.constructor.name}`
-    )
+  // ✅ NEW: Dynamic field processing based on AI mapping
+  processFieldValue(fieldName, value, fieldType = "auto") {
+    if (value === undefined || value === null) {
+      return fieldType === "number" ? 0 : ""
+    }
+
+    // Auto-detect field type if not specified
+    if (fieldType === "auto") {
+      fieldType = this.detectFieldType(fieldName, value)
+    }
+
+    switch (fieldType) {
+      case "number":
+        return PluginUtils.parseNumber(value, 0)
+      case "formatted_number":
+        const numValue = PluginUtils.parseNumber(value, 0)
+        return parseFloat(PluginUtils.formatNumber(numValue, 2))
+      case "boolean":
+        return PluginUtils.parseBoolean(value)
+      case "text":
+      default:
+        return PluginUtils.normalizeTextField(value)
+    }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    throw new Error(
-      `calculateScore must be implemented by ${this.constructor.name}`
+  // ✅ NEW: Detect field type based on field name patterns
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
+
+    // Number patterns
+    if (
+      fieldLower.includes("jumlah") ||
+      fieldLower.includes("total") ||
+      fieldLower.includes("daya_tampung") ||
+      fieldLower.includes("sks") ||
+      fieldLower.includes("bobot") ||
+      fieldLower.includes("nilai") ||
+      fieldLower.includes("poin") ||
+      fieldLower.includes("skor") ||
+      /^\d+$/.test(String(value))
+    ) {
+      return "number"
+    }
+
+    // Formatted number patterns (for percentages, ratios, etc.)
+    if (
+      fieldLower.includes("rata") ||
+      fieldLower.includes("persentase") ||
+      fieldLower.includes("rasio") ||
+      fieldLower.includes("indeks")
+    ) {
+      return "formatted_number"
+    }
+
+    // Boolean patterns
+    if (
+      fieldLower.includes("kesesuaian") ||
+      fieldLower.includes("sesuai") ||
+      fieldLower.includes("valid") ||
+      fieldLower.includes("aktif") ||
+      fieldLower.includes("status")
+    ) {
+      return "boolean"
+    }
+
+    // Default to text
+    return "text"
+  }
+
+  // ✅ NEW: Process row data dynamically based on detected indices
+  processRowData(row, detectedIndices, additionalFields = {}) {
+    const processedItem = {
+      key: `${this.info.code}-${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 5)}`,
+      selected: true,
+      ...additionalFields,
+    }
+
+    // Process each detected field dynamically
+    Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
+      if (colIndex === undefined || colIndex < 0) return
+
+      const value = row[colIndex]
+      processedItem[fieldName] = this.processFieldValue(fieldName, value)
+    })
+
+    return processedItem
+  }
+
+  // ✅ UPDATED: Generic Excel processing
+  async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
+    const { rawData, detectedIndices } = await processExcelDataBase(
+      workbook,
+      tableCode,
+      config,
+      prodiName
     )
+
+    if (rawData.length === 0) return { allRows: [] }
+
+    const filteredData = PluginUtils.filterDataRows(rawData)
+
+    const processedData = filteredData.map((row, index) =>
+      this.processRowData(row, detectedIndices, { no: index + 1 })
+    )
+
+    return {
+      allRows: processedData,
+      shouldReplaceExisting: true,
+    }
   }
 
   getCalculatedFields() {

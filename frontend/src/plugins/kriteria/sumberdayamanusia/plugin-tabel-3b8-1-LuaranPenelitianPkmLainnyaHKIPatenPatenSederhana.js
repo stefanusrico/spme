@@ -1,6 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 
 export class LuaranPenelitianPkmLainnyaHKIPatenPatenSederhanPlugin extends BasePlugin {
   constructor() {
@@ -23,111 +22,121 @@ export class LuaranPenelitianPkmLainnyaHKIPatenPatenSederhanPlugin extends BaseP
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    const result = await super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
 
-    if (rawData.length === 0) return { allRows: [] }
+    // Segera konversi tanggal ke format yang benar setelah data diproses
+    if (result && result.allRows) {
+      result.allRows = result.allRows.map((item) => {
+        const fieldMap = this.mapLuaranPatenFields(item)
+        if (
+          fieldMap.tanggal &&
+          item[fieldMap.tanggal] &&
+          typeof item[fieldMap.tanggal] === "number"
+        ) {
+          item[fieldMap.tanggal] = PluginUtils.excelSerialDateToFormat(
+            item[fieldMap.tanggal]
+          )
+        }
+        return item
+      })
+    }
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
+    return result
+  }
 
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        judul_luaran_penelitian_dan_pkm: "",
-        tanggal_hh_bb_tttt: "",
-        nomor_paten_granted: "",
-      }
-
-      // Map based on column indices
-      if (row[1] !== undefined)
-        item.judul_luaran_penelitian_dan_pkm = PluginUtils.normalizeTextField(
-          row[1]
-        )
-      if (row[2] !== undefined)
-        item.tanggal_hh_bb_tttt = PluginUtils.normalizeTextField(row[2])
-      if (row[3] !== undefined)
-        item.nomor_paten_granted = PluginUtils.normalizeTextField(row[3])
-
-      return item
-    })
-
+  // ✅ Dynamic field mapping dengan pola yang lebih tepat
+  mapLuaranPatenFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      judul_luaran: this.findFieldByPattern(sampleItem, [
+        "judul_luaran_penelitian_dan_pkm",
+        "judul",
+        "luaran",
+        "penelitian",
+        "pkm",
+      ]),
+      tanggal: this.findFieldByPattern(sampleItem, [
+        "tanggal_hh_bb_tttt",
+        "tanggal",
+        "hh_bb_tttt",
+        "date",
+      ]),
+      nomor_paten: this.findFieldByPattern(sampleItem, [
+        "nomor_paten_granted",
+        "nomor",
+        "paten",
+        "granted",
+      ]),
     }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    let NA = 0
-
-    const isValidField = (value) => {
-      if (typeof value === "string") {
-        return value.trim() !== ""
-      }
-      if (typeof value === "number") {
-        return !isNaN(value)
-      }
-      return false
-    }
-
-    data.forEach((item) => {
-      if (
-        isValidField(item.judul_luaran_penelitian_dan_pkm) &&
-        isValidField(item.tanggal_hh_bb_tttt) &&
-        isValidField(item.nomor_paten_granted)
-      ) {
-        NA += 1
-      }
-    })
-
-    return {
-      scores: [],
-      scoreDetail: {
-        NA,
-      },
-    }
-  }
-
+  // ✅ Dynamic normalization dengan konversi tanggal yang lebih baik
   normalizeData(data) {
     return data.map((item) => {
       const result = { ...item }
+      const fieldMap = this.mapLuaranPatenFields(result)
 
-      const textFields = [
-        "judul_luaran_penelitian_dan_pkm",
-        "tanggal_hh_bb_tttt",
-        "nomor_paten_granted",
-      ]
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          if (key === "tanggal") {
+            const dateValue = result[fieldName]
 
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
+            if (
+              typeof dateValue === "string" &&
+              /^\d{4}-\d{2}-\d{2}$/.test(dateValue)
+            ) {
+              console.log(`Konversi tanggal: ${dateValue}`)
+              const [year, month, day] = dateValue.split("-")
+              result[fieldName] = `${day}/${month}/${year}`
+              console.log(`Hasil konversi: ${result[fieldName]}`)
+            } else if (typeof dateValue === "number") {
+              const jsDate = new Date((dateValue - 25569) * 86400 * 1000)
+              if (!isNaN(jsDate.getTime())) {
+                const day = String(jsDate.getDate()).padStart(2, "0")
+                const month = String(jsDate.getMonth() + 1).padStart(2, "0")
+                const year = jsDate.getFullYear()
+                result[fieldName] = `${day}/${month}/${year}`
+              }
+            }
+          } else {
+            result[fieldName] = PluginUtils.normalizeTextField(
+              result[fieldName]
+            )
+          }
+        }
       })
-
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.judul_luaran_penelitian_dan_pkm) {
-        errors.push(
-          `Row ${index + 1}: Judul Luaran Penelitian dan PkM harus diisi`
-        )
-      }
-      if (!item.tanggal_hh_bb_tttt) {
-        errors.push(`Row ${index + 1}: Tanggal (HH/BB/TTTT) harus diisi`)
-      }
-      if (!item.nomor_paten_granted) {
-        errors.push(`Row ${index + 1}: Nomor Paten (Granted) harus diisi`)
-      }
+      const fieldMap = this.mapLuaranPatenFields(item)
+
+      const requiredFields = [
+        {
+          field: fieldMap.judul_luaran,
+          name: "Judul Luaran Penelitian dan PkM",
+        },
+        { field: fieldMap.tanggal, name: "Tanggal (HH/BB/TTTT)" },
+        { field: fieldMap.nomor_paten, name: "Nomor Paten (Granted)" },
+      ]
+
+      requiredFields.forEach(({ field, name }) => {
+        if (field && !item[field]) {
+          errors.push(`Row ${index + 1}: ${name} harus diisi`)
+        }
+      })
     })
 
     return {
@@ -135,9 +144,22 @@ export class LuaranPenelitianPkmLainnyaHKIPatenPatenSederhanPlugin extends BaseP
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
 export const luaranPenelitianPkmLainnyaHKIPatenPatenSederhanPlugin =
   new LuaranPenelitianPkmLainnyaHKIPatenPatenSederhanPlugin()
-
 export default luaranPenelitianPkmLainnyaHKIPatenPatenSederhanPlugin

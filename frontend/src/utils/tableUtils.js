@@ -24,6 +24,11 @@ export const extractColumns = (tableConfig) => {
  * Deteksi apakah header merupakan bagian dari info/metadata
  */
 const detectInfoHeader = (headerStr) => {
+  // ✅ TAMBAH: Defensive check
+  if (!headerStr || typeof headerStr !== "string") {
+    return true // Treat non-string as info header
+  }
+
   const normalized = headerStr.toLowerCase().trim()
 
   // Pattern 1: Header yang diakhiri dengan titik dua (label format)
@@ -34,7 +39,6 @@ const detectInfoHeader = (headerStr) => {
   // Pattern 2: Header yang merupakan kata kunci metadata
   const metadataKeywords = [
     "info",
-    "keterangan",
     "catatan",
     "note",
     "link",
@@ -74,26 +78,43 @@ const detectInfoHeader = (headerStr) => {
  * Fungsi untuk menggabungkan header parent dan child
  */
 const combineHeaderWithParent = (parentHeader, childHeader) => {
-  if (!parentHeader || parentHeader === childHeader) {
-    return childHeader
+  // ✅ TAMBAH: Defensive check
+  if (!parentHeader && !childHeader) {
+    return ""
+  }
+
+  if (!parentHeader) {
+    return childHeader || ""
+  }
+
+  if (!childHeader) {
+    return parentHeader || ""
+  }
+
+  // Convert to string untuk safety
+  const parentStr = String(parentHeader).trim()
+  const childStr = String(childHeader).trim()
+
+  if (parentStr === childStr) {
+    return childStr
   }
 
   // Jika child header kosong, gunakan parent
-  if (!childHeader || childHeader.trim() === "") {
-    return parentHeader
+  if (childStr === "") {
+    return parentStr
   }
 
   // Jika parent header sudah ada dalam child header, gunakan child saja
-  if (childHeader.toLowerCase().includes(parentHeader.toLowerCase())) {
-    return childHeader
+  if (childStr.toLowerCase().includes(parentStr.toLowerCase())) {
+    return childStr
   }
 
   // Gabungkan parent dan child
-  return `${parentHeader} - ${childHeader}`
+  return `${parentStr} - ${childStr}`
 }
 
 /**
- * Fungsi untuk memproses hierarchical headers dari Excel
+ * ✅ FIXED: Fungsi untuk memproses hierarchical headers dari Excel dengan defensive checks
  */
 const processHierarchicalHeaders = (headerRows) => {
   if (!headerRows || headerRows.length === 0) {
@@ -104,7 +125,9 @@ const processHierarchicalHeaders = (headerRows) => {
   if (headerRows.length === 1) {
     return headerRows[0]
       .map((header, index) => ({
-        name: header || `Column_${index + 1}`,
+        name: header
+          ? String(header).trim() || `Column_${index + 1}`
+          : `Column_${index + 1}`,
         column: String.fromCharCode(65 + index),
         cell: `${String.fromCharCode(65 + index)}1`,
         originalIndex: index,
@@ -164,19 +187,18 @@ const processHierarchicalHeaders = (headerRows) => {
         ? headerRows[rowIndex + 1][colIndex]
         : null
 
-      if (
-        cellValue &&
-        String(cellValue).trim() !== "" &&
-        !detectInfoHeader(String(cellValue))
-      ) {
+      // ✅ FIXED: Add defensive checks
+      const cellValueStr = cellValue ? String(cellValue).trim() : ""
+      const nextRowValueStr = nextRowValue ? String(nextRowValue).trim() : ""
+
+      if (cellValueStr !== "" && !detectInfoHeader(cellValueStr)) {
         // Ini adalah parent header
-        currentParent = String(cellValue).trim()
+        currentParent = cellValueStr
         currentParentStartCol = colIndex
       } else if (
         currentParent &&
-        nextRowValue &&
-        String(nextRowValue).trim() !== "" &&
-        !detectInfoHeader(String(nextRowValue))
+        nextRowValueStr !== "" &&
+        !detectInfoHeader(nextRowValueStr)
       ) {
         // Cell kosong tapi ada value di row berikutnya, ini spanning
         if (!parentSpanMap[`${rowIndex}_${colIndex}`]) {
@@ -190,11 +212,9 @@ const processHierarchicalHeaders = (headerRows) => {
 
         // Cek apakah parent masih berlaku untuk kolom berikutnya
         const nextColValue = currentRow[colIndex + 1]
-        if (
-          nextColValue &&
-          String(nextColValue).trim() !== "" &&
-          !detectInfoHeader(String(nextColValue))
-        ) {
+        const nextColValueStr = nextColValue ? String(nextColValue).trim() : ""
+
+        if (nextColValueStr !== "" && !detectInfoHeader(nextColValueStr)) {
           // Ada header baru di kolom berikutnya, reset parent
           currentParent = null
           currentParentStartCol = -1
@@ -220,11 +240,9 @@ const processHierarchicalHeaders = (headerRows) => {
     let hasValidContent = false
     for (let rowIndex = 0; rowIndex < headerRows.length; rowIndex++) {
       const cellValue = headerRows[rowIndex][colIndex]
-      if (
-        cellValue &&
-        String(cellValue).trim() !== "" &&
-        !detectInfoHeader(String(cellValue))
-      ) {
+      const cellValueStr = cellValue ? String(cellValue).trim() : ""
+
+      if (cellValueStr !== "" && !detectInfoHeader(cellValueStr)) {
         hasValidContent = true
         break
       }
@@ -241,14 +259,11 @@ const processHierarchicalHeaders = (headerRows) => {
 
     for (let rowIndex = 0; rowIndex < headerRows.length; rowIndex++) {
       const headerValue = headerRows[rowIndex][colIndex]
+      const headerValueStr = headerValue ? String(headerValue).trim() : ""
 
-      if (
-        headerValue &&
-        String(headerValue).trim() !== "" &&
-        !detectInfoHeader(String(headerValue))
-      ) {
+      if (headerValueStr !== "" && !detectInfoHeader(headerValueStr)) {
         headerValues.push({
-          value: String(headerValue).trim(),
+          value: headerValueStr,
           row: rowIndex,
           col: colIndex,
         })
@@ -264,11 +279,9 @@ const processHierarchicalHeaders = (headerRows) => {
             nextRow++
           ) {
             const childValue = headerRows[nextRow][colIndex]
-            if (
-              childValue &&
-              String(childValue).trim() !== "" &&
-              !detectInfoHeader(String(childValue))
-            ) {
+            const childValueStr = childValue ? String(childValue).trim() : ""
+
+            if (childValueStr !== "" && !detectInfoHeader(childValueStr)) {
               hasChildHeader = true
               break
             }
@@ -317,36 +330,48 @@ const processHierarchicalHeaders = (headerRows) => {
       )
     }
 
-    // Fallback: cari parent dari kolom sebelumnya jika tidak ada parent yang terdeteksi
+    // ✅ FIXED: Fallback dengan defensive checks
     if (!parentName && colIndex > 0) {
       for (let prevCol = colIndex - 1; prevCol >= 0; prevCol--) {
         for (let rowIndex = 0; rowIndex < headerRows.length - 1; rowIndex++) {
           const prevHeader = headerRows[rowIndex][prevCol]
           const currentRowHeader = headerRows[rowIndex][colIndex]
 
+          // ✅ FIXED: Add defensive string conversion and null checks
+          const prevHeaderStr = prevHeader ? String(prevHeader).trim() : ""
+          const currentRowHeaderStr = currentRowHeader
+            ? String(currentRowHeader).trim()
+            : ""
+
           if (
-            prevHeader &&
-            String(prevHeader).trim() !== "" &&
-            !detectInfoHeader(String(prevHeader)) &&
-            (!currentRowHeader || currentRowHeader.trim() === "")
+            prevHeaderStr !== "" &&
+            !detectInfoHeader(prevHeaderStr) &&
+            currentRowHeaderStr === ""
           ) {
             // Validasi bahwa ini benar-benar parent dengan mengecek apakah
             // ada child header di baris berikutnya
-            const hasChildInNextRow =
-              headerRows[rowIndex + 1] &&
-              headerRows[rowIndex + 1][colIndex] &&
-              String(headerRows[rowIndex + 1][colIndex]).trim() !== ""
+            const nextRowHeader =
+              headerRows[rowIndex + 1] && headerRows[rowIndex + 1][colIndex]
+            const nextRowHeaderStr = nextRowHeader
+              ? String(nextRowHeader).trim()
+              : ""
+
+            const hasChildInNextRow = nextRowHeaderStr !== ""
 
             if (hasChildInNextRow) {
-              parentName = String(prevHeader).trim()
+              parentName = prevHeaderStr
 
               // Update final header jika belum include parent
               const currentBottomHeader =
                 headerRows[headerRows.length - 1][colIndex]
-              if (currentBottomHeader && !finalHeader.includes(parentName)) {
+              const currentBottomHeaderStr = currentBottomHeader
+                ? String(currentBottomHeader).trim()
+                : ""
+
+              if (currentBottomHeaderStr && !finalHeader.includes(parentName)) {
                 finalHeader = combineHeaderWithParent(
                   parentName,
-                  String(currentBottomHeader).trim()
+                  currentBottomHeaderStr
                 )
               }
               break
@@ -358,7 +383,7 @@ const processHierarchicalHeaders = (headerRows) => {
     }
 
     hierarchicalHeaders.push({
-      name: finalHeader,
+      name: finalHeader || `Column_${colIndex + 1}`,
       column: columnLetter,
       cell: `${columnLetter}${headerRows.length}`,
       originalIndex: colIndex,
@@ -372,12 +397,17 @@ const processHierarchicalHeaders = (headerRows) => {
   return hierarchicalHeaders
 }
 
+// ✅ REST OF THE FILE REMAINS THE SAME...
 export const mapColumnsUsingAI = async (
   dbColumns,
   excelHeaders,
   semanticThreshold = 0.65
 ) => {
   try {
+    console.log("🤖 Calling AI mapping service...")
+    console.log("📋 DB Columns:", dbColumns.length)
+    console.log("📊 Excel Headers:", excelHeaders.length)
+
     const formattedDbColumns = dbColumns.map((column) => ({
       indeksData: column.indeksData,
       title: column.judul,
@@ -402,24 +432,37 @@ export const mapColumnsUsingAI = async (
       })
       .map((header) => header.name) // Extract hanya name untuk AI mapping
 
+    console.log("🎯 Filtered headers for AI:", filteredHeaders)
+
     const response = await axiosInstance.post("/data-mapping", {
       database_columns: formattedDbColumns,
       excel_headers: filteredHeaders,
-      semantic_threshold: semanticThreshold, // Kirim threshold 0.65
+      semantic_threshold: semanticThreshold,
     })
 
+    console.log("🔄 AI service response:", response.data)
+
     if (response.data && response.data.success && response.data.mapping) {
+      console.log("✅ AI mapping successful!")
       return response.data.mapping
     } else {
       console.error(
-        "[ERROR] AI mapping failed:",
+        "❌ AI mapping failed:",
         response.data?.error || "Unknown error"
       )
-      return null
+      throw new Error(
+        response.data?.error || "AI mapping service returned failure"
+      )
     }
   } catch (error) {
-    console.error("[ERROR] Error calling AI mapping service:", error)
-    return null
+    console.error("❌ Error calling AI mapping service:", error)
+
+    if (error.response) {
+      console.error("📡 Response status:", error.response.status)
+      console.error("📡 Response data:", error.response.data)
+    }
+
+    throw new Error(`AI mapping failed: ${error.message}`)
   }
 }
 
@@ -617,7 +660,7 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
       headerRows.push(jsonData[headerRowIndex] || [])
     }
 
-    // Process hierarchical headers
+    // ✅ Process hierarchical headers with improved error handling
     const hierarchicalHeaders = processHierarchicalHeaders(headerRows)
 
     // Buat combinedHeaders yang berisi hierarchical structure
@@ -663,101 +706,54 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
     const detectedIndices = {}
     const unmatchedColumns = []
 
+    // ✅ HANYA MENGGUNAKAN AI MAPPING - NO FALLBACK
     try {
+      console.log("🤖 Using AI mapping for column detection...")
+
       const aiMapping = await mapColumnsUsingAI(
         Object.values(columnMap),
-        validHeaders // Gunakan validHeaders yang sudah difilter
+        validHeaders,
+        0.65
       )
 
-      if (aiMapping) {
+      if (aiMapping && typeof aiMapping === "object") {
+        console.log("✅ AI mapping successful:", aiMapping)
+
         Object.entries(columnMap).forEach(([dataIndex, column]) => {
           if (aiMapping[dataIndex]) {
             const { excelIndex, excelHeader } = aiMapping[dataIndex]
             // Map kembali ke index asli di hierarchicalHeaders
             const originalIndex = headerIndexMap[excelIndex] || excelIndex
             detectedIndices[dataIndex] = originalIndex
+            console.log(
+              `✅ Mapped: ${dataIndex} -> ${excelHeader} (index: ${originalIndex})`
+            )
           } else {
             unmatchedColumns.push({
               indeksData: dataIndex,
               judul: column.judul,
             })
+            console.log(`❌ Unmatched: ${dataIndex} (${column.judul})`)
           }
         })
       } else {
-        Object.entries(columnMap).forEach(([dataIndex, column]) => {
-          const index = basicColumnMatching(
-            validHeaders.map((h) => h.name),
-            column
-          )
-          if (index !== -1) {
-            // Map kembali ke index asli di hierarchicalHeaders
-            const originalIndex = headerIndexMap[index] || index
-            detectedIndices[dataIndex] = originalIndex
-          } else {
-            unmatchedColumns.push({
-              indeksData: dataIndex,
-              judul: column.judul,
-            })
-          }
-        })
+        console.error("❌ AI mapping failed or returned invalid response")
+        throw new Error("AI mapping service failed")
       }
     } catch (error) {
-      console.error("[ERROR] Error during column mapping:", error)
-      Object.entries(columnMap).forEach(([dataIndex, column]) => {
-        const index = basicColumnMatching(
-          validHeaders.map((h) => h.name),
-          column
-        )
-        if (index !== -1) {
-          const originalIndex = headerIndexMap[index] || index
-          detectedIndices[dataIndex] = originalIndex
-        } else {
-          unmatchedColumns.push({ indeksData: dataIndex, judul: column.judul })
-        }
-      })
+      console.error("❌ AI mapping error:", error)
+
+      // ❌ NO FALLBACK - THROW ERROR INSTEAD
+      message.error(
+        "AI column mapping failed. Please check your data format and try again."
+      )
+      throw new Error(`Column mapping failed: ${error.message}`)
     }
 
-    function basicColumnMatching(headers, column) {
-      const columnTitle = column.judul.toLowerCase().trim()
-
-      for (let i = 0; i < headers.length; i++) {
-        const header = String(headers[i] || "")
-          .toLowerCase()
-          .trim()
-        if (header === columnTitle) {
-          return i
-        }
-      }
-
-      for (let i = 0; i < headers.length; i++) {
-        const header = String(headers[i] || "")
-          .toLowerCase()
-          .trim()
-        if (header.includes(columnTitle) || columnTitle.includes(header)) {
-          return i
-        }
-      }
-
-      const columnWords = columnTitle.split(/\s+/)
-      for (let i = 0; i < headers.length; i++) {
-        const header = String(headers[i] || "")
-          .toLowerCase()
-          .trim()
-        const headerWords = header.split(/\s+/)
-
-        const significantMatches = columnWords.filter(
-          (word) =>
-            word.length > 2 &&
-            headerWords.some((hw) => hw.includes(word) || word.includes(hw))
-        )
-
-        if (significantMatches.length > 0) {
-          return i
-        }
-      }
-
-      return -1
-    }
+    // Log mapping results
+    console.log("📊 Final mapping results:")
+    console.log("✅ Detected indices:", detectedIndices)
+    console.log("❌ Unmatched columns:", unmatchedColumns)
 
     const transformedRows = filteredJsonData.map((row, rowIdx) => {
       const transformedRow = {}
@@ -771,9 +767,9 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
 
     return {
       rawData: filteredJsonData,
-      headers: combinedHeaders, // Simple header names untuk backward compatibility
-      structuredHeaders: structuredHeaders, // Hierarchical headers dengan parent info
-      hierarchicalHeaders: hierarchicalHeaders, // Alias untuk structured headers
+      headers: combinedHeaders,
+      structuredHeaders: structuredHeaders,
+      hierarchicalHeaders: hierarchicalHeaders,
       detectedIndices,
       columnMap,
       tableConfig,
@@ -782,6 +778,7 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
       jsonData,
       dataStartRow,
       transformedRows,
+      unmatchedColumns, // Include unmatched columns for debugging
     }
   } catch (error) {
     console.error("Error saat memproses data Excel:", error)
@@ -789,7 +786,7 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
       "Gagal memproses data Excel: " +
         (error.message || "Error tidak diketahui")
     )
-    return { rawData: [], headers: [], detectedIndices: {} }
+    throw error // Re-throw error instead of returning empty data
   }
 }
 

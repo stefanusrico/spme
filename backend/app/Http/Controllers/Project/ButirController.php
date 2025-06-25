@@ -11,12 +11,47 @@ use App\Models\Project\Project;
 use App\Models\Prodi\Prodi;
 use App\Models\Data\Butir;
 use App\Services\Calculations\ScoreCalculator;
-
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
 class ButirController extends Controller
 {
+    public function getBobotButir($lamId, $strataId)
+    {
+        try {
+            // Validasi request
+            if (!$lamId || !$strataId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'lamId dan strataId wajib diisi'
+                ], 400);
+            }
+
+            \Log::info('Get Bobot Butir', [
+                'lamId' => $lamId,
+                'strataId' => $strataId
+            ]);
+            // $lamIdString = $this->convertObjectIdToString($lamId);
+            // $strataIdString = $this->convertObjectIdToString($strataId);
+
+            $data = Butir::get()->sortBy(function ($item) {
+                return (int) $item->butir;
+            })->values();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'trace' => config('app.debug') ? $e->getTrace() : []
+            ], 500);
+        }
+    }
+
     public function getSkorPerButir($prodiId)
     {
         try {
@@ -50,7 +85,7 @@ class ButirController extends Controller
             $bobotRumusCollection = $this->_getBobotRumusCollection($prodiId);
 
             $resultButir = $this->calculateScorePerButir($combinedData, $calculator, $bobotRumusCollection);
-            $resultButirBobot = $this->calculateScorePerButirBobot($resultButir, $calculator, $bobotRumusCollection );
+            $resultButirBobot = $this->calculateScorePerButirBobot($resultButir, $calculator, $bobotRumusCollection);
 
             $nilaiAkreditasi = round($resultButirBobot->sum(fn($d) => $d['nilai'] ?? 0.0), 2);
 
@@ -91,6 +126,59 @@ class ButirController extends Controller
         return [$filteredLedData, $filteredLkpsData];
     }
 
+    public function updateButir(Request $request, $id)
+    {
+        try {
+            $butir = Butir::findOrFail($id);
+
+            if (!$butir) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Data tidak ditemukan.',
+                ], 404);
+            }
+            $butir->update($request->all());
+
+            return response()->json([
+                'message' => 'Data berhasil diupdate',
+                'data' => $butir,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Terjadi kesalahan saat memperbarui data.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function deleteButir($id)
+    {
+        try {
+            $butir = Butir::find($id);
+
+            if (!$butir) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Data tidak ditemukan.',
+                ], 404);
+            }
+
+            $butir->delete();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Data berhasil dihapus.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Terjadi kesalahan saat menghapus data.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     private function respondNotFound($projectId)
     {
         Log::warning("No data found for projectId: $projectId");
@@ -121,7 +209,7 @@ class ButirController extends Controller
         foreach ($uniqueLkps as $item) {
             $kriteria = $item->task->tasklist->kriteria ?? null;
 
-            $details = $item->detailNilai['details'] ?? $item['nilai'] ?? [];
+            $details = $item['nilai'] ?? [];
             foreach ($details as $d) {
                 $combined->push([
                     'no' => $d['no'] ?? $d['butir'] ?? null,
@@ -138,7 +226,7 @@ class ButirController extends Controller
     private function calculateScorePerButir($data, $calculator, $bobotRumusCollection)
     {
         $rumusMap = $bobotRumusCollection->keyBy('butir');
-        
+
         return $data->groupBy('no')->map(function ($items, $no) use ($calculator, $rumusMap) {
             $matchedRumusData = $rumusMap->get($no);
             $rumusValue = $matchedRumusData ? $matchedRumusData['rumus'] : "A";
@@ -156,7 +244,7 @@ class ButirController extends Controller
     {
         // Jika tidak ada data bobot, kembalikan koleksi kosong untuk menghindari error
         if ($bobotRumusCollection->isEmpty()) {
-            return collect(); 
+            return collect();
         }
 
         // Ini membuat pencarian bobot menjadi sangat cepat (O(1) lookup)
@@ -173,7 +261,7 @@ class ButirController extends Controller
 
             // Ambil nilai 'bobot', jika tidak ada, default ke 0 agar tidak error.
             $bobotValue = $matchedBobotData ? $matchedBobotData['bobot'] : 0;
-            
+
             // 5. Panggil kalkulator dengan parameter bobot yang sudah ditemukan
             return [
                 'no' => $no,

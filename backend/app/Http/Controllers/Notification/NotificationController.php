@@ -5,9 +5,6 @@ namespace App\Http\Controllers\Notification;
 use App\Http\Controllers\Controller;
 
 use App\Models\User\User;
-use App\Notifications\GeneralNotification;
-use Illuminate\Http\Request;
-use App\Notifications\TestNotification;
 use App\Models\Notification\Notification;
 use App\Models\Project\Project;
 
