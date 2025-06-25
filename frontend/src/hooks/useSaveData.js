@@ -111,6 +111,45 @@ export const useSaveData = (
         }
       }
 
+      // ✅ PERBAIKAN: Fetch data terbaru setelah save berhasil
+      try {
+        const fetchResponse = await axiosInstance.get(`lkps/data`, {
+          params: {
+            projectId,
+            tableCode,
+          },
+        })
+
+        if (fetchResponse.data) {
+          // Update score dari response terbaru
+          if (
+            fetchResponse.data.nilai &&
+            Array.isArray(fetchResponse.data.nilai)
+          ) {
+            setScore(fetchResponse.data.nilai)
+          } else if (
+            fetchResponse.data.nilai !== null &&
+            fetchResponse.data.nilai !== undefined
+          ) {
+            setScore([{ butir: null, nilai: fetchResponse.data.nilai }])
+          }
+
+          // Update score detail dari response terbaru
+          if (fetchResponse.data.detailNilai) {
+            setScoreDetail(fetchResponse.data.detailNilai)
+          }
+
+          console.log("Updated score after save:", fetchResponse.data.nilai)
+          console.log(
+            "Updated scoreDetail after save:",
+            fetchResponse.data.detailNilai
+          )
+        }
+      } catch (fetchError) {
+        console.error("Error fetching updated data after save:", fetchError)
+        // Tidak perlu throw error karena save sudah berhasil
+      }
+
       toast.success("Data saved successfully!")
     } catch (error) {
       console.error("Error saving data:", error)

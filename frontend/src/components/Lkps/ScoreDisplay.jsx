@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import {
   Card,
   CardContent,
@@ -41,11 +41,38 @@ const ScoreDisplay = ({ score, scoreDetail }) => {
   console.log("ScoreDisplay rendering with:", { score })
   const [isOpen, setIsOpen] = useState(false)
 
-  // PERBAIKAN: Gunakan OR operator
-  if (!Array.isArray(score) || score.length === 0) return null
+  // ✅ PERBAIKAN: Gunakan useMemo untuk normalisasi data
+  const displayScore = useMemo(() => {
+    console.log("ScoreDisplay useMemo triggered:", { score })
+
+    if (!score) return null
+
+    if (Array.isArray(score)) {
+      return score.length > 0 ? score : null
+    }
+
+    if (typeof score === "number") {
+      return [{ butir: null, nilai: score }]
+    }
+
+    if (typeof score === "object" && score !== null) {
+      return [score]
+    }
+
+    return null
+  }, [score])
+
+  // ✅ PERBAIKAN: Return null jika tidak ada data, tapi lebih permisif
+  if (!displayScore) {
+    console.log("ScoreDisplay: No valid score data to display")
+    return null
+  }
 
   // ✅ Helper function untuk format label butir
   const formatButirLabel = (item) => {
+    if (!item.butir && item.butir !== 0) {
+      return "Skor Total"
+    }
     if (item.sub) {
       return `Butir ${item.butir}-${item.sub}`
     }
@@ -157,9 +184,11 @@ const ScoreDisplay = ({ score, scoreDetail }) => {
           <div className="flex justify-between items-center p-4 border-b">
             <div className="flex-1">
               <div className="space-y-2">
-                {score.map((item) => (
+                {displayScore.map((item, index) => (
                   <div
-                    key={`${item.butir}-${item.sub || "no-sub"}`}
+                    key={`${item.butir || "total"}-${
+                      item.sub || "no-sub"
+                    }-${index}`}
                     className="flex items-center gap-2"
                   >
                     <div
@@ -170,10 +199,8 @@ const ScoreDisplay = ({ score, scoreDetail }) => {
                       }`}
                     />
                     <span className="text-lg font-medium">
-                      {/* ✅ PERBAIKAN: Gunakan format yang dinamis berdasarkan ada tidaknya sub */}
                       Skor {formatButirLabel(item)} : {item.nilai}
                     </span>
-                    {/* ✅ TAMBAHAN: Badge untuk menunjukkan sub jika ada */}
                     {item.sub && (
                       <Badge
                         variant="outline"
