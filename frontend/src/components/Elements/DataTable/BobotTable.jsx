@@ -6,10 +6,13 @@ import {
   getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table"
-import { Button } from "@/components/ui/button" // Pastikan kamu punya komponen Button ini
+import { Button } from "@/components/ui/button"
 import axiosInstance from "../../../utils/axiosConfig"
+import { Modal } from 'antd'
 
-const BobotTable = () => {
+const BobotTable = ({userData}) => {
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editData, setEditData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [bobot, setBobot] = useState([])
@@ -31,6 +34,33 @@ const BobotTable = () => {
 
     fetchBobot();
   }, []);
+
+  const handleEdit = (rowData) => {
+    setEditData(rowData)
+    setIsEditModalOpen(true)
+  }
+
+  const handleDelete = (id, butir) => {
+    Modal.confirm({
+      title: "Hapus Data",
+      content: `Yakin ingin menghapus data butir "${butir}"?`,
+      okText: "Hapus",
+      okType: "danger",
+      cancelText: "Batal",
+      onOk: async () => {
+        try {
+          await axiosInstance.delete(`/delete-butir/${id}`);
+          setBobot((prev) => prev.filter((item) => item.id !== id));
+        } catch (err) {
+          console.error("Gagal menghapus data:", err);
+          Modal.error({
+            title: "Gagal",
+            content: "Terjadi kesalahan saat menghapus data.",
+          });
+        }
+      },
+    });
+  };
 
   const columns = useMemo(
     () => [
@@ -65,14 +95,29 @@ const BobotTable = () => {
         size: 150,
         cell: ({ row }) => (
           <div className="flex items-center justify-center gap-2">
-            <Button variant="ghost" size="icon">
-              <Icon icon="heroicons-outline:pencil" className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <Icon icon="heroicons-outline:trash" className="h-4 w-4" />
-            </Button>
+            {userData.role === "Admin" ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleEdit(row.original)}
+                >
+                  <Icon icon="heroicons-outline:pencil" className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDelete(row.original.id, row.original.butir)}
+                >
+                  <Icon icon="heroicons-outline:trash" className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <span className="text-gray-400">-</span> // placeholder
+            )}
           </div>
-        ),
+        )
       },
     ],
     []
@@ -113,6 +158,12 @@ const BobotTable = () => {
     <div className="w-full">
       <div className="bg-white rounded-xl shadow-lg w-full relative">
         {loading && <LoadingBar />}
+
+        <div className="p-4 border-b">
+          <h2 className="text-lg font-semibold">Butir Management</h2>
+          <p className="text-sm text-gray-500">Total: {bobot.length} items</p>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm">
             <thead className="bg-gray-100">
@@ -196,6 +247,90 @@ const BobotTable = () => {
           </div>
         </div>
       </div>
+      {isEditModalOpen && (
+        <Modal
+          title="Edit Data"
+          open={isEditModalOpen}
+          onCancel={() => setIsEditModalOpen(false)}
+          onOk={async () => {
+            try {
+              await axiosInstance.put(`/update-butir/${editData.id}`, editData)
+              setBobot((prev) =>
+                prev.map((item) =>
+                  item.id === editData.id ? { ...item, ...editData } : item
+                )
+              )
+              setIsEditModalOpen(false)
+            } catch (error) {
+              console.error("Gagal update data:", error)
+              Modal.error({
+                title: "Error",
+                content: "Gagal mengupdate data.",
+              })
+            }
+          }}
+          okText="Simpan"
+          cancelText="Batal"
+        >
+          <div className="flex flex-col gap-4">
+            <label>
+              Butir:
+              <input
+                type="text"
+                value={editData?.butir || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, butir: e.target.value })
+                }
+                className="w-full border px-3 py-1 rounded mt-1"
+              />
+            </label>
+            <label>
+              Elemen:
+              <input
+                type="text"
+                value={editData?.elemen || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, elemen: e.target.value })
+                }
+                className="w-full border px-3 py-1 rounded mt-1"
+              />
+            </label>
+            <label>
+              Indikator:
+              <input
+                type="text"
+                value={editData?.indikator || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, indikator: e.target.value })
+                }
+                className="w-full border px-3 py-1 rounded mt-1"
+              />
+            </label>
+            <label>
+              Bobot:
+              <input
+                type="number"
+                value={editData?.bobot || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, bobot: e.target.value })
+                }
+                className="w-full border px-3 py-1 rounded mt-1"
+              />
+            </label>
+            <label>
+              Rumus:
+              <input
+                type="text"
+                value={editData?.rumus || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, rumus: e.target.value })
+                }
+                className="w-full border px-3 py-1 rounded mt-1"
+              />
+            </label>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

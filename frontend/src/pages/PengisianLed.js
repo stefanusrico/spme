@@ -16,9 +16,33 @@ export const fetchLedDataByTaskId = async (taskId) => {
   }
 }
 
-export const fetchUserTask = async () => {
+export const fetchLatestLedDataByTaskId = async (taskId) => {
   try {
-    const responseTask = await axiosInstance.get(`/tasks`)
+    const responseVersion = await axiosInstance.get(`/led-data/get-latest-by-task`,{ params: { 
+        taskId: taskId 
+      }
+    })
+
+    return responseVersion.data.data
+  } catch (error) {
+    throw new Error("Gagal mengambil data program studi")
+  }
+}
+
+export const fetchLedItemLatestByTaskId = async (taskId) => {
+  try {
+    const responseLedItemByProdi = await axiosInstance.get(
+      `/get-led-item-latest-by-task/${taskId}`
+    )
+    return responseLedItemByProdi.data.data
+  } catch (error) {
+    throw new Error("Gagal mengambil data Led Item berdasarkan prodi")
+  }
+}
+
+export const fetchUserTask = async (projectId) => {
+  try {
+    const responseTask = await axiosInstance.get(`/tasks/${projectId}`)
     console.log("user task :", responseTask.data.data)
 
     const dataRespon = responseTask.data.data
@@ -30,7 +54,7 @@ export const fetchUserTask = async () => {
 
 export const fetchAllTaskByProdi = async (prodiId) => {
   try {
-    const responseTasks = await axiosInstance.get(`/projectsByProdi/${prodiId}`)
+    const responseTasks = await axiosInstance.get(`/all-tasks-by-prodi/${prodiId}`)
     const data = responseTasks.data.data.tasks
     console.log("reposen all tasks : ", data)
     return data
@@ -71,7 +95,7 @@ export const fetchAllProdi = async () => {
 
 export const fetchLedDataByProdi = async (prodiId) => {
   try {
-    const responseLedData = await axiosInstance.get(`/ledData/byProdi/${prodiId}`)
+    const responseLedData = await axiosInstance.get(`/led-data-by-prodi/${prodiId}`)
     if (!responseLedData.data || !responseLedData.data.data || responseLedData.data.data.length === 0) {
       console.warn("LED data kosong atau tidak ditemukan");
       return []; // Atau null tergantung bagaimana kamu ingin menanganinya
@@ -150,20 +174,32 @@ const parseDraftContent = (isianAsesiJson, dataPendukung = []) => {
     .filter(b => b.type === 'unstyled' && b.text.trim() !== "")
     .map(b => b.text.trim());
 
-  // Ambil gambar dari entityMap dan cocokkan dengan file_name di dataPendukung
+  // Ambil gambar dari entityMap 
   const imageUrls = Object.values(entityMap)
     .filter(e => e.type === "IMAGE")
     .map(e => {
-      const localUrl = e.data?.src;
-      const fileName = decodeURIComponent(localUrl).split("/").pop();
-
-      const matched = dataPendukung.find(dp => dp.file_name === fileName);
-
-      return matched ? `Gambar : ${matched.file_url}` : ""; // Kosongkan jika tidak ada
+      const src = e.data?.src;
+      return src ? `Gambar : ${src}` : "";
     })
-    .filter(Boolean); // Hapus yang kosong
+    .filter(Boolean);
 
-  return textParts.concat(imageUrls).join("\n\n");
+  // Ambil pdf dari entityMap 
+  const pdfLinksFromEditor = Object.values(entityMap)
+    .filter(e => e.type === "LINK" && e.data?.url?.endsWith(".pdf"))
+    .map(e => `PDF: ${e.data.url}`)
+    .filter(Boolean);
+
+  // Ambil pdf dari luar editor 
+  // const extraPdfLinks = Array.isArray(dataPendukung)
+  //   ? dataPendukung
+  //       .filter(pdf => pdf?.local_url)
+  //       .map(pdf => `PDF: ${pdf.file_name} - ${pdf.local_url}`)
+  //   : [];
+
+  // Gabungkan semuanya
+  return [...textParts, ...imageUrls, ...pdfLinksFromEditor]
+    .filter(Boolean)
+    .join("\n\n");
 };
 
 
@@ -293,6 +329,7 @@ export const storeLedData = async (commit, dataIsian, noSub) => {
   console.log("data to store :", dataToStore)
 
   const response = await axiosInstance.post(`/ledData`, dataToStore)
+  return response.data;
   console.log("response post LedData :", response)
 }
 

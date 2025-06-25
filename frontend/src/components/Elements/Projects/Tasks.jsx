@@ -299,7 +299,7 @@ const Tasks = ({ projectId, userRole }) => {
       columnHelper.accessor("name", {
         header: "TASK NAME",
         size: 200,
-        cell: ({ row, getValue }) => {
+        cell: ({ row, getValue }) => { 
           if (row.original.isGroupHeader) {
             // Display criteria for group headers in the name column
             return row.original.criteria

@@ -8,6 +8,7 @@ import axiosInstance from "../../../utils/axiosConfig"
 import { useEffect, useState } from "react"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faPlus } from "@fortawesome/free-solid-svg-icons"
+import { message } from 'antd'
 
 const AddDataFromSpreadsheetModal = ({ isOpen, onClose, importType }) => {
   const [urlSpreadsheet, setUrlSpreadsheet] = useState("")
@@ -26,7 +27,7 @@ const AddDataFromSpreadsheetModal = ({ isOpen, onClose, importType }) => {
     setUrlSpreadsheet("")
     setSelectedStrata("")
     setSelectedLAM("")
-    setTitle("Generate Matriks")
+    setTitle(`Generate Data Dari Sreadsheet`)
     setSheets([""])
 
     const fetchData = async () => {
@@ -86,13 +87,13 @@ const AddDataFromSpreadsheetModal = ({ isOpen, onClose, importType }) => {
           responsePost = await axiosInstance.post("/save-syarat-perlu-peringkat", payload)
           break
 
-        default:
+        case 'ledItem':
           responsePost = await axiosInstance.post("/save-json", payload)
           break
       }
       
 
-      alert("Data berhasil disimpan: " + JSON.stringify(responsePost.data))
+      message.success("Data berhasil disimpan.")
       onClose()
     } catch (error) {
       console.error("Error saving file:", error)

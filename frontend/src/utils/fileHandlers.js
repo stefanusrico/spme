@@ -11,7 +11,7 @@ export const handleDeleteFile = async (file, setFileList) => {
     console.log("file id", file.id)
     await axiosInstance.delete(`/files/${file.id}`, {
       params: {
-        folder: "file Pendukung", // Pastikan parameter folder juga terkirim
+        folder: "Supporting File", // Pastikan parameter folder juga terkirim
         localUrl: file.local_url, // Pastikan localUrl dikirim
       }
     });
@@ -71,7 +71,7 @@ export const fetchFilesFromStorage = async (setFileList) => {
   try {
     const response = await axiosInstance.get("/files", {
       params: {
-        folder: 'file Pendukung',
+        folder: 'Supporting File',
       },
     })
 

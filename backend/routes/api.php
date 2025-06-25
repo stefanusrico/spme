@@ -9,9 +9,9 @@ use App\Http\Controllers\Prodi\{ProdiController, StrataController};
 use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController, ButirController};
 use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController, LkpsImportController, LkpsSyncController};
 use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, LedDocumentController};
-use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController, KomponenPenilaianController};
+use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController, KomponenPenilaianController, SyaratPerluTerakreditasiController, SyaratPerluPeringkatController};
 use App\Http\Controllers\Akreditasi\{DataAkreditasiController};
-use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
+use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFileTestController, GeminiDataMappingController, GeminiScoringLedController};
 use App\Http\Controllers\Notification\NotificationController;
 
 
@@ -180,8 +180,10 @@ Route::controller(JadwalLamController::class)->group(function () {
 Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
-    Route::get('tasks', [TaskController::class, 'myTasks']);
+    Route::get('tasks/{projectId}', [TaskController::class, 'myTasks']);
+    Route::get('tasks/get/p2mpp', [TaskController::class, 'p2mppTasks']);
     Route::patch('tasks/updateOwner/{no}/{sub}/{prodiId}', [TaskController::class, 'updateOwners']);
+    Route::get('all-tasks-by-prodi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);
     Route::get('allTaskByProdi/{prodiId}', [TaskController::class, 'getAllTaskByProdi']);
 
     Route::controller(JurusanController::class)->group(function () {
@@ -209,7 +211,6 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::get('projects-with-owners', [ProjectController::class, 'projectsWithOwners']);
         Route::get('projects/all', [ProjectController::class, 'index']);
         Route::get('projects', [ProjectController::class, 'myProjects']);
-        Route::get('projectsByProdi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);
 
         Route::get('projects/{projectId}', [ProjectController::class, 'getProjectDetails']);
         Route::get('projects/{projectId}/members', [ProjectController::class, 'getMembers']);
@@ -272,13 +273,11 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::post('/save-syarat-perlu-terakreditasi', 'importSyaratPerluTerakreditasi');
             Route::post('/save-syarat-perlu-peringkat', 'importSyaratPerluPeringkat');
             Route::get('/read-json/{fileName}', 'readJson');
-            Route::get('/get-bobot-butir/{lamId}/{strataId}', 'getBobotButir');
-            Route::get('/get-syarat-perlu-terakreditasi/{lamId}/{strataId}', 'getSyaratPerluTerakreditasi');
-            Route::get('/get-syarat-perlu-peringkat/{lamId}/{strataId}', 'getSyaratPerluPeringkat');
         });
 
         Route::controller(GoogleDriveController::class)->group(function () {
             Route::post('/upload-to-drive', 'uploadFile');
+            Route::post('/upload-pdf-to-drive', 'uploadFilePdf');
             Route::post('/upload-to-drive-supporting-file', 'uploadFileSupporting');
             Route::get('/get-files', 'getFiles');
             Route::delete('/delete-files', 'deleteFile');
@@ -292,14 +291,32 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/led-data/get-all-by-task', 'getAllByTask');
             Route::get('/led-data/get-by-task', 'getAllByTask');
             Route::get('/ledData/{taskId}/latest', 'getLatest');
-            Route::get('/ledData/byProdi/{prodiId}', 'getLedDataByProdi');
-
+            Route::get('/led-data-by-prodi/{prodiId}', 'getLedDataByProdi');
             Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
+            Route::get('/get-led-data-by-nosub/:no/:sub', 'getByNoSub');
         });
 
         Route::post('/analyze-gpt', [GPTController::class, 'analyze']);
-        Route::get('/projects/get-skor-per-butir/{prodiId}', [ButirController::class, 'getSkorPerButir']);
-        Route::get('/projects/bobot-butir/{prodiId}', [ButirController::class, '_getBobotRumusCollection']);
+        Route::controller(ButirController::class)->group(function () {
+            Route::get('/projects/get-skor-per-butir/{prodiId}', 'getSkorPerButir');
+            Route::get('/projects/bobot-butir/{prodiId}', '_getBobotRumusCollection');
+            Route::put('/update-butir/{id}', 'updateButir');
+            Route::delete('/delete-butir/{id}', 'deleteButir');
+            Route::get('/get-bobot-butir/{lamId}/{strataId}', 'getBobotButir');
+        });
+
+        Route::controller(SyaratPerluTerakreditasiController::class)->group(function () {
+            Route::get('/get-syarat-perlu-terakreditasi/{lamId}/{strataId}', 'getSyaratPerluTerakreditasi');
+            Route::put('/update-syarat-perlu-terakreditasi/{id}', 'updateSyaratPerluTerakreditasi');
+            Route::delete('/delete-syarat-perlu-terakreditasi/{id}', 'deleteSyaratPerluTerakreditasi');
+        });
+
+        Route::controller(SyaratPerluPeringkatController::class)->group(function () {
+            Route::get('/get-syarat-perlu-peringkat/{lamId}/{strataId}', 'getSyaratPerluPeringkat');
+            Route::put('/update-syarat-perlu-peringkat/{id}', 'updateSyaratPerluPeringkat');
+            Route::delete('/delete-syarat-perlu-peringkat/{id}', 'deleteSyaratPerluPeringkat');
+        });
+
 
         Route::controller(LedItemController::class)->group(function () {
             Route::get('/ledItem', 'index');
@@ -307,8 +324,8 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/ledItem/{no}/{sub}', 'showNoSub');
             Route::get('/getLedItemByProdi/{prodiId}', 'getledItemByProdi');
             Route::post('/ledItem', 'store');
-            Route::put('/ledItem/{id}', 'update');
-            Route::delete('/ledItem/{id}', 'destroy');
+            Route::put('/update-led-item/{id}', 'update');
+            Route::delete('/delete-led-item/{id}', 'destroy');
         });
 
 

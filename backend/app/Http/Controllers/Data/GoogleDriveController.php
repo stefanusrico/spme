@@ -111,6 +111,82 @@ class GoogleDriveController extends Controller
         ]);
     }
 
+    /**
+     * Upload PDF file to Google Drive
+     */
+    public function uploadPdfToDrive(Request $request)
+    {
+        try {
+            // Validasi request
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|array',
+                'file.*' => 'required|file|mimes:pdf|max:10240', // max 10MB
+                'noKriteria' => 'required|array',
+                'subFolder' => 'required|string',
+                'noSub' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'error' => 'Validation failed',
+                    'messages' => $validator->errors()
+                ], 400);
+            }
+
+            $files = $request->file('file');
+            $noKriterias = $request->input('noKriteria');
+            $subFolder = $request->input('subFolder');
+            $noSub = $request->input('noSub');
+
+            $uploadedFiles = [];
+
+            foreach ($files as $index => $file) {
+                $noKriteria = $noKriterias[$index] ?? 'unknown';
+                
+                // Generate unique filename
+                $originalName = $file->getClientOriginalName();
+                $cleanName = preg_replace('/[^A-Za-z0-9\-_\.+]/', '_', $originalName);
+                $extension = $file->getClientOriginalExtension();
+                $filename = $cleanName;
+
+                // Upload to Google Drive
+                $driveResult = $this->uploadToGoogleDrive($file, $filename, $subFolder, $noSub, $noKriteria);
+                
+                if ($driveResult['success']) {
+                    $uploadedFiles[] = [
+                        'name' => $originalName,
+                        'filename' => $filename,
+                        'local_url' => $driveResult['local_url'],
+                        'drive_id' => $driveResult['drive_id'],
+                        'drive_url' => $driveResult['drive_url'],
+                        'no_kriteria' => $noKriteria,
+                        'mime_type' => 'application/pdf',
+                        'size' => $file->getSize(),
+                        'uploaded_at' => now()->toISOString(),
+                    ];
+                } else {
+                    return response()->json([
+                        'error' => 'Failed to upload to Google Drive',
+                        'message' => $driveResult['message']
+                    ], 500);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'PDF files uploaded successfully',
+                'files' => $uploadedFiles
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('PDF Upload Error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'File gagal diunggah ke Google Drive',
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     public function uploadFileSupporting(Request $request)
     {
         $request->validate([
@@ -121,7 +197,7 @@ class GoogleDriveController extends Controller
         $files = $request->file('file');
         $subFolderName = $request->input('folder');
 
-        $parentFolderId = env('GOOGLE_DRIVE_FOLDER_ID');
+        $parentFolderId = env('GOOGLE_DRIVE_SUPPORTING_FILE_FOLDER_ID');
 
         $service = $this->getDriveService();
 
@@ -278,7 +354,7 @@ class GoogleDriveController extends Controller
 
     public function getSupportingFiles(Request $request)
     {
-        $folderName = $request->query('folder') ?? 'file Pendukung';
+        $folderName = $request->query('folder') ?? 'Supporting File';
 
         if (!$folderName) {
             \Log::warning('getSupportingFiles: Parameter folder tidak diberikan');
@@ -289,7 +365,7 @@ class GoogleDriveController extends Controller
 
         try {
             $service = $this->getDriveService();
-            $parentFolderId = env('GOOGLE_DRIVE_FOLDER_ID');
+            $parentFolderId = env('GOOGLE_DRIVE_SUPPORTING_FILE_FOLDER_ID');
 
             $folderId = $this->getOrCreateFolder($folderName, $parentFolderId, $service);
             \Log::info("getSupportingFiles: Folder ID ditemukan/terbuat: {$folderId}");
@@ -333,11 +409,11 @@ class GoogleDriveController extends Controller
             'localUrl' => 'nullable|string',
         ]);
 
-        $folderName = $request->query('folder') ?? 'file Pendukung';
+        $folderName = $request->query('folder') ?? 'Supporting File';
         $localUrl = $request->input('localUrl');
 
         $service = $this->getDriveService();
-        $parentFolderId = env('GOOGLE_DRIVE_FOLDER_ID');
+        $parentFolderId = env('GOOGLE_DRIVE_SUPPORTING_FILE_FOLDER_ID');
 
         $folderId = $this->getOrCreateFolder($folderName, $parentFolderId, $service);
         $trashId = $this->getOrCreateFolder("Folder Sampah", $folderId, $service);
@@ -372,7 +448,7 @@ class GoogleDriveController extends Controller
         $filename = $request->input('filename');
 
         // Validasi tambahan bisa ditambahkan di sini
-        $path = storage_path("app/public/uploads/file Pendukung/{$filename}");
+        $path = storage_path("app/public/uploads/Supporting File/{$filename}");
 
         if (!file_exists($path)) {
             return response()->json([

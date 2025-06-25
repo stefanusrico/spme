@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { InboxOutlined } from '@ant-design/icons';
 import { message, Upload } from 'antd';
 import BobotTable from "../components/Elements/DataTable/BobotTable"
+import PengisianLedP2mpp from "../components/Elements/DataTable/PengisianLedP2mpp"
 import AddDataFromSpreadsheetModal from "../components/Elements/Modals/AddDataFromSpreadsheetModal"
 import UploadedFileList from "../components/Elements/File/UploadedFileList"
 import { handleDeleteFile, handleDownloadFile, fetchFilesFromStorage } from "../utils/fileHandlers"
@@ -15,6 +16,8 @@ import { Button } from "@/components/ui/button"
 import SyaratPerluTerakreditasiTable from "../components/Elements/DataTable/SyaratPerluTerakreditasiTable"
 import SyaratPerluPeringkatTable from "../components/Elements/DataTable/SyaratPerluPeringkatTable"
 import { Spin } from 'antd'
+import { useUser } from "../context/userContext"
+import LedItemTable from "../components/Elements/DataTable/LedItemTable"
 
 const { Dragger } = Upload;
 
@@ -25,10 +28,13 @@ const ImportData = ({}) => {
     const [fileList, setFileList] = useState([])
     const [isUploading, setIsUploading] = useState(false)
     const [uploadingCount, setUploadingCount] = useState(0)
+    const { userData } = useUser()
 
     useEffect(() => {
+        if (!userData) return;
+        console.log("userData :", userData)
         fetchFilesFromStorage(setFileList)
-    }, [])
+    }, [userData])
 
     const allowedTypes = [
         "image/png",
@@ -61,7 +67,7 @@ const ImportData = ({}) => {
 
             const formData = new FormData()
             formData.append("file[]", file)
-            formData.append("folder", "file Pendukung")
+            formData.append("folder", "Supporting File")
 
             try {
                 await axiosInstance.post("/upload-to-drive-supporting-file", formData, {
@@ -90,6 +96,7 @@ const ImportData = ({}) => {
     }
 
     useEffect(() => {
+        console.log("userData :", userData)
         console.log("import type :", importType)
     }, [importType])
 
@@ -97,10 +104,10 @@ const ImportData = ({}) => {
         <>
             <Card>
                 <CardHeader>
-                    <CardTitle>Import Data</CardTitle>
+                    <CardTitle>Komponen Penilaian</CardTitle>
     
                     <CardDescription>
-                        Memasukan data untuk kebutuhan aplikasi, seperti file untuk kebutuhan penyusunan LED dan LKPS, Import data bobot Butir, dan Syarat Perlu
+                        Komponen penilaian untuk kebutuhan aplikasi, seperti file untuk kebutuhan penyusunan LED dan LKPS, Import data bobot Butir, dan Syarat Perlu
                     </CardDescription>
                 </CardHeader>
     
@@ -108,21 +115,25 @@ const ImportData = ({}) => {
                     <Tabs defaultValue="importFile" onValueChange={handleTabChange}>
                         <div className="mt-2 flex justify-between items-center">
                             <TabsList>
-                                <TabsTrigger value="importFile">Upload File</TabsTrigger>
+                                <TabsTrigger value="importFile">Supporting File</TabsTrigger>
                                 <TabsTrigger value="syaratPerluTerakreditasi">Syarat Perlu Terakreditasi</TabsTrigger>
                                 <TabsTrigger value="syaratPerluPeringkat">Syarat Perlu Peringkat</TabsTrigger>
                                 <TabsTrigger value="bobot">Bobot Butir</TabsTrigger>
+                                <TabsTrigger value="ledItem">LED Item</TabsTrigger>
+                                {userData?.role === "Admin" && (<TabsTrigger value="pengisianLed">Pengisian LED</TabsTrigger>)}
+                                
                             </TabsList>
 
                             {
-                                importType !== 'importFile' &&
-                                <Button
-                                    onClick={() => setIsModalOpen(true)} 
-                                    disabled={isLoading}
-                                    className="flex bg-primary items-center gap-2"
-                                >
-                                    Import From Spreadsheet
-                                </Button>
+                                (importType !== 'importFile' && importType !== 'pengisianLed') && userData?.role === "Admin" && (
+                                    <Button
+                                        onClick={() => setIsModalOpen(true)} 
+                                        disabled={isLoading}
+                                        className="flex bg-primary items-center gap-2"
+                                    >
+                                        Import From Spreadsheet
+                                    </Button>
+                                )
                             }
                         </div>
 
@@ -132,17 +143,22 @@ const ImportData = ({}) => {
                                     files={fileList}
                                     onDelete={(file) => handleDeleteFile(file, setFileList)}
                                     onDownload={handleDownloadFile}
+                                    userData={userData}
                                 />
                             </div>
-                            <Dragger {...props}>
-                                <p className="ant-upload-drag-icon">
-                                    <InboxOutlined />
-                                </p>
-                                <p className="ant-upload-text">Click or drag file to this area to upload</p>
-                                <p className="ant-upload-hint">
-                                    Format yang didukung: .png, .jpg, .jpeg, .webp, .pdf, .xls, .xlsx, .doc, .docx
-                                </p>
-                            </Dragger>
+                            {
+                                userData?.role === "Admin" && (
+                                    <Dragger {...props}>
+                                        <p className="ant-upload-drag-icon">
+                                            <InboxOutlined />
+                                        </p>
+                                        <p className="ant-upload-text">Click or drag file to this area to upload</p>
+                                        <p className="ant-upload-hint">
+                                            Format yang didukung: .png, .jpg, .jpeg, .webp, .pdf, .xls, .xlsx, .doc, .docx
+                                        </p>
+                                    </Dragger>
+                                )
+                            }
                             {uploadingCount > 0 && (
                                 <div className="mt-4 flex justify-center items-center">
                                     <Spin tip={`Mengunggah ${uploadingCount} file...`} size="small" />
@@ -151,15 +167,23 @@ const ImportData = ({}) => {
                         </TabsContent>
 
                         <TabsContent value="syaratPerluTerakreditasi" className="mt-4">
-                            {!isModalOpen && <SyaratPerluTerakreditasiTable />}
+                            {!isModalOpen && <SyaratPerluTerakreditasiTable userData={userData}/>}
                         </TabsContent>
 
                         <TabsContent value="syaratPerluPeringkat" className="mt-4">
-                            {!isModalOpen && <SyaratPerluPeringkatTable />}
+                            {!isModalOpen && <SyaratPerluPeringkatTable userData={userData}/>}
                         </TabsContent>
 
                         <TabsContent value="bobot" className="mt-4">
-                            {!isModalOpen && <BobotTable />}
+                            {!isModalOpen && <BobotTable userData={userData}/>}
+                        </TabsContent>
+
+                        <TabsContent value="ledItem" className="mt-4">
+                           {!isModalOpen && <LedItemTable userData={userData}/>}
+                        </TabsContent>
+                        
+                        <TabsContent value="pengisianLed" className="mt-4">
+                            <PengisianLedP2mpp userData={userData}/>
                         </TabsContent>
                     </Tabs>
                 </CardContent>

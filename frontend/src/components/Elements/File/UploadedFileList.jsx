@@ -32,7 +32,7 @@ const getFileIcon = (fileName) => {
   }
 }
 
-const UploadedFileList = ({ files = [], onDelete = () => {}, onDownload = () => {} }) => {
+const UploadedFileList = ({ files = [], onDelete = () => {}, onDownload = () => {}, userData }) => {
   if (!files.length) {
     return <p className="text-muted-foreground text-sm">Belum ada file yang diunggah.</p>
   }
@@ -75,12 +75,16 @@ const UploadedFileList = ({ files = [], onDelete = () => {}, onDownload = () => 
               >
                 <DownloadOutlined />
               </span>
-              <span
-                className="cursor-pointer hover:text-red-600 transition-colors"
-                onClick={() => handleDelete(file)}
-              >
-                <DeleteOutlined />
-              </span>
+              {  
+                userData?.role === "Admin" && (
+                  <span
+                    className="cursor-pointer hover:text-red-600 transition-colors"
+                    onClick={() => handleDelete(file)}
+                  >
+                    <DeleteOutlined />
+                  </span>
+                )
+              }
             </div>
           </li>
         ))}

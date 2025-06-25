@@ -16,7 +16,7 @@ import AddFileModal from "../Modals/AddFileModal"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { Spin } from "antd"
-import { Loader2 } from "lucide-react"
+import { Loader2, Upload, FileText, Trash2 } from "lucide-react"
 import axiosInstance from "../../../utils/axiosConfig"
 
 function PengisianLedTableNew({
@@ -26,10 +26,12 @@ function PengisianLedTableNew({
   updateDataIsian,
   type,
   prodi,
-  noSub
+  noSub,
+  userData
 }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingCheck, setIsLoadingCheck] = useState(false)
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [dataToUpload, setDataToUpload] = useState([])
   const [globalDetails, setGlobalDetails] = useState({})
@@ -43,6 +45,7 @@ function PengisianLedTableNew({
     if (dataKriteriaIndikator && dataKriteriaIndikator.details) {
       console.log("data indikator :", dataKriteriaIndikator)
       console.log("data isian : ", dataIsian)
+      console.log("userData xixi : ", userData)
       setIsLoading(false)
     }
   }, [dataKriteriaIndikator])
@@ -94,6 +97,7 @@ function PengisianLedTableNew({
           ...detail,
           editorState,
           "Data Pendukung": dataIsianItem ? dataIsianItem.data_pendukung : "",
+          pdfFiles: dataIsianItem?.pdfFiles || [],
         }
       })
 
@@ -114,17 +118,16 @@ function PengisianLedTableNew({
     try {
       const toInt = parseInt(seq, 10) - 1
 
-      if (!dataIsian.details || !dataIsian.details[toInt]) {
+      if (!dataIsian?.details || !dataIsian?.details[toInt]) {
         toast.error("DataIsian belum lengkap atau indeks tidak ditemukan")
         return
       }
 
       const data = await fetchMasukanAndScoreFromAI(
         dataKriteriaIndikator,
-        dataIsian.details
+        dataIsian?.details
       )
 
-      // updateDataIsian(updatedDetails)
       const updatedDataIsian = {
         ...dataIsian,
         nilai: data.nilai,
@@ -132,9 +135,9 @@ function PengisianLedTableNew({
       };
 
       updateDataIsian(updatedDataIsian);
-      toast.success("Berhasil prompting ", )
+      toast.success("Berhasil prompting ")
     } catch (error) {
-      toast.info("skor prompting",)
+      toast.info("skor prompting")
       toast.error("Gagal prompting ")
     } finally{
       setIsLoadingCheck(false)
@@ -153,18 +156,16 @@ function PengisianLedTableNew({
       }
 
       // Setelah state update, baru update dataIsian
-      // const plainText = newEditorState.getCurrentContent().getPlainText()
       const rawContent = convertToRaw(newEditorState.getCurrentContent());
 
-      if (!dataIsian || !dataIsian.details) {
+      if (!dataIsian || !dataIsian?.details) {
         toast.error("Data belum siap!");
         return;
       }
 
       const updatedDataIsian = {
         ...dataIsian,
-        details: (dataIsian.details || []).map((item) =>
-          // item.seq === seq ? { ...item, isianAsesi: plainText } : item
+        details: (dataIsian?.details || []).map((item) =>
           item.seq === seq ? { ...item, isianAsesi: JSON.stringify(rawContent) } : item
         ),
       }
@@ -174,15 +175,137 @@ function PengisianLedTableNew({
     })
   }
 
-  const uploadImageCallBack = async (file, seq) => {
-    const userLocalhost = localStorage.getItem("user");
-    const jsonUserLocalhost = JSON.parse(userLocalhost);
-    const currentProdiName = jsonUserLocalhost.prodi.name;
+  // Fungsi untuk upload PDF
+  const handlePdfUpload = async (event, seq) => {
+    const file = event.target.files[0]
+    if (!file) return
 
+    // Validasi file PDF
+    if (file.type !== 'application/pdf') {
+      toast.error("Hanya file PDF yang diizinkan!")
+      return
+    }
+
+    // Validasi ukuran file (maksimal 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 10MB!")
+      return
+    }
+
+    setIsUploadingPdf(true)
+    
+    try {
+      const formData = new FormData();
+      // Sanitize nama file agar tidak ada karakter bermasalah seperti +, , dan spasi
+      const originalName = file.name
+      const cleanName = originalName
+        .replace(/\s+/g, "_")        // spasi → underscore
+        .replace(/\+/g, "_")         // plus → underscore
+        .replace(/,/g, "_")          // koma → underscore
+        .replace(/[^a-zA-Z0-9._-]/g, "") // hapus karakter aneh lainnya
+
+      // Buat File baru dengan nama bersih (opsional)
+      const cleanedFile = new File([file], cleanName, { type: file.type })
+
+      formData.append("file[]", cleanedFile);
+      formData.append("noKriteria[]", seq);
+      formData.append("subFolder", userData?.prodi?.name);
+      formData.append("noSub", noSub);
+      formData.append("fileType", "pdf");
+
+      const response = await axiosInstance.post("/upload-to-drive", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      const uploaded = response.data.files?.[0];
+      if (!uploaded) throw new Error("Upload PDF gagal");
+
+      // Update dataIsian dengan file PDF
+      const updatedDataIsian = {
+        ...dataIsian,
+        details: (dataIsian.details || []).map((item) =>
+          item.seq === seq ? { 
+            ...item, 
+            pdfFiles: [...(item.pdfFiles || []), {
+              file_name: uploaded.file_name,
+              local_url: uploaded.local_url,
+              file_id: uploaded.file_id,
+              drive_url: uploaded.file_url
+            }],
+          } : item
+        ),
+      };
+
+      updateDataIsian(updatedDataIsian);
+
+      // Update selectedDetails juga
+      setSelectedDetails(prevDetails => 
+        prevDetails.map(detail => 
+          detail.seq === seq ? {
+            ...detail,
+            pdfFiles: [...(detail.pdfFiles || []), {
+              file_name: uploaded.file_name,
+              local_url: uploaded.local_url,
+              file_id: uploaded.file_id,
+              drive_url: uploaded.file_url
+            }]
+          } : detail
+        )
+      );
+
+      toast.success(`File PDF "${file.name}" berhasil diupload!`);
+      
+      // Reset input file
+      event.target.value = '';
+      
+    } catch (error) {
+      console.error("Upload PDF gagal:", error);
+      toast.error("Gagal mengupload file PDF");
+    } finally {
+      setIsUploadingPdf(false);
+    }
+  }
+
+  // Fungsi untuk menghapus PDF
+  const handleDeletePdf = async (seq, pdfIndex) => {
+    try {
+      const updatedDataIsian = {
+        ...dataIsian,
+        details: (dataIsian.details || []).map((item) =>
+          item.seq === seq ? { 
+            ...item, 
+            pdfFiles: (item.pdfFiles || []).filter((_, index) => index !== pdfIndex)
+          } : item
+        ),
+      };
+
+      updateDataIsian(updatedDataIsian);
+
+      // Update selectedDetails juga
+      setSelectedDetails(prevDetails => 
+        prevDetails.map(detail => 
+          detail.seq === seq ? {
+            ...detail,
+            pdfFiles: (detail.pdfFiles || []).filter((_, index) => index !== pdfIndex)
+          } : detail
+        )
+      );
+
+      toast.success("File PDF berhasil dihapus!");
+      
+    } catch (error) {
+      console.error("Hapus PDF gagal:", error);
+      toast.error("Gagal menghapus file PDF");
+    }
+  }
+
+  const uploadImageCallBack = async (file, seq) => {
     const formData = new FormData();
     formData.append("file[]", file);
     formData.append("noKriteria[]", seq);
-    formData.append("subFolder", currentProdiName);
+    formData.append("subFolder", userData?.prodi?.name);
     formData.append("noSub", noSub);
 
     try {
@@ -278,7 +401,6 @@ function PengisianLedTableNew({
         selectedDetails={selectedDetails}
         dataIsian={dataIsian}
         updateDataIsian={updateDataIsian}
-        // canAddAdmin={canManageAdmins}
       />
 
       {type === "readonly" && (
@@ -310,7 +432,7 @@ function PengisianLedTableNew({
               {detail.seq}. Kriteria Indikator: {detail.reference || ""}
             </div>
             <Button className="bg-primary w-auto text-sm py-0" disabled={true}>
-              Score: {dataIsian.nilai || "-"}
+              Score: {dataIsian?.nilai || "-"}
             </Button>
           </div>
 
@@ -339,7 +461,7 @@ function PengisianLedTableNew({
                 toolbar={{
                   image: {
                     urlEnabled: true,
-                    uploadEnabled: true, // karena kita pakai URL
+                    uploadEnabled: true,
                     uploadCallback: (file) => uploadImageCallBack(file, detail.seq),
                     alt: { present: true, mandatory: false },
                     alignmentEnabled: true,
@@ -355,6 +477,90 @@ function PengisianLedTableNew({
               />
             </div>
           </div>
+
+          {/* Section untuk Upload PDF */}
+          {type !== "readonly" && type !== "readonlyVersion" && (
+            <div className="w-full items-center gap-1.5 mt-4">
+              <Label htmlFor={`pdf_upload_${index}`}>Bukti Pendukung (PDF)</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                <div className="flex items-center justify-center">
+                  <label 
+                    htmlFor={`pdf_upload_${detail.seq}`}
+                    className={`flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 p-4 rounded-lg transition-colors ${isUploadingPdf ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 text-center">
+                      {isUploadingPdf ? 'Mengupload...' : 'Klik untuk upload file PDF'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Maksimal 10MB</p>
+                  </label>
+                  <input
+                    id={`pdf_upload_${detail.seq}`}
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => handlePdfUpload(e, detail.seq)}
+                    className="hidden"
+                    disabled={isUploadingPdf}
+                  />
+                </div>
+                
+                {/* Display uploaded PDFs */}
+                {detail.pdfFiles && detail.pdfFiles.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <h4 className="text-sm font-medium text-gray-700">File PDF yang diupload:</h4>
+                    {detail.pdfFiles.map((pdf, pdfIndex) => (
+                      <div key={pdfIndex} className="flex items-center justify-between bg-gray-50 p-2 rounded border">
+                        <div className="flex items-center space-x-2">
+                          <FileText className="w-4 h-4 text-red-500" />
+                          <span className="text-sm text-gray-700 truncate max-w-xs">{pdf.file_name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <a 
+                            href={encodeURI(pdf.local_url)}
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 underline"
+                          >
+                            Lihat
+                          </a>
+                          <button
+                            onClick={() => handleDeletePdf(detail.seq, pdfIndex)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            title="Hapus file"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Display PDF files in readonly mode */}
+          {(type === "readonly" || type === "readonlyVersion") && detail.pdfFiles && detail.pdfFiles.length > 0 && (
+            <div className="w-full items-center gap-1.5 mt-4">
+              <Label>Bukti Pendukung (PDF)</Label>
+              <div className="space-y-2 mt-2">
+                {detail.pdfFiles.map((pdf, pdfIndex) => (
+                  <div key={pdfIndex} className="flex items-center space-x-2 bg-gray-50 p-2 rounded border">
+                    <FileText className="w-4 h-4 text-red-500" />
+                    <span className="text-sm text-gray-700 truncate flex-1">{pdf.file_name}</span>
+                    <a 
+                      href={pdf.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Lihat
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 flex justify-end">
             {type !== "readonly" && type !== "readonlyVersion" ? (
@@ -384,7 +590,7 @@ function PengisianLedTableNew({
               id={`masukan_${index}`}
               placeholder="Masukan dari GPT"
               className="w-full p-2 border rounded-md min-h-[80px] resize-none"
-              value={dataIsian.masukan || ""}
+              value={dataIsian?.masukan || ""}
               readOnly
               onInput={(e) => {
                 e.target.style.height = "80px"

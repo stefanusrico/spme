@@ -283,7 +283,7 @@ class ButirController extends Controller
      */
     public function _getBobotRumusCollection($prodiId)
     {
-        // findOrFail akan melempar exception jika Prodi tidak ada, 
+        // findOrFail akan melempar exception jika Prodi tidak ada,
         // yang akan ditangkap oleh fungsi publik di atas.
         $prodi = Prodi::findOrFail($prodiId);
         $lamId = (string) $prodi->lamId;

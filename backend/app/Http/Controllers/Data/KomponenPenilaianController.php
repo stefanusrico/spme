@@ -7,7 +7,7 @@ use App\Models\Led\LedItem;
 use App\Models\Data\Butir;
 use App\Models\Data\SyaratPerluPeringkat;
 use App\Models\Data\SyaratPerluTerakreditasi;
-use App\Models\Data\SpreadsheetInfo;
+// use App\Models\Data\SpreadsheetInfo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
@@ -460,100 +460,4 @@ class KomponenPenilaianController extends Controller
         }
         
     }
-
-    public function getBobotButir($lamId, $strataId)
-    {
-        try {
-            // Validasi request
-            if (!$lamId || !$strataId) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'lamId dan strataId wajib diisi'
-                ], 400);
-            }
-
-            \Log::info('Get Bobot Butir', [
-                'lamId' => $lamId,
-                'strataId' => $strataId
-            ]);
-            // $lamIdString = $this->convertObjectIdToString($lamId);
-            // $strataIdString = $this->convertObjectIdToString($strataId);
-
-            $data = Butir::get();
-
-            return response()->json([
-                'status' => 'success',
-                'data' => $data
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'trace' => config('app.debug') ? $e->getTrace() : []
-            ], 500);
-        }
-    }
-
-    public function getSyaratPerluTerakreditasi($lamId, $strataId)
-    {
-        try {
-            // Validasi request
-            if (!$lamId || !$strataId) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'lamId dan strataId wajib diisi'
-                ], 400);
-            }
-
-            // $lamIdString = $this->convertObjectIdToString($lamId);
-            // $strataIdString = $this->convertObjectIdToString($strataId);
-
-            $data = SyaratPerluTerakreditasi::where('lamId', $lamId)
-                ->where('strataId', $strataId)
-                ->get();
-
-            return response()->json([
-                'status' => 'success',
-                'data' => $data
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'trace' => config('app.debug') ? $e->getTrace() : []
-            ], 500);
-        }
-    }
-
-    public function getSyaratPerluPeringkat($lamId, $strataId)
-    {
-        try {
-            // Validasi request
-            if (!$lamId || !$strataId) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'lamId dan strataId wajib diisi'
-                ], 400);
-            }
-
-            // $lamIdString = $this->convertObjectIdToString($lamId);
-            // $strataIdString = $this->convertObjectIdToString($strataId);
-
-            $data = SyaratPerluPeringkat::where('lamId', $lamId)
-                ->where('strataId', $strataId)
-                ->get();
-
-            return response()->json([
-                'status' => 'success',
-                'data' => $data
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'trace' => config('app.debug') ? $e->getTrace() : []
-            ], 500);
-        }
-    }
-
 }
