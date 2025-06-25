@@ -251,7 +251,7 @@ class GoogleDriveController extends Controller
 
             // Buat path penyimpanan
             if ($subFolderName && $noSub && $noKriteria){
-                $fileName = time() . '-' . $file->getClientOriginalName();
+                $fileName = $file->getClientOriginalName();
                 $path = "uploads/{$subFolderName}/{$noSub}/{$noKriteria}";
             }else{
                 $fileName = $file->getClientOriginalName();

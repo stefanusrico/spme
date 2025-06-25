@@ -63,7 +63,7 @@ export const fetchAllTaskByProdi = async (prodiId) => {
   }
 }
 
-export const updateUserTask = async (newNo, newSub, prodiId, userId) => {
+export const updateUserTask = async (newNo, newSub, prodiId, userId, projectId) => {
   try {
     console.log(newNo, newSub, userId)
     const responseTask = await axiosInstance.patch(`tasks/updateOwner/${newNo}/${newSub}/${prodiId}`,
@@ -72,7 +72,7 @@ export const updateUserTask = async (newNo, newSub, prodiId, userId) => {
       }
     )
     console.log(responseTask.data.data)
-    const updatedTasks = await fetchUserTask();
+    const updatedTasks = await fetchUserTask(projectId);
        
     return updatedTasks
   } catch (error) {

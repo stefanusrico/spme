@@ -67,7 +67,7 @@ const PengisianLed = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        if (!userData) return;
+        if (!userData && !projectId) return;
         console.log("userData :", userData)
         const [prodiData, userTasks, allTasks, ledData, ledItems] = await Promise.all([
           fetchAllProdi(),
@@ -220,7 +220,7 @@ const PengisianLed = () => {
 
   const updateUserTaskPlus = async(no, sub) => {
       try {
-          const data = await updateUserTask(no, sub, userData.prodiId, userData.id)
+          const data = await updateUserTask(no, sub, userData.prodiId, userData.id, projectId)
           console.log("data user task setelah update :", data)
           setTasks(data);
           toast.success("Berhasil update Task");
