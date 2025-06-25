@@ -157,11 +157,17 @@ export const useTableData = (tableCode, config, userData, projectId) => {
 
         if (result) {
           if (typeof result === "object") {
-            if (result.score !== undefined && result.score !== null) {
+            // ✅ PERBAIKAN: Handle skor_results from calculation
+            if (result.skor_results && Array.isArray(result.skor_results)) {
+              setScore(result.skor_results)
+            } else if (result.score !== undefined && result.score !== null) {
               setScore(result.score)
             }
 
-            if (result.scoreDetail) {
+            // ✅ PERBAIKAN: Handle detail_nilai from calculation
+            if (result.detail_nilai) {
+              setScoreDetail(result.detail_nilai)
+            } else if (result.scoreDetail) {
               setScoreDetail(result.scoreDetail)
             }
 
@@ -212,8 +218,6 @@ export const useTableData = (tableCode, config, userData, projectId) => {
           savedData
         )
 
-        // ❌ HAPUS semua logic shouldHaveDefaultAcademicYears
-
         setTableData(initializedData)
 
         const initialSelectionData = {}
@@ -222,7 +226,13 @@ export const useTableData = (tableCode, config, userData, projectId) => {
         })
         setSelectionData(initialSelectionData)
 
-        if (response.data.nilai && Array.isArray(response.data.nilai)) {
+        // ✅ PERBAIKAN: Handle skor_results from API response
+        if (
+          response.data.results?.skor_results &&
+          Array.isArray(response.data.results.skor_results)
+        ) {
+          setScore(response.data.results.skor_results)
+        } else if (response.data.nilai && Array.isArray(response.data.nilai)) {
           setScore(response.data.nilai)
         } else if (
           response.data.nilai !== null &&
@@ -233,7 +243,10 @@ export const useTableData = (tableCode, config, userData, projectId) => {
           setScore(null)
         }
 
-        if (response.data.detailNilai) {
+        // ✅ PERBAIKAN: Handle detail_nilai from API response
+        if (response.data.results?.detail_nilai) {
+          setScoreDetail(response.data.results.detail_nilai)
+        } else if (response.data.detailNilai) {
           setScoreDetail(response.data.detailNilai)
         }
       }
