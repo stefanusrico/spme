@@ -1,5 +1,6 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
+import { processExcelDataBase } from "../../../utils/tableUtils.js"
 
 export class KurikulumCapaianRencanaPlugin extends BasePlugin {
   constructor() {
@@ -22,15 +23,98 @@ export class KurikulumCapaianRencanaPlugin extends BasePlugin {
     return false
   }
 
-  // ✅ Use dynamic base processing
+  // ✅ COMPLETE OVERRIDE - Don't call super first
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    return super.processExcelData(
-      workbook,
-      tableCode,
-      config,
-      prodiName,
-      sectionCode
-    )
+    console.log("🔍 KurikulumCapaianRencanaPlugin.processExcelData called")
+
+    try {
+      // Get raw data using base function
+      const { rawData, detectedIndices } = await processExcelDataBase(
+        workbook,
+        tableCode,
+        config,
+        prodiName
+      )
+
+      console.log("📊 Raw data length:", rawData.length)
+      console.log("🗂️ Detected indices:", detectedIndices)
+
+      if (rawData.length === 0) {
+        return { allRows: [], shouldReplaceExisting: true }
+      }
+
+      // ✅ LESS RESTRICTIVE FILTERING - just remove completely empty rows
+      const filteredData = rawData.filter((row) => {
+        if (!Array.isArray(row)) return false
+
+        // Check if row has any meaningful data
+        const hasData = row.some((cell) => {
+          const value = String(cell || "").trim()
+          return value !== "" && value !== "0" && value !== "-"
+        })
+
+        console.log("🔍 Row data check:", row.slice(0, 5), "hasData:", hasData)
+        return hasData
+      })
+
+      console.log("🗃️ Filtered data length:", filteredData.length)
+
+      if (filteredData.length === 0) {
+        return { allRows: [], shouldReplaceExisting: true }
+      }
+
+      // Process each row
+      const processedData = filteredData.map((row, index) => {
+        const item = this.processRowData(row, detectedIndices, {
+          no: index + 1,
+        })
+        console.log(`📝 Processed row ${index + 1}:`, {
+          semester: item.semester,
+          kode_mata_kuliah: item.kode_mata_kuliah,
+          nama_mata_kuliah: item.nama_mata_kuliah,
+        })
+        return item
+      })
+
+      // ✅ LESS RESTRICTIVE VALIDATION
+      const validData = processedData.filter((item) => {
+        const isValid = this.isValidRowLoose(item)
+        console.log("✅ Row validation:", {
+          semester: item.semester,
+          kode: item.kode_mata_kuliah,
+          nama: item.nama_mata_kuliah,
+          valid: isValid,
+        })
+        return isValid
+      })
+
+      console.log("✅ Valid data length:", validData.length)
+
+      const normalizedData = this.normalizeData(validData)
+
+      console.log("🏁 Final normalized data length:", normalizedData.length)
+
+      return {
+        allRows: normalizedData,
+        shouldReplaceExisting: true,
+      }
+    } catch (error) {
+      console.error("❌ Error in processExcelData:", error)
+      return { allRows: [], shouldReplaceExisting: true }
+    }
+  }
+
+  // ✅ LOOSE validation for initial processing
+  isValidRowLoose(item) {
+    if (!item) return false
+
+    // Just check if any of the key fields has content
+    const semester = String(item.semester || "").trim()
+    const kodeMataKuliah = String(item.kode_mata_kuliah || "").trim()
+    const namaMataKuliah = String(item.nama_mata_kuliah || "").trim()
+
+    // At least one field should have content
+    return semester !== "" || kodeMataKuliah !== "" || namaMataKuliah !== ""
   }
 
   // ✅ Override field type detection
@@ -60,111 +144,65 @@ export class KurikulumCapaianRencanaPlugin extends BasePlugin {
     return super.detectFieldType(fieldName, value)
   }
 
-  // ✅ Dynamic field mapping berdasarkan field structure yang diberikan
-  mapKurikulumFields(sampleItem) {
-    return {
-      // Core curriculum fields
-      semester: this.findFieldByPattern(sampleItem, ["semester"]),
-      kode_mata_kuliah: this.findFieldByPattern(sampleItem, [
-        "kode_mata_kuliah",
-        "kode",
-      ]),
-      nama_mata_kuliah: this.findFieldByPattern(sampleItem, [
-        "nama_mata_kuliah",
-        "nama",
-      ]),
-      mata_kuliah_kompetensi: this.findFieldByPattern(sampleItem, [
-        "mata_kuliah_kompetensi",
-        "kompetensi",
-      ]),
-
-      // SKS/Bobot fields
-      bobot_kuliah: this.findFieldByPattern(sampleItem, [
-        "bobot_kredit_sks_kuliah_responsi_tutorial",
-        "kuliah",
-        "responsi",
-        "tutorial",
-      ]),
-      bobot_seminar: this.findFieldByPattern(sampleItem, [
-        "bobot_kredit_sks_seminar",
-        "seminar",
-      ]),
-      bobot_praktikum: this.findFieldByPattern(sampleItem, [
-        "bobot_kredit_sks_praktikum_praktik_praktik_lapangan",
-        "praktikum",
-        "praktik",
-      ]),
-
-      // Konversi field
-      konversi_kredit: this.findFieldByPattern(sampleItem, [
-        "konversi_kredit_ke_jam_diisi_oleh_pengusul_vokasi",
-        "konversi",
-      ]),
-
-      // ✅ Capaian pembelajaran fields berdasarkan data yang diberikan
-      cp_sikap: this.findFieldByPattern(sampleItem, [
-        "capaian_pembelajaran_sikap",
-        "sikap",
-      ]),
-      cp_penguasaan_pengetahuan: this.findFieldByPattern(sampleItem, [
-        "capaian_pembelajaran_penguasaan_pengetahuan",
-        "penguasaan",
-        "pengetahuan",
-      ]),
-      cp_keterampilan_umum: this.findFieldByPattern(sampleItem, [
-        "capaian_pembelajaran_keterampilan_umum",
-        "keterampilan_umum",
-      ]),
-      cp_keterampilan_khusus: this.findFieldByPattern(sampleItem, [
-        "capaian_pembelajaran_keterampilan_khusus",
-        "keterampilan_khusus",
-      ]),
-
-      // ✅ Additional fields berdasarkan data yang diberikan
-      dokumen_rencana_pembelajaran: this.findFieldByPattern(sampleItem, [
-        "dokumen_rencana_pembelajaran",
-        "dokumen",
-        "rencana",
-      ]),
-      unit_penyelenggara: this.findFieldByPattern(sampleItem, [
-        "unit_penyeleng_gara",
-        "unit_penyelenggara",
-        "penyelenggara",
-      ]),
-    }
-  }
-
-  // ✅ Helper method untuk validasi row
+  // ✅ Helper method untuk validasi row (stricter version)
   isValidRow(item) {
-    const fieldMap = this.mapKurikulumFields(item)
+    if (!item) return false
 
-    const semester = PluginUtils.normalizeTextField(
-      item[fieldMap.semester] || ""
-    )
+    const semester = PluginUtils.normalizeTextField(item.semester || "")
     const kodeMataKuliah = PluginUtils.normalizeTextField(
-      item[fieldMap.kode_mata_kuliah] || ""
+      item.kode_mata_kuliah || ""
     )
     const namaMataKuliah = PluginUtils.normalizeTextField(
-      item[fieldMap.nama_mata_kuliah] || ""
+      item.nama_mata_kuliah || ""
     )
 
+    // All three fields must have content for strict validation
     return semester !== "" && kodeMataKuliah !== "" && namaMataKuliah !== ""
   }
 
   // ✅ Dynamic normalization
   normalizeData(data) {
-    return data.map((item) => {
-      const result = { ...item }
-      const fieldMap = this.mapKurikulumFields(result)
+    if (!Array.isArray(data)) return []
 
-      Object.entries(fieldMap).forEach(([key, fieldName]) => {
-        if (fieldName && result[fieldName] !== undefined) {
-          const fieldType = this.detectFieldType(fieldName, result[fieldName])
-          result[fieldName] = this.processFieldValue(
-            fieldName,
-            result[fieldName],
-            fieldType
-          )
+    return data.map((item, index) => {
+      const result = {
+        ...item,
+        no: index + 1,
+        key: item.key || `kurikulum-${Date.now()}-${index}`,
+        selected: item.selected !== false,
+      }
+
+      // Normalize all text fields
+      const textFields = [
+        "semester",
+        "kode_mata_kuliah",
+        "nama_mata_kuliah",
+        "mata_kuliah_kompetensi",
+        "capaian_pembelajaran_sikap",
+        "capaian_pembelajaran_pengetahuan",
+        "capaian_pembelajaran_keterampilan_umum",
+        "capaian_pembelajaran_keterampilan_khusus",
+        "dokumen_rencana_pembelajaran",
+        "unit_penyeleng_gara",
+      ]
+
+      textFields.forEach((field) => {
+        if (result[field] !== undefined) {
+          result[field] = PluginUtils.normalizeTextField(result[field] || "")
+        }
+      })
+
+      // Normalize numeric fields
+      const numericFields = [
+        "bobot_kredit_sks_kuliah_responsi_tutorial",
+        "bobot_kredit_sks_seminar",
+        "bobot_kredit_sks_praktikum_praktik_praktik_lapangan",
+        "konversi_kredit_ke_jam_diisi_oleh_pengusul_vokasi",
+      ]
+
+      numericFields.forEach((field) => {
+        if (result[field] !== undefined) {
+          result[field] = PluginUtils.parseNumber(result[field], 0)
         }
       })
 
@@ -176,28 +214,45 @@ export class KurikulumCapaianRencanaPlugin extends BasePlugin {
   validateData(data) {
     const errors = []
 
-    data.forEach((item, index) => {
-      const fieldMap = this.mapKurikulumFields(item)
+    if (!Array.isArray(data)) {
+      return { valid: false, errors: ["Data harus berupa array"] }
+    }
 
+    data.forEach((item, index) => {
       // Validate required fields
-      if (fieldMap.semester && !item[fieldMap.semester]) {
+      if (
+        !item.semester ||
+        PluginUtils.normalizeTextField(item.semester) === ""
+      ) {
         errors.push(`Baris ${index + 1}: Semester harus diisi`)
       }
 
-      if (fieldMap.kode_mata_kuliah && !item[fieldMap.kode_mata_kuliah]) {
+      if (
+        !item.kode_mata_kuliah ||
+        PluginUtils.normalizeTextField(item.kode_mata_kuliah) === ""
+      ) {
         errors.push(`Baris ${index + 1}: Kode Mata Kuliah harus diisi`)
       }
 
-      if (fieldMap.nama_mata_kuliah && !item[fieldMap.nama_mata_kuliah]) {
+      if (
+        !item.nama_mata_kuliah ||
+        PluginUtils.normalizeTextField(item.nama_mata_kuliah) === ""
+      ) {
         errors.push(`Baris ${index + 1}: Nama Mata Kuliah harus diisi`)
       }
 
-      // Validate numeric fields
+      // Validate numeric fields if row is valid
       if (this.isValidRow(item)) {
         const totalBobot =
-          PluginUtils.parseNumber(item[fieldMap.bobot_kuliah], 0) +
-          PluginUtils.parseNumber(item[fieldMap.bobot_seminar], 0) +
-          PluginUtils.parseNumber(item[fieldMap.bobot_praktikum], 0)
+          PluginUtils.parseNumber(
+            item.bobot_kredit_sks_kuliah_responsi_tutorial,
+            0
+          ) +
+          PluginUtils.parseNumber(item.bobot_kredit_sks_seminar, 0) +
+          PluginUtils.parseNumber(
+            item.bobot_kredit_sks_praktikum_praktik_praktik_lapangan,
+            0
+          )
 
         if (totalBobot <= 0) {
           errors.push(
@@ -206,7 +261,7 @@ export class KurikulumCapaianRencanaPlugin extends BasePlugin {
         }
 
         const konversi = PluginUtils.parseNumber(
-          item[fieldMap.konversi_kredit],
+          item.konversi_kredit_ke_jam_diisi_oleh_pengusul_vokasi,
           0
         )
         if (konversi <= 0) {

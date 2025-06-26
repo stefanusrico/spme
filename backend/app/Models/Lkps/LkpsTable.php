@@ -852,19 +852,24 @@ class LkpsTable extends Model
 
         Log::info("🔧 AFTER BASIC NORMALIZATION", ['expression' => $expression]);
 
+        // ✅ PERBAIKI PATTERN UNTUK CHAINED COMPARISONS
+
+        // Pattern 1: a <= b < c
         $expression = preg_replace_callback(
-            '/(\S+)\s*(<|<=)\s*(\S+)\s*=<\s*(\S+)/',
+            '/(\S+)\s*(<=)\s*(\S+)\s*(<)\s*(\S+)/',
             function ($matches) {
                 $left = $matches[1];
                 $op1 = $matches[2];
                 $middle = $matches[3];
-                $right = $matches[4];
+                $op2 = $matches[4];
+                $right = $matches[5];
 
-                return "({$left} {$op1} {$middle}) && ({$middle} <= {$right})";
+                return "({$left} {$op1} {$middle}) && ({$middle} {$op2} {$right})";
             },
             $expression
         );
 
+        // Pattern 2: a < b <= c
         $expression = preg_replace_callback(
             '/(\S+)\s*(<)\s*(\S+)\s*(<=)\s*(\S+)/',
             function ($matches) {
@@ -879,12 +884,77 @@ class LkpsTable extends Model
             $expression
         );
 
+        // Pattern 3: a <= b <= c
+        $expression = preg_replace_callback(
+            '/(\S+)\s*(<=)\s*(\S+)\s*(<=)\s*(\S+)/',
+            function ($matches) {
+                $left = $matches[1];
+                $op1 = $matches[2];
+                $middle = $matches[3];
+                $op2 = $matches[4];
+                $right = $matches[5];
+
+                return "({$left} {$op1} {$middle}) && ({$middle} {$op2} {$right})";
+            },
+            $expression
+        );
+
+        // Pattern 4: a < b < c
+        $expression = preg_replace_callback(
+            '/(\S+)\s*(<)\s*(\S+)\s*(<)\s*(\S+)/',
+            function ($matches) {
+                $left = $matches[1];
+                $op1 = $matches[2];
+                $middle = $matches[3];
+                $op2 = $matches[4];
+                $right = $matches[5];
+
+                return "({$left} {$op1} {$middle}) && ({$middle} {$op2} {$right})";
+            },
+            $expression
+        );
+
+        // ✅ HANDLE REVERSE PATTERNS (b BETWEEN a AND c)
+
+        // Pattern 5: a <= b > c (edge case)
+        $expression = preg_replace_callback(
+            '/(\S+)\s*(<=)\s*(\S+)\s*(>)\s*(\S+)/',
+            function ($matches) {
+                $left = $matches[1];
+                $op1 = $matches[2];
+                $middle = $matches[3];
+                $op2 = $matches[4];
+                $right = $matches[5];
+
+                return "({$left} {$op1} {$middle}) && ({$middle} {$op2} {$right})";
+            },
+            $expression
+        );
+
+        // Pattern 6: a < b >= c (edge case)
+        $expression = preg_replace_callback(
+            '/(\S+)\s*(<)\s*(\S+)\s*(>=)\s*(\S+)/',
+            function ($matches) {
+                $left = $matches[1];
+                $op1 = $matches[2];
+                $middle = $matches[3];
+                $op2 = $matches[4];
+                $right = $matches[5];
+
+                return "({$left} {$op1} {$middle}) && ({$middle} {$op2} {$right})";
+            },
+            $expression
+        );
+
         Log::info("🔧 AFTER RANGE NORMALIZATION", ['expression' => $expression]);
 
+        // Convert single = to ==
         $expression = preg_replace('/(?<![<>!=])\s*=\s*(?![=<>])/', ' == ', $expression);
 
+        // Convert percentages
         $expression = preg_replace_callback('/(\d+(?:\.\d+)?)%/', fn($m) => (float) $m[1] / 100, $expression);
 
+        // Wrap in parentheses if needed
         if ((strpos($expression, '&&') !== false || strpos($expression, '||') !== false) && substr(trim($expression), 0, 1) !== '(') {
             $expression = "({$expression})";
         }
