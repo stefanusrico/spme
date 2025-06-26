@@ -100,6 +100,7 @@ const PengisianLed = () => {
         navigate(`projects/${firstTask.project.id}/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`, { replace: true });
       }
     }
+    setIsVersion(false);
   }, [no, sub, tasks, allDataTasks, navigate]);
 
   const getLatestLedData = (dataArray) => {
@@ -244,22 +245,35 @@ const PengisianLed = () => {
   }
 
   const handleClickVersion = async() => {
-    try {
-      setIsVersion(!isVersion)
+  try {
+    if (isVersion) {
+      // If closing version view, just toggle
+      setIsVersion(false);
+      return;
+    }
 
-      if(isVersion){
-        let matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
-        if (!matchedTask) {
-          matchedTask = tasks.find(task => String(task.no) === no && task.sub === sub);
-        }
-        
-        if (matchedTask) {
-          const responseVersion = await fetchLedDataByTaskId(matchedTask.id);
-          setDataVersionHistory(responseVersion);
-        } 
-      }
+    // Show loading state
+    setIsLoadingVersion(true);
+
+    // Find the matched task
+    let matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
+    if (!matchedTask) {
+      matchedTask = tasks.find(task => String(task.no) === no && task.sub === sub);
+    }
+
+    if (matchedTask) {
+      const responseVersion = await fetchLedDataByTaskId(matchedTask.id);
+      setDataVersionHistory(responseVersion);
+
+      // Only set isVersion to true after data is fetched
+      setIsVersion(true);
+    } else {
+      toast.error("Task tidak ditemukan");
+    }
     } catch (error) {
       toast.error("Gagal fetch version");
+    } finally {
+      setIsLoadingVersion(false);
     }
   }
 

@@ -171,8 +171,15 @@ const parseDraftContent = (isianAsesiJson, dataPendukung = []) => {
 
   // Ambil teks biasa
   const textParts = blocks
-    .filter(b => b.type === 'unstyled' && b.text.trim() !== "")
-    .map(b => b.text.trim());
+    .filter(b => b.text && b.text.trim() !== "")
+    .map(b => {
+      const text = b.text.trim();
+      if (b.type === 'header-one') return `# ${text}`;
+      if (b.type === 'header-two') return `## ${text}`;
+      if (b.type === 'unordered-list-item') return `- ${text}`;
+      if (b.type === 'ordered-list-item') return `1. ${text}`;
+      return text; // unstyled atau lainnya
+    });
 
   // Ambil gambar dari entityMap 
   const imageUrls = Object.values(entityMap)

@@ -50,12 +50,8 @@ class GeminiScoringLedController extends Controller
                 'data isian' => $dataIsian,
             ]);
 
-            // Build the comprehensive AI prompt with rubric and submission data
-            $prompt = $this->buildPrompt($dataLedItem, $dataIsian);
-            $messages = [$prompt];
-
-            // Process images from submission content
-            \Log::info('Start download image at: ' . now());
+            // Process images and PDFs from submission content
+            \Log::info('Start processing files at: ' . now());
             
             // Extract image URLs from the submission text
             $imageUrls = $this->extractImageUrls($dataIsian['isianAsesi']);
@@ -72,19 +68,29 @@ class GeminiScoringLedController extends Controller
             // Convert image URLs to blob data for AI processing
             $imageBlobs = $this->createImageBlobs($imageUrls);
             \Log::info('Daftar blob gambar yang berhasil:', [
-                'imageBlobs' => $imageBlobs
+                'imageBlobs_count' => count($imageBlobs)
             ]);
 
-            // Convert image URLs to blob data for AI processing
+            // Convert PDF URLs to blob data for AI processing
             $pdfBlobs = $this->createPdfBlobs($pdfUrls);
             \Log::info('Daftar blob pdf yang berhasil:', [
-                'pdfBlobs' => $pdfBlobs
+                'pdfBlobs_count' => count($pdfBlobs)
             ]);
             
-            \Log::info('End download image at: ' . now());
+            \Log::info('End processing files at: ' . now());
 
-            // Combine text prompt with image blobs for multimodal AI analysis
-            $contents = array_merge($messages, $imageBlobs, $pdfBlobs);
+            // Build the comprehensive AI prompt with rubric and submission data
+            // Pass information about available evidence to the prompt
+            $hasImageEvidence = !empty($imageBlobs);
+            $hasPdfEvidence = !empty($pdfBlobs);
+            $prompt = $this->buildPrompt($dataLedItem, $dataIsian, $hasImageEvidence, $hasPdfEvidence);
+
+            // Combine text prompt with image/PDF blobs for multimodal AI analysis
+            $contents = array_merge([$prompt], $imageBlobs, $pdfBlobs);
+
+            // Count tokens for logging
+            $response = Gemini::generativeModel(model: 'gemini-2.0-flash')
+                ->countTokens($contents);
 
             // Send request to Gemini AI for scoring analysis
             $result = Gemini::generativeModel(model: 'gemini-2.0-flash')
@@ -98,7 +104,9 @@ class GeminiScoringLedController extends Controller
             \Log::info('Gemini Response:', [
                 'prompt' => $prompt,
                 'response' => $responseText,
-                'response json result' => $jsonResult
+                'response json result' => $jsonResult,
+                'has_image_evidence' => $hasImageEvidence,
+                'has_pdf_evidence' => $hasPdfEvidence
             ]);
 
             // Validate that AI returned properly formatted JSON
@@ -112,7 +120,14 @@ class GeminiScoringLedController extends Controller
             // Return successful scoring response
             return response()->json([
                 'success' => true,
-                'mapping' => $jsonResult
+                'mapping' => $jsonResult,
+                'token used' => $response->totalTokens,
+                'evidence_summary' => [
+                    'images_found' => count($imageUrls),
+                    'pdfs_found' => count($pdfUrls),
+                    'images_processed' => count($imageBlobs),
+                    'pdfs_processed' => count($pdfBlobs)
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -130,31 +145,6 @@ class GeminiScoringLedController extends Controller
         }
     }
 
-    // Method gabungan untuk memproses semua jenis file
-    private function processAllFiles(string $isianAsesi): array
-    {
-        $allBlobs = [];
-        
-        // Proses gambar
-        $imageUrls = $this->extractImageUrls($isianAsesi);
-        if (!empty($imageUrls)) {
-            \Log::info('Memproses gambar:', ['imageUrls' => $imageUrls]);
-            $imageBlobs = $this->createImageBlobs($imageUrls);
-            $allBlobs = array_merge($allBlobs, $imageBlobs);
-        }
-        
-        // Proses PDF
-        $pdfUrls = $this->extractPdfUrls($isianAsesi);
-        if (!empty($pdfUrls)) {
-            \Log::info('Memproses PDF:', ['pdfUrls' => $pdfUrls]);
-            $pdfBlobs = $this->createPdfBlobs($pdfUrls);
-            $allBlobs = array_merge($allBlobs, $pdfBlobs);
-        }
-        
-        return $allBlobs;
-    }
-
-
     /**
      * Build a comprehensive prompt for Gemini AI evaluation.
      * 
@@ -163,13 +153,18 @@ class GeminiScoringLedController extends Controller
      *
      * @param array $dataLedItem Rubric and scoring criteria data
      * @param array $dataIsian Assessment submission data
+     * @param bool $hasImageEvidence Whether image evidence is available
+     * @param bool $hasPdfEvidence Whether PDF evidence is available
      * @return string The formatted prompt for AI processing
      */
-    private function buildPrompt(array $dataLedItem, array $dataIsian): string
+    private function buildPrompt(array $dataLedItem, array $dataIsian, bool $hasImageEvidence = false, bool $hasPdfEvidence = false): string
     {
         // Extract and organize rubric criteria from the data structure
         $details = $this->extractRubrikPenilaian($dataLedItem['details']);
         $isianAsesi = $dataIsian['isianAsesi'];
+
+        // Build evidence status information
+        $evidenceStatus = $this->buildEvidenceStatus($hasImageEvidence, $hasPdfEvidence);
 
         // Build comprehensive prompt with role definition, rules, and data
         return <<<PROMPT
@@ -185,6 +180,9 @@ class GeminiScoringLedController extends Controller
             - Jika tersedia, **analisis juga bukti pendukung** seperti gambar atau dokumen untuk memperkuat validitas isian.
             - Evaluasi berbasis **isi isian dan bukti pendukung**, bukan asumsi.
             - Untuk skor lebih tinggi, **semua komponen** dalam rubrik harus dipenuhi dan dijelaskan secara eksplisit serta, jika mungkin, didukung bukti.
+
+            PENTING - Status Bukti Pendukung:
+            $evidenceStatus
 
             Langkah-langkah Penilaian:
             1. Pahami aturan penilaian.  
@@ -217,11 +215,10 @@ class GeminiScoringLedController extends Controller
             Isian Asesi:
             {$this->cleanIsianAsesi($dataIsian['isianAsesi'])}
 
-            Bukti pendukung:
-            Terlampir
-
             Tugas Anda:
-            Lakukan penalaran bertahap berdasarkan langkah-langkah di atas dan berikan hasil akhir dalam format berikut. Jangan tambahkan teks lain di luar struktur JSON. Untuk bagian "langkah_penalaran", buat dalam bentuk array yang berisi 9 langkah, satu string per langkah.
+            Lakukan penalaran bertahap berdasarkan langkah-langkah di atas dan berikan hasil akhir dalam format berikut. Jangan tambahkan teks lain di luar struktur JSON. Untuk bagian "langkah_penalaran", buat dalam bentuk array yang berisi 11 langkah, satu string per langkah.
+
+            PENTING: Jangan membuat asumsi atau klaim melihat bukti pendukung yang tidak ada. Hanya analisis bukti yang benar-benar tersedia dan telah diproses.
 
             Format Jawaban (JSON):
             {
@@ -229,15 +226,37 @@ class GeminiScoringLedController extends Controller
                     "Langkah 1: <tuliskan reasoning>",
                     "Langkah 2: <tuliskan reasoning>",
                     "...",
-                    "Langkah N: <tuliskan reasoning>"
+                    "Langkah 11: <tuliskan reasoning>"
                 ],
-                "nilai": "<skor akhir>",
+                "nilai": "<skor akhir, bisa juga berupa desimal, namun dengan alasan yang jelas>",
                 "masukan": "<penjelasan ringkas, dan beri tahu apa yang kurang jika nilai tidak maskimal, dan beri komentar bukti pendukung jika tersedia>"  
-                "apakah memerlukan bukti pendukung?" : <jawaban dari langkah no 7>  
-                "apakah ada bukti pendukung gambar?" : <sebutkan semua bukti pendukung gambar dan jelaskan bukti pendukung yang terlampir> 
-                "apakah ada bukti pendukung pdf?" : <sebutkan semua bukti pendukung pdf dan jelaskan bukti pendukung yang terlampir> 
+                "apakah memerlukan bukti pendukung?" : "<jawaban dari langkah no 7>",
+                "apakah ada bukti pendukung gambar?" : "<sebutkan bukti pendukung gambar yang benar-benar diproses. Jika ada, jelaskan isinya. Jika tidak ada, tuliskan 'tidak ada bukti pendukung gambar yang diproses'>",
+                "apakah ada bukti pendukung pdf?" : "<sebutkan pendukung PDF yang benar-benar diproses. Jika ada, jelaskan inti dari pdf tersebut. Jika tidak ada, tuliskan 'tidak ada bukti pendukung PDF yang diproses'>"
             }
           PROMPT;
+    }
+
+    /**
+     * Build evidence status information for the prompt
+     */
+    private function buildEvidenceStatus(bool $hasImageEvidence, bool $hasPdfEvidence): string
+    {
+        $status = [];
+        
+        if ($hasImageEvidence) {
+            $status[] = "- Bukti pendukung GAMBAR: TERSEDIA dan telah diproses sebagai blob";
+        } else {
+            $status[] = "- Bukti pendukung GAMBAR: TIDAK TERSEDIA (tidak ada URL gambar yang valid ditemukan dalam format 'Gambar : [URL]')";
+        }
+        
+        if ($hasPdfEvidence) {
+            $status[] = "- Bukti pendukung PDF: TERSEDIA dan telah diproses sebagai blob";
+        } else {
+            $status[] = "- Bukti pendukung PDF: TIDAK TERSEDIA (tidak ada URL PDF yang valid ditemukan dalam format 'PDF : [URL]' atau 'Dokumen : [URL]')";
+        }
+        
+        return implode("\n", $status);
     }
 
     /**
@@ -249,14 +268,165 @@ class GeminiScoringLedController extends Controller
      * @param string $isianAsesi The assessment submission text
      * @return array Array of extracted image URLs
      */
+    /**
+     * Extract image URLs from assessment submission text.
+     * Fixed version that handles URLs with spaces and special characters
+     */
     private function extractImageUrls(string $isianAsesi): array
     {
-        // Use regex to find all image URL patterns in the text
-        preg_match_all('/Gambar\s*:\s*(.+)/', $isianAsesi, $matches);
+        $urls = [];
+        $lines = explode("\n", $isianAsesi);
         
-        // Clean and return the extracted URLs
-        $urls = array_map('trim', $matches[1] ?? []);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            // Cari baris yang dimulai dengan "Gambar :" dan diikuti URL/path
+            if (preg_match('/^Gambar\s*:\s*(.+)$/i', $line, $matches)) {
+                $url = trim($matches[1]);
+                
+                if (empty($url)) {
+                    continue;
+                }
+                
+                // URL encode spaces and special characters for validation
+                $encodedUrl = $this->encodeUrlSpaces($url);
+                \Log::info("Original URL: $url");
+                \Log::info("Encoded URL for validation: $encodedUrl");
+                
+                // Validasi URL yang lebih fleksibel
+                $isValidUrl = $this->isValidImageUrl($url, $encodedUrl);
+                
+                if ($isValidUrl) {
+                    $urls[] = $url; // Simpan URL asli
+                    \Log::info("URL gambar valid ditemukan: $url");
+                } else {
+                    \Log::info("URL gambar tidak valid atau tidak memiliki ekstensi gambar: $url");
+                }
+            }
+        }
+        
+        if (empty($urls)) {
+            \Log::info("Tidak ada URL gambar yang valid ditemukan dalam format 'Gambar : [URL]'");
+        }
+        
+        return $urls;
+    }
 
+    /**
+     * Helper method to encode spaces in URLs for validation
+     */
+    private function encodeUrlSpaces(string $url): string
+    {
+        // Parse URL components
+        $parsed = parse_url($url);
+        
+        if ($parsed === false) {
+            return $url;
+        }
+        
+        // Encode only the path component
+        if (isset($parsed['path'])) {
+            $parsed['path'] = str_replace(' ', '%20', $parsed['path']);
+        }
+        
+        // Rebuild URL
+        $encodedUrl = '';
+        if (isset($parsed['scheme'])) {
+            $encodedUrl .= $parsed['scheme'] . '://';
+        }
+        if (isset($parsed['host'])) {
+            $encodedUrl .= $parsed['host'];
+        }
+        if (isset($parsed['port'])) {
+            $encodedUrl .= ':' . $parsed['port'];
+        }
+        if (isset($parsed['path'])) {
+            $encodedUrl .= $parsed['path'];
+        }
+        if (isset($parsed['query'])) {
+            $encodedUrl .= '?' . $parsed['query'];
+        }
+        if (isset($parsed['fragment'])) {
+            $encodedUrl .= '#' . $parsed['fragment'];
+        }
+        
+        return $encodedUrl;
+    }
+
+    /**
+     * More flexible URL validation for image URLs
+     */
+    private function isValidImageUrl(string $originalUrl, string $encodedUrl): bool
+    {
+        // Check if it has image extension
+        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+        $hasImageExtension = false;
+        
+        foreach ($imageExtensions as $ext) {
+            if (preg_match('/\.' . $ext . '$/i', $originalUrl)) {
+                $hasImageExtension = true;
+                break;
+            }
+        }
+        
+        if (!$hasImageExtension) {
+            \Log::info("URL tidak memiliki ekstensi gambar yang valid: $originalUrl");
+            return false;
+        }
+        
+        // Try to validate encoded URL
+        if (filter_var($encodedUrl, FILTER_VALIDATE_URL)) {
+            \Log::info("URL valid setelah encoding: $encodedUrl");
+            return true;
+        }
+        
+        // Check if it's a local path (starts with /)
+        if (strpos($originalUrl, '/') === 0) {
+            \Log::info("URL adalah path lokal: $originalUrl");
+            return true;
+        }
+        
+        // Additional check for localhost URLs with spaces
+        if (preg_match('/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//', $originalUrl)) {
+            \Log::info("URL adalah localhost dengan format khusus: $originalUrl");
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Extract PDF URLs from assessment submission text.
+     */
+    private function extractPdfUrls(string $isianAsesi): array
+    {
+        $urls = [];
+        $lines = explode("\n", $isianAsesi);
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            // Hanya cari baris yang PERSIS dimulai dengan "PDF :" atau "Dokumen :" dan diikuti URL/path
+            if (preg_match('/^(?:PDF|Dokumen)\s*:\s*(.+\.pdf)$/i', $line, $matches)) {
+                $url = trim($matches[1]);
+                
+                // Validasi bahwa ini benar-benar URL atau path file PDF
+                if (!empty($url) && (
+                    filter_var($url, FILTER_VALIDATE_URL) ||
+                    (strpos($url, '/') === 0 && str_ends_with(strtolower($url), '.pdf'))
+                )) {
+                    $urls[] = $url;
+                    \Log::info("URL PDF valid ditemukan: $url");
+                } else {
+                    \Log::info("URL PDF tidak valid: $url");
+                }
+            }
+        }
+        
+        if (empty($urls)) {
+            \Log::info("Tidak ada URL PDF yang valid ditemukan dalam format 'PDF : [URL]' atau 'Dokumen : [URL]'");
+        }
+        
         return $urls;
     }
 
@@ -272,10 +442,10 @@ class GeminiScoringLedController extends Controller
     private function cleanIsianAsesi(string $text): string
     {
         // Remove lines containing "Gambar : ..." and following empty lines
-        $text = preg_replace('/Gambar\s*:\s*.+(?:\r?\n)?/i', '', $text);
+        $text = preg_replace('/^Gambar\s*:\s*.+(?:\r?\n)?/im', '', $text);
 
         // Remove baris yang mengandung "PDF : ..." atau "Dokumen : ..."
-        $text = preg_replace('/(?:PDF|Dokumen)\s*:\s*.+(?:\r?\n)?/i', '', $text);
+        $text = preg_replace('/^(?:PDF|Dokumen)\s*:\s*.+(?:\r?\n)?/im', '', $text);
 
         // Remove excessive blank lines (more than one newline)
         $text = preg_replace("/(\r?\n){2,}/", "\n\n", $text);
@@ -292,33 +462,81 @@ class GeminiScoringLedController extends Controller
      * @param array $urls Array of image URLs to process
      * @return array Array of Blob objects for AI consumption
      */
+    /**
+     * Convert image URLs to blob data for AI processing.
+     * Fixed version that properly handles URLs with spaces
+     */
     private function createImageBlobs(array $urls): array
     {
+        if (empty($urls)) {
+            \Log::info('Tidak ada URL Gambar untuk diproses');
+            return [];
+        }
+        
         $blobs = [];
 
         foreach ($urls as $url) {
             try {
+                \Log::info("Memproses URL: $url");
+                
                 // Convert URL to local file system path
                 $parsedUrl = parse_url($url);
+                
+                if (!$parsedUrl || !isset($parsedUrl['path'])) {
+                    \Log::warning("URL tidak valid atau tidak memiliki path: $url");
+                    continue;
+                }
+                
+                // Decode URL path to handle spaces and special characters
                 $relativePath = urldecode($parsedUrl['path']); // e.g., /storage/uploads/...
+                
+                \Log::info("Relative path setelah decode: $relativePath");
+                
                 $localPath = public_path($relativePath); // Full path: /project/public/storage/uploads/...
+                
+                \Log::info("Local path lengkap: $localPath");
 
                 // Check if file exists before processing
                 if (!file_exists($localPath)) {
-                    \Log::warning("File tidak ditemukan: $localPath");
+                    \Log::warning("File gambar tidak ditemukan: $localPath");
+                    
+                    // Try alternative path construction
+                    $alternativePath = public_path(ltrim($relativePath, '/'));
+                    \Log::info("Mencoba path alternatif: $alternativePath");
+                    
+                    if (file_exists($alternativePath)) {
+                        $localPath = $alternativePath;
+                        \Log::info("File ditemukan di path alternatif: $localPath");
+                    } else {
+                        \Log::warning("File tidak ditemukan di kedua lokasi");
+                        continue;
+                    }
+                }
+
+                // Check if it's actually a file (not directory)
+                if (!is_file($localPath)) {
+                    \Log::warning("Path bukan file: $localPath");
+                    continue;
+                }
+
+                // Check file size (optional: skip very large files)
+                $fileSize = filesize($localPath);
+                if ($fileSize === false || $fileSize > 10 * 1024 * 1024) { // 10MB limit
+                    \Log::warning("File terlalu besar atau tidak dapat dibaca: $localPath (Size: $fileSize bytes)");
                     continue;
                 }
 
                 // Read image file content
                 $imageData = file_get_contents($localPath);
+                if ($imageData === false) {
+                    \Log::warning("Gagal membaca file gambar: $localPath");
+                    continue;
+                }
 
                 // Determine MIME type based on file extension
-                $mimeType = MimeType::IMAGE_JPEG; // Default to JPEG
-                if (str_ends_with($url, '.png')) {
-                    $mimeType = MimeType::IMAGE_PNG;
-                } elseif (str_ends_with($url, '.webp')) {
-                    $mimeType = MimeType::IMAGE_WEBP;
-                }
+                $mimeType = $this->determineMimeType($url);
+                
+                \Log::info("MIME type ditentukan: " . $mimeType->value);
 
                 // Create blob object with base64-encoded image data
                 $blobs[] = new Blob(
@@ -326,28 +544,45 @@ class GeminiScoringLedController extends Controller
                     data: base64_encode($imageData)
                 );
                 
+                \Log::info("Gambar berhasil diproses menjadi blob: $url (Size: " . strlen($imageData) . " bytes)");
+                
             } catch (\Exception $e) {
                 // Log any errors in image processing but continue with other images
-                \Log::warning("Gagal membaca gambar dari path: $url. Pesan: " . $e->getMessage());
+                \Log::warning("Gagal memproses gambar dari URL: $url. Pesan: " . $e->getMessage());
+                \Log::warning("Stack trace: " . $e->getTraceAsString());
             }
         }
 
+        \Log::info("Total blob gambar yang berhasil dibuat: " . count($blobs));
         return $blobs;
     }
 
-    // Tambahkan method baru untuk mengekstrak URL PDF
-    private function extractPdfUrls(string $isianAsesi): array
+    /**
+     * Helper method to determine MIME type from file extension
+     */
+    private function determineMimeType(string $url): MimeType
     {
-        // Pattern untuk mendeteksi PDF: "PDF : [URL]" atau "Dokumen : [URL]"
-        preg_match_all('/(?:PDF|Dokumen)\s*:\s*(.+\.pdf)/i', $isianAsesi, $matches);
+        $extension = strtolower(pathinfo($url, PATHINFO_EXTENSION));
         
-        $urls = array_map('trim', $matches[1] ?? []);
-        return $urls;
+        return match($extension) {
+            'png' => MimeType::IMAGE_PNG,
+            'webp' => MimeType::IMAGE_WEBP,
+            'gif' => MimeType::IMAGE_GIF,
+            'jpg', 'jpeg' => MimeType::IMAGE_JPEG,
+            default => MimeType::IMAGE_JPEG, // Default fallback
+        };
     }
 
-    // Method untuk membuat PDF blob
+    /**
+     * Convert PDF URLs to blob data for AI processing.
+     */
     private function createPdfBlobs(array $urls): array
     {
+        if (empty($urls)) {
+            \Log::info('Tidak ada URL PDF untuk diproses');
+            return [];
+        }
+        
         $blobs = [];
 
         foreach ($urls as $url) {
@@ -365,6 +600,10 @@ class GeminiScoringLedController extends Controller
 
                 // Baca konten PDF
                 $pdfData = file_get_contents($localPath);
+                if ($pdfData === false) {
+                    \Log::warning("Gagal membaca file PDF: $localPath");
+                    continue;
+                }
 
                 // Buat blob untuk PDF
                 $blobs[] = new Blob(
@@ -372,16 +611,16 @@ class GeminiScoringLedController extends Controller
                     data: base64_encode($pdfData)
                 );
                 
-                \Log::info("PDF berhasil diproses: $url");
+                \Log::info("PDF berhasil diproses menjadi blob: $url");
                 
             } catch (\Exception $e) {
-                \Log::warning("Gagal membaca PDF dari path: $url. Pesan: " . $e->getMessage());
+                \Log::warning("Gagal memproses PDF dari path: $url. Pesan: " . $e->getMessage());
             }
         }
 
+        \Log::info("Total blob PDF yang berhasil dibuat: " . count($blobs));
         return $blobs;
     }
-
 
     /**
      * Extract and organize rubric scoring criteria from structured data.
