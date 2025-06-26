@@ -105,7 +105,6 @@ class ExcelFormulaParser
     {
         Log::info("START: evaluateExpression", ['e' => $expression]);
 
-        // ✅✅✅ SMART VARIABLE RESOLUTION: Only resolve actual variables ✅✅✅
         $maxResolveIterations = 3;
         for ($resolveIteration = 0; $resolveIteration < $maxResolveIterations; $resolveIteration++) {
             $beforeResolve = $expression;
@@ -1666,7 +1665,7 @@ class ExcelFormulaParser
 
         // ✅ PERBAIKAN 1: Handle "<>" criteria (not empty/not equal)
         if ($criteria === '<>' || $criteria === '!=') {
-            $result = $value !== null && $value !== '' && $value !== '-' && $value !== 0;
+            $result = $value !== null && $value !== '' && $value !== '-';
             Log::debug("NOT_EMPTY_CRITERIA", [
                 'value' => $value,
                 'result' => $result,

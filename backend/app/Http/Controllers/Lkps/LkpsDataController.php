@@ -233,13 +233,7 @@ class LkpsDataController extends Controller
         }
     }
 
-    /**
-     * Save data for a specific table, with auto-calculation for formulas and scores.
-     *
-     * @param \Illuminate\Http\Request $request
-     * @param string $tableCode
-     * @return \Illuminate\Http\JsonResponse
-     */
+
     public function saveTableData(Request $request, $tableCode)
     {
         set_time_limit(300);

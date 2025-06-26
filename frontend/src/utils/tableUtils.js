@@ -339,7 +339,7 @@ const processHierarchicalHeaders = (headerRows) => {
 export const mapColumnsUsingAI = async (
   dbColumns,
   excelHeaders,
-  semanticThreshold = 0.75
+  semanticThreshold = 0.65
 ) => {
   try {
     const formattedDbColumns = dbColumns.map((column) => ({

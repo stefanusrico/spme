@@ -20,8 +20,8 @@ class GeminiDataMappingController extends Controller
 
             $dbColumns = $request->input('database_columns');
             $excelHeaders = $request->input('excel_headers');
-            // Mengatur ambang batas default ke 0.75 (75%)
-            $semanticThreshold = $request->input('semantic_threshold', 0.75);
+
+            $semanticThreshold = $request->input('semantic_threshold', 0.65);
 
             // Filter header Excel yang kosong
             $excelHeaders = array_filter($excelHeaders, fn($header) => !empty(trim($header)));
