@@ -58,53 +58,47 @@ const UserManagement = ({
             <p className="text-gray-500">{getSubtitle()}</p>
           </div>
 
-          <div className="cursor-pointer mt-4 flex justify-between px-6 items-center w-full">
-            <div className="flex gap-5 items-center">
+          <div className="mt-4 flex justify-between items-start w-full">
+            <div className="flex border-b border-gray-200 relative">
               <div
                 onClick={() => handleMode("users")}
-                className={`relative ${
+                className={`relative px-4 py-3 cursor-pointer transition-colors duration-200 ${
                   mode === "users"
                     ? "text-primary font-semibold"
-                    : "text-gray-500"
-                } hover:text-primary group`}
+                    : "text-gray-500 hover:text-primary"
+                }`}
               >
                 Users
-                <span
-                  className={`absolute left-1/2 -translate-x-1/2 bottom-0 h-[2px] bg-primary transition-all duration-300 ease-in-out ${
-                    mode === "users"
-                      ? "w-[55px] scale-x-100"
-                      : "w-0 group-hover:w-[55px] group-hover:scale-x-10z 0"
-                  }`}
-                ></span>
+                {mode === "users" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></span>
+                )}
               </div>
 
               <div
                 onClick={() => handleMode("permissions")}
-                className={`relative ${
+                className={`relative px-4 py-3 cursor-pointer transition-colors duration-200 ${
                   mode === "permissions"
                     ? "text-primary font-semibold"
-                    : "text-gray-500"
-                } hover:text-primary group`}
+                    : "text-gray-500 hover:text-primary"
+                }`}
               >
                 Permissions
-                <span
-                  className={`absolute left-1/2 -translate-x-1/2 bottom-0 h-[2px] bg-primary transition-all duration-300 ease-in-out ${
-                    mode === "permissions"
-                      ? "w-[80px] scale-x-100"
-                      : "w-0 group-hover:w-[80px] group-hover:scale-x-100"
-                  }`}
-                ></span>
+                {mode === "permissions" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></span>
+                )}
               </div>
             </div>
+
             <Button
-              className="bg-base mb-5"
+              className="bg-base text-white px-4 py-2"
               aria-label="Add"
               onClick={handleAdd}
             >
               {mode === "users" ? "Add User" : "Add Role"}
             </Button>
           </div>
-          {renderContent()}
+
+          <div className="mt-4">{renderContent()}</div>
         </div>
       </div>
     </div>
