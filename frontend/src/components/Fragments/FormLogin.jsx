@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react"
-import Button from "../Elements/Button"
-import InputForm from "../Elements/Input"
-import { handleLogin } from "../Auth/auth.action"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useUser } from "../../context/userContext"
+import { handleLogin } from "../Auth/auth.action"
+import Button from "../Elements/Button"
+import InputForm from "../Elements/Input"
 
 const FormLogin = () => {
   const [rememberMe, setRememberMe] = useState(false)
@@ -53,19 +53,22 @@ const FormLogin = () => {
         classname="w-full"
       />
       <div className="flex items-center mb-4">
-        <label
-          htmlFor="rememberMe"
-          className="inline-flex items-center cursor-pointer"
-        >
-          <input
-            type="checkbox"
-            id="rememberMe"
-            className="sr-only peer"
-            checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
-          />
-          <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-white dark:peer-focus:ring-white dark:bg-gray peer-checked:after:translate-x-full peer-checked:after:bg-white after:content-[''] after:absolute after:top-0.5 after:left-1 after:bg-white after:border-black after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-black peer-checked:bg-base"></div>
-          <span className="ml-3 text-sm text-black dark:text-graytext">
+        <label className="flex items-center cursor-pointer gap-3">
+          <div
+            className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer ${
+              rememberMe ? "bg-base" : "bg-gray-200"
+            }`}
+            onClick={() => setRememberMe(!rememberMe)}
+          >
+            <div
+              className="absolute top-0.5 bg-white border border-black rounded-full h-5 w-5 transition-transform duration-200 ease-in-out"
+              style={{
+                transform: rememberMe ? "translateX(20px)" : "translateX(2px)",
+                left: 0,
+              }}
+            ></div>
+          </div>
+          <span className="text-sm text-black dark:text-graytext">
             Remember me
           </span>
         </label>
@@ -78,5 +81,3 @@ const FormLogin = () => {
 }
 
 export default FormLogin
-
-//auth
