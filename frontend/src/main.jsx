@@ -10,7 +10,6 @@ import AddPermission from "./components/Fragments/managePermission/add"
 import EditRole from "./components/Fragments/managePermission/edit"
 import AddUser from "./components/Fragments/manageUser/add"
 import EditUser from "./components/Fragments/manageUser/edit"
-import Section1 from "./components/Fragments/Sections/Section1"
 import { UserProvider } from "./context/userContext"
 import ErrorPage from "./pages/404"
 import Account from "./pages/account"
@@ -141,7 +140,6 @@ const router = createBrowserRouter(
         { path: "user-management/role/:id/edit", element: <EditRole /> },
         { path: "user-management/user/add", element: <AddUser /> },
         { path: "user-management/role/add", element: <AddPermission /> },
-        { path: "section", element: <Section1 /> },
       ],
     },
     {
