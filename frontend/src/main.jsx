@@ -50,10 +50,6 @@ let tokenCheckInterval = setInterval(() => {
   }
 }, CHECK_INTERVAL)
 
-const getBasename = () => {
-  return import.meta.env.DEV ? "/siaps" : "/"
-}
-
 const router = createBrowserRouter(
   [
     {
@@ -181,9 +177,6 @@ const router = createBrowserRouter(
       ],
     },
   ],
-  {
-    basename: getBasename(),
-  }
 )
 
 ReactDOM.createRoot(document.getElementById("root")).render(
