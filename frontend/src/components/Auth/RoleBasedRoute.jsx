@@ -27,9 +27,8 @@ const RoleBasedRoute = memo(
         if (!hasAllowedRole) {
           setShowNotFound(true)
           redirectTimer = setTimeout(() => {
-            const defaultPath =
-              userRole === "Admin" ? "/dashboard" : "/dashboard"
-            setShowNotFound(false) 
+            const defaultPath = "/dashboard"
+            setShowNotFound(false)
             navigate(defaultPath, { replace: true })
           }, 2000)
         }
@@ -45,46 +44,51 @@ const RoleBasedRoute = memo(
       setShowNotFound(false)
     }, [location.pathname])
 
+    // Loading state
     if (isLoading && !immediateRole) return <Loader />
 
+    // Authentication check
     if (!authenticated) {
       return (
         <Navigate to="/login" state={{ from: location.pathname }} replace />
       )
     }
 
+    // Error handling
     if (error) {
       console.error("Error in RoleBasedRoute:", error)
       return <Navigate to="/login" replace />
     }
 
+    // Show not found if user doesn't have permission
     if (showNotFound) {
       return <NotFound />
     }
 
     const renderContent = () => {
-      const currentPath = location.pathname
-      const pathSegments = currentPath.split("/").filter(Boolean)
+      const userRole = userData?.role || immediateRole
 
-      if (sharedComponents) {
-        const sharedComponentKey = pathSegments[pathSegments.length - 1]
-        const SharedComponent = sharedComponents[sharedComponentKey]
+      // Handle role-based components (untuk dashboard dan routes khusus)
+      if (Object.keys(roleComponents).length > 0) {
+        const RoleComponent = roleComponents[userRole]
+        if (RoleComponent) {
+          return <RoleComponent />
+        }
+      }
+
+      // Handle shared components (jika ada)
+      if (Object.keys(sharedComponents).length > 0) {
+        const currentPath = location.pathname
+        const pathSegments = currentPath.split("/").filter(Boolean)
+        const lastSegment = pathSegments[pathSegments.length - 1]
+
+        const SharedComponent = sharedComponents[lastSegment]
         if (SharedComponent) {
           return <SharedComponent />
         }
       }
 
-      if (
-        currentPath === "/dashboard" &&
-        Object.keys(roleComponents).length > 0
-      ) {
-        const userRole = userData?.role
-        const SpecificComponent = roleComponents[userRole]
-        if (SpecificComponent) {
-          return <SpecificComponent />
-        }
-      }
-
+      // Default: render children routes via Outlet
       return <Outlet />
     }
 
@@ -93,5 +97,11 @@ const RoleBasedRoute = memo(
 )
 
 RoleBasedRoute.displayName = "RoleBasedRoute"
+
+RoleBasedRoute.propTypes = {
+  allowedRoles: PropTypes.arrayOf(PropTypes.string),
+  roleComponents: PropTypes.object,
+  sharedComponents: PropTypes.object,
+}
 
 export default RoleBasedRoute

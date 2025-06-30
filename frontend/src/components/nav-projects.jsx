@@ -16,7 +16,11 @@ export function NavProjects() {
     (url) => {
       const normalizedUrl = url.startsWith("/") ? url : `/${url}`
 
-      if (location.pathname !== normalizedUrl) {
+      // Force navigation and remount by using key or forcing refresh
+      if (location.pathname === normalizedUrl) {
+        // If we're already on the route, force a refresh
+        window.location.href = normalizedUrl
+      } else {
         navigate(normalizedUrl)
       }
     },
