@@ -362,8 +362,6 @@ const ProjectsTable = ({ isCollapsed }) => {
       </div>
       <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
         <div className="overflow-x-auto overflow-y-hidden relative">
-          {/* Loading Bar di atas tabel */}
-          {loading && <LoadingBar />}
           <table className="w-full">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -397,8 +395,16 @@ const ProjectsTable = ({ isCollapsed }) => {
                 </tr>
               ))}
             </thead>
-            {/* Hapus div loading absolut sebelumnya, karena LoadingBar sudah ada */}
-            {/* <tbody className="mt-4"> */} {/* Hapus mt-4 dari tbody */}
+            {/* Loading Bar dipindahkan ke bawah header */}
+            {loading && (
+              <thead>
+                <tr>
+                  <td colSpan={columns.length} className="p-0">
+                    <LoadingBar />
+                  </td>
+                </tr>
+              </thead>
+            )}
             <tbody>
               {loading ? (
                 <LoadingRow colSpan={columns.length} />
