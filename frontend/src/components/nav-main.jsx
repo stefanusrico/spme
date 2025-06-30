@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
+import { useCallback } from "react"
 import {
   Collapsible,
   CollapsibleContent,
@@ -17,11 +18,20 @@ import {
 
 export function NavMain({ items }) {
   const navigate = useNavigate()
+  const location = useLocation()
 
-  const handleNavigation = (url) => {
-    // Navigate to the exact path, ignoring current location
-    navigate(`/${url}`, { replace: true })
-  }
+  const handleNavigation = useCallback(
+    (url) => {
+      // Normalize the URL
+      const normalizedUrl = url.startsWith("/") ? url : `/${url}`
+
+      // Check if we're already on this route
+      if (location.pathname !== normalizedUrl) {
+        navigate(normalizedUrl)
+      }
+    },
+    [navigate, location.pathname]
+  )
 
   return (
     <SidebarGroup>
@@ -31,7 +41,7 @@ export function NavMain({ items }) {
           alt="SPME Logo"
           className="w-12 h-16"
         />
-        <span className="p-5 text-2xl">SIAPS</span>
+        <span className="p-5 text-2xl">SIMPEL</span>
       </SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
@@ -56,18 +66,15 @@ export function NavMain({ items }) {
                     {item.subItems.map((subItem) => (
                       <SidebarMenuSubItem key={`sub-item-${subItem.id}`}>
                         <SidebarMenuButton
-                          asChild
-                          className="pl-9 hover:bg-[#1E293B] text-zinc-200"
+                          className="pl-9 hover:bg-[#1E293B] text-zinc-200 w-full"
+                          onClick={() => handleNavigation(subItem.url)}
                         >
-                          <button
-                            onClick={() => handleNavigation(subItem.url)}
-                            className="flex items-center text-left w-full"
-                          >
+                          <div className="flex items-center text-left w-full">
                             {subItem.icon && (
                               <subItem.icon className="w-4 h-4 mr-2" />
                             )}
                             <span>{subItem.title}</span>
-                          </button>
+                          </div>
                         </SidebarMenuButton>
                       </SidebarMenuSubItem>
                     ))}
@@ -77,16 +84,13 @@ export function NavMain({ items }) {
             ) : (
               <SidebarMenuButton
                 key={`button-${item.id}`}
-                asChild
                 className="w-full hover:bg-[#1E293B] text-zinc-200"
+                onClick={() => handleNavigation(item.url)}
               >
-                <button
-                  onClick={() => handleNavigation(item.url)}
-                  className="flex items-center text-left w-full"
-                >
+                <div className="flex items-center text-left w-full">
                   <item.icon className="w-4 h-4" />
                   <span className="ml-2">{item.title}</span>
-                </button>
+                </div>
               </SidebarMenuButton>
             )}
           </SidebarMenuItem>
