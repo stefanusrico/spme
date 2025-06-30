@@ -134,28 +134,6 @@ const DashboardKoprodi = () => {
     return userProjects[userProjects.length - 1].projectId
   }, [userProjects])
 
-  const activities = useMemo(
-    () => [
-      {
-        description: "Butir 1-A submitted by wowow",
-        timestamp: "2025-04-15T10:30:00",
-      },
-      {
-        description: "Butir 6-A marked as in progress",
-        timestamp: "2025-04-14T14:20:00",
-      },
-      {
-        description: "Butir 13-A assigned to wowow",
-        timestamp: "2025-04-14T09:45:00",
-      },
-      {
-        description: "Project created",
-        timestamp: "2025-04-13T08:30:00",
-      },
-    ],
-    []
-  )
-
   useEffect(() => {
     const fetchProjectData = async () => {
       if (!projectId) {
@@ -442,7 +420,6 @@ const DashboardKoprodi = () => {
     targetDate: latestEndDate?.toISOString().split("T")[0] || null,
     progress: taskStats.completionPercentage,
     daysLeft,
-    activities,
   }
 
   return (
@@ -555,9 +532,6 @@ const DashboardKoprodi = () => {
                   <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm">
-                Assign Tasks
-              </Button>
             </div>
           </div>
 
@@ -643,10 +617,6 @@ const DashboardKoprodi = () => {
               <div>
                 <CardTitle>Project Team</CardTitle>
               </div>
-              <Button size="sm" variant="outline">
-                <Users className="h-4 w-4 mr-2" />
-                Add Member
-              </Button>
             </CardHeader>
             <CardContent>
               {membersLoading ? (
@@ -851,37 +821,7 @@ const DashboardKoprodi = () => {
 
             {/* Right Column Cards (Activity & Progress) */}
             <div className="space-y-6">
-              {/* Recent Activity Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
-                    {project.activities?.length > 0 ? (
-                      project.activities.slice(0, 10).map((activity, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <div className="mt-1 w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-                          <div className="flex-1">
-                            <p className="text-sm leading-snug">
-                              {activity.description}
-                            </p>
-                            <div className="flex items-center text-xs text-muted-foreground mt-0.5">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {formatDate(activity.timestamp)}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No recent activity recorded.
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
+              {" "}
               {/* Completion Progress Card */}
               <Card>
                 <CardHeader>
