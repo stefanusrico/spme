@@ -37,8 +37,8 @@ export function NavMain({ items }) {
     <SidebarGroup>
       <SidebarGroupLabel className="flex items-center gap-2 text-zinc-400 mb-8 mt-5">
         <img
-          src="https://www.polban.ac.id/wp-content/uploads/2018/06/logo-polban-80.png"
-          alt="SPME Logo"
+          src="polban-title.png"
+          alt="Polban Logo"
           className="w-12 h-16"
         />
         <span className="p-5 text-2xl">SIMPEL</span>
