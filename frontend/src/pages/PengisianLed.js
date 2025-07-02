@@ -211,6 +211,7 @@ const parseDraftContent = (isianAsesiJson, dataPendukung = []) => {
 
 
 export const fetchMasukanAndScoreFromAI = async (
+  prodi,
   dataKriteriaIndikator,
   dataIsian
 ) => {
@@ -233,6 +234,7 @@ export const fetchMasukanAndScoreFromAI = async (
     }
 
     const responseGemini = await axiosInstance.post("/scoring-led", {
+      prodi : prodi, 
       dataLedItem: dataKriteriaIndikator,
       dataIsian: dataIsianToScoring,
     })

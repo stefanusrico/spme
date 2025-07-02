@@ -124,6 +124,7 @@ function PengisianLedTableNew({
       }
 
       const data = await fetchMasukanAndScoreFromAI(
+        userData.prodi.name, 
         dataKriteriaIndikator,
         dataIsian?.details
       )
