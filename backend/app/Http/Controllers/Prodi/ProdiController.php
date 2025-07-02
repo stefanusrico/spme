@@ -14,8 +14,11 @@ class ProdiController extends Controller
     public function index()
     {
         return response()->json(
-            Prodi::with('lam')
-                ->with('strata')
+            Prodi::with(['lam', 'strata'])
+                ->where(function ($query) {
+                    $query->where('name', 'like', 'D-IV Teknik%')
+                        ->orWhere('name', 'like', '%P2MPP%');
+                })
                 ->orderBy('akreditasi.tanggalKedaluwarsa', 'asc')
                 ->get()
         );

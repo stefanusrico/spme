@@ -223,10 +223,25 @@ class ProjectController extends Controller
     {
         $userId = auth()->user()->_id;
 
+        $user = auth()->user();
+        Log::info('Fetching projects for user: ' . $user);
+
+        // Ambil daftar projectId dari properti projects user
+        $projectIds = collect($user->projects)->pluck('projectId');
+
+        // Logging untuk memastikan projectIds benar
+        \Log::info('Project IDs for user: ', $projectIds->toArray());
+
+        // Ambil proyek yang ID-nya ada dalam daftar projectIds
         $projects = Project::with(['tasklists', 'tasks'])
-            ->where('createdBy', $userId)
+            ->whereIn('_id', $projectIds)
             ->orderBy('created_at', 'desc')
             ->get();
+            
+        // $projects = Project::with(['tasklists', 'tasks'])
+        //     ->where('createdBy', $userId)
+        //     ->orderBy('created_at', 'desc')
+        //     ->get();
 
         return response()->json([
             'status' => 'success',

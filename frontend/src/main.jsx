@@ -140,7 +140,7 @@ const router = createBrowserRouter([
   {
     element: (
       <UserProvider>
-        <RoleBasedRoute allowedRoles={["Koordinator Program Studi"]} />
+        <RoleBasedRoute allowedRoles={["Koordinator Program Studi", "Tim Penyusun Akreditasi"]} />
       </UserProvider>
     ),
     children: [
