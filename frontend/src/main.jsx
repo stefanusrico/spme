@@ -124,7 +124,7 @@ const router = createBrowserRouter([
       { path: "prodi", element: <ProdiTable /> },
       { path: "jadwal", element: <Jadwal /> },
       { path: "json/generate", element: <JsonGenerator /> },
-      { path: "import-data", element: <ImportData /> },
+      { path: "komponen-penilaian", element: <ImportData /> },
       { path: "user-management/users", element: <UserManagement /> },
       { path: "user-management/permissions", element: <UserManagement /> },
       {
@@ -140,7 +140,7 @@ const router = createBrowserRouter([
   {
     element: (
       <UserProvider>
-        <RoleBasedRoute allowedRoles={["Koordinator Program Studi"]} />
+        <RoleBasedRoute allowedRoles={["Koordinator Program Studi", "Tim Penyusun Akreditasi"]} />
       </UserProvider>
     ),
     children: [

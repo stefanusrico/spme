@@ -12,6 +12,7 @@ import ProgressBar from "../Chart/ProgressBar"
 import AddProjectModal from "../Modals/AddProjectModal"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
+import { useUser } from "../../../context/userContext"
 
 // Komponen LoadingBar dan LoadingRow tetap sama (tidak perlu diubah)
 const LoadingBar = () => (
@@ -72,6 +73,7 @@ const ProjectsTable = ({ isCollapsed }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const columnHelper = createColumnHelper()
+  const { userData: user } = useUser()
 
   // Definisi kolom tetap sama
   const columns = useMemo(
@@ -331,8 +333,9 @@ const ProjectsTable = ({ isCollapsed }) => {
   // --- AKHIR PERBAIKAN ---
 
   useEffect(() => {
+    if (!user) return;
     fetchProjects()
-  }, []) // Dependency array kosong agar hanya dijalankan sekali saat mount
+  }, [user]) // Dependency array user agar hanya dijalankan ketika user berubah
 
   // Render JSX sisanya tetap sama
   return (
@@ -353,12 +356,14 @@ const ProjectsTable = ({ isCollapsed }) => {
 
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-3xl font-bold">Projects</h1>
-        <button
-          className="bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 hover:bg-blue-700" // Tambahkan hover effect
-          onClick={() => setShowModal(true)}
-        >
-          Add project
-        </button>
+        { user?.role === 'Koordinator Program Studi' && (
+          <button
+            className="bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 hover:bg-blue-700" // Tambahkan hover effect
+            onClick={() => setShowModal(true)}
+          >
+            Add project
+          </button>
+        )}
       </div>
       <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
         <div className="overflow-x-auto overflow-y-hidden relative">
