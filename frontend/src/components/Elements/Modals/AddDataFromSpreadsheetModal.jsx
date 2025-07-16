@@ -8,7 +8,7 @@ import axiosInstance from "../../../utils/axiosConfig"
 import { useEffect, useState } from "react"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faPlus } from "@fortawesome/free-solid-svg-icons"
-import { message } from 'antd'
+import { message } from "antd"
 
 const AddDataFromSpreadsheetModal = ({ isOpen, onClose, importType }) => {
   const [urlSpreadsheet, setUrlSpreadsheet] = useState("")
@@ -21,9 +21,9 @@ const AddDataFromSpreadsheetModal = ({ isOpen, onClose, importType }) => {
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return
 
-    let mounted = true;
+    let mounted = true
     setUrlSpreadsheet("")
     setSelectedStrata("")
     setSelectedLAM("")
@@ -55,14 +55,22 @@ const AddDataFromSpreadsheetModal = ({ isOpen, onClose, importType }) => {
     try {
       setIsLoading(true)
 
-      if (!urlSpreadsheet || !selectedLAM || !selectedStrata || sheets.some(s => s.trim() === "")) {
+      if (
+        !urlSpreadsheet ||
+        !selectedLAM ||
+        !selectedStrata ||
+        sheets.some((s) => s.trim() === "")
+      ) {
         alert("Mohon lengkapi semua field sebelum melanjutkan.")
         setIsLoading(false)
         return
       }
 
-      const lamName = lamOptions.find(l => l.id === selectedLAM)?.name ?? "Unknown LAM"
-      const strataName = strataOptions.find(s => s.id === selectedStrata)?.name ?? "Unknown Strata"
+      const lamName =
+        lamOptions.find((l) => l.id === selectedLAM)?.name ?? "Unknown LAM"
+      const strataName =
+        strataOptions.find((s) => s.id === selectedStrata)?.name ??
+        "Unknown Strata"
 
       const payload = {
         name: `${lamName} ${strataName}`,
@@ -75,23 +83,28 @@ const AddDataFromSpreadsheetModal = ({ isOpen, onClose, importType }) => {
       let responsePost = null
 
       switch (importType) {
-        case 'bobot':
+        case "bobot":
           responsePost = await axiosInstance.post("/save-bobot-butir", payload)
           break
 
-        case 'syaratPerluTerakreditasi':
-          responsePost = await axiosInstance.post("/save-syarat-perlu-terakreditasi", payload)
+        case "syaratPerluTerakreditasi":
+          responsePost = await axiosInstance.post(
+            "/save-syarat-perlu-terakreditasi",
+            payload
+          )
           break
 
-        case 'syaratPerluPeringkat':
-          responsePost = await axiosInstance.post("/save-syarat-perlu-peringkat", payload)
+        case "syaratPerluPeringkat":
+          responsePost = await axiosInstance.post(
+            "/save-syarat-perlu-peringkat",
+            payload
+          )
           break
 
-        case 'ledItem':
+        case "ledItem":
           responsePost = await axiosInstance.post("/save-json", payload)
           break
       }
-      
 
       message.success("Data berhasil disimpan.")
       onClose()

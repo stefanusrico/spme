@@ -22,100 +22,35 @@ export const useTableData = (tableCode, config, userData, projectId) => {
   const configRef = useRef(null)
   const hasBeenInitialized = useRef(false)
 
+  // ✅ CHANGE: Track fetch status per table but reset when table changes
+  const currentTableRef = useRef(null)
+  const hasCurrentTableDataFetched = useRef(false)
+
   useEffect(() => {
     configRef.current = config
   }, [config])
 
+  // Reset everything when tableCode changes
   useEffect(() => {
+    console.log(`🔄 Table changed to: ${tableCode}`)
+
+    // Reset scores for new table
     setScore(null)
     setScoreDetail(null)
+
+    // Reset flags for new table
+    hasBeenInitialized.current = false
+
+    // ✅ CHANGE: Reset fetch status when table changes
+    if (currentTableRef.current !== tableCode) {
+      currentTableRef.current = tableCode
+      hasCurrentTableDataFetched.current = false
+      console.log(`📝 Reset fetch status for new table: ${tableCode}`)
+    }
   }, [tableCode])
 
   const prodiName = userData?.prodi || ""
   const prodiId = userData?.prodiId
-
-  const fixAllExistingData = useCallback(async () => {
-    if (!plugin || !userData) return
-
-    try {
-      message.loading({
-        content: "Normalizing data format...",
-        key: "fixData",
-      })
-
-      const updatedTableData = {}
-      Object.keys(tableData).forEach((code) => {
-        updatedTableData[code] = plugin.normalizeData(tableData[code])
-      })
-      setTableData(updatedTableData)
-
-      if (userData.role === "admin") {
-        try {
-          const response = await axiosInstance.post("/lkps/data/fix-format", {
-            tableCode: tableCode,
-            prodiId: userData.prodiId,
-          })
-
-          message.success({
-            content:
-              response.data?.message || "Data format fixed successfully!",
-            key: "fixData",
-          })
-        } catch (error) {
-          console.error("Server-side data fix failed:", error)
-          message.warning({
-            content: "Server-side fix failed. Local data normalized.",
-            key: "fixData",
-          })
-        }
-      } else {
-        message.success({
-          content:
-            "Data format has been normalized. Save to update the database.",
-          key: "fixData",
-        })
-      }
-    } catch (error) {
-      console.error("Error fixing data:", error)
-      message.error({
-        content: "Failed to normalize data format.",
-        key: "fixData",
-      })
-    }
-  }, [plugin, tableData, userData, tableCode])
-
-  useEffect(() => {
-    if (!config || !plugin) return
-
-    if (hasBeenInitialized.current && Object.keys(tableData).length > 0) {
-      return
-    }
-
-    // Simple - plugin handles everything!
-    const initialTableData = plugin.initializeData(config, prodiName, tableCode)
-
-    // Initialize other states
-    const initialUploadState = {}
-    const initialSelectionMode = {}
-    const initialAllExcelData = {}
-    const initialSelectionData = {}
-
-    config.tables.forEach((table) => {
-      const tableCode = typeof table === "object" ? table.code : table
-      initialUploadState[tableCode] = false
-      initialSelectionMode[tableCode] = false
-      initialAllExcelData[tableCode] = []
-      initialSelectionData[tableCode] = []
-    })
-
-    setTableData(initialTableData)
-    setIsUploaded(initialUploadState)
-    setShowSelectionMode(initialSelectionMode)
-    setAllExcelData(initialAllExcelData)
-    setSelectionData(initialSelectionData)
-
-    hasBeenInitialized.current = true
-  }, [config, plugin, prodiName, tableCode])
 
   const calculateScoreData = useCallback(
     async (specificData = null, forcedCalculation = false) => {
@@ -186,42 +121,86 @@ export const useTableData = (tableCode, config, userData, projectId) => {
     [plugin, tableData, userData, tableCode]
   )
 
-  // ✅ SIMPLIFIED FETCH DATA
+  // ✅ OPTIMIZED FETCH DATA FUNCTION
   const fetchTableData = useCallback(async () => {
-    if (!config || !userData || !plugin) return
+    if (!config || !userData || !plugin || !projectId) {
+      console.log("❌ Fetch skipped - missing dependencies")
+      return
+    }
+
+    // Get the actual table code from config
+    const actualTableCode =
+      typeof config.tables[0] === "string"
+        ? config.tables[0]
+        : config.tables[0]?.code || tableCode
+
+    // ✅ CHANGE: Check if we already fetched data for CURRENT table
+    if (
+      hasCurrentTableDataFetched.current &&
+      currentTableRef.current === tableCode
+    ) {
+      console.log(
+        `❌ Fetch skipped - already fetched current table: ${actualTableCode}`
+      )
+      return
+    }
 
     try {
-      const response = await axiosInstance.get(`lkps/data`, {
+      console.log(`🔄 Fetching data for table: ${actualTableCode}`)
+
+      const response = await axiosInstance.get(`/lkps/data`, {
         params: {
           projectId,
-          tableCode,
+          tableCode: actualTableCode,
         },
       })
 
       if (response.data) {
-        const savedData = {}
-        if (response.data.data && Array.isArray(response.data.data)) {
-          savedData[tableCode] = plugin.normalizeData(response.data.data)
-        }
+        console.log("📦 Raw response data:", response.data)
 
-        // Plugin handles merging with defaults automatically!
-        const initializedData = plugin.initializeData(
-          config,
-          prodiName,
-          tableCode,
-          savedData
-        )
+        // Update table data with fetched data
+        setTableData((prevData) => {
+          const newData = { ...prevData }
 
-        // ❌ HAPUS semua logic shouldHaveDefaultAcademicYears
+          if (response.data.data && Array.isArray(response.data.data)) {
+            const normalizedData = plugin.normalizeData(response.data.data)
+            console.log("✅ Normalized saved data:", normalizedData)
 
-        setTableData(initializedData)
+            // Merge with existing data from plugin initialization
+            const mergedData = plugin.initializeData(
+              config,
+              prodiName,
+              actualTableCode,
+              { [actualTableCode]: normalizedData }
+            )
 
-        const initialSelectionData = {}
-        Object.keys(initializedData).forEach((tableCode) => {
-          initialSelectionData[tableCode] = []
+            // Update only the specific table
+            Object.assign(newData, mergedData)
+          } else {
+            // No saved data, initialize with defaults
+            const defaultData = plugin.initializeData(
+              config,
+              prodiName,
+              actualTableCode,
+              {}
+            )
+            Object.assign(newData, defaultData)
+          }
+
+          console.log("🏗️ Final table data:", newData)
+          return newData
         })
-        setSelectionData(initialSelectionData)
 
+        // Update selection data
+        setSelectionData((prevSelection) => {
+          const newSelection = { ...prevSelection }
+          if (!newSelection[actualTableCode]) {
+            newSelection[actualTableCode] = []
+          }
+          return newSelection
+        })
+
+        // Handle scores
         if (response.data.nilai && Array.isArray(response.data.nilai)) {
           setScore(response.data.nilai)
         } else if (
@@ -236,9 +215,14 @@ export const useTableData = (tableCode, config, userData, projectId) => {
         if (response.data.detailNilai) {
           setScoreDetail(response.data.detailNilai)
         }
+
+        // ✅ CHANGE: Mark current table as fetched
+        hasCurrentTableDataFetched.current = true
+
+        console.log(`✅ Data fetched successfully for: ${actualTableCode}`)
       }
     } catch (err) {
-      console.error("Error fetching data:", err)
+      console.error("❌ Error fetching data:", err)
 
       if (err.response?.status === 404) {
         const errorMessage = err.response?.data?.message || ""
@@ -258,38 +242,107 @@ export const useTableData = (tableCode, config, userData, projectId) => {
         }
 
         // Initialize with defaults on 404
-        const initializedData = plugin.initializeData(
-          config,
-          prodiName,
-          tableCode,
-          {}
-        )
-
-        // ❌ HAPUS semua logic shouldHaveDefaultAcademicYears
-
-        setTableData(initializedData)
-
-        const initialSelectionData = {}
-        Object.keys(initializedData).forEach((tableCode) => {
-          initialSelectionData[tableCode] = []
+        setTableData((prevData) => {
+          const defaultData = plugin.initializeData(
+            config,
+            prodiName,
+            actualTableCode,
+            {}
+          )
+          return { ...prevData, ...defaultData }
         })
-        setSelectionData(initialSelectionData)
+
+        setSelectionData((prevSelection) => ({
+          ...prevSelection,
+          [actualTableCode]: [],
+        }))
+
+        // ✅ CHANGE: Mark as fetched even on 404 for current table
+        hasCurrentTableDataFetched.current = true
+        console.log(`📝 Default data initialized for: ${actualTableCode}`)
       }
     }
   }, [config, tableCode, projectId, prodiName, userData, plugin])
 
+  // ✅ INITIALIZE DATA FIRST
+  useEffect(() => {
+    if (!config || !plugin) return
+
+    if (hasBeenInitialized.current) return
+
+    console.log(`🏗️ Initializing data for table: ${tableCode}`)
+
+    // Initialize with empty data first
+    const initialTableData = plugin.initializeData(
+      config,
+      prodiName,
+      tableCode,
+      {}
+    )
+
+    // Initialize other states
+    const initialUploadState = {}
+    const initialSelectionMode = {}
+    const initialAllExcelData = {}
+    const initialSelectionData = {}
+
+    config.tables.forEach((table) => {
+      const currentTableCode = typeof table === "object" ? table.code : table
+      initialUploadState[currentTableCode] = false
+      initialSelectionMode[currentTableCode] = false
+      initialAllExcelData[currentTableCode] = []
+      initialSelectionData[currentTableCode] = []
+    })
+
+    setTableData((prevData) => ({ ...prevData, ...initialTableData }))
+    setIsUploaded((prevUploaded) => ({
+      ...prevUploaded,
+      ...initialUploadState,
+    }))
+    setShowSelectionMode((prevMode) => ({
+      ...prevMode,
+      ...initialSelectionMode,
+    }))
+    setAllExcelData((prevExcel) => ({ ...prevExcel, ...initialAllExcelData }))
+    setSelectionData((prevSelection) => ({
+      ...prevSelection,
+      ...initialSelectionData,
+    }))
+
+    hasBeenInitialized.current = true
+    console.log("✅ Initial data set:", initialTableData)
+  }, [config, plugin, prodiName, tableCode])
+
+  // ✅ FETCH DATA AFTER INITIALIZATION
   useEffect(() => {
     if (
       config &&
+      !config.isLoading &&
       userData &&
       plugin &&
-      !config.isLoading &&
       !pluginLoading &&
-      projectId
+      projectId &&
+      hasBeenInitialized.current && // Wait for initialization first
+      !hasCurrentTableDataFetched.current // Only fetch if current table hasn't been fetched
     ) {
-      fetchTableData()
+      console.log("🚀 Triggering data fetch...")
+      // Small delay to ensure all state is settled
+      const timeoutId = setTimeout(() => {
+        fetchTableData()
+      }, 100)
+
+      return () => clearTimeout(timeoutId)
     }
-  }, [config, fetchTableData, userData, plugin, pluginLoading, projectId])
+  }, [
+    config?.isLoading,
+    userData?.prodiId,
+    plugin,
+    pluginLoading,
+    projectId,
+    hasBeenInitialized.current,
+    hasCurrentTableDataFetched.current,
+    fetchTableData,
+  ])
 
   const prepareDataForSaving = useCallback(
     (tableCode) => {
@@ -344,7 +397,6 @@ export const useTableData = (tableCode, config, userData, projectId) => {
     configRef,
     prodiName,
     prodiId,
-    fixAllExistingData,
     calculateScoreData,
     prepareDataForSaving,
     plugin,

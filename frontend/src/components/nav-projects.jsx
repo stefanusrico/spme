@@ -1,5 +1,3 @@
-import { useNavigate, useLocation } from "react-router-dom"
-import { useCallback } from "react"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -9,23 +7,10 @@ import {
 } from "@/components/ui/sidebar"
 
 export function NavProjects() {
-  const navigate = useNavigate()
-  const location = useLocation()
-
-  const handleNavigation = useCallback(
-    (url) => {
-      const normalizedUrl = url.startsWith("/") ? url : `/${url}`
-
-      // Force navigation and remount by using key or forcing refresh
-      if (location.pathname === normalizedUrl) {
-        // If we're already on the route, force a refresh
-        window.location.href = normalizedUrl
-      } else {
-        navigate(normalizedUrl)
-      }
-    },
-    [navigate, location.pathname]
-  )
+  const handleNavigation = (url) => {
+    // Paksa reload halaman untuk memastikan komponen ter-render
+    window.location.href = url
+  }
 
   return (
     <SidebarGroup>

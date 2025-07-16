@@ -36,6 +36,7 @@ import TableFooter from "./TableFooter"
 import TridharmaScoreDetails from "./TridharmaScoreDetails"
 import DebugPanel from "./DebugPanel"
 import ExcelTemplateUploader from "./ExcelTemplateUploader"
+import ProgramSelector from "./ProgramSelector"
 
 const { TabPane } = Tabs
 const { Title, Paragraph, Text } = Typography
@@ -101,7 +102,6 @@ const DynamicLkpsContainer = () => {
     configRef,
     prodiName,
     prodiId,
-    fixAllExistingData,
     calculateScoreData,
     plugin,
   } = useTableData(tableCode, config, userData, projectId)
@@ -112,7 +112,7 @@ const DynamicLkpsContainer = () => {
     handleDataChange,
     debouncedHandleDataChange,
     handleAddRow,
-    handleDeleteRow, // Add this
+    handleDeleteRow,
   } = useTableOperations(
     tableCode,
     prodiName,
@@ -129,7 +129,13 @@ const DynamicLkpsContainer = () => {
     setEditingKey
   )
 
-  const { handleUpload } = useFileUpload(
+  // ✅ Updated useFileUpload hook with program selector support
+  const {
+    handleUpload,
+    programSelectorState,
+    setProgramSelectorState,
+    processPendingUpload,
+  } = useFileUpload(
     tableCode,
     prodiName,
     config,
@@ -165,18 +171,16 @@ const DynamicLkpsContainer = () => {
     debouncedHandleDataChange,
     editingKey,
     setEditingKey,
-    handleDeleteRow // Add this parameter
+    handleDeleteRow
   )
 
   useEffect(() => {
     console.log("Passing table structure to header:", tableStructure)
   }, [tableStructure])
 
-  // Updated handleSave function
   const handleSave = () => {
     if (!config) return
 
-    // Set editing key to null and save data with config
     setEditingKey(null)
     saveData(config)
   }
@@ -267,13 +271,6 @@ const DynamicLkpsContainer = () => {
           Log Full Config
         </button>
       </Card>
-    )
-  }
-
-  // In your DynamicLkpsContainer component, add this line before the main content
-  {
-    process.env.NODE_ENV === "development" && (
-      <ConfigDebugger config={config} tableCode={tableCode} />
     )
   }
 
@@ -462,25 +459,34 @@ const DynamicLkpsContainer = () => {
           className="table-footer"
           style={{
             marginTop: "20px",
-            display: "flex",
-            justifyContent: "space-between",
           }}
         >
-          <div>
-            {!!prev && (
-              <Button onClick={handlePrev} style={{ marginRight: "10px" }}>
-                Previous
-              </Button>
-            )}
-            {!!next && <Button onClick={handleNext}>Next</Button>}
-          </div>
-          <div style={{ display: "flex" }}>
-            <Button type="primary" onClick={handleSave} loading={saving}>
-              Save Data
-            </Button>
-          </div>
+          <TableFooter
+            saving={saving}
+            onSave={handleSave}
+            hasPrev={!!prev}
+            hasNext={!!next}
+            navigate={navigate}
+            prevTableCode={prev}
+            nextTableCode={next}
+          />
         </div>
       </div>
+
+      <ProgramSelector
+        visible={programSelectorState.visible}
+        availablePrograms={programSelectorState.availablePrograms}
+        onSelect={processPendingUpload}
+        onCancel={() =>
+          setProgramSelectorState({
+            visible: false,
+            availablePrograms: [],
+            pendingWorkbook: null,
+            pendingTableCode: null,
+          })
+        }
+        tableCode={tableCode}
+      />
     </div>
   )
 }

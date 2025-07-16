@@ -1,6 +1,5 @@
 import { ChevronRight } from "lucide-react"
-import { useNavigate, useLocation } from "react-router-dom"
-import { useCallback } from "react"
+import { useState } from "react"
 import {
   Collapsible,
   CollapsibleContent,
@@ -17,30 +16,34 @@ import {
 } from "@/components/ui/sidebar"
 
 export function NavMain({ items }) {
-  const navigate = useNavigate()
-  const location = useLocation()
+  const [imageError, setImageError] = useState(false)
 
-  const handleNavigation = useCallback(
-    (url) => {
-      // Normalize the URL
-      const normalizedUrl = url.startsWith("/") ? url : `/${url}`
+  const handleNavigation = (url) => {
+    // Pastikan URL dimulai dengan /
+    const absoluteUrl = url.startsWith("/") ? url : `/${url}`
+    window.location.href = absoluteUrl
+  }
 
-      // Check if we're already on this route
-      if (location.pathname !== normalizedUrl) {
-        navigate(normalizedUrl)
-      }
-    },
-    [navigate, location.pathname]
-  )
+  const handleImageError = () => {
+    setImageError(true)
+  }
 
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="flex items-center gap-2 text-zinc-400 mb-8 mt-5">
-        <img
-          src="polban-title.png"
-          alt="Polban Logo"
-          className="w-12 h-16"
-        />
+        {!imageError ? (
+          <img
+            src="/polban-title.png"
+            alt="Polban Logo"
+            className="w-12 h-16"
+            onError={handleImageError}
+            loading="eager"
+          />
+        ) : (
+          <div className="w-12 h-16 bg-zinc-600 rounded flex items-center justify-center">
+            <span className="text-white text-xs font-bold">P</span>
+          </div>
+        )}
         <span className="p-5 text-2xl">SIMPEL</span>
       </SidebarGroupLabel>
       <SidebarMenu>

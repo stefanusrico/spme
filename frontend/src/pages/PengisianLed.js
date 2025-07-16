@@ -2,13 +2,16 @@ import { Details } from "@mui/icons-material"
 import axiosInstance from "../utils/axiosConfig"
 import { useNavigate } from "react-router-dom"
 
-
 export const fetchLedDataByTaskId = async (taskId) => {
   try {
-    const responseVersion = await axiosInstance.get(`/led-data/get-all-by-task`,{ params: { 
-        taskId: taskId 
+    const responseVersion = await axiosInstance.get(
+      `/led-data/get-all-by-task`,
+      {
+        params: {
+          taskId: taskId,
+        },
       }
-    })
+    )
 
     return responseVersion.data.data
   } catch (error) {
@@ -18,10 +21,14 @@ export const fetchLedDataByTaskId = async (taskId) => {
 
 export const fetchLatestLedDataByTaskId = async (taskId) => {
   try {
-    const responseVersion = await axiosInstance.get(`/led-data/get-latest-by-task`,{ params: { 
-        taskId: taskId 
+    const responseVersion = await axiosInstance.get(
+      `/led-data/get-latest-by-task`,
+      {
+        params: {
+          taskId: taskId,
+        },
       }
-    })
+    )
 
     return responseVersion.data.data
   } catch (error) {
@@ -54,7 +61,9 @@ export const fetchUserTask = async (projectId) => {
 
 export const fetchAllTaskByProdi = async (prodiId) => {
   try {
-    const responseTasks = await axiosInstance.get(`/all-tasks-by-prodi/${prodiId}`)
+    const responseTasks = await axiosInstance.get(
+      `/all-tasks-by-prodi/${prodiId}`
+    )
     const data = responseTasks.data.data.tasks
     console.log("reposen all tasks : ", data)
     return data
@@ -63,17 +72,24 @@ export const fetchAllTaskByProdi = async (prodiId) => {
   }
 }
 
-export const updateUserTask = async (newNo, newSub, prodiId, userId, projectId) => {
+export const updateUserTask = async (
+  newNo,
+  newSub,
+  prodiId,
+  userId,
+  projectId
+) => {
   try {
     console.log(newNo, newSub, userId)
-    const responseTask = await axiosInstance.patch(`tasks/updateOwner/${newNo}/${newSub}/${prodiId}`,
+    const responseTask = await axiosInstance.patch(
+      `tasks/updateOwner/${newNo}/${newSub}/${prodiId}`,
       {
-        owners: [userId]
+        owners: [userId],
       }
     )
     console.log(responseTask.data.data)
-    const updatedTasks = await fetchUserTask(projectId);
-       
+    const updatedTasks = await fetchUserTask(projectId)
+
     return updatedTasks
   } catch (error) {
     throw new Error("Gagal update user task")
@@ -95,10 +111,16 @@ export const fetchAllProdi = async () => {
 
 export const fetchLedDataByProdi = async (prodiId) => {
   try {
-    const responseLedData = await axiosInstance.get(`/led-data-by-prodi/${prodiId}`)
-    if (!responseLedData.data || !responseLedData.data.data || responseLedData.data.data.length === 0) {
-      console.warn("LED data kosong atau tidak ditemukan");
-      return []; // Atau null tergantung bagaimana kamu ingin menanganinya
+    const responseLedData = await axiosInstance.get(
+      `/led-data-by-prodi/${prodiId}`
+    )
+    if (
+      !responseLedData.data ||
+      !responseLedData.data.data ||
+      responseLedData.data.data.length === 0
+    ) {
+      console.warn("LED data kosong atau tidak ditemukan")
+      return [] // Atau null tergantung bagaimana kamu ingin menanganinya
     }
     console.log("all data verison di js :", responseLedData.data.data)
     return responseLedData.data.data
@@ -140,63 +162,63 @@ export const fetchLedDataProdiReference = async () => {
 }
 
 const extractText = (value) => {
-    if (typeof value === 'string') {
-        try {
-            const parsed = JSON.parse(value);
-            // Cek apakah formatnya draft-js raw content
-            if (parsed?.blocks && Array.isArray(parsed.blocks)) {
-                return parsed.blocks.map(block => block.text).join('\n');
-            }
-        } catch (e) {
-            // Bukan JSON → biarkan sebagai teks biasa
-        }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value)
+      // Cek apakah formatnya draft-js raw content
+      if (parsed?.blocks && Array.isArray(parsed.blocks)) {
+        return parsed.blocks.map((block) => block.text).join("\n")
+      }
+    } catch (e) {
+      // Bukan JSON → biarkan sebagai teks biasa
     }
+  }
 
-    return value;
+  return value
 }
 
 const parseDraftContent = (isianAsesiJson, dataPendukung = []) => {
-  if (!isianAsesiJson) return "";
+  if (!isianAsesiJson) return ""
 
-  let draft;
+  let draft
   try {
-    draft = JSON.parse(isianAsesiJson);
+    draft = JSON.parse(isianAsesiJson)
   } catch (e) {
-    console.warn("⚠️ Gagal parse JSON isianAsesi:", isianAsesiJson);
-    return "";
+    console.warn("⚠️ Gagal parse JSON isianAsesi:", isianAsesiJson)
+    return ""
   }
 
-  const blocks = draft.blocks || [];
-  const entityMap = draft.entityMap || {};
+  const blocks = draft.blocks || []
+  const entityMap = draft.entityMap || {}
 
   // Ambil teks biasa
   const textParts = blocks
-    .filter(b => b.text && b.text.trim() !== "")
-    .map(b => {
-      const text = b.text.trim();
-      if (b.type === 'header-one') return `# ${text}`;
-      if (b.type === 'header-two') return `## ${text}`;
-      if (b.type === 'unordered-list-item') return `- ${text}`;
-      if (b.type === 'ordered-list-item') return `1. ${text}`;
-      return text; // unstyled atau lainnya
-    });
-
-  // Ambil gambar dari entityMap 
-  const imageUrls = Object.values(entityMap)
-    .filter(e => e.type === "IMAGE")
-    .map(e => {
-      const src = e.data?.src;
-      return src ? `Gambar : ${src}` : "";
+    .filter((b) => b.text && b.text.trim() !== "")
+    .map((b) => {
+      const text = b.text.trim()
+      if (b.type === "header-one") return `# ${text}`
+      if (b.type === "header-two") return `## ${text}`
+      if (b.type === "unordered-list-item") return `- ${text}`
+      if (b.type === "ordered-list-item") return `1. ${text}`
+      return text // unstyled atau lainnya
     })
-    .filter(Boolean);
 
-  // Ambil pdf dari entityMap 
+  // Ambil gambar dari entityMap
+  const imageUrls = Object.values(entityMap)
+    .filter((e) => e.type === "IMAGE")
+    .map((e) => {
+      const src = e.data?.src
+      return src ? `Gambar : ${src}` : ""
+    })
+    .filter(Boolean)
+
+  // Ambil pdf dari entityMap
   const pdfLinksFromEditor = Object.values(entityMap)
-    .filter(e => e.type === "LINK" && e.data?.url?.endsWith(".pdf"))
-    .map(e => `PDF: ${e.data.url}`)
-    .filter(Boolean);
+    .filter((e) => e.type === "LINK" && e.data?.url?.endsWith(".pdf"))
+    .map((e) => `PDF: ${e.data.url}`)
+    .filter(Boolean)
 
-  // Ambil pdf dari luar editor 
+  // Ambil pdf dari luar editor
   // const extraPdfLinks = Array.isArray(dataPendukung)
   //   ? dataPendukung
   //       .filter(pdf => pdf?.local_url)
@@ -206,9 +228,8 @@ const parseDraftContent = (isianAsesiJson, dataPendukung = []) => {
   // Gabungkan semuanya
   return [...textParts, ...imageUrls, ...pdfLinksFromEditor]
     .filter(Boolean)
-    .join("\n\n");
-};
-
+    .join("\n\n")
+}
 
 export const fetchMasukanAndScoreFromAI = async (
   prodi,
@@ -219,22 +240,24 @@ export const fetchMasukanAndScoreFromAI = async (
     console.log("data matriks sebelum ke Gemini : ", dataKriteriaIndikator)
     console.log("data isian sebelum ke Gemini : ", dataIsian)
 
-    const combinedIsianAsesi = dataIsian.map((item, index) => {
-      return `${parseDraftContent(item.isianAsesi)}`
-    }).join("\n\n");
+    const combinedIsianAsesi = dataIsian
+      .map((item, index) => {
+        return `${parseDraftContent(item.isianAsesi)}`
+      })
+      .join("\n\n")
 
     const dataIsianToScoring = {
-          dataPendukung : dataIsian.dataPendukung,
-          isianAsesi : combinedIsianAsesi,
-          masukan : dataIsian.masukan,
-          nilai : dataIsian.nilai,
-          reference : dataIsian.reference,
-          seq : dataIsian.seq,
-          type : dataIsian.type
+      dataPendukung: dataIsian.dataPendukung,
+      isianAsesi: combinedIsianAsesi,
+      masukan: dataIsian.masukan,
+      nilai: dataIsian.nilai,
+      reference: dataIsian.reference,
+      seq: dataIsian.seq,
+      type: dataIsian.type,
     }
 
     const responseGemini = await axiosInstance.post("/scoring-led", {
-      prodi : prodi, 
+      prodi: prodi,
       dataLedItem: dataKriteriaIndikator,
       dataIsian: dataIsianToScoring,
     })
@@ -271,51 +294,59 @@ export const storeLedData = async (commit, dataIsian, noSub) => {
   // let  ilaiValid = 0;
 
   // Sesuaikan `dataIsian.details`, ganti `dataPendukung` berdasarkan `seq`
-  const updatedDetails = (dataIsian.details || []).map((detail, detailIndex) => {
-        try {
-            // const nilai = typeof detail.nilai === 'number' ? detail.nilai : parseFloat(detail.nilai);
-            // if (!isNaN(nilai)) {
-            //   totalNilai += nilai;
-            //   jumlahNilaiValid++;
-            // }
+  const updatedDetails = (dataIsian.details || []).map(
+    (detail, detailIndex) => {
+      try {
+        // const nilai = typeof detail.nilai === 'number' ? detail.nilai : parseFloat(detail.nilai);
+        // if (!isNaN(nilai)) {
+        //   totalNilai += nilai;
+        //   jumlahNilaiValid++;
+        // }
 
-            if (!Array.isArray(detail.dataPendukung)) {
-                console.warn(`Detail index ${detailIndex} tidak memiliki dataPendukung sebagai array.`);
-                return { ...detail, dataPendukung: [] };
-            }
-    
-            const updatedPendukung = detail.dataPendukung.map((file, fileIndex) => {
-                const uploadedFile = uploadedFiles.find(f => f.seq === detail.seq && f.name === file.name);
-                if (!uploadedFile) {
-                    console.warn(`File tidak ditemukan pada uploadedFiles untuk detail.seq = ${detail.seq}, file.name = ${file.name}`);
-                    return file;
-                }
-    
-                return {
-                    ...uploadedFile,
-                    originFileObj: file.originFileObj || null
-                };
-            });
-    
-            // //jika ada nilai didalam detail
-            // if (Object.prototype.hasOwnProperty.call(detail, 'nilai')) {
-            //   const { nilai, ...detailWithoutNilai } = detail;
-            //   return {
-            //     ...detailWithoutNilai,
-            //     dataPendukung: updatedPendukung,
-            //   };
-            // }
-
-            //jika tidak ada nilai didalam detail
-            return {
-                ...detail,
-                dataPendukung: updatedPendukung
-            };
-        } catch (err) {
-            console.error(`Gagal memproses detail index ${detailIndex}:`, err);
-            return detail; // fallback: return detail as is
+        if (!Array.isArray(detail.dataPendukung)) {
+          console.warn(
+            `Detail index ${detailIndex} tidak memiliki dataPendukung sebagai array.`
+          )
+          return { ...detail, dataPendukung: [] }
         }
-    });
+
+        const updatedPendukung = detail.dataPendukung.map((file, fileIndex) => {
+          const uploadedFile = uploadedFiles.find(
+            (f) => f.seq === detail.seq && f.name === file.name
+          )
+          if (!uploadedFile) {
+            console.warn(
+              `File tidak ditemukan pada uploadedFiles untuk detail.seq = ${detail.seq}, file.name = ${file.name}`
+            )
+            return file
+          }
+
+          return {
+            ...uploadedFile,
+            originFileObj: file.originFileObj || null,
+          }
+        })
+
+        // //jika ada nilai didalam detail
+        // if (Object.prototype.hasOwnProperty.call(detail, 'nilai')) {
+        //   const { nilai, ...detailWithoutNilai } = detail;
+        //   return {
+        //     ...detailWithoutNilai,
+        //     dataPendukung: updatedPendukung,
+        //   };
+        // }
+
+        //jika tidak ada nilai didalam detail
+        return {
+          ...detail,
+          dataPendukung: updatedPendukung,
+        }
+      } catch (err) {
+        console.error(`Gagal memproses detail index ${detailIndex}:`, err)
+        return detail // fallback: return detail as is
+      }
+    }
+  )
 
   // Data yang akan dikirim ke backend (tanpa originFileObj)
   const dataToStore = {
@@ -338,8 +369,7 @@ export const storeLedData = async (commit, dataIsian, noSub) => {
   console.log("data to store :", dataToStore)
 
   const response = await axiosInstance.post(`/ledData`, dataToStore)
-  return response.data;
-  console.log("response post LedData :", response)
+  return response.data
 }
 
 export const storeFileToDrive = async ({ dataIsian, noSub }) => {

@@ -18,32 +18,7 @@ export class DosenTetapPerguruanTinggiPlugin extends BasePlugin {
   }
 
   hasDefaultData() {
-    return true
-  }
-
-  getDefaultData(tableCode, config = {}) {
-    return [
-      {
-        key: `default-dosen-${Date.now()}`,
-        no: 1,
-        selected: true,
-        nama_dosen: "",
-        nidn_nidk: "",
-        jabatan_akademik: "",
-        magister_magister_terapan_nama_prodi_pasca_sarjana_1: "",
-        doktor_doktor_terapan_nama_prodi_pasca_sarjana_1: "",
-        bidang_keahlian_2: "",
-        kesesuaian_dengan_kompetensi_inti_ps_3: "",
-        nomor_sertifikat_pendidik_profesional_4: "",
-        bidang_sertifikasi_sertifikat_kompetensi_profesi_industri_5: "",
-        lembaga_penerbit_sertifikat_kompetensi_profesi_industri_5: "",
-        mata_kuliah_yang_diampu_pada_ps_yang_diakreditasi_6: "",
-        kesesuaian_bidang_keahlian_dengan_mata_kuliah_yang_diampu_7: "",
-        mata_kuliah_yang_diampu_pada_ps_lain_8: "",
-        sertifikat_pendidik_profesional: "",
-        sertifikat_kompetensi: "",
-      },
-    ]
+    return false
   }
 
   // ✅ Override field type detection for boolean fields

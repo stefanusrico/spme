@@ -218,38 +218,37 @@ const DashboardKoprodi = () => {
     )
   }, [projectData])
 
-  // Update task count for members based on task assignments
-  useEffect(() => {
-    if (members.length > 0 && getAllTasks.length > 0) {
-      // Create a map to count tasks for each member
-      const taskCountMap = new Map()
+  // HAPUS useEffect yang bermasalah dan GANTI dengan useMemo:
+  const membersWithTaskCount = useMemo(() => {
+    if (members.length === 0 || getAllTasks.length === 0) return members
 
-      // Initialize with 0 for all members
-      members.forEach((member) => {
-        taskCountMap.set(member._id, 0)
-      })
+    // Create a map to count tasks for each member
+    const taskCountMap = new Map()
 
-      // Count tasks for each member
-      getAllTasks.forEach((task) => {
-        if (task.owners && task.owners.length > 0) {
-          task.owners.forEach((owner) => {
-            if (taskCountMap.has(owner.id)) {
-              taskCountMap.set(owner.id, taskCountMap.get(owner.id) + 1)
-            }
-          })
-        }
-      })
+    // Initialize with 0 for all members
+    members.forEach((member) => {
+      taskCountMap.set(member._id, 0)
+    })
 
-      // Update the members array with task counts
-      const updatedMembers = members.map((member) => ({
-        ...member,
-        tasksCount: taskCountMap.get(member._id) || 0,
-      }))
+    // Count tasks for each member
+    getAllTasks.forEach((task) => {
+      if (task.owners && task.owners.length > 0) {
+        task.owners.forEach((owner) => {
+          if (taskCountMap.has(owner.id)) {
+            taskCountMap.set(owner.id, taskCountMap.get(owner.id) + 1)
+          }
+        })
+      }
+    })
 
-      setMembers(updatedMembers)
-    }
+    // Return updated members with task counts
+    return members.map((member) => ({
+      ...member,
+      tasksCount: taskCountMap.get(member._id) || 0,
+    }))
   }, [members, getAllTasks])
 
+  // DAN gunakan membersWithTaskCount di render instead of members
   // Filter tasks based on selected status
   const getFilteredTasks = useMemo(() => {
     if (taskStatusFilter === "ALL") return getAllTasks
@@ -556,9 +555,6 @@ const DashboardKoprodi = () => {
                             </h5>
                             <StatusBadge status={task.status} />
                           </div>
-                          <p className="text-xs md:text-sm text-muted-foreground">
-                            ID: {task.taskId || "N/A"}
-                          </p>
                         </div>
                         <div className="flex flex-col sm:flex-row sm:items-end gap-2 md:gap-4 text-right">
                           <div className="text-xs md:text-sm text-muted-foreground flex items-center gap-1 justify-end">
@@ -652,8 +648,8 @@ const DashboardKoprodi = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {members.length > 0 ? (
-                        members.map((member) => (
+                      {membersWithTaskCount.length > 0 ? (
+                        membersWithTaskCount.map((member) => (
                           <tr key={member._id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center gap-2">

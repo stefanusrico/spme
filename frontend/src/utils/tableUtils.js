@@ -341,32 +341,76 @@ export const mapColumnsUsingAI = async (
   excelHeaders,
   semanticThreshold = 0.65
 ) => {
+  console.log("🚨 mapColumnsUsingAI CALLED!")
+  console.log("📊 DB Columns received:", dbColumns)
+  console.log("📋 Excel Headers received:", excelHeaders)
+  console.log("🎯 Threshold:", semanticThreshold)
+
   try {
     const formattedDbColumns = dbColumns.map((column) => ({
       indeksData: column.indeksData,
       title: column.judul,
     }))
 
-    const filteredHeaders = excelHeaders
-      .filter((header) => {
-        if (!header || !header.name || String(header.name).trim() === "") {
-          return false
-        }
-        const headerStr = String(header.name).trim()
-        if (detectInfoHeader(headerStr)) {
-          return false
-        }
-        return true
-      })
-      .map((header) => header.name)
+    console.log("🔧 Formatted DB Columns:", formattedDbColumns)
 
+    // ✅ Handle hierarchical headers vs simple headers
+    let filteredHeaders = []
+
+    if (Array.isArray(excelHeaders)) {
+      if (
+        excelHeaders.length > 0 &&
+        typeof excelHeaders[0] === "object" &&
+        excelHeaders[0].name
+      ) {
+        // Hierarchical headers
+        console.log("📚 Processing hierarchical headers...")
+        filteredHeaders = excelHeaders
+          .filter((header) => {
+            if (!header || !header.name || String(header.name).trim() === "") {
+              return false
+            }
+            const headerStr = String(header.name).trim()
+            if (detectInfoHeader(headerStr)) {
+              return false
+            }
+            return true
+          })
+          .map((header) => header.name)
+      } else {
+        // Simple string array
+        console.log("📝 Processing simple string headers...")
+        filteredHeaders = excelHeaders.filter((header) => {
+          if (!header || String(header).trim() === "") {
+            return false
+          }
+          const headerStr = String(header).trim()
+          if (detectInfoHeader(headerStr)) {
+            return false
+          }
+          return true
+        })
+      }
+    }
+
+    console.log("✅ Final filtered headers for AI:", filteredHeaders)
+
+    if (filteredHeaders.length === 0) {
+      console.warn("⚠️ No valid headers found after filtering")
+      return {}
+    }
+
+    console.log("🤖 Calling AI mapping service...")
     const response = await axiosInstance.post("/data-mapping", {
       database_columns: formattedDbColumns,
       excel_headers: filteredHeaders,
       semantic_threshold: semanticThreshold,
     })
 
+    console.log("📡 AI Service Response:", response.data)
+
     if (response.data && response.data.success && response.data.mapping) {
+      console.log("✅ AI Mapping successful:", response.data.mapping)
       return response.data.mapping
     } else {
       throw new Error(
@@ -374,10 +418,10 @@ export const mapColumnsUsingAI = async (
       )
     }
   } catch (error) {
-    console.error("Error calling AI mapping service:", error)
+    console.error("❌ AI Mapping Error:", error)
     if (error.response) {
-      console.error("Response status:", error.response.status)
-      console.error("Response data:", error.response.data)
+      console.error("📡 Response status:", error.response.status)
+      console.error("📡 Response data:", error.response.data)
     }
     throw new Error(`AI mapping failed: ${error.message}`)
   }
@@ -644,7 +688,7 @@ export const processExcelDataBase = async (workbook, tableCode, config) => {
     message.error(
       `Gagal memproses data Excel: ${error.message || "Error tidak diketahui"}`
     )
-    throw error 
+    throw error
   }
 }
 
@@ -665,6 +709,23 @@ export const isSelected = (value) => {
     return true
   return false
 }
+
+const isRowEmpty = (worksheet, rowIndex, lastColIndex) => {
+  for (let c = 0; c <= lastColIndex; c++) {
+    const cellRef = utils.encode_cell({ c, r: rowIndex })
+    const cell = worksheet[cellRef]
+    if (
+      cell &&
+      cell.v !== null &&
+      cell.v !== undefined &&
+      String(cell.v).trim() !== ""
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
 
 export const isTrueValue = (value) => {
   if (value === undefined || value === null) return false

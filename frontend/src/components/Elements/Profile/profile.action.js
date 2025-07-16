@@ -85,7 +85,7 @@ export const updatePassword = async (userId, passwordData) => {
 
 export const fetchUserData = async () => {
   try {
-    const response = await axiosInstance.get("/user")
+    const response = await axiosInstance.get("/auth/user")
     console.log("Fetched user data:", response.data)
     return response.data
   } catch (error) {

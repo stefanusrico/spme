@@ -42,7 +42,7 @@ export default defineConfig({
       host: "localhost",
       port: 4000,
     },
-    allowedHosts: ["polban-space.cloudias79.com"],
+    allowedHosts: ["simpel.polban.ac.id"],
     historyApiFallback: true,
   },
   preview: {

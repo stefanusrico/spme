@@ -2,50 +2,82 @@ import { useEffect, useState, memo } from "react"
 import PropTypes from "prop-types"
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { isAuthenticated } from "../../utils/auth"
-import Loader from "../../pages/loader"
 import Layout from "../../layout"
 import { useUser } from "../../context/userContext"
 import NotFound from "../../pages/404"
 
 const RoleBasedRoute = memo(
   ({ allowedRoles = [], roleComponents = {}, sharedComponents = {} }) => {
-    const { userData, isLoading, error } = useUser()
-    const authenticated = isAuthenticated()
+    const { userData, isLoading, error, loadUserData } = useUser()
     const location = useLocation()
     const navigate = useNavigate()
 
     const [showNotFound, setShowNotFound] = useState(false)
+    const [authChecked, setAuthChecked] = useState(false)
+    const [userDataLoaded, setUserDataLoaded] = useState(false)
+
+    const authenticated = isAuthenticated()
     const immediateRole = localStorage.getItem("role")
+
+    // Check authentication on mount and location change
+    useEffect(() => {
+      const checkAuth = async () => {
+        if (!authenticated) {
+          setAuthChecked(true)
+          return
+        }
+
+        // If no user data but token exists, try to load user data
+        if (!userData && !isLoading && authenticated && !userDataLoaded) {
+          try {
+            setUserDataLoaded(true) // Prevent multiple calls
+            await loadUserData()
+          } catch (err) {
+            console.error("Failed to load user data:", err)
+            setUserDataLoaded(false) // Reset on error
+          }
+        }
+
+        setAuthChecked(true)
+      }
+
+      checkAuth()
+    }, [authenticated, userData, isLoading, userDataLoaded]) // Remove loadUserData from dependencies
 
     useEffect(() => {
       let redirectTimer
 
-      if (!isLoading && userData && authenticated) {
-        const userRole = userData.role || userData.roles?.[0]
-        const hasAllowedRole = allowedRoles.includes(userRole)
+      if (authChecked && authenticated) {
+        const userRole = userData?.role || immediateRole
+        const hasAllowedRole =
+          allowedRoles.length === 0 || allowedRoles.includes(userRole)
 
-        if (!hasAllowedRole) {
+        if (!hasAllowedRole && userRole) {
+          // Only check if we have a role
           setShowNotFound(true)
           redirectTimer = setTimeout(() => {
             const defaultPath = "/dashboard"
             setShowNotFound(false)
             navigate(defaultPath, { replace: true })
           }, 2000)
+        } else {
+          setShowNotFound(false)
         }
       }
+
       return () => {
         if (redirectTimer) {
           clearTimeout(redirectTimer)
         }
       }
-    }, [userData, isLoading, authenticated, allowedRoles, navigate])
-
-    useEffect(() => {
-      setShowNotFound(false)
-    }, [location.pathname])
-
-    // Loading state
-    if (isLoading && !immediateRole) return <Loader />
+    }, [
+      authChecked,
+      authenticated,
+      userData?.role,
+      immediateRole,
+      allowedRoles,
+      navigate,
+    ])
 
     // Authentication check
     if (!authenticated) {
@@ -68,7 +100,7 @@ const RoleBasedRoute = memo(
     const renderContent = () => {
       const userRole = userData?.role || immediateRole
 
-      // Handle role-based components (untuk dashboard dan routes khusus)
+      // Handle role-based components
       if (Object.keys(roleComponents).length > 0) {
         const RoleComponent = roleComponents[userRole]
         if (RoleComponent) {
@@ -76,7 +108,7 @@ const RoleBasedRoute = memo(
         }
       }
 
-      // Handle shared components (jika ada)
+      // Handle shared components
       if (Object.keys(sharedComponents).length > 0) {
         const currentPath = location.pathname
         const pathSegments = currentPath.split("/").filter(Boolean)
@@ -88,7 +120,6 @@ const RoleBasedRoute = memo(
         }
       }
 
-      // Default: render children routes via Outlet
       return <Outlet />
     }
 

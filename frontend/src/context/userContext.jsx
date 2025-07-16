@@ -1,4 +1,10 @@
-import { createContext, useState, useContext, useEffect } from "react"
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react"
 import { fetchUserData } from "../components/Elements/Profile/profile.action"
 
 const UserContext = createContext(null)
@@ -9,8 +15,10 @@ export const UserProvider = ({ children }) => {
   const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState(null)
 
-  const loadUserData = async () => {
-    if (!localStorage.getItem("token")) {
+  const loadUserData = useCallback(async () => {
+    const token = localStorage.getItem("token")
+
+    if (!token) {
       setIsLoading(false)
       return
     }
@@ -28,57 +36,49 @@ export const UserProvider = ({ children }) => {
         let prodi = null
 
         if (data.prodi) {
-          prodi = data.prodi
-          // Check if prodi has id property and it's not null
-          if (data.prodi.id !== null && data.prodi.id !== undefined) {
-            prodiId = data.prodi.id
-            localStorage.setItem("prodi_id", prodiId.toString())
-          } else {
-            // Remove prodi_id from localStorage if null (untuk admin)
-            localStorage.removeItem("prodi_id")
+          if (typeof data.prodi === "object" && data.prodi._id) {
+            prodiId = data.prodi._id
+            prodi = data.prodi
+            localStorage.setItem("prodi_id", prodiId)
+          } else if (typeof data.prodi === "string") {
+            prodiId = data.prodi
+            localStorage.setItem("prodi_id", prodiId)
           }
         } else {
-          // Remove prodi_id from localStorage if prodi object doesn't exist
           localStorage.removeItem("prodi_id")
         }
 
-        setUserData({
-          id: data.id || "",
-          name: data.name || "Unknown",
-          username: data.username || "",
-          email: data.email || "No email",
-          role: data.role || "User",
-          phone_number: data.phone_number || "",
-          profile_picture: data.profile_picture || "",
-          jurusan: data.jurusan || "",
-          prodi: prodi, // Could be null for admin
-          prodiId: prodiId, // Could be null for admin
-        })
-
-        localStorage.setItem("user", JSON.stringify(data))
-
-        console.log("Fetched user data:", {
+        const userDataWithProdi = {
           ...data,
-          prodiId: prodiId,
-          hasProdi: !!prodi,
-        })
+          prodi_id: prodiId,
+          prodi: prodi,
+        }
+
+        setUserData(userDataWithProdi)
+        localStorage.setItem("user", JSON.stringify(userDataWithProdi))
       }
     } catch (error) {
       console.error("Error loading user data:", error)
       setError(error)
       setUserData(null)
       if (error?.response?.status === 401) {
-        localStorage.removeItem("token")
-        localStorage.removeItem("role")
-        localStorage.removeItem("prodi_id")
+        localStorage.clear()
+        window.location.href = "/login"
       }
     } finally {
       setIsLoading(false)
     }
-  }
+  }, []) // No dependencies to prevent recreation
 
   useEffect(() => {
     loadUserData()
+  }, [loadUserData])
+
+  const clearUserData = useCallback(() => {
+    setUserData(null)
+    setError(null)
+    localStorage.removeItem("user")
+    localStorage.removeItem("prodi_id")
   }, [])
 
   const contextValue = {
@@ -87,13 +87,9 @@ export const UserProvider = ({ children }) => {
     isUpdating,
     error,
     loadUserData,
+    refetchUser: loadUserData,
     updateUserData: loadUserData,
-    clearUserData: () => {
-      setUserData(null)
-      setError(null)
-      localStorage.removeItem("user")
-      localStorage.removeItem("prodi_id")
-    },
+    clearUserData,
   }
 
   return (
