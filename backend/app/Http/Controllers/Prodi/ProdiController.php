@@ -30,6 +30,23 @@ class ProdiController extends Controller
         return $prodi ? response()->json($prodi) : response()->json(['message' => 'Prodi not found'], 404);
     }
 
+    public function getAllProdi()
+    {
+        try {
+            $prodis = Prodi::with(['jurusan', 'lam'])
+                ->orderBy('akreditasi.tanggalKedaluwarsa', 'asc')
+                ->get();
+
+            return response()->json($prodis);
+        } catch (\Exception $e) {
+            \Log::error("Error in getAllProdi: " . $e->getMessage());
+            return response()->json([
+                'error' => 'Server Error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         try {

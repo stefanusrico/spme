@@ -67,112 +67,95 @@ const PengisianLed = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        if (!userData && !projectId) return
+        if (!userData && !projectId) return;
         console.log("userData :", userData)
-        const [prodiData, userTasks, allTasks, ledData, ledItems] =
-          await Promise.all([
-            fetchAllProdi(),
-            fetchUserTask(projectId),
-            fetchAllTaskByProdi(userData?.prodiId),
-            fetchLedDataByProdi(userData?.prodiId),
-            fetchLedItemByProdi(userData?.prodiId),
-          ])
+        const [prodiData, userTasks, allTasks, ledData, ledItems] = await Promise.all([
+          fetchAllProdi(),
+          fetchUserTask(projectId),
+          fetchAllTaskByProdi(userData?.prodiId),
+          fetchLedDataByProdi(userData?.prodiId),
+          fetchLedItemByProdi(userData?.prodiId)
+        ]);
 
-        setProdi(prodiData)
-        setTasks(userTasks)
-        setAllDataTasks(allTasks)
-        setAllLedData(ledData)
-        setAllDataLedItem(ledItems)
+        setProdi(prodiData);
+        setTasks(userTasks);
+        setAllDataTasks(allTasks);
+        setAllLedData(ledData);
+        setAllDataLedItem(ledItems);
 
-        toast.success("Berhasil fetch data awal")
+        toast.success("Berhasil fetch data awal");
       } catch (error) {
-        toast.error("Gagal fetch data awal")
+        toast.error("Gagal fetch data awal");
       }
-    }
+    };
 
-    fetchInitialData()
-  }, [userData])
+    fetchInitialData();
+  }, [userData]);
+
 
   useEffect(() => {
     if (!no || !sub) {
-      const firstTask = tasks[0] || allDataTasks[0]
+      const firstTask = tasks[0] || allDataTasks[0];
       if (firstTask) {
-        navigate(
-          `projects/${firstTask.project.id}/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`,
-          { replace: true }
-        )
+        navigate(`projects/${firstTask.project.id}/pengisian-matriks-led/${firstTask.no}/${firstTask.sub}`, { replace: true });
       }
     }
-    setIsVersion(false)
-  }, [no, sub, tasks, allDataTasks, navigate])
+    setIsVersion(false);
+  }, [no, sub, tasks, allDataTasks, navigate]);
 
   const getLatestLedData = (dataArray) => {
     if (!Array.isArray(dataArray)) return null
 
     const filtered = dataArray.filter(
       (item) =>
-        item.task.led_item?.no === no && item.task?.led_item?.sub === sub
-    )
+        item.task.led_item?.no === no &&
+        item.task?.led_item?.sub === sub
+    );
 
     return filtered.reduce((latest, current) => {
-      if (
-        !latest ||
-        new Date(current.created_at) > new Date(latest.created_at)
-      ) {
-        return current
+      if (!latest || new Date(current.created_at) > new Date(latest.created_at)) {
+        return current;
       }
-      return latest
-    }, null)
-  }
+      return latest;
+    }, null);
+  };
 
   useEffect(() => {
     // Ambil data LED terbaru dan data referensi
     console.log("All Led Data :", allLedData)
-    const latestLedData = getLatestLedData(allLedData)
-    setFilteredLedData(latestLedData)
+    const latestLedData = getLatestLedData(allLedData);
+    setFilteredLedData(latestLedData);
+    
+    const latestRefData = getLatestLedData(dataVersionReference);
 
-    const latestRefData = getLatestLedData(dataVersionReference)
-
-    setFilteredDataReference(latestRefData)
+    
+    setFilteredDataReference(latestRefData);
 
     // Filter data history
-    setFilteredDataHistory(dataVersionHistory)
-    setLedDataSelected(dataVersionHistory.length > 1 ? "1" : "0")
+    setFilteredDataHistory(dataVersionHistory);
+    setLedDataSelected(dataVersionHistory.length > 1 ? "1" : "0");
 
     // Temukan LED item terkait
-    const foundItem = allDataLedItem.find(
-      (item) => item.no === no && item.sub === sub
-    )
-    setFilteredDataLedItem(foundItem || null)
+    const foundItem = allDataLedItem.find((item) => item.no === no && item.sub === sub);
+    setFilteredDataLedItem(foundItem || null);
 
     // Jika data LED tidak ditemukan, buat default
-    if (
-      !latestLedData &&
-      allDataLedItem.length &&
-      allDataTasks.length &&
-      userData?.id
-    ) {
-      const matchedLedItem = allDataLedItem.find(
-        (item) => item.no === no && item.sub === sub
-      )
-      let matchedTask = tasks.find(
-        (task) => String(task.no) === no && task.sub === sub
-      )
-      if (!matchedTask) {
-        matchedTask = allDataTasks.find(
-          (task) => task.no === no && task.sub === sub
-        )
+    if (!latestLedData && allDataLedItem.length && allDataTasks.length && userData?.id){
+      const matchedLedItem = allDataLedItem.find(item => item.no === no && item.sub === sub);
+      let matchedTask = tasks.find(task => String(task.no) === no && task.sub === sub);
+      if(!matchedTask){
+        matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
       }
       console.log("MASUK SINI")
       if (matchedLedItem && matchedTask) {
         const detailsArray = (matchedLedItem.details || [])
-          .filter((item) => item.type === "K")
-          .map((item) => ({
+          .filter(item => item.type === "K")
+          .map(item => ({
             dataPendukung: [],
             isianAsesi: null,
             reference: item.reference || null,
             seq: item.seq || null,
-          }))
+          }));
 
         const defaultLedData = {
           commit: "",
@@ -181,56 +164,48 @@ const PengisianLed = () => {
           details: detailsArray,
           taskId: matchedTask.id,
           userId: userData.id,
-        }
+        };
 
-        setFilteredLedData(defaultLedData)
+        setFilteredLedData(defaultLedData);
       }
     }
   }, [
-    no,
-    sub,
-    allLedData,
-    dataVersionReference,
-    dataVersionHistory,
-    allDataLedItem,
-    allDataTasks,
-    userData,
-  ])
+    no, sub, allLedData, dataVersionReference, dataVersionHistory,
+    allDataLedItem, allDataTasks, userData
+  ]);
 
+  
   useEffect(() => {
     const foundItem = allDataLedItem.find(
       (item) => item.no === no && item.sub === sub
-    )
+    );
 
     if (foundItem && filteredLedData) {
-      setIsDataReady(true)
-      setIsLoading(false)
+      setIsDataReady(true);
+      setIsLoading(false);
     }
-  }, [filteredLedData, allDataLedItem])
+  }, [filteredLedData, allDataLedItem]);
 
   useEffect(() => {
-    if (
-      filteredDataReference &&
-      Object.keys(filteredDataReference).length > 0
-    ) {
-      setIsReference(true)
+    if (filteredDataReference && Object.keys(filteredDataReference).length > 0) {
+      setIsReference(true);
     }
-  }, [filteredDataReference])
+  }, [filteredDataReference]);
 
   useEffect(() => {
     const fetchReferenceData = async () => {
-      if (!selectedProdi.id) return
+      if (!selectedProdi.id) return;
 
       try {
-        const data = await fetchLedDataByProdi(selectedProdi.id)
-        setDataVersionReference(data)
+        const data = await fetchLedDataByProdi(selectedProdi.id);
+        setDataVersionReference(data);
       } catch (error) {
-        toast.error("Gagal fetch data version reference")
+        toast.error("Gagal fetch data version reference");
       }
-    }
+    };
 
-    fetchReferenceData()
-  }, [selectedProdi])
+    fetchReferenceData();
+  }, [selectedProdi]);
 
   const toastContainerStyle = {
     zIndex: 20000,
@@ -244,22 +219,16 @@ const PengisianLed = () => {
   //   navigate(`projects/${projectId}/pengisian-matriks-led/${newNo}/${newSub}`)
   // }
 
-  const updateUserTaskPlus = async (no, sub) => {
-    try {
-      const data = await updateUserTask(
-        no,
-        sub,
-        userData.prodiId,
-        userData.id,
-        projectId
-      )
-      console.log("data user task setelah update :", data)
-      setTasks(data)
-      toast.success("Berhasil update Task")
-    } catch (error) {
-      throw new Error("Gagal update user task")
-      toast.error("Gagal update Task")
-    }
+  const updateUserTaskPlus = async(no, sub) => {
+      try {
+          const data = await updateUserTask(no, sub, userData.prodiId, userData.id, projectId)
+          console.log("data user task setelah update :", data)
+          setTasks(data);
+          toast.success("Berhasil update Task");
+      } catch (error) {
+          throw new Error("Gagal update user task");
+          toast.error("Gagal update Task");
+      }
   }
 
   const updateDataIsian = (updateDataIsian) => {
@@ -275,56 +244,55 @@ const PengisianLed = () => {
     // setDataIsian(updatedData);
   }
 
-  const handleClickVersion = async () => {
-    try {
-      if (isVersion) {
-        // If closing version view, just toggle
-        setIsVersion(false)
-        return
-      }
+  const handleClickVersion = async() => {
+  try {
+    if (isVersion) {
+      // If closing version view, just toggle
+      setIsVersion(false);
+      return;
+    }
 
-      // Show loading state
-      setIsLoadingVersion(true)
+    // Show loading state
+    setIsLoadingVersion(true);
 
-      // Find the matched task
-      let matchedTask = allDataTasks.find(
-        (task) => task.no === no && task.sub === sub
-      )
+    // Find the matched task
+    let matchedTask = allDataTasks.find(task => task.no === no && task.sub === sub);
+    if (!matchedTask) {
+      matchedTask = tasks.find(task => String(task.no) === no && task.sub === sub);
+    }
 
-      if (matchedTask) {
-        const responseVersion = await fetchLedDataByTaskId(matchedTask.id)
-        setDataVersionHistory(responseVersion)
+    if (matchedTask) {
+      const responseVersion = await fetchLedDataByTaskId(matchedTask.id);
+      setDataVersionHistory(responseVersion);
 
-        // Only set isVersion to true after data is fetched
-        setIsVersion(true)
-      } else {
-        toast.error("Task tidak ditemukan")
-      }
+      // Only set isVersion to true after data is fetched
+      setIsVersion(true);
+    } else {
+      toast.error("Task tidak ditemukan");
+    }
     } catch (error) {
-      toast.error("Gagal fetch version")
+      toast.error("Gagal fetch version");
     } finally {
-      setIsLoadingVersion(false)
+      setIsLoadingVersion(false);
     }
   }
 
   const handleShowToast = () => {
     const handleSubmit = async (commit, dataIsian, noSub) => {
       try {
-        const result = await storeLedData(commit, dataIsian, noSub)
+        const result = await storeLedData(commit, dataIsian, noSub);
 
         if (result.status === "success") {
-          toast.success(result.message || "Data berhasil disimpan!")
+          toast.success(result.message || "Data berhasil disimpan!");
         } else {
-          toast.error(
-            result.message || "Terjadi kesalahan saat menyimpan data."
-          )
+          toast.error(result.message || "Terjadi kesalahan saat menyimpan data.");
         }
       } catch (error) {
-        console.error("Gagal menyimpan data:", error)
-        const errMsg = error?.response?.data?.message || "Gagal menyimpan data."
-        toast.error(errMsg)
+        console.error("Gagal menyimpan data:", error);
+        const errMsg = error?.response?.data?.message || "Gagal menyimpan data.";
+        toast.error(errMsg);
       }
-    }
+    };
     toast(
       <FormToast
         closeToast={() => toast.dismiss()}
@@ -348,27 +316,24 @@ const PengisianLed = () => {
   }
 
   const progress = (() => {
-    if (!filteredLedData || !Array.isArray(filteredLedData.details)) return 0
+    if (!filteredLedData || !Array.isArray(filteredLedData.details)) return 0;
 
-    const total = filteredLedData.details.length
-    if (total === 0) return 0
+    const total = filteredLedData.details.length;
+    if (total === 0) return 0;
 
-    const filledCount = filteredLedData.details.filter((detail) => {
-      if (!detail.isianAsesi) return false
+    const filledCount = filteredLedData.details.filter(detail => {
+      if (!detail.isianAsesi) return false;
 
       try {
-        const parsed = JSON.parse(detail.isianAsesi)
-        return (
-          parsed.blocks &&
-          parsed.blocks.some((block) => block.text.trim() !== "")
-        )
+        const parsed = JSON.parse(detail.isianAsesi);
+        return parsed.blocks && parsed.blocks.some(block => block.text.trim() !== "");
       } catch (e) {
-        return false
+        return false;
       }
-    }).length
+    }).length;
 
-    return Number(((filledCount / total) * 100).toFixed(2))
-  })()
+    return Number(((filledCount / total) * 100).toFixed(2));
+  })();
 
   if (isLoading) {
     return (
@@ -411,7 +376,7 @@ const PengisianLed = () => {
             value: prodi.name,
             label: prodi.name,
           }))}
-          placeholder="Pilih Program Studi"
+          placeholder= "Pilih Program Studi"
           width={250}
           height={50}
           onChange={(newValue) =>
@@ -419,17 +384,16 @@ const PengisianLed = () => {
           }
         />
 
-        <BarProgress progress={progress} width={250} height={50} />
-
-        <SelectColor
-          isLoading={false}
-          dataColors={updateColor}
+        <BarProgress
+          progress={progress}
           width={250}
           height={50}
         />
+
+        <SelectColor isLoading={false} dataColors={updateColor} width={250} height={50}/>
         {/* <ColorRangeDropdown isLoading={false} dataColors={updateColor} /> */}
       </div>
-
+      
       {/*Untuk tab LedItem, referensi, pengisian matriks sekarang, version */}
       {isTaskAvailable ? (
         <>
@@ -479,17 +443,17 @@ const PengisianLed = () => {
 
               {/* Matriks Isian */}
               {/* {isDataReady && ( */}
-              <div className="mt-5 mx-[30px] mb-[0px]">
-                <PengisianLedTableNew
-                  key={`${no}-${sub}`}
-                  dataKriteriaIndikator={filteredDataLedItem}
-                  dataIsian={filteredLedData}
-                  updateDataIsian={updateDataIsian}
-                  type="editable"
-                  noSub={`${no}${sub}`}
-                  userData={userData}
-                />
-              </div>
+                <div className="mt-5 mx-[30px] mb-[0px]">
+                  <PengisianLedTableNew
+                    key={`${no}-${sub}`}
+                    dataKriteriaIndikator={filteredDataLedItem}
+                    dataIsian={filteredLedData}
+                    updateDataIsian={updateDataIsian}
+                    type="editable"
+                    noSub = {`${no}${sub}`}
+                    userData={userData}
+                  />
+                </div>
               {/* )} */}
 
               {/* History Version */}
@@ -498,12 +462,8 @@ const PengisianLed = () => {
                   <div className="justify-between mx-[30px] mt-[30px]">
                     <Tabs defaultValue="tabel isian">
                       <TabsList className="mb-4">
-                        <TabsTrigger value="tabel isian">
-                          Tampilkan Tabel Isian
-                        </TabsTrigger>
-                        <TabsTrigger value="daftar">
-                          Tampilkan Daftar Perubahan
-                        </TabsTrigger>
+                        <TabsTrigger value="tabel isian">Tampilkan Tabel Isian</TabsTrigger>
+                        <TabsTrigger value="daftar">Tampilkan Daftar Perubahan</TabsTrigger>
                       </TabsList>
 
                       <h3 className="text-xl font-bold">
@@ -511,7 +471,7 @@ const PengisianLed = () => {
                         {filteredDataHistory[parseInt(ledDataSelected)]
                           ?.commit || "Data commit tidak tersedia"}
                       </h3>
-
+          
                       <TabsContent value="tabel isian" className="mt-2">
                         <PengisianLedTableNew
                           key={`${no}-${sub}`}
@@ -525,7 +485,7 @@ const PengisianLed = () => {
                           prodi={selectedProdi}
                         />
                       </TabsContent>
-
+          
                       <TabsContent value="daftar" className="mt-2">
                         <VerticalLinearStepper
                           dataSteps={filteredDataHistory}

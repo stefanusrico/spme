@@ -232,44 +232,69 @@ const parseDraftContent = (isianAsesiJson, dataPendukung = []) => {
 }
 
 export const fetchMasukanAndScoreFromAI = async (
-  prodi,
+  prodiName,
   dataKriteriaIndikator,
-  dataIsian
+  dataIsianDetails
 ) => {
   try {
-    console.log("data matriks sebelum ke Gemini : ", dataKriteriaIndikator)
-    console.log("data isian sebelum ke Gemini : ", dataIsian)
+    console.log("=== SCORING API CALL ===")
+    console.log("prodi:", prodiName)
+    console.log("dataKriteriaIndikator:", dataKriteriaIndikator)
+    console.log("dataIsianDetails:", dataIsianDetails)
 
-    const combinedIsianAsesi = dataIsian
-      .map((item, index) => {
-        return `${parseDraftContent(item.isianAsesi)}`
-      })
-      .join("\n\n")
-
-    const dataIsianToScoring = {
-      dataPendukung: dataIsian.dataPendukung,
-      isianAsesi: combinedIsianAsesi,
-      masukan: dataIsian.masukan,
-      nilai: dataIsian.nilai,
-      reference: dataIsian.reference,
-      seq: dataIsian.seq,
-      type: dataIsian.type,
+    if (!Array.isArray(dataIsianDetails)) {
+      throw new Error("dataIsianDetails harus berupa array")
     }
 
-    const responseGemini = await axiosInstance.post("/scoring-led", {
-      prodi: prodi,
+    const combinedIsianAsesi = dataIsianDetails
+      .map((item, index) => {
+        const parsedContent = parseDraftContent(
+          item.isianAsesi,
+          item.dataPendukung
+        )
+        return `Kriteria ${item.seq || index + 1}: ${parsedContent}`
+      })
+      .filter((content) => content.trim() !== "")
+      .join("\n\n")
+
+    if (!combinedIsianAsesi.trim()) {
+      throw new Error("Tidak ada isian yang valid untuk di-scoring")
+    }
+
+    const dataIsianToScoring = {
+      dataPendukung: dataIsianDetails.flatMap(
+        (item) => item.dataPendukung || []
+      ),
+      isianAsesi: combinedIsianAsesi,
+      masukan: dataIsianDetails[0]?.masukan || null,
+      nilai: dataIsianDetails[0]?.nilai || null,
+      reference: dataIsianDetails[0]?.reference || null,
+      seq: dataIsianDetails.map((item) => item.seq).join(","),
+      type: "K",
+    }
+
+    console.log("Data yang akan dikirim ke API:", {
+      prodi: prodiName,
       dataLedItem: dataKriteriaIndikator,
       dataIsian: dataIsianToScoring,
     })
 
-    try {
-      console.log("hasil response Gemini", responseGemini)
+    const responseGemini = await axiosInstance.post("/scoring-led", {
+      prodi: prodiName,
+      dataLedItem: dataKriteriaIndikator,
+      dataIsian: dataIsianToScoring,
+    })
+
+    console.log("Response dari API scoring:", responseGemini.data)
+
+    if (responseGemini.data && responseGemini.data.mapping) {
       return responseGemini.data.mapping
-    } catch (jsonError) {
-      throw new Error("Gagal parsing JSON dari OpenAI.")
+    } else {
+      throw new Error("Response API tidak sesuai format yang diharapkan")
     }
   } catch (error) {
-    throw new Error(`Gagal mengambil data masukan dan score: ${error.message}`)
+    console.error("Error dalam fetchMasukanAndScoreFromAI:", error)
+    throw new Error(`Gagal mengambil data scoring: ${error.message}`)
   }
 }
 

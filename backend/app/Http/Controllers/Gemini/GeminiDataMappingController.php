@@ -28,7 +28,7 @@ class GeminiDataMappingController extends Controller
 
             $prompt = $this->buildPrompt($dbColumns, $excelHeaders, $semanticThreshold);
 
-            $result = Gemini::generativeModel(model: 'gemini-1.5-flash-latest')
+            $result = Gemini::generativeModel(model: 'gemini-2.0-flash')
                 ->generateContent($prompt);
 
             $responseText = $result->text();
@@ -174,6 +174,37 @@ Kembalikan sebuah objek JSON di mana:
 
         return (json_last_error() === JSON_ERROR_NONE) ? $decoded : null;
     }
+
+    public function testModel()
+    {
+        try {
+            $response = Gemini::models()->list();
+
+            // Convert the response to array format
+            $models = [];
+            if (isset($response->models)) {
+                foreach ($response->models as $model) {
+                    $models[] = [
+                        'name' => $model->name ?? '',
+                        'display_name' => $model->displayName ?? '',
+                        'description' => $model->description ?? '',
+                        'version' => $model->version ?? '',
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'models' => $models
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
 
     private function errorResponse(string $message, array $additionalData = []): JsonResponse
     {

@@ -237,7 +237,7 @@ class ProjectController extends Controller
             ->whereIn('_id', $projectIds)
             ->orderBy('created_at', 'desc')
             ->get();
-            
+
         // $projects = Project::with(['tasklists', 'tasks'])
         //     ->where('createdBy', $userId)
         //     ->orderBy('created_at', 'desc')
@@ -718,9 +718,9 @@ class ProjectController extends Controller
                         ],
                     ];
                 })->sortBy([
-                    ['no', 'asc'],
-                    ['sub', 'asc'],
-                ])
+                        ['no', 'asc'],
+                        ['sub', 'asc'],
+                    ])
                 ->values();
 
             // Bangun response
@@ -1473,50 +1473,50 @@ class ProjectController extends Controller
 
     public function update(Request $request, $projectId)
     {
-        $project = Project::where('projectId', $projectId)->firstOrFail();
+        try {
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'startDate' => 'required|date',
+                'endDate' => 'required|date|after:startDate',
+            ]);
 
-        $currentUser = auth()->user();
-        if (!$this->canManageMembers($project, $currentUser->_id)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'You do not have permission to update this project'
-            ], 403);
-        }
+            $project = Project::where('projectId', $projectId)->first();
 
-        $request->validate([
-            'name' => 'string|max:255',
-            'description' => 'string',
-            'status' => 'in:ACTIVE',
-            'startDate' => 'date',
-            'endDate' => 'date|after:startDate'
-        ]);
-
-        if ($request->endDate && $request->endDate !== $project->endDate) {
-            $otherActiveProject = Project::where('prodiId', $project->prodiId)
-                ->where('_id', '!=', $project->_id)
-                ->where('endDate', '>', now())
-                ->exists();
-
-            if ($otherActiveProject) {
+            if (!$project) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Cannot update end date: Prodi already has another active project'
-                ], 400);
+                    'message' => 'Project not found'
+                ], 404);
             }
+
+            // Check if user has permission to edit this project
+            $user = auth()->user();
+            if ($user->role !== 'Koordinator Program Studi' && $project->createdBy !== $user->_id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized to edit this project'
+                ], 403);
+            }
+
+            $project->update([
+                'name' => $request->name,
+                'startDate' => $request->startDate,
+                'endDate' => $request->endDate,
+                'updatedAt' => now(),
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Project updated successfully',
+                'data' => $project
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update project: ' . $e->getMessage()
+            ], 500);
         }
-
-        $project->update([
-            'name' => $request->name ?? $project->name,
-            'status' => $request->status ?? $project->status,
-            'startDate' => $request->startDate ? new Carbon($request->startDate) : $project->startDate,
-            'endDate' => $request->endDate ? new Carbon($request->endDate) : $project->endDate,
-        ]);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Project updated successfully',
-            'data' => $project
-        ]);
     }
 
     public function removeMember(Request $request, $projectId)
@@ -1573,35 +1573,53 @@ class ProjectController extends Controller
 
     public function destroy($projectId)
     {
-        $project = Project::where('projectId', $projectId)->firstOrFail();
-        $currentUserId = auth()->user()->_id;
-        if (!$this->isOwner($project->_id, $currentUserId)) {
+        try {
+            $project = Project::where('projectId', $projectId)->first();
+
+            if (!$project) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Project not found'
+                ], 404);
+            }
+
+            $user = auth()->user();
+            if ($user->role !== 'Koordinator Program Studi' && $project->createdBy !== $user->_id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized to delete this project'
+                ], 403);
+            }
+
+            // Optional: Check if project has active tasks
+            $activeTasks = Task::where('projectId', $projectId)
+                ->where('status', '!=', 'COMPLETED')
+                ->count();
+
+            if ($activeTasks > 0) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot delete project with active tasks'
+                ], 400);
+            }
+
+            // Delete related tasks first (if you want to allow cascade delete)
+            Task::where('projectId', $projectId)->delete();
+
+            // Delete the project
+            $project->delete();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Project deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Only project owner can delete the project'
-            ], 403);
+                'message' => 'Failed to delete project: ' . $e->getMessage()
+            ], 500);
         }
-        $members = ProjectMember::where('projectId', $project->_id)->get();
-        foreach ($members as $member) {
-            $user = User::find($member->userId);
-            if ($user && isset($user->projects)) {
-                $updatedProjects = collect($user->projects)
-                    ->reject(function ($userProject) use ($project) {
-                        return $userProject['projectId'] === $project->_id;
-                    })
-                    ->toArray();
-                $user->projects = $updatedProjects;
-                $user->save();
-            }
-        }
-        ProjectMember::where('projectId', $project->_id)->delete();
-        $project->tasklists()->delete();
-        $project->tasks()->delete();
-        $project->delete();
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Project deleted successfully'
-        ]);
     }
 
     public function getProjectStatistics($projectId)

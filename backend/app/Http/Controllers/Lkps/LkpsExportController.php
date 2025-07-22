@@ -548,4 +548,128 @@ class LkpsExportController extends Controller
             Log::error("Error applying formatting: " . $e->getMessage());
         }
     }
+
+    public function uploadTemplate(Request $request)
+    {
+        try {
+            Log::info('Template upload requested', [
+                'has_file' => $request->hasFile('template') ? 'yes' : 'no',
+                'files_count' => count($request->allFiles())
+            ]);
+
+            if (!$request->hasFile('template')) {
+                Log::warning('No file in upload request', [
+                    'content_length' => $request->header('Content-Length'),
+                    'content_type' => $request->header('Content-Type'),
+                    'post_keys' => array_keys($request->all())
+                ]);
+
+                return response()->json([
+                    'message' => 'Error uploading template',
+                    'error' => 'No file found in request'
+                ], 400);
+            }
+
+            $file = $request->file('template');
+            Log::info('File received', [
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mime' => $file->getMimeType()
+            ]);
+
+            // Validate Excel file
+            if (!$file->isValid()) {
+                Log::error('Invalid file: ' . $file->getErrorMessage());
+                return response()->json([
+                    'message' => 'Error uploading template',
+                    'error' => 'Invalid file: ' . $file->getErrorMessage()
+                ], 400);
+            }
+
+            // Ensure storage directory exists
+            $storageDir = storage_path('app/public/templates');
+            if (!File::exists($storageDir)) {
+                File::makeDirectory($storageDir, 0755, true);
+                Log::info('Created directory: ' . $storageDir);
+            }
+
+            // Move file to storage
+            $destinationPath = $storageDir . '/LKPS_template.xlsx';
+            Log::info('Moving file to: ' . $destinationPath);
+
+            // First try Laravel's move method
+            $success = false;
+            try {
+                $success = $file->move($storageDir, 'LKPS_template.xlsx');
+                Log::info('Move result: ' . ($success ? 'success' : 'failed'));
+            } catch (\Exception $e) {
+                Log::warning('Laravel move failed: ' . $e->getMessage());
+                // Fallback to direct copy
+                $success = copy($file->getRealPath(), $destinationPath);
+                Log::info('Fallback copy result: ' . ($success ? 'success' : 'failed'));
+            }
+
+            if (!$success) {
+                Log::error('Failed to move/copy file');
+                return response()->json([
+                    'message' => 'Error uploading template',
+                    'error' => 'Failed to save file. Check server permissions.'
+                ], 500);
+            }
+
+            // Check that the file exists after copy
+            if (!File::exists($destinationPath)) {
+                Log::error('File not found after copy operation', [
+                    'destination' => $destinationPath,
+                    'source_exists' => File::exists($file->getRealPath()) ? 'yes' : 'no'
+                ]);
+
+                return response()->json([
+                    'message' => 'Error uploading template',
+                    'error' => 'File was not saved correctly'
+                ], 500);
+            }
+
+            // File permission check and fix
+            if (!is_readable($destinationPath)) {
+                $perms = fileperms($destinationPath) & 0777;
+                Log::warning('Fixing file permissions', [
+                    'before' => sprintf('%04o', $perms)
+                ]);
+                chmod($destinationPath, 0644);
+                Log::info('Permissions after fix: ' . sprintf('%04o', fileperms($destinationPath) & 0777));
+            }
+
+            Log::info('Template uploaded successfully', [
+                'path' => $destinationPath,
+                'size' => File::size($destinationPath)
+            ]);
+
+            return response()->json([
+                'message' => 'Template uploaded successfully',
+                'path' => 'templates/LKPS_template.xlsx'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Exception in uploadTemplate: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+
+            return response()->json([
+                'message' => 'Error uploading template',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function formatFileSize($bytes)
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+
+        $bytes /= (1 << (10 * $pow));
+
+        return round($bytes, 2) . ' ' . $units[$pow];
+    }
 }

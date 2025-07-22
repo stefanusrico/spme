@@ -28,19 +28,21 @@ class LkpsSyncController extends Controller
 
     public function syncLkpsStructure(Request $request)
     {
-        set_time_limit(400);
-        ini_set('memory_limit', '512M');
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
 
         try {
             $validated = $request->validate([
                 'spreadsheet_id' => 'required|string',
                 'program' => ['nullable', 'string', Rule::in(['D-IV', 'D-III'])],
+                'lam' => 'nullable|string', // ✅ NEW: LAM name input
                 'clear_existing' => 'boolean',
                 'debug' => 'boolean'
             ]);
 
             $this->spreadsheetId = $validated['spreadsheet_id'];
             $program = $validated['program'] ?? null;
+            $lamName = $validated['lam'] ?? null; // ✅ NEW: Get LAM name
             $clearExisting = $validated['clear_existing'] ?? false;
             $this->debug = $validated['debug'] ?? false;
 
@@ -52,6 +54,27 @@ class LkpsSyncController extends Controller
                 $this->addLog('info', "🔗 Kode tabel tetap original, entri terpisah per strata");
                 $this->addLog('info', "🚫 TIDAK override existing entries");
             }
+
+            // ✅ NEW: LAM validation and lookup
+            $lamId = null;
+            if ($lamName) {
+                // Gunakan model Lam dari namespace yang benar
+                $lam = \App\Models\Lam\Lam::where('name', $lamName)->first();
+                if (!$lam) {
+                    $this->addLog('error', "❌ LAM '{$lamName}' tidak ditemukan di database");
+                    return response()->json([
+                        'success' => false,
+                        'message' => "LAM '{$lamName}' tidak ditemukan di database",
+                        'available_lams' => \App\Models\Lam\Lam::pluck('name')->toArray(),
+                        'logs' => $this->syncLogs
+                    ], 400);
+                }
+                $lamId = $lam->_id;
+                $this->addLog('info', "🏛️  LAM: {$lamName} (ID: {$lamId})");
+            } else {
+                $this->addLog('info', "🏛️  LAM: Tidak ditentukan (lamId akan null)");
+            }
+
             $this->addLog('info', "📝 Spreadsheet ID: {$this->spreadsheetId}");
             $this->addLog('info', "♻️  Tidak membuat strata baru, hanya menggunakan yang sudah ada");
 
@@ -76,14 +99,14 @@ class LkpsSyncController extends Controller
                 $response = $this->filterTablesByProgram($response, $program);
             }
 
-            // Create tables
-            $this->createTables($response, $program);
+            // Create tables with LAM ID
+            $this->createTables($response, $program, $lamId); // ✅ Pass LAM ID
 
             // Update column indices
             $this->updateColumnDataIndicesWithParent();
 
             // Final verification
-            $finalVerification = $this->performFinalVerification($program);
+            $finalVerification = $this->performFinalVerification($program, $lamName); // ✅ Pass LAM name
 
             $this->addLog('success', "✅ Sinkronisasi selesai!");
             $this->addLog('info', "📊 Summary:");
@@ -97,11 +120,16 @@ class LkpsSyncController extends Controller
             } else {
                 $this->addLog('info', "🔄 Mode: Mapping individual berdasarkan detected strata");
             }
+            if ($lamName) {
+                $this->addLog('info', "🏛️  LAM: Semua tabel dikaitkan dengan {$lamName}");
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => "Sinkronisasi LKPS berhasil" . ($program ? " untuk program {$program} (CREATE entri baru dengan strata {$program})" : ""),
+                'message' => "Sinkronisasi LKPS berhasil" . ($program ? " untuk program {$program}" : "") . ($lamName ? " dengan LAM {$lamName}" : ""),
                 'program_filter' => $program,
+                'lam_name' => $lamName, // ✅ NEW: Include LAM info in response
+                'lam_id' => $lamId ? (string) $lamId : null, // ✅ NEW: Include LAM ID in response
                 'create_separate_entries' => $program ? true : false,
                 'target_strata' => $program,
                 'original_table_codes' => true,
@@ -129,6 +157,7 @@ class LkpsSyncController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Fetch tables from Google Sheets with strata mapping
@@ -271,7 +300,7 @@ class LkpsSyncController extends Controller
     /**
      * Create tables from filtered response - CREATE separate entries per program
      */
-    private function createTables($response, $program = null)
+    private function createTables($response, $program = null, $lamId = null) // ✅ NEW: Add LAM ID parameter
     {
         $this->addLog('info', '📋 Membuat struktur tabel...');
 
@@ -291,6 +320,13 @@ class LkpsSyncController extends Controller
             $this->addLog('info', "🚫 TIDAK override, buat entri terpisah per strata");
         }
 
+        // ✅ NEW: LAM info logging
+        if ($lamId) {
+            $this->addLog('info', "🏛️  SEMUA tabel akan dikaitkan dengan LAM ID: {$lamId}");
+        } else {
+            $this->addLog('info', "🏛️  LAM: Tidak ditentukan, lamId akan null");
+        }
+
         // Determine target strata based on program
         $targetStrataName = null;
         if ($program) {
@@ -304,6 +340,7 @@ class LkpsSyncController extends Controller
             }
         }
 
+        $targetStrata = null; // ✅ Initialize targetStrata
         if ($targetStrataName) {
             // Find target strata (harus sudah ada di database)
             $targetStrata = \App\Models\Prodi\Strata::where('name', $targetStrataName)->first();
@@ -318,6 +355,8 @@ class LkpsSyncController extends Controller
             $this->attemptedTables++;
 
             try {
+                $code = preg_replace('/[^\w\s-]/', '', $code);
+                $tableInfo['sheet_name'] = preg_replace('/[^\w\s-]/', '', $tableInfo['sheet_name']);
                 $title = $tableInfo['title'];
                 $sheetName = $tableInfo['sheet_name'];
                 $strataInfo = $tableInfo['strata_info'] ?? [];
@@ -363,27 +402,44 @@ class LkpsSyncController extends Controller
                     $this->addLog('info', "  🔄 Mapping: {$detectedStrata} → {$finalStrataName}");
                 }
 
-                // PERUBAHAN UTAMA: Cek apakah sudah ada entry dengan kode dan strata yang sama
-                $existingTable = LkpsTable::where('kode', $originalTableCode)
-                    ->where('strataId', $finalStrataId)
-                    ->first();
+                // ✅ UPDATED: Check existing table with kode, strata, AND lam combination
+                $existingTableQuery = LkpsTable::where('kode', $originalTableCode)
+                    ->where('strataId', $finalStrataId);
 
-                if ($existingTable) {
-                    $this->addLog('info', "  ✅ Tabel sudah ada: {$existingTable->kode} dengan strata {$finalStrataName} - skip");
-                    $this->generatedStructure['tables']++;
-                    $this->successTables++;
-                    continue; // Skip jika sudah ada entry dengan kode dan strata yang sama
+                // ✅ NEW: Add LAM check if LAM ID is provided
+                if ($lamId) {
+                    $existingTableQuery->where('lamId', $lamId);
+                } else {
+                    $existingTableQuery->whereNull('lamId');
                 }
 
-                // Create NEW table entry (tidak ada updateOrCreate, hanya create)
-                $table = LkpsTable::create([
+                $existingTable = $existingTableQuery->first();
+
+                if ($existingTable) {
+                    $lamInfo = $lamId ? " dengan LAM ID {$lamId}" : " tanpa LAM";
+                    $this->addLog('info', "  ✅ Tabel sudah ada: {$existingTable->kode} dengan strata {$finalStrataName}{$lamInfo} - skip");
+                    $this->generatedStructure['tables']++;
+                    $this->successTables++;
+                    continue; // Skip jika sudah ada entry dengan kode, strata, dan LAM yang sama
+                }
+
+                // ✅ UPDATED: Create NEW table entry with LAM ID
+                $tableData = [
                     'kode' => $originalTableCode, // Kode tetap original
                     'judul' => $originalTitle, // Title juga tetap original
                     'strataId' => $finalStrataId,
                     'barisAwalExcel' => 2, // Will be updated during column analysis
-                ]);
+                ];
 
-                $this->addLog('success', "  ✅ Tabel baru dibuat: {$table->kode} (strata: {$finalStrataName}, ID: {$table->_id})");
+                // ✅ NEW: Add LAM ID if provided
+                if ($lamId) {
+                    $tableData['lamId'] = $lamId;
+                }
+
+                $table = LkpsTable::create($tableData);
+
+                $lamInfo = $lamId ? " (LAM ID: {$lamId})" : " (tanpa LAM)";
+                $this->addLog('success', "  ✅ Tabel baru dibuat: {$table->kode} (strata: {$finalStrataName}, ID: {$table->_id}){$lamInfo}");
 
                 // Create columns using original code
                 $columnCreateResult = $this->createColumnsForTable($table, $code, $program);
@@ -427,7 +483,7 @@ class LkpsSyncController extends Controller
             $infoColumnLetter = $section['info_column'];
             $infoColumnIndex = $this->columnLetterToIndex($infoColumnLetter) - 1;
 
-            \Log::info("🔍 Processing INFO section with 3-column structure", [
+            \Log::info("🔍 Processing INFO section with 2-column structure", [
                 'info_cell' => $infoColumnLetter . $infoRow,
                 'info_column_letter' => $infoColumnLetter,
                 'info_column_index_0_based' => $infoColumnIndex
@@ -435,21 +491,18 @@ class LkpsSyncController extends Controller
 
             $dataBelow = [];
 
-            // ✅ NEW: 3-column layout for INFO
+            // ✅ NEW: 2-column layout for INFO (VARIABEL | FORMULA)
             $variabelColumnIndex = $infoColumnIndex;      // Column with INFO header (contains variabel)
-            $kondisiColumnIndex = $infoColumnIndex + 1;   // Column to the RIGHT (contains kondisi)
-            $formulaColumnIndex = $infoColumnIndex + 2;   // Column FURTHER RIGHT (contains formula)
+            $formulaColumnIndex = $infoColumnIndex + 1;   // Column to the RIGHT (contains formula)
 
             $variabelColumnLetter = $this->columnIndexToLetter($variabelColumnIndex + 1);
-            $kondisiColumnLetter = $this->columnIndexToLetter($kondisiColumnIndex + 1);
             $formulaColumnLetter = $this->columnIndexToLetter($formulaColumnIndex + 1);
 
-            \Log::info("🔍 INFO Column mapping (3-column structure)", [
+            \Log::info("🔍 INFO Column mapping (2-column structure)", [
                 'info_header_column' => $infoColumnLetter . ' (contains header "INFO")',
                 'variabel_column' => $variabelColumnLetter . ' (index: ' . $variabelColumnIndex . ') - contains variabel like "A", "Rasio", "NM"',
-                'kondisi_column' => $kondisiColumnLetter . ' (index: ' . $kondisiColumnIndex . ') - contains kondisi text (optional)',
                 'formula_column' => $formulaColumnLetter . ' (index: ' . $formulaColumnIndex . ') - contains formula',
-                'layout' => 'INFO_HEADER=' . $infoColumnLetter . ', VARIABEL=' . $variabelColumnLetter . ', KONDISI=' . $kondisiColumnLetter . ', FORMULA=' . $formulaColumnLetter
+                'layout' => 'INFO_HEADER=' . $infoColumnLetter . ', VARIABEL=' . $variabelColumnLetter . ', FORMULA=' . $formulaColumnLetter
             ]);
 
             // Look for data in rows below the INFO cell
@@ -462,80 +515,23 @@ class LkpsSyncController extends Controller
                 $values = $row->getValues();
                 $currentRowNum = $rowIndex + 1;
 
-                \Log::info("🔍 Processing INFO data row", [
-                    'row_number' => $currentRowNum,
-                    'total_columns_in_row' => count($values),
-                    'variabel_column_index' => $variabelColumnIndex,
-                    'kondisi_column_index' => $kondisiColumnIndex,
-                    'formula_column_index' => $formulaColumnIndex
-                ]);
-
                 // ✅ Get variabel from INFO column (same as before)
                 $variabelText = null;
                 if (isset($values[$variabelColumnIndex])) {
                     $variabelCell = $values[$variabelColumnIndex];
                     $variabelValue = $this->getCellValue($variabelCell);
 
-                    \Log::info("🔍 Reading variabel from INFO column", [
-                        'row' => $currentRowNum,
-                        'variabel_column' => $variabelColumnLetter,
-                        'variabel_raw_value' => $variabelValue
-                    ]);
-
                     // Skip empty cells atau cell yang berisi "INFO"
                     if (!$variabelValue || trim($variabelValue) === '' || strtoupper(trim($variabelValue)) === 'INFO') {
-                        \Log::info("⚠️ Skipping header/empty row", [
-                            'row' => $currentRowNum,
-                            'reason' => 'INFO header text or empty'
-                        ]);
                         continue;
                     }
 
                     $variabelText = trim($variabelValue);
-                    \Log::info("✅ VARIABEL extracted from INFO column", [
-                        'row' => $currentRowNum,
-                        'variabel' => $variabelText
-                    ]);
                 } else {
-                    \Log::info("❌ No variabel cell available", [
-                        'row' => $currentRowNum,
-                        'variabel_column_index' => $variabelColumnIndex
-                    ]);
                     continue;
                 }
 
-                // ✅ NEW: Get kondisi from RIGHT column (optional)
-                $kondisiText = null;
-                if (isset($values[$kondisiColumnIndex])) {
-                    $kondisiCell = $values[$kondisiColumnIndex];
-                    $kondisiValue = $this->getCellValue($kondisiCell);
-
-                    \Log::info("🔍 Reading kondisi from RIGHT column", [
-                        'row' => $currentRowNum,
-                        'kondisi_column' => $kondisiColumnLetter,
-                        'kondisi_raw_value' => $kondisiValue,
-                        'is_empty' => empty($kondisiValue)
-                    ]);
-
-                    if ($kondisiValue && trim($kondisiValue) !== '') {
-                        $kondisiText = trim($kondisiValue);
-                        \Log::info("✅ KONDISI text extracted from RIGHT column", [
-                            'row' => $currentRowNum,
-                            'kondisi_text' => $kondisiText
-                        ]);
-                    } else {
-                        \Log::info("ℹ️ KONDISI column is empty - will be excluded from object", [
-                            'row' => $currentRowNum
-                        ]);
-                    }
-                } else {
-                    \Log::info("ℹ️ No kondisi cell available - will be excluded from object", [
-                        'row' => $currentRowNum,
-                        'kondisi_column_index' => $kondisiColumnIndex
-                    ]);
-                }
-
-                // ✅ Get formula from FURTHER RIGHT column
+                // ✅ Get formula from RIGHT column (skip kondisi column)
                 $formulaText = '0';
                 $formulaValue = null;
                 $formulaType = 'default';
@@ -544,55 +540,28 @@ class LkpsSyncController extends Controller
                     $formulaCell = $values[$formulaColumnIndex];
                     $formulaCellValue = $this->getCellValue($formulaCell);
 
-                    \Log::info("🔍 Reading formula from FURTHER RIGHT column", [
-                        'row' => $currentRowNum,
-                        'formula_column' => $formulaColumnLetter,
-                        'formula_raw_value' => $formulaCellValue
-                    ]);
-
                     // ✅ Get formula if available
                     $formula = $this->getCellFormula($formulaCell);
 
                     if ($formula) {
                         $formulaText = $formula;
                         $formulaType = 'formula';
-                        \Log::info("✅ FORMULA extracted", [
-                            'row' => $currentRowNum,
-                            'formula' => $formula,
-                            'type' => 'formula'
-                        ]);
                     } elseif ($formulaCellValue !== null && trim($formulaCellValue) !== '') {
                         $formulaText = trim($formulaCellValue);
                         $formulaType = 'value';
-                        \Log::info("✅ FORMULA VALUE extracted", [
-                            'row' => $currentRowNum,
-                            'formula' => $formulaText,
-                            'type' => 'value'
-                        ]);
                     }
 
                     $formulaValue = $formulaCellValue;
-                } else {
-                    \Log::info("⚠️ No formula cell available - using default", [
-                        'row' => $currentRowNum,
-                        'formula_column_index' => $formulaColumnIndex,
-                        'default_formula' => '0'
-                    ]);
                 }
 
                 if (!$variabelText) {
-                    \Log::info("⚠️ Skipping row - missing variabel", [
-                        'row' => $currentRowNum,
-                        'has_variabel' => !empty($variabelText)
-                    ]);
                     continue;
                 }
 
-                // ✅ NEW: Build data item with conditional kondisi field
+                // ✅ NEW: Build data item with 2-column structure (no kondisi field)
                 $dataItem = [
                     'row' => $currentRowNum,
                     'variabel_column' => $variabelColumnLetter,
-                    'kondisi_column' => $kondisiColumnLetter,
                     'formula_column' => $formulaColumnLetter,
                     'variabel' => $variabelText,
                     'formula' => $formulaText,
@@ -601,27 +570,6 @@ class LkpsSyncController extends Controller
                     'type' => 'variabel_data'
                 ];
 
-                // ✅ CRITICAL: Only add kondisi field if it has value
-                if ($kondisiText !== null && $kondisiText !== '') {
-                    $dataItem['kondisi'] = $kondisiText;
-                    \Log::info("✅ INFO data item created WITH kondisi", [
-                        'row' => $currentRowNum,
-                        'final_data' => [
-                            'variabel' => $variabelText,
-                            'kondisi' => $kondisiText,
-                            'formula' => $formulaText
-                        ]
-                    ]);
-                } else {
-                    \Log::info("✅ INFO data item created WITHOUT kondisi (empty/null)", [
-                        'row' => $currentRowNum,
-                        'final_data' => [
-                            'variabel' => $variabelText,
-                            'formula' => $formulaText
-                        ]
-                    ]);
-                }
-
                 $dataBelow[] = $dataItem;
             }
 
@@ -629,23 +577,14 @@ class LkpsSyncController extends Controller
             $section['data_count'] = count($dataBelow);
             $section['column_structure'] = [
                 'variabel_column' => $variabelColumnLetter,
-                'kondisi_column' => $kondisiColumnLetter,
                 'formula_column' => $formulaColumnLetter,
-                'layout' => 'INFO_HEADER=' . $infoColumnLetter . ', VARIABEL=' . $variabelColumnLetter . ', KONDISI=' . $kondisiColumnLetter . ', FORMULA=' . $formulaColumnLetter,
-                'three_column_structure' => true
+                'layout' => 'INFO_HEADER=' . $infoColumnLetter . ', VARIABEL=' . $variabelColumnLetter . ', FORMULA=' . $formulaColumnLetter,
+                'two_column_structure' => true
             ];
-
-            \Log::info("✅ INFO section completed with 3-column structure", [
-                'info_cell' => $infoColumnLetter . $infoRow,
-                'data_count' => count($dataBelow),
-                'structure' => $section['column_structure'],
-                'sample_data' => array_slice($dataBelow, 0, 2)
-            ]);
         }
 
         return $infoSections;
     }
-
     /**
      * ✅ NEW: Process KONDISI sections untuk extract kondisi dan formula
      */
@@ -833,12 +772,6 @@ class LkpsSyncController extends Controller
     {
         $this->addLog('info', "  📊 Menganalisis kolom untuk tabel {$table->kode}...");
 
-        // Check if this is a special table
-        $isSpecialTable = $this->isSpecialTable($tableRef);
-        if ($isSpecialTable && $program) {
-            $this->addLog('info', "  🔴 SPECIAL CASE: Tabel {$tableRef} dengan program {$program}");
-        }
-
         try {
             $request = new Request([
                 'spreadsheet_id' => $this->spreadsheetId,
@@ -855,9 +788,91 @@ class LkpsSyncController extends Controller
                 return false;
             }
 
-            // ✅ Process INFO sections (existing)
+            // ✅ Log dynamic detection info
+            $isMultiTable = isset($originalData['has_multiple_tables']) && $originalData['has_multiple_tables'];
+            $specialCaseInfo = $originalData['special_case_info'] ?? null;
+
+            if ($isMultiTable) {
+                $this->addLog('info', "  🔍 DYNAMIC DETECTION: Multiple tables detected in sheet");
+
+                if ($specialCaseInfo) {
+                    $info = $specialCaseInfo;
+                    $this->addLog('info', "  🎯 Program boundary: {$info['search_text']} (rows {$info['detection_start']}-" . ($info['detection_end'] ?? 'end') . ")");
+                }
+            }
+
+            // ✅ TAMBAHKAN: Get header data and create table columns first
+            $headerData = $this->getHeaderDataWithFallbacks($originalData);
+
+            if (!$headerData || empty($headerData['columns'])) {
+                $this->addLog('error', "  ❌ Tidak dapat mendeteksi struktur kolom untuk tabel {$table->kode}");
+                $table->delete();
+                return false;
+            }
+
+            // ✅ NEW: Apply program boundary filtering for multi-table
+            if ($isMultiTable && $specialCaseInfo) {
+                $headerData = $this->filterColumnsByProgramBoundary($headerData, $specialCaseInfo, $originalData);
+
+                if (empty($headerData['columns'])) {
+                    $this->addLog('error', "  ❌ No columns remain after boundary filtering for tabel {$table->kode}");
+                    $table->delete();
+                    return false;
+                }
+            }
+
+            $this->addLog('info', "  ✅ Ditemukan " . count($headerData['columns']) . " kolom header (after filtering)");
+
+            // ✅ UPDATED: Get yellow AND green columns
+            $yellowColumns = array_keys($originalData['yellow_columns'] ?? []);
+            $greenColumns = array_keys($originalData['green_columns'] ?? []); // ✅ NEW
+
+            $this->addLog('info', "  🟡 Yellow columns (fillable): " . count($yellowColumns) . " - " . implode(', ', $yellowColumns));
+            $this->addLog('info', "  🟢 Green columns (non-fillable): " . count($greenColumns) . " - " . implode(', ', $greenColumns));
+
+            // ✅ Show fillable logic
+            $yellowOnly = array_diff($yellowColumns, $greenColumns);
+            $greenOnly = array_diff($greenColumns, $yellowColumns);
+            $bothColors = array_intersect($yellowColumns, $greenColumns);
+
+            if (!empty($yellowOnly)) {
+                $this->addLog('info', "  ✅ Fillable columns (yellow only): " . implode(', ', $yellowOnly));
+            }
+            if (!empty($greenOnly)) {
+                $this->addLog('info', "  ❌ Non-fillable columns (green only): " . implode(', ', $greenOnly));
+            }
+            if (!empty($bothColors)) {
+                $this->addLog('info', "  🟢 Green overrides yellow (non-fillable): " . implode(', ', $bothColors));
+            }
+
+            $columnCount = $this->createColumnsFromHeaderData(
+                $table,
+                $headerData['columns'],
+                null,
+                0,
+                $yellowColumns,
+                $greenColumns // ✅ Pass green columns
+            );
+
+            if ($columnCount === 0) {
+                $this->addLog('error', "  ❌ Gagal membuat kolom untuk tabel {$table->kode}");
+                $table->delete();
+                return false;
+            }
+
+            $this->addLog('success', "  ✅ Berhasil membuat {$columnCount} kolom untuk tabel {$table->kode}");
+            $this->generatedStructure['columns'] += $columnCount;
+
+            // ✅ UPDATE: Dynamic barisAwalExcel calculation
+            $barisAwalExcel = $this->calculateBarisAwalExcel($originalData, $isMultiTable, $specialCaseInfo);
+            $table->barisAwalExcel = $barisAwalExcel;
+            $table->save();
+
+            $this->addLog('info', "  📍 barisAwalExcel set to: {$barisAwalExcel} (" . ($isMultiTable ? 'multi-table logic' : 'single-table logic') . ")");
+
+            // ✅ EXISTING: Process INFO sections (updated to 2-column structure)
             if (isset($originalData['info_sections']) && !empty($originalData['info_sections'])) {
-                $this->addLog('info', "  🔍 Ditemukan " . count($originalData['info_sections']) . " INFO sections (3-column structure)");
+                $this->addLog('info', "  🔍 Ditemukan " . count($originalData['info_sections']) . " INFO sections (2-column structure)");
 
                 $rumusArray = [];
 
@@ -865,19 +880,13 @@ class LkpsSyncController extends Controller
                     $this->addLog('info', "    📍 INFO di {$infoSection['info_column']}{$infoSection['info_row']} dengan {$infoSection['data_count']} data items");
 
                     foreach ($infoSection['data_below'] as $item) {
-                        // ✅ NEW: Build rumus item with conditional kondisi field
+                        // ✅ Build rumus item with 2-column structure (no kondisi field)
                         $rumusItem = [
                             'variabel' => $item['variabel'],
                             'formula' => $item['formula']
                         ];
 
-                        // ✅ CRITICAL: Only add kondisi field if it exists in the item
-                        if (isset($item['kondisi']) && $item['kondisi'] !== null && $item['kondisi'] !== '') {
-                            $rumusItem['kondisi'] = $item['kondisi'];
-                            $this->addLog('info', "      • Variabel: {$item['variabel']} → Kondisi: {$item['kondisi']} → Formula: {$item['formula']}");
-                        } else {
-                            $this->addLog('info', "      • Variabel: {$item['variabel']} → Formula: {$item['formula']} (no kondisi)");
-                        }
+                        $this->addLog('info', "      • Variabel: {$item['variabel']} → Formula: {$item['formula']}");
 
                         $rumusArray[] = $rumusItem;
                     }
@@ -886,149 +895,53 @@ class LkpsSyncController extends Controller
                 if (!empty($rumusArray)) {
                     $table->rumus = $rumusArray;
                     $table->save();
-                    $this->addLog('success', "  ✅ Menyimpan " . count($rumusArray) . " rumus ke field rumus tabel (3-column structure)");
+                    $this->addLog('success', "  ✅ Menyimpan " . count($rumusArray) . " rumus ke field rumus tabel (2-column structure)");
 
                     if ($this->debug) {
-                        $this->addLog('debug', "  📋 Format rumus (3-column array): " . json_encode(array_slice($rumusArray, 0, 2), JSON_PRETTY_PRINT));
+                        $this->addLog('debug', "  📋 Format rumus (2-column array): " . json_encode(array_slice($rumusArray, 0, 2), JSON_PRETTY_PRINT));
                     }
                 }
             } else {
                 $this->addLog('info', "  ℹ️  Tidak ada INFO sections ditemukan untuk tabel {$table->kode}");
             }
 
-            // ✅ UPDATED: Process KONDISI sections with butir - HANYA yang ORANGE
+            // ✅ EXISTING: Process KONDISI sections (tetap ada, tidak berubah)
             if (isset($originalData['kondisi_sections']) && !empty($originalData['kondisi_sections'])) {
-                $this->addLog('info', "  🟠 Ditemukan " . count($originalData['kondisi_sections']) . " KONDISI sections (4-COLUMN PARSING)");
+                $this->addLog('info', "  🔍 Ditemukan " . count($originalData['kondisi_sections']) . " KONDISI sections");
 
                 $kondisiArray = [];
 
                 foreach ($originalData['kondisi_sections'] as $kondisiSection) {
-                    $columnStructure = $kondisiSection['column_structure'] ?? [];
-                    $this->addLog('info', "    📍 KONDISI di {$kondisiSection['kondisi_cell']} dengan {$kondisiSection['data_count']} data items");
-
-                    if (!empty($columnStructure)) {
-                        $this->addLog('info', "    📊 Layout: {$columnStructure['layout']}");
-                    }
+                    $this->addLog('info', "    📍 KONDISI di {$kondisiSection['kondisi_column']}{$kondisiSection['kondisi_row']} dengan {$kondisiSection['data_count']} data items");
 
                     foreach ($kondisiSection['data_below'] as $item) {
-                        // ================== PERUBAHAN UTAMA DI SINI ==================
+                        // ✅ Build kondisi item with butir field
                         $kondisiItem = [
-                            'butir'   => $item['butir'] ?? null,
-                            'kondisi' => $item['kondisi'] ?? '',
-                            'formula' => $item['formula'] ?? '0'
+                            'butir' => $item['butir'],
+                            'kondisi' => $item['kondisi'],
+                            'formula' => $item['formula']
                         ];
 
-                        // 2. Tambahkan field 'sub' HANYA JIKA nilainya tidak kosong.
-                        // Fungsi !empty() akan mengevaluasi true untuk string yang tidak kosong dan tidak null.
-                        if (!empty($item['sub'])) {
-                            $kondisiItem['sub'] = $item['sub'];
-                        }
-
-                        // ==============================================================
+                        $this->addLog('info', "      • Butir: {$item['butir']} → Kondisi: {$item['kondisi']} → Formula: {$item['formula']}");
 
                         $kondisiArray[] = $kondisiItem;
-
-                        // Update logging untuk mencerminkan logika baru
-                        $butirDisplay = $kondisiItem['butir'] ? "Butir {$kondisiItem['butir']}" : "No butir";
-                        $subDisplay = !empty($kondisiItem['sub']) ? "Sub '{$kondisiItem['sub']}'" : "No sub";
-                        $this->addLog('info', "      • {$butirDisplay} - {$subDisplay} | Kondisi: {$item['kondisi']} → Formula: {$item['formula']}");
                     }
                 }
-
-
 
                 if (!empty($kondisiArray)) {
                     $table->kondisi = $kondisiArray;
                     $table->save();
-                    $this->addLog('success', "  ✅ Menyimpan " . count($kondisiArray) . " kondisi dengan butir ke field kondisi tabel (ORANGE CELLS ONLY)");
+                    $this->addLog('success', "  ✅ Menyimpan " . count($kondisiArray) . " kondisi ke field kondisi tabel");
 
                     if ($this->debug) {
-                        $this->addLog('debug', "  📋 Format kondisi dengan butir (clean array): " . json_encode(array_slice($kondisiArray, 0, 2), JSON_PRETTY_PRINT));
+                        $this->addLog('debug', "  📋 Format kondisi (3-column array): " . json_encode(array_slice($kondisiArray, 0, 2), JSON_PRETTY_PRINT));
                     }
                 }
             } else {
-                $this->addLog('info', "  ℹ️  Tidak ada KONDISI sections ditemukan untuk tabel {$table->kode} (requires ORANGE color)");
-
-                // ✅ UPDATED: STRICT fallback with butir detection
-                $kondisiArray = $this->findKondisiByOrangeColorOnlyWithButir($originalData);
-                if (!empty($kondisiArray)) {
-                    $table->kondisi = $kondisiArray;
-                    $table->save();
-                    $this->addLog('success', "  ✅ Menyimpan " . count($kondisiArray) . " kondisi dengan butir via ORANGE-only fallback search");
-                } else {
-                    $this->addLog('info', "  ⚠️  KONDISI fallback failed: No ORANGE cells dengan text 'KONDISI' ditemukan");
-                }
+                $this->addLog('info', "  ℹ️  Tidak ada KONDISI sections ditemukan untuk tabel {$table->kode}");
             }
 
-            // Continue with rest of method...
-            // Log special case info if available
-            if (isset($originalData['is_special_table']) && $originalData['is_special_table']) {
-                $specialInfo = $originalData['special_case_info'];
-                $this->addLog('info', "  🔴 Special case aktif: {$specialInfo['search_text']} di baris {$specialInfo['target_row']}");
-                $this->addLog('info', "  📍 Range deteksi: baris {$specialInfo['detection_start']} - " . ($specialInfo['detection_end'] ?? 'akhir'));
-            }
-
-            // ✅ Log STRICT validation results
-            $orangeCount = $originalData['orange_cells_count'] ?? 0;
-            $kondisiCount = $originalData['kondisi_cells_count'] ?? 0;
-
-            $this->addLog('info', "  🔍 STRICT validation results:");
-            $this->addLog('info', "    - Orange cells detected: {$orangeCount}");
-            $this->addLog('info', "    - KONDISI text in orange cells: {$kondisiCount}");
-            $this->addLog('info', "    - KONDISI sections processed: " . count($originalData['kondisi_sections'] ?? []));
-
-            if ($orangeCount > 0 && $kondisiCount === 0) {
-                $this->addLog('warning', "  ⚠️  Orange cells found but no KONDISI text - check if cells contain 'KONDISI' text");
-            }
-
-            // Update barisAwalExcel
-            if (isset($originalData['first_yellow_row']) && $originalData['first_yellow_row'] > 0) {
-                $table->barisAwalExcel = $originalData['first_yellow_row'];
-                $table->save();
-                $this->addLog('info', "  📊 barisAwalExcel: {$table->barisAwalExcel} (first yellow row)");
-            } elseif (isset($originalData['data_start_row'])) {
-                $table->barisAwalExcel = $originalData['data_start_row'];
-                $table->save();
-                $this->addLog('info', "  📊 barisAwalExcel: {$table->barisAwalExcel} (data start row)");
-            }
-
-            // Strata sudah diset dari program forcing
-            $strataName = $table->strata ? $table->strata->name : 'neutral';
-            $this->addLog('info', "  📋 Strata: {$strataName} (FORCED dari program)");
-
-            // Process yellow columns for fillable detection
-            $yellowColumns = array_keys($originalData['yellow_columns'] ?? []);
-            if (!empty($yellowColumns)) {
-                $this->addLog('info', "  🟡 Ditemukan " . count($yellowColumns) . " kolom fillable (kuning)");
-            }
-
-            // ✅ Get header data dengan multiple fallbacks
-            $headerData = $this->getHeaderDataWithFallbacks($originalData);
-
-            if (empty($headerData) || empty($headerData['columns'])) {
-                $this->addLog('error', "  ❌ Tidak dapat mendapatkan struktur header setelah semua fallback");
-                $table->delete();
-                return false;
-            }
-
-            $this->addLog('success', "  ✅ Berhasil mendapatkan struktur header dengan " . count($headerData['columns']) . " kolom");
-
-            // Delete old columns by table ID
-            $deletedColumns = LkpsColumn::where('lkpsTableId', (string) $table->_id)->delete();
-            $this->addLog('info', "  🗑️  Menghapus {$deletedColumns} kolom lama");
-
-            // Create new columns
-            $columnCount = $this->createColumnsFromHeaderData($table, $headerData['columns'], null, 0, $yellowColumns);
-
-            if ($columnCount > 0) {
-                $this->addLog('success', "  ✅ Berhasil membuat {$columnCount} kolom");
-                $this->generatedStructure['columns'] += $columnCount;
-                return true;
-            } else {
-                $this->addLog('warning', "  ⚠️  Tidak ada kolom yang dibuat, menghapus tabel");
-                $table->delete();
-                return false;
-            }
+            return true; // ✅ Success
 
         } catch (\Exception $e) {
             $this->addLog('error', "  ❌ Gagal membuat kolom untuk tabel {$table->kode}: {$e->getMessage()}");
@@ -1041,6 +954,58 @@ class LkpsSyncController extends Controller
             return false;
         }
     }
+
+    private function calculateBarisAwalExcel($originalData, $isMultiTable, $specialCaseInfo)
+    {
+        // ✅ MULTI-TABLE LOGIC: Use first yellow row AFTER red text boundary
+        if ($isMultiTable && $specialCaseInfo) {
+            $detectionStart = $specialCaseInfo['detection_start'] ?? 1;
+            $detectionEnd = $specialCaseInfo['detection_end'] ?? null;
+            $yellowCells = $originalData['yellow_cells'] ?? [];
+
+            // ✅ IMPROVED: Filter yellow cells within STRICT program boundary
+            $yellowRowsInBoundary = [];
+            foreach ($yellowCells as $cell) {
+                $row = $cell['row'] ?? 0;
+
+                // Must be within detection start
+                if ($row >= $detectionStart) {
+                    // ✅ CRITICAL: Apply detection_end boundary strictly
+                    if ($detectionEnd && $row > $detectionEnd) {
+                        continue; // Skip cells beyond program boundary
+                    }
+                    $yellowRowsInBoundary[] = $row;
+                }
+            }
+
+            if (!empty($yellowRowsInBoundary)) {
+                $firstYellowRowInBoundary = min($yellowRowsInBoundary);
+                $this->addLog('info', "    🎯 Multi-table: First yellow row in STRICT boundary: {$firstYellowRowInBoundary} (end: " . ($detectionEnd ?? 'none') . ")");
+                return $firstYellowRowInBoundary;
+            } else {
+                // ✅ IMPROVED: More conservative fallback
+                $fallbackRow = $detectionStart + 2; // Give more space after red text
+                $this->addLog('warning', "    ⚠️  Multi-table: No yellow cells in STRICT boundary, using conservative fallback: {$fallbackRow}");
+                return $fallbackRow;
+            }
+        }
+
+        // ✅ SINGLE-TABLE LOGIC: Use first yellow row OR header row + 1
+        $firstYellowRow = $originalData['first_yellow_row'] ?? null;
+
+        if ($firstYellowRow) {
+            $this->addLog('info', "📍 Single-table: Using first yellow row: {$firstYellowRow}");
+            return $firstYellowRow;
+        }
+
+        // Fallback: Use header row + 1
+        $headerLastRow = $originalData['header_last_row'] ?? 1;
+        $dataStartRow = $originalData['data_start_row'] ?? ($headerLastRow + 1);
+
+        $this->addLog('info', "📍 Single-table: Using data start row: {$dataStartRow}");
+        return $dataStartRow;
+    }
+
 
     public function debugInfoStructure(Request $request)
     {
@@ -1535,7 +1500,7 @@ class LkpsSyncController extends Controller
     /**
      * Create columns from header data - menggunakan lkpsTableId
      */
-    private function createColumnsFromHeaderData($table, $columns, $parentId = null, $parentOrder = 0, $yellowColumns = [])
+    private function createColumnsFromHeaderData($table, $columns, $parentId = null, $parentOrder = 0, $yellowColumns = [], $greenColumns = [])
     {
         $columnCount = 0;
         $order = 0;
@@ -1546,10 +1511,15 @@ class LkpsSyncController extends Controller
                 $dataIndex = $this->createDataIndex($column['name']);
                 $hasChildren = !empty($column['children']);
 
-                $isFillable = in_array($column['column'], $yellowColumns);
+                // ✅ UPDATED FILLABLE LOGIC:
+                $isYellowColumn = in_array($column['column'], $yellowColumns);
+                $isGreenColumn = in_array($column['column'], $greenColumns);
+
+                // Logic: Yellow = fillable, Green = non-fillable, Green overrides Yellow
+                $isFillable = $isYellowColumn && !$isGreenColumn; // Green wins over yellow
 
                 $newColumn = LkpsColumn::create([
-                    'lkpsTableId' => (string) $table->_id, // Convert ObjectId to string
+                    'lkpsTableId' => (string) $table->_id,
                     'indeksData' => $dataIndex,
                     'judul' => $column['name'],
                     'type' => $hasChildren ? 'group' : $dataType,
@@ -1559,19 +1529,20 @@ class LkpsSyncController extends Controller
                     'align' => 'left',
                     'isGroup' => $hasChildren,
                     'parentId' => $parentId,
-                    'fillable' => $isFillable
+                    'fillable' => $isFillable  // ✅ Updated logic
                 ]);
 
                 $columnCount++;
 
-                // Handle children recursively
+                // Handle children recursively dengan green columns
                 if ($hasChildren) {
                     $childCount = $this->createColumnsFromHeaderData(
                         $table,
                         $column['children'],
                         $newColumn->_id,
                         $order,
-                        $yellowColumns
+                        $yellowColumns,
+                        $greenColumns // ✅ Pass green columns to children
                     );
                     $columnCount += $childCount;
                 }
@@ -1580,11 +1551,6 @@ class LkpsSyncController extends Controller
 
             } catch (\Exception $e) {
                 $this->addLog('error', "    ❌ Gagal membuat kolom '{$column['name']}': {$e->getMessage()}");
-
-                if ($this->debug) {
-                    $this->addLog('debug', "Column data: " . json_encode($column));
-                    $this->addLog('debug', "Error trace: " . substr($e->getTraceAsString(), 0, 200) . '...');
-                }
             }
         }
 
@@ -1655,10 +1621,47 @@ class LkpsSyncController extends Controller
         }
     }
 
+    private function filterColumnsByProgramBoundary($headerData, $specialCaseInfo, $originalData)
+    {
+        if (!$specialCaseInfo || empty($headerData['columns'])) {
+            return $headerData;
+        }
+
+        $detectionStart = $specialCaseInfo['detection_start'] ?? 1;
+        $detectionEnd = $specialCaseInfo['detection_end'] ?? null;
+
+        $this->addLog('info', "  🔍 Filtering columns by program boundary: rows {$detectionStart}-" . ($detectionEnd ?? 'end'));
+
+        $filteredColumns = [];
+
+        foreach ($headerData['columns'] as $column) {
+            // Get column row information if available
+            $columnRow = $column['row'] ?? null;
+
+            // If column row is within boundary, include it
+            if (
+                $columnRow === null ||
+                ($columnRow >= $detectionStart && ($detectionEnd === null || $columnRow <= $detectionEnd))
+            ) {
+                $filteredColumns[] = $column;
+            } else {
+                $this->addLog('debug', "    ❌ Excluding column '{$column['name']}' (row {$columnRow}) - outside boundary");
+            }
+        }
+
+        $originalCount = count($headerData['columns']);
+        $filteredCount = count($filteredColumns);
+
+        $this->addLog('info', "  ✅ Column filtering: {$originalCount} → {$filteredCount} columns (removed " . ($originalCount - $filteredCount) . ")");
+
+        $headerData['columns'] = $filteredColumns;
+        return $headerData;
+    }
+
     /**
      * Update performFinalVerification method
      */
-    private function performFinalVerification($program = null)
+    private function performFinalVerification($program = null, $lamName = null)
     {
         $query = LkpsTable::query();
 
@@ -1675,26 +1678,52 @@ class LkpsSyncController extends Controller
             $query->whereNotNull('strataId');
         }
 
-        $allTablesWithStrata = LkpsTable::whereNotNull('strataId')->with('strata')->get();
-        $filteredTables = $query->with('strata')->get();
+        // ✅ NEW: Add LAM filter if specified
+        if ($lamName) {
+            $query->whereHas('lam', function ($q) use ($lamName) {
+                $q->where('name', $lamName);
+            });
+        } else {
+            // Jika tidak ada filter LAM, sertakan tabel yang tidak memiliki LAM
+            $query->whereNull('lamId');
+        }
 
-        // Count duplicate codes (same kode, different strata)
-        $allTables = LkpsTable::whereNotNull('strataId')->with('strata')->get();
+
+        $allTablesWithStrata = LkpsTable::whereNotNull('strataId')->with(['strata', 'lam'])->get(); // ✅ Include LAM relation
+        $filteredTables = $query->with(['strata', 'lam'])->get(); // ✅ Include LAM relation
+
+        // Count duplicate codes (same kode, different strata, different LAM)
+        $allTables = LkpsTable::whereNotNull('strataId')->with(['strata', 'lam'])->get(); // ✅ Include LAM relation
         $kodeGroups = $allTables->groupBy('kode');
         $duplicateKodes = $kodeGroups->filter(function ($group) {
             return $group->count() > 1;
         });
 
+        // ✅ NEW: LAM analysis
+        $lamAnalysis = [
+            'tables_with_lam' => $allTablesWithStrata->whereNotNull('lamId')->count(),
+            'tables_without_lam' => $allTablesWithStrata->whereNull('lamId')->count(),
+            'unique_lams' => $allTablesWithStrata->whereNotNull('lamId')->pluck('lam.name')->unique()->values()->toArray(),
+            'lam_distribution' => $allTablesWithStrata->whereNotNull('lamId')
+                ->groupBy('lam.name')
+                ->map(function ($group) {
+                    return $group->count();
+                })
+        ];
+
         $verification = [
             'program_filter' => $program,
+            'lam_filter' => $lamName, // ✅ NEW: LAM filter info
             'force_strata_mode' => $program ? true : false,
-            'separate_entries_per_strata' => true, // NEW: indicates separate entries
+            'separate_entries_per_strata' => true,
+            'separate_entries_per_lam' => true, // ✅ NEW: LAM separation info
             'total_tables_with_strata' => $allTablesWithStrata->count(),
             'filtered_tables' => $filteredTables->count(),
             'total_columns_in_db' => LkpsColumn::count(),
+            'lam_analysis' => $lamAnalysis, // ✅ NEW: LAM analysis
             'duplicate_code_analysis' => [
                 'total_unique_codes' => $kodeGroups->count(),
-                'codes_with_multiple_strata' => $duplicateKodes->count(),
+                'codes_with_multiple_entries' => $duplicateKodes->count(),
                 'sample_duplicates' => $duplicateKodes->take(5)->map(function ($group, $kode) {
                     return [
                         'kode' => $kode,
@@ -1702,6 +1731,7 @@ class LkpsSyncController extends Controller
                             return [
                                 'id' => (string) $table->_id,
                                 'strata' => $table->strata ? $table->strata->name : 'null',
+                                'lam' => $table->lam ? $table->lam->name : 'null', // ✅ NEW: Include LAM info
                                 'title' => $table->judul,
                             ];
                         })->values()
@@ -1722,24 +1752,26 @@ class LkpsSyncController extends Controller
                     "Filter tables with " . ($program === 'D-IV' ? 'STr' : 'D3') . " checkmarks only" :
                     'Tables filtered by detected strata from Daftar Tabel',
                 'assignment' => $program ?
-                    "CREATE separate entries: Same kode with {$program} strata" :
-                    'Individual mapping based on detected strata',
+                    "CREATE separate entries: Same kode with {$program} strata" . ($lamName ? " and {$lamName} LAM" : "") :
+                    'Individual mapping based on detected strata' . ($lamName ? " with {$lamName} LAM" : ""),
                 'result' => $program ?
-                    "New entries created with {$program} strata (original codes)" :
-                    'Mixed strata based on detection'
+                    "New entries created with {$program} strata" . ($lamName ? " and {$lamName} LAM" : "") . " (original codes)" :
+                    'Mixed strata based on detection' . ($lamName ? " with {$lamName} LAM" : "")
             ],
-            'detection_method' => 'checkmark_based_filtering_separate_entries',
+            'detection_method' => 'checkmark_based_filtering_separate_entries_with_lam_support', // ✅ Updated
             'entry_logic' => [
-                'same_kode_different_strata' => 'Multiple entries allowed',
-                'uniqueness_key' => 'Combination of kode + strataId',
+                'same_kode_different_strata_different_lam' => 'Multiple entries allowed', // ✅ Updated
+                'uniqueness_key' => 'Combination of kode + strataId + lamId', // ✅ Updated
                 'no_override' => 'Existing entries preserved, new entries created',
-                'table_codes' => 'Original codes used (no program suffix)',
-                'null_strata_handling' => 'EXCLUDED from database'
+                'table_codes' => 'Original codes used (no program/LAM suffix)',
+                'null_strata_handling' => 'EXCLUDED from database',
+                'null_lam_handling' => 'ALLOWED in database (lamId can be null)' // ✅ NEW
             ]
         ];
 
         return $verification;
     }
+
 
     /**
      * Update getSyncStatus method
@@ -1749,9 +1781,11 @@ class LkpsSyncController extends Controller
         try {
             $validated = $request->validate([
                 'program' => ['nullable', 'string', Rule::in(['D-IV', 'D-III'])],
+                'lam' => 'nullable|string', // ✅ NEW: LAM filter
             ]);
 
             $program = $validated['program'] ?? null;
+            $lamName = $validated['lam'] ?? null; // ✅ NEW: Get LAM name
 
             $query = LkpsTable::whereNotNull('strataId');
 
@@ -1764,7 +1798,14 @@ class LkpsSyncController extends Controller
                 }
             }
 
-            $tables = $query->with('strata')->get();
+            // ✅ NEW: Add LAM filter
+            if ($lamName) {
+                $query->whereHas('lam', function ($q) use ($lamName) {
+                    $q->where('name', $lamName);
+                });
+            }
+
+            $tables = $query->with(['strata', 'lam'])->get(); // ✅ Include LAM relation
 
             // Count columns menggunakan lkpsTableId
             $tableIds = $tables->pluck('_id')->map(function ($id) {
@@ -1773,7 +1814,7 @@ class LkpsSyncController extends Controller
             $totalColumns = LkpsColumn::whereIn('lkpsTableId', $tableIds)->count();
 
             // Get all tables for analysis
-            $allTables = LkpsTable::whereNotNull('strataId')->with('strata')->get();
+            $allTables = LkpsTable::whereNotNull('strataId')->with(['strata', 'lam'])->get(); // ✅ Include LAM relation
             $nullStrataCount = LkpsTable::whereNull('strataId')->count();
 
             // Analyze duplicate codes
@@ -1782,14 +1823,29 @@ class LkpsSyncController extends Controller
                 return $group->count() > 1;
             });
 
+            // ✅ NEW: LAM statistics
+            $lamStats = [
+                'total_lams_in_db' => \App\Models\Lam\Lam::count(),
+                'available_lams' => \App\Models\Lam\Lam::pluck('name')->toArray(),
+                'tables_with_lam' => $allTables->whereNotNull('lamId')->count(),
+                'tables_without_lam' => $allTables->whereNull('lamId')->count(),
+                'lam_distribution' => $allTables->whereNotNull('lamId')
+                    ->groupBy('lam.name')
+                    ->map(function ($group) {
+                        return $group->count();
+                    })
+            ];
+
             $statistics = [
                 'total_tables' => $tables->count(),
                 'total_columns' => $totalColumns,
                 'program_filter' => $program,
+                'lam_filter' => $lamName, // ✅ NEW: Current LAM filter
+                'lam_statistics' => $lamStats, // ✅ NEW: LAM statistics
                 'duplicate_code_analysis' => [
                     'total_unique_codes' => $kodeGroups->count(),
                     'total_table_entries' => $allTables->count(),
-                    'codes_with_multiple_strata' => $duplicateKodes->count(),
+                    'codes_with_multiple_entries' => $duplicateKodes->count(),
                     'average_entries_per_code' => $kodeGroups->count() > 0 ? round($allTables->count() / $kodeGroups->count(), 2) : 0
                 ],
                 'strata_breakdown' => [
@@ -1803,11 +1859,13 @@ class LkpsSyncController extends Controller
                 ],
                 'relation_info' => [
                     'table_column_relation' => 'LkpsColumn.lkpsTableId → LkpsTable._id',
-                    'stored_as' => 'String (not ObjectId)',
+                    'table_lam_relation' => 'LkpsTable.lamId → Lam._id', // ✅ NEW: LAM relation info
+                    'stored_as' => 'ObjectId', // Updated: Should be ObjectId for relations
                     'table_codes' => 'Original codes (multiple entries per code allowed)',
-                    'uniqueness_constraint' => 'kode + strataId combination',
+                    'uniqueness_constraint' => 'kode + strataId + lamId combination', // ✅ Updated
                     'STr_checkmark' => 'Creates entries with D-IV strata',
-                    'D3_checkmark' => 'Creates entries with D-III strata'
+                    'D3_checkmark' => 'Creates entries with D-III strata',
+                    'lam_assignment' => 'All tables in sync get same LAM if specified' // ✅ NEW
                 ]
             ];
 
@@ -1815,11 +1873,18 @@ class LkpsSyncController extends Controller
                 'success' => true,
                 'current_status' => $statistics,
                 'available_programs' => ['D-IV', 'D-III'],
+                'available_lams' => $lamStats['available_lams'], // ✅ NEW: Available LAMs
                 'program_mapping' => [
                     'D-IV' => 'STr checkmark → New entry with D-IV strata (original codes)',
                     'D-III' => 'D3 checkmark → New entry with D-III strata (original codes)'
                 ],
-                'entry_policy' => 'Separate entries per program - same kode with different strata allowed'
+                'lam_mapping' => [
+                    'input' => 'LAM name (e.g., "LAM Teknik")',
+                    'storage' => 'LAM ID stored in lamId field',
+                    'uniqueness' => 'Same table code can exist with different LAM IDs',
+                    'nullable' => 'lamId can be null if no LAM specified'
+                ], // ✅ NEW: LAM mapping info
+                'entry_policy' => 'Separate entries per program AND per LAM - same kode with different strata/LAM allowed' // ✅ Updated
             ]);
 
         } catch (\Exception $e) {

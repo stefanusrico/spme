@@ -27,7 +27,7 @@ function PengisianLedTableNew({
   type,
   prodi,
   noSub,
-  userData
+  userData,
 }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingCheck, setIsLoadingCheck] = useState(false)
@@ -109,71 +109,37 @@ function PengisianLedTableNew({
     setInitialized(false)
   }, [currentPage])
 
-  const handlePageChange = (event, page) => {
-    setCurrentPage(page)
-  }
-
-  const handleButtonCheck = async (seq, index) => {
-    setIsLoadingCheck(true)
-    try {
-      const toInt = parseInt(seq, 10) - 1
-
-      if (!dataIsian?.details || !dataIsian?.details[toInt]) {
-        toast.error("DataIsian belum lengkap atau indeks tidak ditemukan")
-        return
-      }
-
-      const data = await fetchMasukanAndScoreFromAI(
-        userData.prodi.name, 
-        dataKriteriaIndikator,
-        dataIsian?.details
+  const handleEditorChange = (index, editorState) => {
+    // Update selectedDetails dengan editorState baru
+    setSelectedDetails((prevDetails) =>
+      prevDetails.map((detail, i) =>
+        i === index ? { ...detail, editorState } : detail
       )
+    )
 
+    // Update dataIsian dengan konten editor terbaru
+    const rawContent = convertToRaw(editorState.getCurrentContent())
+    const currentDetail = selectedDetails[index]
+
+    if (currentDetail) {
       const updatedDataIsian = {
         ...dataIsian,
-        nilai: data.nilai,
-        masukan: data.masukan,
-      };
-
-      updateDataIsian(updatedDataIsian);
-      toast.success("Berhasil prompting ")
-    } catch (error) {
-      toast.info("skor prompting")
-      toast.error("Gagal prompting ")
-    } finally{
-      setIsLoadingCheck(false)
-    }
-  }
-
-  const handleEditorChange = (index, newEditorState) => {
-    setSelectedDetails((prevDetails) => {
-      const updated = [...prevDetails]
-      const seq = updated[index].seq
-
-      // Langsung simpan ke state duluan
-      updated[index] = {
-        ...updated[index],
-        editorState: newEditorState,
-      }
-
-      // Setelah state update, baru update dataIsian
-      const rawContent = convertToRaw(newEditorState.getCurrentContent());
-
-      if (!dataIsian || !dataIsian?.details) {
-        toast.error("Data belum siap!");
-        return;
-      }
-
-      const updatedDataIsian = {
-        ...dataIsian,
-        details: (dataIsian?.details || []).map((item) =>
-          item.seq === seq ? { ...item, isianAsesi: JSON.stringify(rawContent) } : item
+        details: (dataIsian.details || []).map((item) =>
+          item.seq === currentDetail.seq
+            ? {
+                ...item,
+                isianAsesi: JSON.stringify(rawContent),
+              }
+            : item
         ),
       }
 
       updateDataIsian(updatedDataIsian)
-      return updated
-    })
+    }
+  }
+
+  const handlePageChange = (event, page) => {
+    setCurrentPage(page)
   }
 
   // Fungsi untuk upload PDF
@@ -182,7 +148,7 @@ function PengisianLedTableNew({
     if (!file) return
 
     // Validasi file PDF
-    if (file.type !== 'application/pdf') {
+    if (file.type !== "application/pdf") {
       toast.error("Hanya file PDF yang diizinkan!")
       return
     }
@@ -194,78 +160,142 @@ function PengisianLedTableNew({
     }
 
     setIsUploadingPdf(true)
-    
+
     try {
-      const formData = new FormData();
+      // Menggunakan userData dari context seperti di prompting
+      const prodiName =
+        userData?.prodi?.name || userData?.prodi_name || "Default Prodi"
+
+      console.log("Prodi name yang akan digunakan untuk upload PDF:", prodiName)
+
+      const formData = new FormData()
       // Sanitize nama file agar tidak ada karakter bermasalah seperti +, , dan spasi
       const originalName = file.name
       const cleanName = originalName
-        .replace(/\s+/g, "_")        // spasi → underscore
-        .replace(/\+/g, "_")         // plus → underscore
-        .replace(/,/g, "_")          // koma → underscore
+        .replace(/\s+/g, "_") // spasi → underscore
+        .replace(/\+/g, "_") // plus → underscore
+        .replace(/,/g, "_") // koma → underscore
         .replace(/[^a-zA-Z0-9._-]/g, "") // hapus karakter aneh lainnya
 
       // Buat File baru dengan nama bersih (opsional)
       const cleanedFile = new File([file], cleanName, { type: file.type })
 
-      formData.append("file[]", cleanedFile);
-      formData.append("noKriteria[]", seq);
-      formData.append("subFolder", userData?.prodi?.name);
-      formData.append("noSub", noSub);
-      formData.append("fileType", "pdf");
+      formData.append("file[]", cleanedFile)
+      formData.append("noKriteria[]", seq)
+      formData.append("subFolder", prodiName)
+      formData.append("noSub", noSub)
+      formData.append("fileType", "pdf")
 
       const response = await axiosInstance.post("/upload-to-drive", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
-      });
+      })
 
-      const uploaded = response.data.files?.[0];
-      if (!uploaded) throw new Error("Upload PDF gagal");
+      const uploaded = response.data.files?.[0]
+      if (!uploaded) throw new Error("Upload PDF gagal")
 
       // Update dataIsian dengan file PDF
       const updatedDataIsian = {
         ...dataIsian,
         details: (dataIsian.details || []).map((item) =>
-          item.seq === seq ? { 
-            ...item, 
-            pdfFiles: [...(item.pdfFiles || []), {
-              file_name: uploaded.file_name,
-              local_url: uploaded.local_url,
-              file_id: uploaded.file_id,
-              drive_url: uploaded.file_url
-            }],
-          } : item
+          item.seq === seq
+            ? {
+                ...item,
+                pdfFiles: [
+                  ...(item.pdfFiles || []),
+                  {
+                    file_name: uploaded.file_name,
+                    local_url: uploaded.local_url,
+                    file_id: uploaded.file_id,
+                    drive_url: uploaded.file_url,
+                  },
+                ],
+              }
+            : item
         ),
-      };
+      }
 
-      updateDataIsian(updatedDataIsian);
+      updateDataIsian(updatedDataIsian)
 
       // Update selectedDetails juga
-      setSelectedDetails(prevDetails => 
-        prevDetails.map(detail => 
-          detail.seq === seq ? {
-            ...detail,
-            pdfFiles: [...(detail.pdfFiles || []), {
-              file_name: uploaded.file_name,
-              local_url: uploaded.local_url,
-              file_id: uploaded.file_id,
-              drive_url: uploaded.file_url
-            }]
-          } : detail
+      setSelectedDetails((prevDetails) =>
+        prevDetails.map((detail) =>
+          detail.seq === seq
+            ? {
+                ...detail,
+                pdfFiles: [
+                  ...(detail.pdfFiles || []),
+                  {
+                    file_name: uploaded.file_name,
+                    local_url: uploaded.local_url,
+                    file_id: uploaded.file_id,
+                    drive_url: uploaded.file_url,
+                  },
+                ],
+              }
+            : detail
         )
-      );
+      )
 
-      toast.success(`File PDF "${file.name}" berhasil diupload!`);
-      
+      toast.success(`File PDF "${file.name}" berhasil diupload!`)
+
       // Reset input file
-      event.target.value = '';
-      
+      event.target.value = ""
     } catch (error) {
-      console.error("Upload PDF gagal:", error);
-      toast.error("Gagal mengupload file PDF");
+      console.error("Upload PDF gagal:", error)
+      toast.error("Gagal mengupload file PDF")
     } finally {
-      setIsUploadingPdf(false);
+      setIsUploadingPdf(false)
+    }
+  }
+
+  const handleButtonCheck = async (seq, index) => {
+    setIsLoadingCheck(true)
+    try {
+      console.log("Starting API call...")
+      console.log("seq:", seq, "index:", index)
+      console.log("userData:", userData)
+      console.log("dataKriteriaIndikator:", dataKriteriaIndikator)
+      console.log("dataIsian details:", dataIsian?.details)
+
+      // Kembali ke pattern yang berfungsi
+      const prodiName =
+        userData?.prodi?.name || userData?.prodi_name || "Default Prodi"
+
+      console.log("Prodi name yang akan digunakan:", prodiName)
+
+      if (!dataIsian?.details || dataIsian.details.length === 0) {
+        toast.error("Data isian belum lengkap")
+        return
+      }
+
+      if (!dataKriteriaIndikator) {
+        toast.error("Data kriteria indikator tidak ditemukan")
+        return
+      }
+
+      const data = await fetchMasukanAndScoreFromAI(
+        prodiName,
+        dataKriteriaIndikator,
+        dataIsian.details
+      )
+
+      console.log("API response:", data)
+
+      const updatedDataIsian = {
+        ...dataIsian,
+        nilai: data.nilai,
+        masukan: data.masukan,
+      }
+
+      updateDataIsian(updatedDataIsian)
+      toast.success("Berhasil mendapatkan scoring dan masukan")
+    } catch (error) {
+      console.error("Error calling scoring API:", error)
+      toast.error(`Gagal mendapatkan scoring: ${error.message}`)
+    } finally {
+      setIsLoadingCheck(false)
     }
   }
 
@@ -275,68 +305,84 @@ function PengisianLedTableNew({
       const updatedDataIsian = {
         ...dataIsian,
         details: (dataIsian.details || []).map((item) =>
-          item.seq === seq ? { 
-            ...item, 
-            pdfFiles: (item.pdfFiles || []).filter((_, index) => index !== pdfIndex)
-          } : item
+          item.seq === seq
+            ? {
+                ...item,
+                pdfFiles: (item.pdfFiles || []).filter(
+                  (_, index) => index !== pdfIndex
+                ),
+              }
+            : item
         ),
-      };
+      }
 
-      updateDataIsian(updatedDataIsian);
+      updateDataIsian(updatedDataIsian)
 
       // Update selectedDetails juga
-      setSelectedDetails(prevDetails => 
-        prevDetails.map(detail => 
-          detail.seq === seq ? {
-            ...detail,
-            pdfFiles: (detail.pdfFiles || []).filter((_, index) => index !== pdfIndex)
-          } : detail
+      setSelectedDetails((prevDetails) =>
+        prevDetails.map((detail) =>
+          detail.seq === seq
+            ? {
+                ...detail,
+                pdfFiles: (detail.pdfFiles || []).filter(
+                  (_, index) => index !== pdfIndex
+                ),
+              }
+            : detail
         )
-      );
+      )
 
-      toast.success("File PDF berhasil dihapus!");
-      
+      toast.success("File PDF berhasil dihapus!")
     } catch (error) {
-      console.error("Hapus PDF gagal:", error);
-      toast.error("Gagal menghapus file PDF");
+      console.error("Hapus PDF gagal:", error)
+      toast.error("Gagal menghapus file PDF")
     }
   }
 
   const uploadImageCallBack = async (file, seq) => {
-    const formData = new FormData();
-    formData.append("file[]", file);
-    formData.append("noKriteria[]", seq);
-    formData.append("subFolder", userData?.prodi?.name);
-    formData.append("noSub", noSub);
+    // Menggunakan userData dari context seperti di prompting
+    const prodiName =
+      userData?.prodi?.name || userData?.prodi_name || "Default Prodi"
+
+    console.log("Prodi name yang akan digunakan untuk upload image:", prodiName)
+
+    const formData = new FormData()
+    formData.append("file[]", file)
+    formData.append("noKriteria[]", seq)
+    formData.append("subFolder", prodiName)
+    formData.append("noSub", noSub)
 
     try {
       const response = await axiosInstance.post("/upload-to-drive", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
-      });
+      })
 
-      const uploaded = response.data.files?.[0];
-      if (!uploaded) throw new Error("Upload gagal");
+      const uploaded = response.data.files?.[0]
+      if (!uploaded) throw new Error("Upload gagal")
 
       //update dataisian
-      const relatedEditor = selectedDetails.find((item) => item.seq === seq);
+      const relatedEditor = selectedDetails.find((item) => item.seq === seq)
       if (relatedEditor && relatedEditor.editorState) {
-        const rawContent = convertToRaw(relatedEditor.editorState.getCurrentContent());
+        const rawContent = convertToRaw(
+          relatedEditor.editorState.getCurrentContent()
+        )
 
         const updatedDataIsian = {
           ...dataIsian,
           details: (dataIsian.details || []).map((item) =>
-            item.seq === seq ? { 
-              ...item, 
-              isianAsesi: JSON.stringify(rawContent),
-              dataPendukung: [...(item.dataPendukung || []), uploaded],
-            } : item,
-              
+            item.seq === seq
+              ? {
+                  ...item,
+                  isianAsesi: JSON.stringify(rawContent),
+                  dataPendukung: [...(item.dataPendukung || []), uploaded],
+                }
+              : item
           ),
-        };
+        }
 
-        updateDataIsian(updatedDataIsian);
+        updateDataIsian(updatedDataIsian)
       }
 
       console.log(uploaded.local_url)
@@ -344,17 +390,17 @@ function PengisianLedTableNew({
         data: {
           link: uploaded.local_url,
         },
-      };
+      }
     } catch (error) {
-      console.error("Upload gambar gagal:", error);
-      return Promise.reject(error);
+      console.error("Upload gambar gagal:", error)
+      return Promise.reject(error)
     }
-  };
+  }
 
   const toastContainerStyle = {
     zIndex: 20000,
   }
-  
+
   if (isLoading) {
     return (
       <div
@@ -409,7 +455,7 @@ function PengisianLedTableNew({
           Program Studi Referensi : {prodi.name}
         </h1>
       )}
-      
+
       <Stack spacing={2} className="mb-4 center-stack flex center">
         <Pagination
           className="flex justify-center"
@@ -463,7 +509,8 @@ function PengisianLedTableNew({
                   image: {
                     urlEnabled: true,
                     uploadEnabled: true,
-                    uploadCallback: (file) => uploadImageCallBack(file, detail.seq),
+                    uploadCallback: (file) =>
+                      uploadImageCallBack(file, detail.seq),
                     alt: { present: true, mandatory: false },
                     alignmentEnabled: true,
                     previewImage: true,
@@ -482,16 +529,22 @@ function PengisianLedTableNew({
           {/* Section untuk Upload PDF */}
           {type !== "readonly" && type !== "readonlyVersion" && (
             <div className="w-full items-center gap-1.5 mt-4">
-              <Label htmlFor={`pdf_upload_${index}`}>Bukti Pendukung (PDF)</Label>
+              <Label htmlFor={`pdf_upload_${index}`}>
+                Bukti Pendukung (PDF)
+              </Label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                 <div className="flex items-center justify-center">
-                  <label 
+                  <label
                     htmlFor={`pdf_upload_${detail.seq}`}
-                    className={`flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 p-4 rounded-lg transition-colors ${isUploadingPdf ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 p-4 rounded-lg transition-colors ${
+                      isUploadingPdf ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
                   >
                     <Upload className="w-8 h-8 text-gray-400 mb-2" />
                     <p className="text-sm text-gray-600 text-center">
-                      {isUploadingPdf ? 'Mengupload...' : 'Klik untuk upload file PDF'}
+                      {isUploadingPdf
+                        ? "Mengupload..."
+                        : "Klik untuk upload file PDF"}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Maksimal 10MB</p>
                   </label>
@@ -504,28 +557,37 @@ function PengisianLedTableNew({
                     disabled={isUploadingPdf}
                   />
                 </div>
-                
+
                 {/* Display uploaded PDFs */}
                 {detail.pdfFiles && detail.pdfFiles.length > 0 && (
                   <div className="mt-4 space-y-2">
-                    <h4 className="text-sm font-medium text-gray-700">File PDF yang diupload:</h4>
+                    <h4 className="text-sm font-medium text-gray-700">
+                      File PDF yang diupload:
+                    </h4>
                     {detail.pdfFiles.map((pdf, pdfIndex) => (
-                      <div key={pdfIndex} className="flex items-center justify-between bg-gray-50 p-2 rounded border">
+                      <div
+                        key={pdfIndex}
+                        className="flex items-center justify-between bg-gray-50 p-2 rounded border"
+                      >
                         <div className="flex items-center space-x-2">
                           <FileText className="w-4 h-4 text-red-500" />
-                          <span className="text-sm text-gray-700 truncate max-w-xs">{pdf.file_name}</span>
+                          <span className="text-sm text-gray-700 truncate max-w-xs">
+                            {pdf.file_name}
+                          </span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <a 
+                          <a
                             href={encodeURI(pdf.local_url)}
-                            target="_blank" 
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-blue-600 hover:text-blue-800 underline"
                           >
                             Lihat
                           </a>
                           <button
-                            onClick={() => handleDeletePdf(detail.seq, pdfIndex)}
+                            onClick={() =>
+                              handleDeletePdf(detail.seq, pdfIndex)
+                            }
                             className="text-red-500 hover:text-red-700 p-1"
                             title="Hapus file"
                           >
@@ -541,34 +603,48 @@ function PengisianLedTableNew({
           )}
 
           {/* Display PDF files in readonly mode */}
-          {(type === "readonly" || type === "readonlyVersion") && detail.pdfFiles && detail.pdfFiles.length > 0 && (
-            <div className="w-full items-center gap-1.5 mt-4">
-              <Label>Bukti Pendukung (PDF)</Label>
-              <div className="space-y-2 mt-2">
-                {detail.pdfFiles.map((pdf, pdfIndex) => (
-                  <div key={pdfIndex} className="flex items-center space-x-2 bg-gray-50 p-2 rounded border">
-                    <FileText className="w-4 h-4 text-red-500" />
-                    <span className="text-sm text-gray-700 truncate flex-1">{pdf.file_name}</span>
-                    <a 
-                      href={pdf.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+          {(type === "readonly" || type === "readonlyVersion") &&
+            detail.pdfFiles &&
+            detail.pdfFiles.length > 0 && (
+              <div className="w-full items-center gap-1.5 mt-4">
+                <Label>Bukti Pendukung (PDF)</Label>
+                <div className="space-y-2 mt-2">
+                  {detail.pdfFiles.map((pdf, pdfIndex) => (
+                    <div
+                      key={pdfIndex}
+                      className="flex items-center space-x-2 bg-gray-50 p-2 rounded border"
                     >
-                      Lihat
-                    </a>
-                  </div>
-                ))}
+                      <FileText className="w-4 h-4 text-red-500" />
+                      <span className="text-sm text-gray-700 truncate flex-1">
+                        {pdf.file_name}
+                      </span>
+                      <a
+                        href={pdf.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Lihat
+                      </a>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           <div className="mt-4 flex justify-end">
             {type !== "readonly" && type !== "readonlyVersion" ? (
               <Button
-                className={`bg-primary flex items-center gap-2 hover:bg-white hover:text-black ${isLoadingCheck ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`bg-primary flex items-center gap-2 hover:bg-white hover:text-black ${
+                  isLoadingCheck ? "opacity-50 cursor-not-allowed" : ""
+                }`}
                 aria-label="Check"
-                onClick={() => handleButtonCheck(detail.seq, index)}
+                onClick={() => {
+                  console.log("Button Check diklik!")
+                  console.log("seq:", detail.seq)
+                  console.log("index:", index)
+                  handleButtonCheck(detail.seq, index)
+                }}
                 disabled={isLoadingCheck}
               >
                 {isLoadingCheck ? (

@@ -3,6 +3,7 @@
 namespace App\Models\Lkps;
 
 use App\Models\Prodi\Strata;
+use App\Models\Lam\Lam;
 use MongoDB\Laravel\Eloquent\Model;
 use App\Traits\ObjectIdConversion;
 use App\Services\ExcelFormulaParser;
@@ -22,6 +23,7 @@ class LkpsTable extends Model
         'kode',
         'judul',
         'strataId',
+        'lamId',
         'barisAwalExcel',
         'rumus',
         'kondisi'
@@ -30,6 +32,11 @@ class LkpsTable extends Model
     public function strata()
     {
         return $this->belongsTo(Strata::class, 'strataId', '_id');
+    }
+
+    public function lam()
+    {
+        return $this->belongsTo(Lam::class, 'lamId', '_id');
     }
 
     public function kolom()
@@ -172,12 +179,87 @@ class LkpsTable extends Model
         return $variabel ? ($results[$variabel] ?? null) : $results;
     }
 
-    public function queueCalculation($projectId, $priority = 'normal')
+    public function processAndSaveData(array $data, string $projectId, bool $autoCalculateRumus = true, bool $autoCalculateSkor = true): array
     {
-        dispatch(new CalculateTableFormulasJob($this->kode, $projectId))
-            ->onQueue($priority === 'high' ? 'calculations-high' : 'calculations');
+        $task = $this->findTaskForTable($this, $projectId);
+        if (!$task) {
+            throw new \Exception('Task tidak ditemukan untuk tabel ' . $this->kode . ' di project ' . $projectId);
+        }
+        $taskId = (string) $task->_id;
 
-        return ['queued' => true, 'estimated_time' => $this->estimateCalculationTime()];
+        LkpsData::updateOrCreate(
+            [
+                'lkpsTableId' => (string) $this->_id,
+                'taskId' => $taskId
+            ],
+            [
+                'kodeTabel' => $this->kode,
+                'data' => $data,
+                'dataHash' => md5(json_encode($data))
+            ]
+        );
+
+        $rumusResults = [];
+        $skorResults = [];
+
+        if ($autoCalculateRumus && $this->hasRumus()) {
+            request()->merge(['projectId' => $projectId]);
+            $rumusResults = $this->hitungRumus($data);
+        }
+
+        if ($autoCalculateSkor && $this->hasKondisi()) {
+            request()->merge(['projectId' => $projectId]);
+            $skorResults = $this->hitungSkor($data);
+        }
+
+        if (!empty($rumusResults) || !empty($skorResults)) {
+            LkpsData::where('taskId', $taskId)
+                ->update([
+                    'detailNilai' => $rumusResults,
+                    'nilai' => $skorResults
+                ]);
+        }
+
+        $task->update(['status' => 'COMPLETED', 'progress' => 100]);
+        $this->updateProjectProgress($projectId);
+
+        $finalData = LkpsData::where('taskId', $taskId)->first();
+
+        return [
+            'success' => true,
+            'message' => 'Data berhasil diproses dan disimpan.',
+            'data' => [
+                'nilai' => $finalData->nilai ?? [],
+                'detailNilai' => $finalData->detailNilai ?? []
+            ]
+        ];
+    }
+
+
+
+    private function updateProjectProgress($projectId)
+    {
+        $project = \App\Models\Project\Project::find($projectId);
+        if (!$project)
+            return;
+
+        $taskLists = \App\Models\Project\TaskList::where('projectId', $projectId)->get();
+        if ($taskLists->isEmpty())
+            return;
+
+        $taskListIds = $taskLists->pluck('_id')->toArray();
+        $totalTasks = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)->count();
+        if ($totalTasks === 0)
+            return;
+
+        $completedTasks = \App\Models\Project\Task::whereIn('taskListId', $taskListIds)
+            ->where('status', 'COMPLETED')
+            ->count();
+
+        $progress = round(($completedTasks / $totalTasks) * 100, 2);
+
+        $status = $progress >= 100 ? 'COMPLETED' : 'IN PROGRESS';
+        $project->update(['progress' => $progress, 'status' => $status]);
     }
 
     private function estimateCalculationTime()
@@ -316,6 +398,7 @@ class LkpsTable extends Model
         return $parser->evaluateFormula($formula, $data);
     }
 
+
     private function calculateConditionalVariable($varName, $rumusGroup, $data, $parser, $existingResults)
     {
         \Log::info("Calculating conditional variable: {$varName}", [
@@ -443,30 +526,6 @@ class LkpsTable extends Model
         }
 
         return $interpretation;
-    }
-
-    public function getCalculationDetails($data, $variabel = null)
-    {
-        if (!$this->hasRumus()) {
-            return null;
-        }
-
-        $parser = new ExcelFormulaParser($this);
-        $details = [];
-
-        foreach ($this->rumus as $rumus) {
-            if ($variabel && $rumus['variabel'] !== $variabel) {
-                continue;
-            }
-
-            $details[$rumus['variabel']] = $parser->getCalculationDetails(
-                $rumus['formula'],
-                $data,
-                $rumus['variabel']
-            );
-        }
-
-        return $variabel ? ($details[$variabel] ?? null) : $details;
     }
 
     public function getColumnMapping()

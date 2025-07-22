@@ -267,80 +267,7 @@ class ProjectTemplateService
         }
     }
 
-    private function getLkpsTableMapping()
-    {
-        return [
-            // Tata Pamong, Tata Kelola dan Kerjasama
-            '1-1' => 'C2',
-            '1-2' => 'C2',
-            '1-3' => 'C2',
-
-            // Mahasiswa
-            '2a1' => 'C3',
-            '2b' => 'C3',
-
-            // Sumber Daya Manusia
-            '3a1' => 'C4',
-            '3a2' => 'C4',
-            '3a3' => 'C4',
-            '3a4' => 'C4',
-            '3a5' => 'C4',
-            '3b1' => 'C4',
-            '3b2' => 'C4',
-            '3b3' => 'C4',
-            '3b5' => 'C4',
-            '3b6' => 'C4',
-            '3b7' => 'C4',
-            '3b8-1' => 'C4',
-            '3b8-2' => 'C4',
-            '3b8-3' => 'C4',
-            '3b8-4' => 'C4',
-            '3c' => 'C4',
-
-            // Keuangan, Sarana, dan Prasarana
-            '4a' => 'C5',
-            '4b' => 'C5',
-            '4c' => 'C5',
-
-            // Pendidikan
-            '5a-1' => 'C6',
-            '5a-2' => 'C6',
-            '5a-3' => 'C6',
-            '5a-4' => 'C6',
-            '5b-1' => 'C6',
-            '5b-2' => 'C6',
-            '5b-3' => 'C6',
-            '5c' => 'C6',
-            '5d' => 'C6',
-
-            // Penelitian
-            '6a' => 'C7',
-
-            // Pengabdian kepada Masyarakat
-            '7' => 'C8',
-
-            // Luaran dan Capaian Tridharma
-            '8a' => 'C9',
-            '8b1' => 'C9',
-            '8b2' => 'C9',
-            '8c' => 'C9',
-            '8d1' => 'C9',
-            '8d2' => 'C9',
-            '8e1' => 'C9',
-            '8e2' => 'C9',
-            '8f2' => 'C9',
-            '8f4' => 'C9',
-            '8f5-1' => 'C9',
-            '8f5-2' => 'C9',
-            '8f5-3' => 'C9',
-            '8f5-4' => 'C9',
-
-            // Penjaminan Mutu
-            '9a' => 'D3',
-            '9b' => 'D2',
-        ];
-    }
-
+  
     private function createLkpsTaskListAndTasks($projectId)
     {
         \Log::info("Creating LKPS Tasks for project ID: {$projectId}");
@@ -350,7 +277,7 @@ class ProjectTemplateService
             throw new \Exception("Project not found");
         }
 
-        // PERBAIKAN: Get D-IV strata ID dengan filter yang konsisten
+        // Get D-IV strata ID
         $divStrata = Strata::where('name', 'D-IV')->first();
         if (!$divStrata) {
             \Log::error("D-IV strata not found in database");
@@ -359,7 +286,7 @@ class ProjectTemplateService
 
         \Log::info("Found D-IV strata with ID: {$divStrata->_id}");
 
-        // PERBAIKAN: Filter LKPS tables by D-IV strata dengan konsisten
+        // Get all LKPS tables for D-IV strata
         $lkpsTables = LkpsTable::where('strataId', $divStrata->_id)
             ->orderBy('kode')
             ->get();
@@ -371,123 +298,60 @@ class ProjectTemplateService
             return;
         }
 
-        // Debug: Log some sample tables dengan strata info
-        $sampleTables = $lkpsTables->take(5);
-        foreach ($sampleTables as $table) {
-            \Log::info("Sample LKPS table: {$table->kode} - {$table->judul} (strataId: {$table->strataId}, _id: {$table->_id})");
-        }
+        // Check if "Tabel LKPS" TaskList already exists
+        $lkpsTaskList = TaskList::where('projectId', $projectId)
+            ->where('kriteria', 'Tabel LKPS')
+            ->first();
 
-        $tableMapping = $this->getLkpsTableMapping();
+        // Create "Tabel LKPS" TaskList if it doesn't exist
+        if (!$lkpsTaskList) {
+            $nextOrder = TaskList::where('projectId', $projectId)->max('order') + 1 ?? 1;
 
-        $existingTaskLists = TaskList::where('projectId', $projectId)->get()->keyBy('kriteria');
+            \Log::info("Creating new TaskList for 'Tabel LKPS'");
 
-        $newCriteria = [];
-        $tablesByKriteria = [];
-
-        // FIX: Ensure lkpsTables is iterable
-        if (!is_iterable($lkpsTables)) {
-            \Log::error("lkpsTables is not iterable. Type: " . gettype($lkpsTables));
-            throw new \Exception("LKPS tables data is not in expected format");
-        }
-
-        foreach ($lkpsTables as $table) {
-            // Gunakan array_key_exists atau isset untuk mengecek keberadaan key
-            if (!array_key_exists($table->kode, $tableMapping)) {
-                \Log::warning("Table code '{$table->kode}' not found in mapping. Skipping...");
-                continue;
-            }
-
-            $mappedKriteria = $tableMapping[$table->kode];
-
-            if (!isset($tablesByKriteria[$mappedKriteria])) {
-                $tablesByKriteria[$mappedKriteria] = [];
-            }
-            $tablesByKriteria[$mappedKriteria][] = $table;
-
-            if (!$existingTaskLists->has($mappedKriteria)) {
-                $newCriteria[$mappedKriteria] = true;
-            }
-        }
-
-        \Log::info("Tables grouped by criteria: " . json_encode(array_map('count', $tablesByKriteria)));
-
-        $nextOrder = TaskList::where('projectId', $projectId)->max('order') + 1 ?? 1;
-
-        // FIX: Ensure newCriteria is iterable
-        if (!is_array($newCriteria)) {
-            \Log::error("newCriteria is not an array. Type: " . gettype($newCriteria));
-            $newCriteria = [];
-        }
-
-        foreach ($newCriteria as $kriteria => $value) {
-            \Log::info("Creating new TaskList for criteria: {$kriteria}");
-
-            $newTaskList = TaskList::create([
+            $lkpsTaskList = TaskList::create([
                 'projectId' => $projectId,
-                'kriteria' => $kriteria,
-                'order' => $nextOrder++
+                'kriteria' => 'Tabel LKPS',
+                'order' => $nextOrder
             ]);
-
-            $existingTaskLists[$kriteria] = $newTaskList;
         }
 
+        // Get the current max order for tasks in this TaskList
+        $maxOrder = Task::where('taskListId', $lkpsTaskList->_id)->max('order') ?? 0;
+        $order = $maxOrder + 1;
         $totalTasksCreated = 0;
 
-        // FIX: Ensure tablesByKriteria is iterable
-        if (!is_array($tablesByKriteria)) {
-            \Log::error("tablesByKriteria is not an array. Type: " . gettype($tablesByKriteria));
-            throw new \Exception("Tables grouping data is not in expected format");
-        }
+        // Create tasks for all LKPS tables
+        foreach ($lkpsTables as $table) {
+            $taskName = "Tabel {$table->kode} - {$table->judul}";
 
-        foreach ($tablesByKriteria as $kriteria => $tables) {
-            $taskList = $existingTaskLists->get($kriteria);
+            // Check if task already exists
+            $existingTask = Task::where('taskListId', $lkpsTaskList->_id)
+                ->where('lkpsTableId', (string) $table->_id)
+                ->first();
 
-            if (!$taskList) {
-                \Log::warning("TaskList for criteria '{$kriteria}' not found. Skipping related tables.");
-                continue;
-            }
+            if (!$existingTask) {
+                \Log::info("Creating new LKPS task: {$taskName}");
 
-            \Log::info("Adding " . count($tables) . " LKPS tables to criteria: {$kriteria}");
+                Task::create([
+                    'taskListId' => $lkpsTaskList->_id,
+                    'lkpsTableId' => (string) $table->_id,
+                    'projectId' => $projectId,
+                    'nama' => $taskName,
+                    'progress' => 0,
+                    'status' => 'UNASSIGNED',
+                    'order' => $order++,
+                    'startDate' => null,
+                    'endDate' => null
+                ]);
 
-            $maxOrder = Task::where('taskListId', $taskList->_id)->max('order') ?? 0;
-            $order = $maxOrder + 1;
-
-            // FIX: Ensure tables is iterable
-            if (!is_iterable($tables)) {
-                \Log::error("tables for criteria {$kriteria} is not iterable. Type: " . gettype($tables));
-                continue;
-            }
-
-            foreach ($tables as $table) {
-                $taskName = "Tabel {$table->kode} - {$table->judul}";
-
-                $existingTask = Task::where('taskListId', $taskList->_id)
-                    ->where('lkpsTableId', (string) $table->_id) // PERBAIKAN: Convert to string for consistency
-                    ->first();
-
-                if (!$existingTask) {
-                    \Log::info("Creating new LKPS task: {$taskName} in criteria: {$kriteria} with D-IV tableId: {$table->_id}");
-
-                    Task::create([
-                        'taskListId' => $taskList->_id,
-                        'lkpsTableId' => (string) $table->_id, // PERBAIKAN: Store as string for consistency
-                        'projectId' => $projectId,
-                        'nama' => $taskName,
-                        'progress' => 0,
-                        'status' => 'UNASSIGNED',
-                        'order' => $order++,
-                        'startDate' => null,
-                        'endDate' => null
-                    ]);
-
-                    $totalTasksCreated++;
-                } else {
-                    \Log::info("Task for D-IV table {$table->kode} already exists in criteria: {$kriteria}");
-                }
+                $totalTasksCreated++;
+            } else {
+                \Log::info("Task for table {$table->kode} already exists");
             }
         }
 
         \Log::info("Completed creating LKPS tasks. Total new tasks created: {$totalTasksCreated}");
-        \Log::info("LKPS tasks created using D-IV strata filter (hardcoded)");
+        \Log::info("All LKPS tables grouped under 'Tabel LKPS' criteria");
     }
 }

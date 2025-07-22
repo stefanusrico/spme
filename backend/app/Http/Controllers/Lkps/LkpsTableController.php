@@ -157,7 +157,6 @@ class LkpsTableController extends Controller
     public function getTableConfig($tableCode)
     {
         try {
-            // Get D-IV strata ID
             $divStrata = Strata::where('name', 'D-IV')->first();
 
             if (!$divStrata) {
@@ -168,7 +167,6 @@ class LkpsTableController extends Controller
                 ], 404);
             }
 
-            // Find table with D-IV strata filter
             $table = LkpsTable::where('kode', $tableCode)
                 ->where('strataId', $divStrata->_id)
                 ->first();
@@ -192,7 +190,6 @@ class LkpsTableController extends Controller
                 'columns' => []
             ];
 
-            // Get all columns for this table using lkpsTableId relationship
             $allColumns = LkpsColumn::where('lkpsTableId', (string) $table->_id)->get();
 
             \Log::info("Found " . $allColumns->count() . " columns for table {$tableCode}");
@@ -202,7 +199,6 @@ class LkpsTableController extends Controller
                 return response()->json($config);
             }
 
-            // Organize columns by parent/child relationship
             $parentColumns = $allColumns->where('parentId', null)->sortBy('order');
 
             $config['columns'] = $parentColumns->map(function ($column) use ($allColumns) {
@@ -220,10 +216,8 @@ class LkpsTableController extends Controller
                 ];
 
                 if ($column->isGroup) {
-                    // Get direct children of this column
                     $children = $allColumns->where('parentId', $column->_id)->sortBy('order');
 
-                    // Process each child, checking if they also have children
                     $processedChildren = [];
                     foreach ($children as $child) {
                         $childData = [
@@ -239,7 +233,6 @@ class LkpsTableController extends Controller
                             'indeksExcel' => $child->indeksExcel ?? null
                         ];
 
-                        // Check if this child is also a group and has its own children
                         if ($child->isGroup) {
                             // Find grandchildren
                             $grandchildren = $allColumns->where('parentId', $child->_id)->sortBy('order');

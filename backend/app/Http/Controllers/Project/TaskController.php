@@ -655,10 +655,10 @@ class TaskController extends Controller
                         ] : null,
                     ];
                 })->sortBy([
-                    ['no', 'asc'],
-                    ['sub', 'asc'],
-                ])->values()->all();
-                      
+                        ['no', 'asc'],
+                        ['sub', 'asc'],
+                    ])->values()->all();
+
             return response()->json([
                 'status' => 'success',
                 'data' => $tasks
@@ -680,8 +680,8 @@ class TaskController extends Controller
     {
         $this->logRouteParams('p2mppTasksxixixix');
         Log::info('masuk ke p2mppTasks', [
-                'message' => "p2mpp",
-            ]);
+            'message' => "p2mpp",
+        ]);
 
         try {
             $project = Project::where('name', 'P2MPP')->first();
@@ -720,10 +720,10 @@ class TaskController extends Controller
                         ] : null,
                     ];
                 })->sortBy([
-                    ['no', 'asc'],
-                    ['sub', 'asc'],
-                ])->values()->all();
-                      
+                        ['no', 'asc'],
+                        ['sub', 'asc'],
+                    ])->values()->all();
+
             return response()->json([
                 'status' => 'success',
                 'data' => $tasks

@@ -26,8 +26,6 @@ class Prodi extends Model
         'lamId',
         'jadwalLamId',
         'strataId',
-        'tanggalSubmit',
-        'tanggalPengumuman',
         'akreditasi'
     ];
 
@@ -42,7 +40,7 @@ class Prodi extends Model
         ['key' => ['name' => 1]],
         ['key' => ['jurusanId' => 1]],
         ['key' => ['lamId' => 1]],
-        ['key' => ['jadwalLamId' => 1]],
+        ['key' => ['strataId' => 1]],
         ['key' => ['akreditasi.nomorSK' => 1]],
         ['key' => ['akreditasi.lembagaAkreditasi' => 1]]
     ];

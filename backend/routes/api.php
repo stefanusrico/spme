@@ -60,6 +60,7 @@ Route::get('/test-gemini', [GeminiTestController::class, 'testPrompt']);
 Route::post('/test-image-analysis', [GeminiFileTestController::class, 'testImageAnalysis']);
 Route::post('/data-mapping', [GeminiDataMappingController::class, 'mappingData']);
 Route::post('/scoring-led', [GeminiScoringLedController::class, 'scoringLed']);
+Route::get('models', [GeminiDataMappingController::class, 'testModel']);
 
 Route::post('users', [UserController::class, 'store']);
 
@@ -130,6 +131,9 @@ Route::post('/lkps/export-data', [LkpsExportController::class, 'exportData']);
 Route::post('/led/export-data', [LedDocumentController::class, 'exportData']);
 Route::post('/led/import-data', [LedDocumentController::class, 'importTemplateLed']);
 
+Route::get('/accreditation/summary', [AccreditationController::class, 'summary']);
+Route::post('/accreditation/check-expiry', [AccreditationController::class, 'checkExpiry']);
+
 Route::get('/led/{sheet}', [DataController::class, 'getLembarIsianLed']);
 Route::get('/stortasklist/{projectId}', [TaskListController::class, 'storeFromLed']);
 Route::post('/projects/{projectId}/tasks/led', [TaskController::class, 'storeFromLed']);
@@ -164,22 +168,10 @@ Route::controller(LamController::class)->group(function () {
     Route::delete('lam/{id}', 'destroy');
 });
 
-Route::controller(JadwalLamController::class)->group(function () {
-    Route::get('jadwal', 'index');
-    Route::post('jadwal', 'store');
-    Route::get('jadwal/{id}', 'show');
-    Route::put('jadwal/{id}', 'update');
-    Route::delete('jadwal/{id}', 'destroy');
-    Route::get('jadwal/year/{year}', 'getByYear');
-    Route::get('jadwal/name/{name}', 'getByName');
-    Route::get('jadwal/year/{year}/name/{name}', 'getByYearAndName');
-});
-
 
 
 Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
-    Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
     Route::get('tasks/{projectId}', [TaskController::class, 'myTasks']);
     Route::get('tasks/get/p2mpp', [TaskController::class, 'p2mppTasks']);
     Route::patch('tasks/updateOwner/{no}/{sub}/{prodiId}', [TaskController::class, 'updateOwners']);
@@ -196,6 +188,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::controller(ProdiController::class)->group(function () {
         Route::get('prodi', 'index');
         Route::post('prodi', 'store');
+        Route::get('prodi/all', 'getAllProdi');
         Route::get('prodi/{id}', 'show');
         Route::put('prodi/{id}', 'update');
         Route::delete('prodi/{id}', 'destroy');
@@ -207,6 +200,9 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::post('upload', [UserController::class, 'uploadFile']);
         Route::delete('users/{id}/profile-picture', [UserController::class, 'removeProfilePicture']);
         Route::post('project', [ProjectController::class, 'store']);
+        Route::put('project/{projectId}', [ProjectController::class, 'update']);
+        Route::delete('project/{projectId}', [ProjectController::class, 'destroy']);
+
         Route::post('projects/{projectId}/members', [ProjectController::class, 'addMember']);
         Route::get('projects-with-owners', [ProjectController::class, 'projectsWithOwners']);
         Route::get('projects/all', [ProjectController::class, 'index']);

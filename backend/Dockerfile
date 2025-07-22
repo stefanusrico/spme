@@ -27,7 +27,11 @@ RUN composer dump-autoload --optimize
 
 RUN php artisan storage:link || true
 
+RUN echo "upload_max_filesize=10M" >> /usr/local/etc/php/conf.d/uploads.ini && \
+    echo "post_max_size=10M" >> /usr/local/etc/php/conf.d/uploads.ini
+
 RUN php artisan key:generate --force
 
 EXPOSE 8000
+
 CMD ["php", "artisan", "serve", "--host=0.0.0.0"]

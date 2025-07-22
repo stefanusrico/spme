@@ -205,7 +205,7 @@ class LkpsSyncCommand extends Command
                     $this->info("  Mencoba mencari sheet name yang lebih sesuai untuk '$title'...");
 
                     // Coba cari sheet name yang cocok dengan prefix table
-                    foreach ($sheetNames as $sheetTitle => $sheetName) {
+                    foreach ($response->original['sheet_names'] as $sheetTitle => $sheetName) {
                         if (
                             strpos($sheetTitle, "3.b.7") !== false ||
                             strpos($sheetName, "3.b.7") !== false ||

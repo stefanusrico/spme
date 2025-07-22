@@ -24,7 +24,29 @@ class ProjectCreatedNotification extends Notification
 
     public function via($notifiable)
     {
-        return ['database'];
+        // Add 'mail' to the channels
+        return ['database', 'mail'];
+    }
+
+    // Add mail method for email notifications
+    public function toMail($notifiable)
+    {
+        $prodiName = $this->prodi ? $this->prodi->name : 'Unknown Prodi';
+        $projectUrl = config('app.url') . '/projects/' . $this->project->_id;
+
+        return (new MailMessage)
+            ->subject('New Project Created: ' . $this->project->name)
+            ->greeting('Hello ' . $notifiable->name . '!')
+            ->line('A new project has been created and requires your attention.')
+            ->line('**Project Details:**')
+            ->line('• Project Name: ' . $this->project->name)
+            ->line('• Created by: ' . $this->createdBy->name)
+            ->line('• Prodi: ' . $prodiName)
+            ->line('• Start Date: ' . \Carbon\Carbon::parse($this->project->startDate)->format('d M Y'))
+            ->line('• End Date: ' . \Carbon\Carbon::parse($this->project->endDate)->format('d M Y'))
+            ->action('View Project', $projectUrl)
+            ->line('You can monitor and manage this project through the dashboard.')
+            ->line('Thank you for using our application!');
     }
 
     public function toArray($notifiable)

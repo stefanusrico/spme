@@ -25,6 +25,7 @@ return [
         "https://polban-space.cloudias79.com",
         'http://localhost:3050',
         'http://localhost:4000',
+        'http://localhost:9010',
         "https://react-spme-dadak-cwh79dw7f-stefanusricos-projects.vercel.app/",
         "https://react-spme-dadak-mu.vercel.app/",
         "https://siaps-frontend-252592073596.asia-southeast1.run.app",

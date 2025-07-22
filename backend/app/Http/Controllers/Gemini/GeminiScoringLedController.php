@@ -13,7 +13,7 @@ use Illuminate\Http\JsonResponse;
 
 /**
  * Controller for handling data mapping operations with Gemini AI.
- * 
+ *
  * Handles automated scoring of academic assessments using Gemini AI
  * with multimodal capabilities (text and image analysis).
  */
@@ -21,7 +21,7 @@ class GeminiScoringLedController extends Controller
 {
     /**
      * Main method for scoring assessment submissions using Gemini AI.
-     * 
+     *
      * This method evaluates student/institution submissions against predefined
      * rubrics using AI analysis of both text content and supporting images.
      *
@@ -34,7 +34,7 @@ class GeminiScoringLedController extends Controller
             // Set extended time limit for AI processing (2 minutes)
             set_time_limit(6000); // 10 menit
             ini_set('max_execution_time', 6000);
-            
+
             // Validate incoming request data structure
             $request->validate([
                 'dataLedItem' => 'required|array',  // Rubric/scoring criteria data
@@ -55,7 +55,7 @@ class GeminiScoringLedController extends Controller
 
             // Process images and PDFs from submission content
             \Log::info('Start processing files at: ' . now());
-            
+
             // Extract image URLs from the submission text
             $imageUrls = $this->extractImageUrls($dataIsian['isianAsesi']);
             \Log::info('Daftar URL gambar yang diekstrak dari isian asesi:', [
@@ -67,7 +67,7 @@ class GeminiScoringLedController extends Controller
             \Log::info('Daftar URL pdf yang diekstrak dari isian asesi:', [
                 'pdfUrls' => $pdfUrls
             ]);
-            
+
             // Convert image URLs to blob data for AI processing
             $imageBlobs = $this->createImageBlobs($imageUrls);
             \Log::info('Image blobs processing result:', [
@@ -83,7 +83,7 @@ class GeminiScoringLedController extends Controller
                 'output_blobs_count' => count($pdfBlobs),
                 'success_rate' => count($pdfUrls) > 0 ? (count($pdfBlobs) / count($pdfUrls) * 100) . '%' : '0%'
             ]);
-            
+
             \Log::info('End processing files at: ' . now());
 
             // Build the comprehensive AI prompt with rubric and submission data
@@ -162,7 +162,7 @@ class GeminiScoringLedController extends Controller
 
     /**
      * Build a comprehensive prompt for Gemini AI evaluation.
-     * 
+     *
      * Creates a detailed, structured prompt that defines the AI's role as an
      * academic evaluator and provides all necessary context for scoring.
      *
@@ -173,24 +173,24 @@ class GeminiScoringLedController extends Controller
      * @return string The formatted prompt for AI processing
      */
     private function buildPrompt(array $dataLedItem, array $dataIsian, string $prodi, bool $hasImageEvidence = false, bool $hasPdfEvidence = false, array $imageUrls = [], array $pdfUrls = []): string
-{
-    // Extract and organize rubric criteria from the data structure
-    $details = $this->extractRubrikPenilaian($dataLedItem['details']);
-    $isianAsesi = $dataIsian['isianAsesi'];
+    {
+        // Extract and organize rubric criteria from the data structure
+        $details = $this->extractRubrikPenilaian($dataLedItem['details']);
+        $isianAsesi = $dataIsian['isianAsesi'];
 
-    // Build evidence status information
-    $evidenceStatus = $this->buildDetailedEvidenceStatus($hasImageEvidence, $hasPdfEvidence, $imageUrls, $pdfUrls);
+        // Build evidence status information
+        $evidenceStatus = $this->buildDetailedEvidenceStatus($hasImageEvidence, $hasPdfEvidence, $imageUrls, $pdfUrls);
 
-    // Build comprehensive prompt with role definition, rules, and data
-    return <<<PROMPT
+        // Build comprehensive prompt with role definition, rules, and data
+        return <<<PROMPT
         Role:
-        Anda adalah seorang evaluator akreditasi perguruan tinggi yang bertugas menilai kesesuaian antara isian asesi dengan indikator kualitatif berdasarkan rubrik penilaian yang ditentukan. Pastikan isian asesi berisi **penjelasan substantif** tentang implementasi, bukan sekadar menyebut istilah. 
+        Anda adalah seorang evaluator akreditasi perguruan tinggi yang bertugas menilai kesesuaian antara isian asesi dengan indikator kualitatif berdasarkan rubrik penilaian yang ditentukan. Pastikan isian asesi berisi **penjelasan substantif** tentang implementasi, bukan sekadar menyebut istilah.
 
         Tujuan:
         Menilai apakah isian yang diberikan sesuai dengan indikator kualitatif, serta menentukan skor (0, 1, 2, 3, atau 4) berdasarkan rubrik. Penilaian harus dilakukan dengan penalaran bertahap dan konsisten.
 
         **PRODI TARGET: {$prodi}**
-        
+
         Prinsip Fundamental Penilaian:
         - **WAJIB**: Setiap istilah/metode/kegiatan HARUS disertai **penjelasan pelaksanaan, bentuk, dampak, atau relevansi**
         - **Tanpa penjelasan substantif = Skor 0**, regardless of keyword matching
@@ -266,7 +266,7 @@ class GeminiScoringLedController extends Controller
             "langkah_penalaran": [
                 "Langkah 1: <tuliskan reasoning>",
                 "Langkah 2: <tuliskan reasoning>",
-                "Langkah 3: <identifikasi apakah indikator bersifat UPPS atau PRODI>", 
+                "Langkah 3: <identifikasi apakah indikator bersifat UPPS atau PRODI>",
                 "Langkah 4: <tuliskan reasoning>",
                 "Langkah 5: <VALIDASI PRODI - periksa kesesuaian dengan {$prodi}, sebutkan secara eksplisit prodi apa yang terdeteksi dalam isian>",
                 "...",
@@ -292,7 +292,7 @@ class GeminiScoringLedController extends Controller
             ]
         }
       PROMPT;
-}
+    }
 
     /**
      * Build evidence status information for the prompt
@@ -300,7 +300,7 @@ class GeminiScoringLedController extends Controller
     private function buildDetailedEvidenceStatus(bool $hasImageEvidence, bool $hasPdfEvidence, array $imageUrls, array $pdfUrls): string
     {
         $status = [];
-        
+
         if ($hasImageEvidence) {
             $status[] = "- Bukti pendukung GAMBAR: TERSEDIA (" . count($imageUrls) . " file)";
             foreach ($imageUrls as $i => $url) {
@@ -310,7 +310,7 @@ class GeminiScoringLedController extends Controller
         } else {
             $status[] = "- Bukti pendukung GAMBAR: TIDAK TERSEDIA";
         }
-        
+
         if ($hasPdfEvidence) {
             $status[] = "- Bukti pendukung PDF: TERSEDIA (" . count($pdfUrls) . " file)";
             foreach ($pdfUrls as $i => $url) {
@@ -320,14 +320,14 @@ class GeminiScoringLedController extends Controller
         } else {
             $status[] = "- Bukti pendukung PDF: TIDAK TERSEDIA";
         }
-        
+
         return implode("\n", $status);
     }
 
     /**
      * Extract image URLs from assessment submission text.
-     * 
-     * Searches for image references in the format "Gambar : [URL]" 
+     *
+     * Searches for image references in the format "Gambar : [URL]"
      * within the submission text using regex pattern matching.
      *
      * @param string $isianAsesi The assessment submission text
@@ -341,26 +341,26 @@ class GeminiScoringLedController extends Controller
     {
         $urls = [];
         $lines = explode("\n", $isianAsesi);
-        
+
         foreach ($lines as $line) {
             $line = trim($line);
-            
+
             // Cari baris yang dimulai dengan "Gambar :" dan diikuti URL/path
             if (preg_match('/^Gambar\s*:\s*(.+)$/i', $line, $matches)) {
                 $url = trim($matches[1]);
-                
+
                 if (empty($url)) {
                     continue;
                 }
-                
+
                 // URL encode spaces and special characters for validation
                 $encodedUrl = $this->encodeUrlSpaces($url);
                 \Log::info("Original URL: $url");
                 \Log::info("Encoded URL for validation: $encodedUrl");
-                
+
                 // Validasi URL yang lebih fleksibel
                 $isValidUrl = $this->isValidImageUrl($url, $encodedUrl);
-                
+
                 if ($isValidUrl) {
                     $urls[] = $url; // Simpan URL asli
                     \Log::info("URL gambar valid ditemukan: $url");
@@ -369,11 +369,11 @@ class GeminiScoringLedController extends Controller
                 }
             }
         }
-        
+
         if (empty($urls)) {
             \Log::info("Tidak ada URL gambar yang valid ditemukan dalam format 'Gambar : [URL]'");
         }
-        
+
         return $urls;
     }
 
@@ -384,16 +384,16 @@ class GeminiScoringLedController extends Controller
     {
         // Parse URL components
         $parsed = parse_url($url);
-        
+
         if ($parsed === false) {
             return $url;
         }
-        
+
         // Encode only the path component
         if (isset($parsed['path'])) {
             $parsed['path'] = str_replace(' ', '%20', $parsed['path']);
         }
-        
+
         // Rebuild URL
         $encodedUrl = '';
         if (isset($parsed['scheme'])) {
@@ -414,7 +414,7 @@ class GeminiScoringLedController extends Controller
         if (isset($parsed['fragment'])) {
             $encodedUrl .= '#' . $parsed['fragment'];
         }
-        
+
         return $encodedUrl;
     }
 
@@ -426,37 +426,37 @@ class GeminiScoringLedController extends Controller
         // Check if it has image extension
         $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
         $hasImageExtension = false;
-        
+
         foreach ($imageExtensions as $ext) {
             if (preg_match('/\.' . $ext . '$/i', $originalUrl)) {
                 $hasImageExtension = true;
                 break;
             }
         }
-        
+
         if (!$hasImageExtension) {
             \Log::info("URL tidak memiliki ekstensi gambar yang valid: $originalUrl");
             return false;
         }
-        
+
         // Try to validate encoded URL
         if (filter_var($encodedUrl, FILTER_VALIDATE_URL)) {
             \Log::info("URL valid setelah encoding: $encodedUrl");
             return true;
         }
-        
+
         // Check if it's a local path (starts with /)
         if (strpos($originalUrl, '/') === 0) {
             \Log::info("URL adalah path lokal: $originalUrl");
             return true;
         }
-        
+
         // Additional check for localhost URLs with spaces
         if (preg_match('/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//', $originalUrl)) {
             \Log::info("URL adalah localhost dengan format khusus: $originalUrl");
             return true;
         }
-        
+
         return false;
     }
 
@@ -467,19 +467,21 @@ class GeminiScoringLedController extends Controller
     {
         $urls = [];
         $lines = explode("\n", $isianAsesi);
-        
+
         foreach ($lines as $line) {
             $line = trim($line);
-            
+
             // Hanya cari baris yang PERSIS dimulai dengan "PDF :" atau "Dokumen :" dan diikuti URL/path
             if (preg_match('/^(?:PDF|Dokumen)\s*:\s*(.+\.pdf)$/i', $line, $matches)) {
                 $url = trim($matches[1]);
-                
+
                 // Validasi bahwa ini benar-benar URL atau path file PDF
-                if (!empty($url) && (
-                    filter_var($url, FILTER_VALIDATE_URL) ||
-                    (strpos($url, '/') === 0 && str_ends_with(strtolower($url), '.pdf'))
-                )) {
+                if (
+                    !empty($url) && (
+                        filter_var($url, FILTER_VALIDATE_URL) ||
+                        (strpos($url, '/') === 0 && str_ends_with(strtolower($url), '.pdf'))
+                    )
+                ) {
                     $urls[] = $url;
                     \Log::info("URL PDF valid ditemukan: $url");
                 } else {
@@ -487,17 +489,17 @@ class GeminiScoringLedController extends Controller
                 }
             }
         }
-        
+
         if (empty($urls)) {
             \Log::info("Tidak ada URL PDF yang valid ditemukan dalam format 'PDF : [URL]' atau 'Dokumen : [URL]'");
         }
-        
+
         return $urls;
     }
 
     /**
      * Clean the assessment submission text by removing image references.
-     * 
+     *
      * Removes image URL lines and excessive blank lines to prepare
      * clean text content for AI analysis.
      *
@@ -514,13 +516,13 @@ class GeminiScoringLedController extends Controller
 
         // Remove excessive blank lines (more than one newline)
         $text = preg_replace("/(\r?\n){2,}/", "\n\n", $text);
-        
+
         return trim($text);
     }
 
     /**
      * Convert image URLs to blob data for AI processing.
-     * 
+     *
      * Downloads images from local file system and converts them to
      * base64-encoded blobs that can be sent to Gemini AI.
      *
@@ -537,38 +539,38 @@ class GeminiScoringLedController extends Controller
             \Log::info('Tidak ada URL Gambar untuk diproses');
             return [];
         }
-        
+
         $blobs = [];
 
         foreach ($urls as $url) {
             try {
                 \Log::info("Memproses URL: $url");
-                
+
                 // Convert URL to local file system path
                 $parsedUrl = parse_url($url);
-                
+
                 if (!$parsedUrl || !isset($parsedUrl['path'])) {
                     \Log::warning("URL tidak valid atau tidak memiliki path: $url");
                     continue;
                 }
-                
+
                 // Decode URL path to handle spaces and special characters
                 $relativePath = urldecode($parsedUrl['path']); // e.g., /storage/uploads/...
-                
+
                 \Log::info("Relative path setelah decode: $relativePath");
-                
+
                 $localPath = public_path($relativePath); // Full path: /project/public/storage/uploads/...
-                
+
                 \Log::info("Local path lengkap: $localPath");
 
                 // Check if file exists before processing
                 if (!file_exists($localPath)) {
                     \Log::warning("File gambar tidak ditemukan: $localPath");
-                    
+
                     // Try alternative path construction
                     $alternativePath = public_path(ltrim($relativePath, '/'));
                     \Log::info("Mencoba path alternatif: $alternativePath");
-                    
+
                     if (file_exists($alternativePath)) {
                         $localPath = $alternativePath;
                         \Log::info("File ditemukan di path alternatif: $localPath");
@@ -600,7 +602,7 @@ class GeminiScoringLedController extends Controller
 
                 // Determine MIME type based on file extension
                 $mimeType = $this->determineMimeType($url);
-                
+
                 \Log::info("MIME type ditentukan: " . $mimeType->value);
 
                 // Create blob object with base64-encoded image data
@@ -608,9 +610,9 @@ class GeminiScoringLedController extends Controller
                     mimeType: $mimeType,
                     data: base64_encode($imageData)
                 );
-                
+
                 \Log::info("Gambar berhasil diproses menjadi blob: $url (Size: " . strlen($imageData) . " bytes)");
-                
+
             } catch (\Exception $e) {
                 // Log any errors in image processing but continue with other images
                 \Log::warning("Gagal memproses gambar dari URL: $url. Pesan: " . $e->getMessage());
@@ -628,8 +630,8 @@ class GeminiScoringLedController extends Controller
     private function determineMimeType(string $url): MimeType
     {
         $extension = strtolower(pathinfo($url, PATHINFO_EXTENSION));
-        
-        return match($extension) {
+
+        return match ($extension) {
             'png' => MimeType::IMAGE_PNG,
             'webp' => MimeType::IMAGE_WEBP,
             'gif' => MimeType::IMAGE_GIF,
@@ -647,7 +649,7 @@ class GeminiScoringLedController extends Controller
             \Log::info('Tidak ada URL PDF untuk diproses');
             return [];
         }
-        
+
         $blobs = [];
         $successCount = 0;
         $failCount = 0;
@@ -657,31 +659,31 @@ class GeminiScoringLedController extends Controller
         foreach ($urls as $index => $url) {
             try {
                 \Log::info("[$index] Memproses PDF URL: $url");
-                
+
                 // Convert URL ke path lokal
                 $parsedUrl = parse_url($url);
-                
+
                 if (!$parsedUrl || !isset($parsedUrl['path'])) {
                     \Log::warning("[$index] URL tidak valid atau tidak memiliki path: $url");
                     $failCount++;
                     continue;
                 }
-                
+
                 // Decode URL path untuk handle spaces dan karakter khusus
                 $relativePath = urldecode($parsedUrl['path']);
                 $localPath = public_path($relativePath);
-                
+
                 \Log::info("[$index] Relative path: $relativePath");
                 \Log::info("[$index] Local path: $localPath");
 
                 // Check apakah file PDF ada
                 if (!file_exists($localPath)) {
                     \Log::warning("[$index] PDF tidak ditemukan: $localPath");
-                    
+
                     // Try alternative path construction
                     $alternativePath = public_path(ltrim($relativePath, '/'));
                     \Log::info("[$index] Mencoba path alternatif: $alternativePath");
-                    
+
                     if (file_exists($alternativePath)) {
                         $localPath = $alternativePath;
                         \Log::info("[$index] File ditemukan di path alternatif: $localPath");
@@ -706,14 +708,14 @@ class GeminiScoringLedController extends Controller
                     $failCount++;
                     continue;
                 }
-                
+
                 if ($fileSize > 20 * 1024 * 1024) { // 20MB limit
-                    \Log::warning("[$index] File terlalu besar: $localPath (Size: " . round($fileSize/1024/1024, 2) . "MB)");
+                    \Log::warning("[$index] File terlalu besar: $localPath (Size: " . round($fileSize / 1024 / 1024, 2) . "MB)");
                     $failCount++;
                     continue;
                 }
 
-                \Log::info("[$index] File size: " . round($fileSize/1024/1024, 2) . "MB");
+                \Log::info("[$index] File size: " . round($fileSize / 1024 / 1024, 2) . "MB");
 
                 // Baca konten PDF
                 $pdfData = file_get_contents($localPath);
@@ -728,10 +730,10 @@ class GeminiScoringLedController extends Controller
                     mimeType: MimeType::APPLICATION_PDF,
                     data: base64_encode($pdfData)
                 );
-                
+
                 $successCount++;
                 \Log::info("[$index] PDF berhasil diproses menjadi blob: $url (Size: " . strlen($pdfData) . " bytes)");
-                
+
             } catch (\Exception $e) {
                 $failCount++;
                 \Log::error("[$index] Exception saat memproses PDF: $url");
@@ -746,7 +748,7 @@ class GeminiScoringLedController extends Controller
 
     /**
      * Extract and organize rubric scoring criteria from structured data.
-     * 
+     *
      * Processes the rubric data structure to extract different components
      * (elements, indicators, descriptions, scores) based on type identifiers.
      *
@@ -772,16 +774,16 @@ class GeminiScoringLedController extends Controller
         foreach ($details as $detail) {
             switch ($detail['type']) {
                 case 'E': // Element
-                    $result['element'] = $detail['reference']; 
+                    $result['element'] = $detail['reference'];
                     break;
                 case 'G': // Guidance
-                    $result['guidance'] = $detail['reference']; 
+                    $result['guidance'] = $detail['reference'];
                     break;
                 case 'I': // Indicator
-                    $result['indikator'] = $detail['reference']; 
+                    $result['indikator'] = $detail['reference'];
                     break;
                 case 'D': // Description
-                    $result['description'] = $detail['reference']; 
+                    $result['description'] = $detail['reference'];
                     break;
                 case 'S': // Score criteria
                     $seq = $detail['seq']; // Score level (0-4)
@@ -797,7 +799,7 @@ class GeminiScoringLedController extends Controller
 
     /**
      * Extract JSON data from AI response text.
-     * 
+     *
      * Handles AI responses that may be formatted with markdown code blocks
      * or plain text, attempting to parse valid JSON from the content.
      *
@@ -822,11 +824,11 @@ class GeminiScoringLedController extends Controller
 
         // Return decoded data only if JSON parsing was successful
         return (json_last_error() === JSON_ERROR_NONE) ? $decoded : null;
-    }   
+    }
 
     /**
      * Create a standardized error response format.
-     * 
+     *
      * Provides consistent error response structure across the application
      * with optional additional data for debugging purposes.
      *

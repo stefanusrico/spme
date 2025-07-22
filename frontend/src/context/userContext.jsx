@@ -28,34 +28,40 @@ export const UserProvider = ({ children }) => {
 
     try {
       const data = await fetchUserData()
+      console.log("Raw API response:", data)
+
       if (data) {
         localStorage.setItem("role", data.role)
 
-        // Safe handling untuk prodi - bisa null untuk admin
+        // Langsung gunakan data dari API tanpa modifikasi berlebihan
         let prodiId = null
-        let prodi = null
+        let prodiName = null
 
-        if (data.prodi) {
-          if (typeof data.prodi === "object" && data.prodi._id) {
-            prodiId = data.prodi._id
-            prodi = data.prodi
-            localStorage.setItem("prodi_id", prodiId)
-          } else if (typeof data.prodi === "string") {
-            prodiId = data.prodi
-            localStorage.setItem("prodi_id", prodiId)
-          }
+        // Cek apakah prodi ada dan berisi object
+        if (data.prodi && typeof data.prodi === "object" && data.prodi.name) {
+          prodiId = data.prodi.id || data.prodiId
+          prodiName = data.prodi.name
+          localStorage.setItem("prodi_id", prodiId)
+        } else if (data.prodiId) {
+          // Fallback ke prodiId saja
+          prodiId = data.prodiId
+          localStorage.setItem("prodi_id", prodiId)
+          prodiName = "Default Prodi" // fallback sementara
         } else {
           localStorage.removeItem("prodi_id")
         }
 
-        const userDataWithProdi = {
-          ...data,
+        // Minimal processing - biarkan data asli tetap utuh
+        const processedUserData = {
+          ...data, // gunakan semua data asli dari API
           prodi_id: prodiId,
-          prodi: prodi,
+          prodi_name: prodiName,
+          // TIDAK override data.prodi yang sudah benar dari API
         }
 
-        setUserData(userDataWithProdi)
-        localStorage.setItem("user", JSON.stringify(userDataWithProdi))
+        console.log("Processed userData:", processedUserData)
+        setUserData(processedUserData)
+        localStorage.setItem("user", JSON.stringify(processedUserData))
       }
     } catch (error) {
       console.error("Error loading user data:", error)
@@ -68,7 +74,7 @@ export const UserProvider = ({ children }) => {
     } finally {
       setIsLoading(false)
     }
-  }, []) // No dependencies to prevent recreation
+  }, [])
 
   useEffect(() => {
     loadUserData()

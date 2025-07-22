@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Notification;
 
 use App\Http\Controllers\Controller;
-
 use App\Models\User\User;
 use App\Models\Notification\Notification;
 use App\Models\Project\Project;
+use Illuminate\Support\Facades\Mail;
 
 class NotificationController extends Controller
 {
@@ -198,5 +198,27 @@ class NotificationController extends Controller
             'status' => 'error',
             'message' => 'Notification not found or invalid type'
         ], 404);
+    }
+
+    public function sendTestEmail()
+    {
+        try {
+            $user = auth()->user();
+
+            Mail::raw('This is a test email from Project Management System', function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('Test Email Notification');
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Test email sent successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to send email: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

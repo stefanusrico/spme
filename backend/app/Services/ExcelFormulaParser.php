@@ -88,8 +88,25 @@ class ExcelFormulaParser
     {
         try {
             Log::info("Formula evaluation started", ['table' => $this->table->kode, 'formula' => $formula, 'data_count' => count($data)]);
-            $this->lastCalculationDetails = ['original_formula' => $formula, 'steps' => [], 'final_result' => 0, 'success' => false];
+
+            $this->lastCalculationDetails = [
+                'original_formula' => $formula,
+                'steps' => [],
+                'final_result' => 0,
+                'success' => false
+            ];
+
             $expression = ltrim($formula, '=');
+
+            if ($this->isCellReference($expression)) {
+                Log::info("SINGLE CELL FORMULA detected", ['cell' => $expression]);
+                $result = $this->getSingleCellValue($expression, $data);
+                $this->lastCalculationDetails['final_result'] = $result;
+                $this->lastCalculationDetails['success'] = true;
+                $this->lastCalculationDetails['steps'][] = "Single cell {$expression} = {$result}";
+                return $result;
+            }
+
             $result = $this->evaluateExpression($expression, $data);
             $this->lastCalculationDetails['final_result'] = $result;
             $this->lastCalculationDetails['success'] = true;
@@ -101,9 +118,45 @@ class ExcelFormulaParser
         }
     }
 
+    private function getSingleCellValue($cellRef, $data)
+    {
+        $cellData = $this->getOptimizedDataForRange($cellRef, $data);
+
+        if (empty($cellData)) {
+            Log::warning("SINGLE CELL: No data found for {$cellRef}");
+            return 0;
+        }
+
+        $value = $cellData[0];
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        if ($value === null || $value === '' || $value === '-') {
+            return 0;
+        }
+
+        Log::warning("SINGLE CELL: Non-numeric value found", ['cell' => $cellRef, 'value' => $value]);
+        return 0;
+    }
+
     private function evaluateExpression($expression, $data)
     {
         Log::info("START: evaluateExpression", ['e' => $expression]);
+
+        // ✅ TAMBAHKAN: Handle direct cell reference
+        if ($this->isCellReference($expression)) {
+            Log::info("DIRECT CELL REFERENCE detected", ['cell' => $expression]);
+            $cellData = $this->getOptimizedDataForRange($expression, $data);
+            $result = isset($cellData[0]) ? (is_numeric($cellData[0]) ? (float) $cellData[0] : 0) : 0;
+            Log::info("CELL VALUE resolved", ['cell' => $expression, 'value' => $result]);
+            return $result;
+        }
+
+        // ✅ TAMBAHKAN: Resolve cell references in math expressions EARLY
+        $expression = $this->resolveCellReferencesInExpression($expression, $data);
+        Log::info("After cell reference resolution", ['e' => $expression]);
 
         $maxResolveIterations = 3;
         for ($resolveIteration = 0; $resolveIteration < $maxResolveIterations; $resolveIteration++) {
@@ -161,6 +214,66 @@ class ExcelFormulaParser
             Log::error("Error in final evaluation", ['error' => $e->getMessage(), 'expr' => $expression]);
             return 0;
         }
+    }
+
+    private function resolveCellReferencesInExpression($expression, $data)
+    {
+        Log::info("RESOLVING CELL REFERENCES IN EXPRESSION", ['original' => $expression]);
+
+        // ✅ PERBAIKAN: Handle range patterns FIRST sebelum individual cells
+
+        // Pattern 1: Handle Excel ranges (A1:B10, I32:K35, etc.)
+        $rangePattern = '/\b([A-Z]{1,3}\d+):([A-Z]{1,3}\d+)\b/';
+
+        if (preg_match_all($rangePattern, $expression, $rangeMatches, PREG_SET_ORDER)) {
+            Log::info("FOUND EXCEL RANGES", ['ranges' => array_column($rangeMatches, 0)]);
+
+            // Don't resolve ranges - leave them as is for function processing
+            foreach ($rangeMatches as $match) {
+                $fullRange = $match[0]; // e.g., "I32:K35"
+                Log::info("PRESERVING RANGE", ['range' => $fullRange]);
+            }
+
+            // Return expression unchanged if it contains ranges
+            Log::info("EXPRESSION CONTAINS RANGES - PRESERVING FOR FUNCTION PROCESSING", [
+                'original' => $expression,
+                'ranges_found' => array_column($rangeMatches, 0)
+            ]);
+
+            return $expression;
+        }
+
+        // Pattern 2: Only resolve individual cell references if no ranges present
+        $cellPattern = '/\b([A-Z]{1,3}\d+)\b/';
+
+        $resolvedExpression = preg_replace_callback($cellPattern, function ($matches) use ($data) {
+            $cellRef = $matches[1];
+
+            // Skip jika bukan cell reference yang valid
+            if (!$this->isCellReference($cellRef)) {
+                return $cellRef;
+            }
+
+            Log::info("RESOLVING INDIVIDUAL CELL REFERENCE", ['cell' => $cellRef]);
+
+            $cellData = $this->getOptimizedDataForRange($cellRef, $data);
+            $value = isset($cellData[0]) ? (is_numeric($cellData[0]) ? (float) $cellData[0] : 0) : 0;
+
+            Log::info("CELL REFERENCE RESOLVED", [
+                'cell' => $cellRef,
+                'value' => $value,
+                'original_data' => $cellData[0] ?? 'null'
+            ]);
+
+            return (string) $value;
+        }, $expression);
+
+        Log::info("CELL REFERENCES RESOLUTION COMPLETE", [
+            'original' => $expression,
+            'resolved' => $resolvedExpression
+        ]);
+
+        return $resolvedExpression;
     }
 
     private function handleIfFunction($expression, $data)
@@ -1771,6 +1884,12 @@ class ExcelFormulaParser
         $allVariables = array_unique($matches[1]);
 
         $variablesToResolve = array_filter($allVariables, function ($var) {
+            // ✅ SKIP cell references
+            if ($this->isCellReference($var)) {
+                Log::debug("SKIPPING CELL REFERENCE in variable resolution", ['cell' => $var]);
+                return false;
+            }
+
             return !in_array($var, $this->supportedFunctions)
                 && strlen($var) > 1
                 && !in_array(strtolower($var), ['valid', 'invalid', 'true', 'false']);
@@ -1789,6 +1908,11 @@ class ExcelFormulaParser
         }
 
         return $expression;
+    }
+
+    private function isCellReference($text)
+    {
+        return preg_match('/^[A-Z]{1,3}\d+$/', $text);
     }
 
     private function batchFindExternalVariableValues($variables)
@@ -1885,31 +2009,5 @@ class ExcelFormulaParser
     public function getLastCalculationDetails()
     {
         return $this->lastCalculationDetails;
-    }
-
-    private static $dependencyGraph = [];
-
-    private function buildDependencyGraph($variables)
-    {
-        // ✅ Pre-calculate dependency order untuk menghindari circular resolution
-        $graph = [];
-        foreach ($variables as $var) {
-            $dependencies = $this->extractVariableDependencies($var);
-            $graph[$var] = $dependencies;
-        }
-
-        return $this->topologicalSort($graph);
-    }
-
-    private function resolveInOptimalOrder($variables, $data)
-    {
-        $orderedVars = $this->buildDependencyGraph($variables);
-        $results = [];
-
-        foreach ($orderedVars as $var) {
-            $results[$var] = $this->resolveVariableValue($var, $data);
-        }
-
-        return $results;
     }
 }
