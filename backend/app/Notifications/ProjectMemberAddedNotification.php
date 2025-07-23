@@ -27,7 +27,7 @@ class ProjectMemberAddedNotification extends Notification
 
     public function toMail($notifiable)
     {
-        $projectUrl = config('app.url') . '/projects/' . $this->project->_id;
+        $projectUrl = config('app.url') . 'projects/' . $this->project->_id;
         $endDate = \Carbon\Carbon::parse($this->project->endDate)->format('d M Y');
 
         return (new MailMessage)

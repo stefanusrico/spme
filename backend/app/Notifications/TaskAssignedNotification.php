@@ -29,7 +29,7 @@ class TaskAssignedNotification extends Notification
 
     public function toMail($notifiable)
     {
-        $projectUrl = config('app.url') . '/projects/' . $this->project->_id;
+        $projectUrl = config('app.url') . 'projects/' . $this->project->_id;
         $dueDate = \Carbon\Carbon::parse($this->task->endDate)->format('d M Y');
 
         return (new MailMessage)

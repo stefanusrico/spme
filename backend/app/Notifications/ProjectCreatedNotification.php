@@ -32,9 +32,10 @@ class ProjectCreatedNotification extends Notification
     public function toMail($notifiable)
     {
         $prodiName = $this->prodi ? $this->prodi->name : 'Unknown Prodi';
-        $projectUrl = config('app.url') . '/projects/' . $this->project->_id;
+        $projectUrl = config('app.url') . 'projects/' . $this->project->_id;
 
         return (new MailMessage)
+            ->from(config('mail.from.address'), config('mail.from.name'))
             ->subject('New Project Created: ' . $this->project->name)
             ->greeting('Hello ' . $notifiable->name . '!')
             ->line('A new project has been created and requires your attention.')
