@@ -262,12 +262,14 @@ const PengisianLed = () => {
         userData.prodiId,
         userData.id,
         projectId
-      )
-      console.log("data user task setelah update :", data)
-      setTasks(data)
-      toast.success("Berhasil update Task")
+      );
+      console.log("data user task setelah update :", data);
+      setTasks(data);
+      toast.success("Berhasil update Task");
     } catch (error) {
-      throw new Error("Gagal update user task")
+      console.error("Gagal update user task", error);
+      const errMsg = error?.response?.data?.message || error?.message || "Gagal update Task";
+      toast.error(errMsg);
     }
   }
 

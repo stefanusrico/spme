@@ -8,6 +8,9 @@ import PengisianLedTableNew from "./PengisianLedTableNew"
 import HeaderPengisianLedTable from "./HeaderPengisianLedTable"
 import { EditorState, convertToRaw, convertFromRaw, ContentState } from "draft-js"
 import { fetchLedDataByProdi, fetchLedItemByProdi } from "../../../pages/PengisianLed"
+import { FormToast } from "../FormToast"
+import { storeLedData } from "../../../pages/PengisianLed"
+import Button from "../Button" 
 
 const PengisianLedP2mpp = ({ userData }) => {
     const [no, setNo] = useState("1")
@@ -112,7 +115,7 @@ const PengisianLedP2mpp = ({ userData }) => {
 
         const filtered = dataArray.filter(
             (item) =>
-                item.task?.led_item?.no === no &&
+                item.task?.led_item?.no === String(no) &&
                 item.task?.led_item?.sub === sub
         )
 
@@ -126,7 +129,7 @@ const PengisianLedP2mpp = ({ userData }) => {
 
     const updateUserTaskPlus = async(no, sub) => {
         try {
-            const responseTask = await axiosInstance.patch(`tasks/updateOwner/${no}/${sub}/${userData.prodiId}`,
+            const responseTask = await axiosInstance.patch(`tasks/updateOwner/${String(no)}/${sub}/${userData.prodiId}`,
                 {
                     owners: [userData.id]
                 }
@@ -165,7 +168,7 @@ const PengisianLedP2mpp = ({ userData }) => {
         formData.append("file[]", file)
         formData.append("noKriteria[]", "1") // Default kriteria
         formData.append("subFolder", currentProdiName)
-        formData.append("noSub", `${no}${sub}`)
+        formData.append("noSub", `${String(no)}${sub}`)
 
         try {
             const response = await axiosInstance.post("/upload-to-drive", formData, {
@@ -218,11 +221,20 @@ const PengisianLedP2mpp = ({ userData }) => {
         const latestLedData = getLatestLedData(allLedData)
         setFilteredLedData(latestLedData)
 
-        const foundItem = allDataLedItem.find((item) => item.no === no && item.sub === sub)
-        setFilteredDataLedItem(foundItem || null)
+        const foundItem = allDataLedItem.find((item) => String(item.no) === String(no) && item.sub === sub)
+        setFilteredDataLedItem(foundItem)
 
-        console.log("found item :", foundItem)
+        console.log("found item :", foundItem, no, sub)
         
+        let matchedTask = tasks.find(
+            (task) => String(task.no) === String(no) && task.sub === sub
+        )
+        if (!matchedTask) {
+            matchedTask = allDataTasks.find(
+            (task) => task.no === String(no) && task.sub === sub
+            )
+        }
+
         // Jika tidak ada data LED, buat default
         if (!latestLedData && foundItem && userData?.id) {
             const detailsArray = (foundItem.details || [])
@@ -239,6 +251,7 @@ const PengisianLedP2mpp = ({ userData }) => {
                 nilai: null,
                 masukan: null,
                 details: detailsArray,
+                taskId: matchedTask.id,
                 userId: userData.id,
             }
 
@@ -271,6 +284,49 @@ const PengisianLedP2mpp = ({ userData }) => {
         setFilteredLedData(updatedData)
     }
 
+    const handleShowToast = () => {
+        // Tutup semua toast yang ada sebelum membuat yang baru
+        toast.dismiss();
+
+        // Fungsi submit untuk FormToast
+        const handleSubmit = async (commit, dataIsian, noSub) => {
+            try {
+                const result = await storeLedData(commit, dataIsian, noSub);
+                if (result.status === "success") {
+                    toast.success(result.message || "Data berhasil disimpan!");
+                } else {
+                    toast.error(result.message || "Terjadi kesalahan saat menyimpan data.");
+                }
+            } catch (error) {
+                console.error("Gagal menyimpan data:", error);
+                const errMsg = error?.response?.data?.message || "Gagal menyimpan data.";
+                toast.error(errMsg);
+            }
+        };
+
+        // Gunakan toastId yang unik untuk mencegah duplikasi
+        const toastId = `form-toast-${Date.now()}`;
+
+        toast(
+            <FormToast
+                closeToast={() => toast.dismiss(toastId)}
+                dataIsian={filteredLedData}
+                noSub={`${String(no)}${sub}`}
+                title="Versi Baru Dibuat"
+                message="Tambahkan pesan untuk perubahan"
+                onSubmit={handleSubmit}
+            />,
+            {
+                toastId,
+                position: "bottom-right",
+                autoClose: false,
+                closeOnClick: false,
+                draggable: false,
+                closeButton: false,
+            }
+        );
+    }
+
     if (isLoading) {
         return (
             <div
@@ -289,7 +345,7 @@ const PengisianLedP2mpp = ({ userData }) => {
     return (
         <div className="h-[80vh] w-auto mt-4 mr-4 pb-4 overflow-y-auto bg-white shadow-lg rounded-lg p-4">
             <ScrollableTabs
-                no={no}
+                no={String(no)}
                 sub={sub}
                 tabsData={tasks}
                 allDataTasks={allDataTasks}
@@ -301,20 +357,26 @@ const PengisianLedP2mpp = ({ userData }) => {
                 <HeaderPengisianLedTable headerData={filteredDataLedItem} />
             )}
             
-            {filteredLedData && filteredDataLedItem ? (
-                <PengisianLedTableNew
-                    key={`${no}-${sub}`}
-                    dataKriteriaIndikator={filteredDataLedItem}
-                    dataIsian={filteredLedData}
-                    updateDataIsian={updateDataIsian}
-                    type="editable"
-                    noSub={`${no}${sub}`}
-                />
-            ) : (
-                <div className="flex justify-center items-center h-40">
-                    <p className="text-gray-500">Data tidak tersedia untuk {no}{sub}</p>
-                </div>
-            )}
+            
+            <PengisianLedTableNew
+                key={`${String(no)}-${sub}`}
+                dataKriteriaIndikator={filteredDataLedItem}
+                dataIsian={filteredLedData}
+                updateDataIsian={updateDataIsian}
+                type="editable"
+                noSub={`${String(no)}${sub}`}
+            />
+
+            <div className="m-[30px] flex justify-between items-center">
+                <Button
+                  className="bg-primary w-40 hover:bg-white hover:text-primary "
+                  aria-label="Update"
+                  onClick={handleShowToast}
+                  disabled={isLoading}
+                >
+                  Commit
+                </Button>
+            </div>
         </div>
     )
 }

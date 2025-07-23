@@ -678,7 +678,7 @@ class TaskController extends Controller
 
     public function p2mppTasks()
     {
-        $this->logRouteParams('p2mppTasksxixixix');
+        $this->logRouteParams('p2mppTasks');
         Log::info('masuk ke p2mppTasks', [
             'message' => "p2mpp",
         ]);
