@@ -43,9 +43,7 @@ const ExportData = ({ projectId }) => {
     { code: "D2", name: "Elemen D2: Ketersediaan Dokumen dan Pengakuan Mutu Eksternal" },
     { code: "D3", name: "Elemen D3: Keterlaksanaan Penjaminan Mutu dan Audit Mutu Internal" },
     { code: "D4", name: "Elemen D4: Kepuasan Pemangku Kepentingan" },
-    { code: "E1", name: "Elemen E1: Analisis SWOT" },
-    { code: "E2", name: "Elemen E2: Tujuan Strategi Pengembangan" },
-    { code: "E3", name: "Elemen E3: Program Pengembangan Keberlanjutan" },
+    { code: "E", name: "Elemen E1: Analisis SWOT, Tujuan Strategi Pengembangan, Program Pengembangan Keberlanjutan" }
   ])
 
   useEffect(() => {

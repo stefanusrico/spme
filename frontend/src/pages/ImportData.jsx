@@ -77,7 +77,15 @@ const ImportData = ({}) => {
 
       if (!fileTypeValid) {
         message.error(`${file.name} memiliki format yang tidak diizinkan.`)
+        setUploadingCount((prev) => prev - 1)
         return onError("Tipe file tidak valid")
+      }
+
+      // Validasi ukuran file (maksimal 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        message.error(`${file.name} ukuran lebih dari 10MB.`)
+        setUploadingCount((prev) => prev - 1)
+        return onError("Ukuran file terlalu besar")
       }
 
       const formData = new FormData()

@@ -124,7 +124,7 @@ class LedDocumentController extends Controller
             ->first();
 
         if (!$taskList) {
-            Log::warning("No task list found for kriteria: {$kriteria}");
+            Log::warning("No task list found for kriteria: {$kriteria} in project ID: {$projectId}");
             return;
         }
 
