@@ -169,7 +169,7 @@ class ProjectController extends Controller
                     $phone = $adminUser->phone_number ?? null;
 
                     if ($phone) {
-                        $projectUrl = config('app.url') . '/projects/' . $project->_id;
+                        $projectUrl = config('app.url') . 'projects/' . $project->_id;
                         $message = "Hi *{$adminUser->name}*,\n\n"
                             . "🆕 *New Project Created*\n\n"
                             . "📂 Project: *{$project->name}*\n"
@@ -1480,7 +1480,8 @@ class ProjectController extends Controller
                 'endDate' => 'required|date|after:startDate',
             ]);
 
-            $project = Project::where('projectId', $projectId)->first();
+            // Find project by MongoDB ObjectId instead of projectId field
+            $project = Project::find($projectId);
 
             if (!$project) {
                 return response()->json([
@@ -1498,11 +1499,19 @@ class ProjectController extends Controller
                 ], 403);
             }
 
+            // Additional prodi restriction: Koordinator can only edit projects from their prodi
+            if ($user->role === 'Koordinator Program Studi' && $project->prodiId !== $user->prodiId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You can only edit projects from your prodi'
+                ], 403);
+            }
+
             $project->update([
                 'name' => $request->name,
                 'startDate' => $request->startDate,
                 'endDate' => $request->endDate,
-                'updatedAt' => now(),
+                'updated_at' => now(),
             ]);
 
             return response()->json([
@@ -1512,6 +1521,12 @@ class ProjectController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('Error updating project:', [
+                'projectId' => $projectId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to update project: ' . $e->getMessage()
@@ -1574,7 +1589,8 @@ class ProjectController extends Controller
     public function destroy($projectId)
     {
         try {
-            $project = Project::where('projectId', $projectId)->first();
+            // Find project by MongoDB ObjectId instead of projectId field
+            $project = Project::find($projectId);
 
             if (!$project) {
                 return response()->json([
@@ -1584,6 +1600,8 @@ class ProjectController extends Controller
             }
 
             $user = auth()->user();
+
+            // Check authorization with prodi restriction
             if ($user->role !== 'Koordinator Program Studi' && $project->createdBy !== $user->_id) {
                 return response()->json([
                     'status' => 'error',
@@ -1591,8 +1609,16 @@ class ProjectController extends Controller
                 ], 403);
             }
 
-            // Optional: Check if project has active tasks
-            $activeTasks = Task::where('projectId', $projectId)
+            // Additional prodi restriction: Koordinator can only delete projects from their prodi
+            if ($user->role === 'Koordinator Program Studi' && $project->prodiId !== $user->prodiId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You can only delete projects from your prodi'
+                ], 403);
+            }
+
+            // Check if project has active tasks
+            $activeTasks = Task::where('projectId', $project->_id)
                 ->where('status', '!=', 'COMPLETED')
                 ->count();
 
@@ -1603,18 +1629,60 @@ class ProjectController extends Controller
                 ], 400);
             }
 
-            // Delete related tasks first (if you want to allow cascade delete)
-            Task::where('projectId', $projectId)->delete();
+            // Get all project members before deletion
+            $projectMembers = ProjectMember::where('projectId', $project->_id)->get();
 
-            // Delete the project
+            // Remove project reference from all users' projects array
+            foreach ($projectMembers as $member) {
+                $memberUser = User::find($member->userId);
+                if ($memberUser && isset($memberUser->projects)) {
+                    $updatedProjects = collect($memberUser->projects)
+                        ->reject(function ($userProject) use ($project) {
+                            return $userProject['projectId'] === $project->_id;
+                        })
+                        ->values()
+                        ->toArray();
+
+                    $memberUser->projects = $updatedProjects;
+                    $memberUser->save();
+                }
+            }
+
+            // Delete related data in correct order
+            // 1. Delete tasks first
+            Task::where('projectId', $project->_id)->delete();
+
+            // 2. Delete task lists
+            TaskList::where('projectId', $project->_id)->delete();
+
+            // 3. Delete project members
+            ProjectMember::where('projectId', $project->_id)->delete();
+
+            // 4. Clear cache if using caching
+            $cacheKeys = [
+                "project_details_{$project->_id}",
+                "project_task_lists_{$project->_id}"
+            ];
+
+            foreach ($cacheKeys as $key) {
+                Cache::forget($key);
+            }
+
+            // 5. Finally delete the project
             $project->delete();
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Project deleted successfully'
+                'message' => 'Project and all related data deleted successfully'
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('Error deleting project:', [
+                'projectId' => $projectId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to delete project: ' . $e->getMessage()

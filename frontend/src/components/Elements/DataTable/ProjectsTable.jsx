@@ -193,7 +193,7 @@ const ProjectsTable = ({ isCollapsed }) => {
               cell: ({ row }) => (
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => handleEditProject(row.original)}
+                    onClick={() => handleEditProject(row.original)} // Fix: use row.original instead of row.original.mobm
                     className="p-2 bg-yellow hover:bg-yellow-600 text-white rounded transition-colors duration-200"
                     title="Edit Project"
                   >
@@ -214,7 +214,7 @@ const ProjectsTable = ({ isCollapsed }) => {
                     </svg>
                   </button>
                   <button
-                    onClick={() => handleDeleteProject(row.original.projectId)}
+                    onClick={() => handleDeleteProject(row.original.mongoId)} // Use mongoId (MongoDB ObjectId) for delete
                     className="p-2 bg-red hover:bg-red-600 text-white rounded transition-colors duration-200"
                     title="Delete Project"
                   >
@@ -306,9 +306,9 @@ const ProjectsTable = ({ isCollapsed }) => {
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      // Gunakan projectId dari editingProject
+      // Use mongoId from editingProject instead of projectId
       const response = await axiosInstance.put(
-        `/project/${editingProject.projectId}`, // Gunakan projectId, bukan id
+        `/project/${editingProject.mongoId}`, // Use mongoId (MongoDB ObjectId)
         editFormData
       )
       if (response.data.status === "success") {
@@ -426,7 +426,8 @@ const ProjectsTable = ({ isCollapsed }) => {
           const userData = usersMap[project.createdBy] || {}
 
           return {
-            projectId: project.projectId,
+            projectId: project.projectId, // Keep this for display (PRJ-001)
+            mongoId: project.id, // MongoDB ObjectId for operations
             name: project.name,
             progress: project.progress || 0,
             owner: {
@@ -443,7 +444,7 @@ const ProjectsTable = ({ isCollapsed }) => {
             endDate: new Date(project.endDate).toLocaleDateString(),
             originalStartDate: project.startDate,
             originalEndDate: project.endDate,
-            id: project.id || project._id, // Fallback to _id if id doesn't exist
+            id: project.id, // Use MongoDB ObjectId for routing
           }
         })
 
