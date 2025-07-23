@@ -149,13 +149,17 @@ function PengisianLedTableNew({
 
     // Validasi file PDF
     if (file.type !== "application/pdf") {
-      toast.error("Hanya file PDF yang diizinkan!")
+      toast.error("Hanya file PDF yang diizinkan!", {
+        toastId: `pdf-error-${seq}`, // Berikan ID unik
+      })
       return
     }
 
     // Validasi ukuran file (maksimal 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      toast.error("Ukuran file maksimal 10MB!")
+      toast.error("Ukuran file maksimal 10MB!", {
+        toastId: `size-error-${seq}`, // Berikan ID unik
+      })
       return
     }
 
@@ -238,7 +242,9 @@ function PengisianLedTableNew({
         )
       )
 
-      toast.success(`File PDF "${file.name}" berhasil diupload!`)
+      toast.success(`File PDF "${file.name}" berhasil diupload!`, {
+        toastId: `upload-success-${seq}-${Date.now()}`, // ID unik dengan timestamp
+      })
 
       // Reset input file
       event.target.value = ""
@@ -290,10 +296,14 @@ function PengisianLedTableNew({
       }
 
       updateDataIsian(updatedDataIsian)
-      toast.success("Berhasil mendapatkan scoring dan masukan")
+      toast.success("Berhasil mendapatkan scoring dan masukan", {
+        toastId: `scoring-success-${seq}`, // ID unik
+      })
     } catch (error) {
       console.error("Error calling scoring API:", error)
-      toast.error(`Gagal mendapatkan scoring: ${error.message}`)
+      toast.error(`Gagal mendapatkan scoring: ${error.message}`, {
+        toastId: `scoring-error-${seq}`, // ID unik
+      })
     } finally {
       setIsLoadingCheck(false)
     }
@@ -425,20 +435,8 @@ function PengisianLedTableNew({
 
   return (
     <div className="border p-4 rounded">
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-        style={toastContainerStyle}
-        className="toast-container-custom"
-      />
+      {/* Hapus ToastContainer dari sini karena sudah ada di parent component */}
+      {/* <ToastContainer .../> - HAPUS INI */}
 
       <AddFileModal
         isOpen={isOpenModalUploadFile}
