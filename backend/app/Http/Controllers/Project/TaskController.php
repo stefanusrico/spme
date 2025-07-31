@@ -10,9 +10,8 @@ use App\Models\Led\LedItem;
 use App\Models\Lkps\LkpsTable;
 use Illuminate\Http\Request;
 use App\Models\User\User;
-use App\Models\DatabaseNotification;
 use App\Notifications\TaskAssignedNotification;
-use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Notification\NotificationController;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -143,7 +142,7 @@ class TaskController extends Controller
     /**
      * Static method to create a task
      * This is used by ProjectTemplateService
-     * 
+     *
      * @param array $data Task data
      * @return Task
      */
@@ -460,8 +459,15 @@ class TaskController extends Controller
                 return $value !== null;
             });
 
-            if (isset($updates['owners']) && !empty($updates['owners'])) {
-                $updates['status'] = 'ACTIVE';
+            // Handle status based on owners
+            if (isset($updates['owners'])) {
+                if (!empty($updates['owners'])) {
+                    // Ada owners, set status ke ACTIVE
+                    $updates['status'] = 'ACTIVE';
+                } else {
+                    // Owners kosong, set status ke UNASSIGNED
+                    $updates['status'] = 'UNASSIGNED';
+                }
             }
 
             $task->update($updates);
@@ -474,6 +480,7 @@ class TaskController extends Controller
                 $newOwners = $updates['owners'];
                 $addedOwners = array_diff($newOwners, $existingOwners);
 
+                // Only send notifications for newly added owners
                 foreach ($addedOwners as $ownerId) {
                     $user = User::find($ownerId);
                     if ($user) {
@@ -608,19 +615,23 @@ class TaskController extends Controller
     /**
      * Get tasks assigned to the current user.
      */
-    public function myTasks()
+    public function myTasks($projectId)
     {
         $this->logRouteParams('myTasks');
 
         try {
-            $userId = auth()->user()->_id;
+            $user = auth()->user();
+            $userId = $user->id;
 
             $tasks = Task::with(['tasklist.project', 'users'])
                 ->where(function ($query) use ($userId) {
-                    $query->whereRaw(['owners' => ['$regex' => $userId]]);
+                    $query->where('owners', 'like', '%' . $userId . '%');
                 })
                 ->orderBy('no', 'asc')
                 ->get()
+                ->filter(function ($task) use ($projectId) {
+                    return optional(optional($task->tasklist)->project)->_id == $projectId;
+                })
                 ->map(function ($task) {
                     // Ensure task details are populated
                     return $this->populateTaskDetails($task);
@@ -639,22 +650,14 @@ class TaskController extends Controller
                         'no' => $task->no,
                         'sub' => $task->sub,
                         'name' => $task->nama,
-                        'status' => $task->status,
-                        'progress' => $task->progress,
-                        'startDate' => $task->startDate,
-                        'endDate' => $task->endDate,
-                        'owners' => $owners ?? [],
                         'project' => $project ? [
                             'id' => $project->_id,
-                            'projectId' => $project->projectId,
-                            'name' => $project->name
                         ] : null,
-                        'taskList' => [
-                            'id' => $task->tasklist?->_id,
-                            'name' => $task->tasklist?->kriteria
-                        ]
                     ];
-                });
+                })->sortBy([
+                        ['no', 'asc'],
+                        ['sub', 'asc'],
+                    ])->values()->all();
 
             return response()->json([
                 'status' => 'success',
@@ -672,6 +675,72 @@ class TaskController extends Controller
             ], 500);
         }
     }
+
+    public function p2mppTasks()
+    {
+        $this->logRouteParams('p2mppTasks');
+        Log::info('masuk ke p2mppTasks', [
+            'message' => "p2mpp",
+        ]);
+
+        try {
+            $project = Project::where('name', 'P2MPP')->first();
+            $user = auth()->user();
+            $userId = $user->id;
+
+            $tasks = Task::with(['tasklist.project', 'users'])
+                ->where(function ($query) use ($userId) {
+                    $query->where('owners', 'like', '%' . $userId . '%');
+                })
+                ->orderBy('no', 'asc')
+                ->get()
+                ->filter(function ($task) use ($project) {
+                    return optional(optional($task->tasklist)->project)->_id == $project->id;
+                })
+                ->map(function ($task) {
+                    // Ensure task details are populated
+                    return $this->populateTaskDetails($task);
+                })
+                ->filter(function ($task) {
+                    // Jangan kembalikan task jika sub-nya "LKPS"
+                    return $task->sub !== 'LKPS';
+                })
+                ->map(function ($task) {
+                    $owners = is_string($task->owners) ? json_decode($task->owners, true) : $task->owners;
+                    $project = $task->tasklist->project ?? null;
+
+                    return [
+                        'id' => $task->_id,
+                        'taskId' => $task->taskId,
+                        'no' => $task->no,
+                        'sub' => $task->sub,
+                        'name' => $task->nama,
+                        'project' => $project ? [
+                            'id' => $project->_id,
+                        ] : null,
+                    ];
+                })->sortBy([
+                        ['no', 'asc'],
+                        ['sub', 'asc'],
+                    ])->values()->all();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $tasks
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in TaskController::myTasks', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'An error occurred while fetching your tasks: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 
     /**
      * Update a specific task.

@@ -11,7 +11,7 @@ class LkpsColumn extends Model
     protected $collection = 'lkps_columns';
 
     protected $fillable = [
-        'kodeTabel',
+        'lkpsTableId',
         'indeksData',
         'judul',
         'type',
@@ -48,11 +48,19 @@ class LkpsColumn extends Model
     }
 
     /**
-     * Get the table this column belongs to
+     * Get the table this column belongs to (menggunakan lkpsTableId)
+     */
+    public function table()
+    {
+        return $this->belongsTo(LkpsTable::class, 'lkpsTableId', '_id');
+    }
+
+    /**
+     * Legacy method untuk backward compatibility
      */
     public function tabel()
     {
-        return $this->belongsTo(LkpsTable::class, 'kodeTabel', 'kode');
+        return $this->table();
     }
 
     /**
@@ -67,21 +75,49 @@ class LkpsColumn extends Model
         return $this->belongsTo(self::class, 'parentId', '_id');
     }
 
-    /**
-     * Get child columns if this is a group column
-     */
     public function children()
+    {
+        // ✅ CRITICAL FIX: Always return relationship instance
+        // Laravel Eloquent requires relationship instance, not collection
+        return $this->hasMany(self::class, 'parentId', '_id')->orderBy('order');
+    }
+
+    /**
+     * ✅ ADD: Helper method untuk check if has children
+     */
+    public function hasChildren()
+    {
+        return $this->isGroup && $this->children()->count() > 0;
+    }
+
+    /**
+     * ✅ ADD: Get children as collection (untuk non-relationship usage)
+     */
+    public function getChildrenCollection()
     {
         if (!$this->isGroup) {
             return collect([]);
         }
 
-        return $this->hasMany(self::class, 'parentId', '_id')->orderBy('order');
+        return $this->children()->get();
+    }
+
+    /**
+     * ✅ ADD: Get children as array (untuk JSON serialization)
+     */
+    public function getChildrenAttribute()
+    {
+        if (!$this->isGroup) {
+            return [];
+        }
+
+        // ✅ IMPORTANT: Use get() to execute query and return collection
+        return $this->children()->get()->toArray();
     }
 
     /**
      * Create a column with proper parent-child validation
-     * 
+     *
      * @param array $attributes
      * @return static
      * @throws \Exception If parentId is invalid
@@ -100,11 +136,27 @@ class LkpsColumn extends Model
                 throw new \Exception('Parent column is not a group column');
             }
 
-            if ($parentColumn->kodeTabel !== $attributes['kodeTabel']) {
+            if ($parentColumn->lkpsTableId !== $attributes['lkpsTableId']) {
                 throw new \Exception('Parent column belongs to a different table');
             }
         }
 
         return self::create($attributes);
+    }
+
+    /**
+     * Scope to filter by table ID
+     */
+    public function scopeByTableId($query, $tableId)
+    {
+        return $query->where('lkpsTableId', (string) $tableId);
+    }
+
+    /**
+     * Get table ID as string (helper method)
+     */
+    public function getTableIdAttribute()
+    {
+        return (string) $this->lkpsTableId;
     }
 }

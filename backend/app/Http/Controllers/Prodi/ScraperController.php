@@ -45,10 +45,9 @@ class ScraperController extends Controller
 
             \Log::info("Initializing WebDriver...");
             $this->driver = RemoteWebDriver::create(
-                'http://localhost:9515',
+                'http://chrome:4444/wd/hub',
                 DesiredCapabilities::chrome()->setCapability(ChromeOptions::CAPABILITY, $options)
             );
-
             \Log::info("Navigating to BAN-PT website...");
             $this->driver->get('https://www.banpt.or.id/direktori/prodi/pencarian_prodi.php');
 
@@ -153,7 +152,7 @@ class ScraperController extends Controller
 
         \Log::info("Loading jurusans and stratas...");
         $this->loadJurusans();
-        $this->loadStratas(); // Tambahkan pemanggilan method untuk memuat data strata
+        $this->loadStratas();
 
         sleep(10);
 
@@ -161,7 +160,7 @@ class ScraperController extends Controller
             \Log::info("Processing page {$pageCount}");
 
             $currentPageData = $this->driver->executeScript('
-                    return Array.from(document.querySelectorAll("#table tbody tr")).map(row => 
+                    return Array.from(document.querySelectorAll("#table tbody tr")).map(row =>
                         Array.from(row.querySelectorAll("td")).map(cell => cell.textContent.trim())
                     );
                 ');
@@ -272,7 +271,8 @@ class ScraperController extends Controller
                 $prodi = Prodi::updateOrCreate(
                     [
                         'name' => $prodiName,
-                        'akreditasi.nomorSK' => $row[4]
+                        'jurusanId' => $jurusanId,
+                        'strataId' => $strataId,
                     ],
                     [
                         'name' => $prodiName,

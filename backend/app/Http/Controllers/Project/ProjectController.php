@@ -12,15 +12,13 @@ use App\Models\User\User;
 use App\Models\Led\LedItem;
 use App\Models\Lkps\LkpsTable;
 use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\TaskController;
-use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Notification\NotificationController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Cache;
 use App\Services\ProjectTemplateService;
 use App\Notifications\ProjectMemberAddedNotification;
+use App\Notifications\ProjectCreatedNotification;
 
 class ProjectController extends Controller
 {
@@ -90,25 +88,26 @@ class ProjectController extends Controller
             ], 400);
         }
 
-        if (!Project::canCreateNewProject($prodiModel->_id)) {
-            $existingProject = Project::where('prodiId', $prodiModel->_id)
-                ->where('status', 'ACTIVE')
-                ->where('endDate', '>', now())
-                ->first();
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Prodi sudah memiliki project aktif. Tanggal selesai: ' .
-                    Carbon::parse($existingProject->endDate)->format('d M Y'),
-            ], 400);
-        }
-
-        $lastProdiProject = Project::where('prodiId', $prodiModel->_id)
+        $latestProject = Project::where('prodiId', $prodiModel->_id)
             ->orderBy('created_at', 'desc')
             ->first();
 
-        $projectId = $lastProdiProject
-            ? 'PRJ-' . str_pad((intval(substr($lastProdiProject->projectId, 4)) + 1), 3, '0', STR_PAD_LEFT)
+        if ($latestProject && $latestProject->status !== 'INACTIVE') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Tidak dapat membuat project baru. Project terakhir masih berstatus: ' .
+                    $latestProject->status . '. Project harus berstatus INACTIVE terlebih dahulu.',
+                'latestProject' => [
+                    'name' => $latestProject->name,
+                    'status' => $latestProject->status,
+                    'endDate' => Carbon::parse($latestProject->endDate)->format('d M Y')
+                ]
+            ], 400);
+        }
+
+        // Generate project ID berdasarkan project terakhir
+        $projectId = $latestProject
+            ? 'PRJ-' . str_pad((intval(substr($latestProject->projectId, 4)) + 1), 3, '0', STR_PAD_LEFT)
             : 'PRJ-001';
 
         $project = Project::create([
@@ -155,6 +154,64 @@ class ProjectController extends Controller
             ], 201);
         }
 
+        // Kirim notifikasi ke semua user dengan role Admin
+        try {
+            $adminUsers = User::where('role', 'Admin')
+                ->get();
+
+            foreach ($adminUsers as $adminUser) {
+                try {
+                    // Kirim notifikasi database dengan data prodi
+                    $adminUser->notify(new ProjectCreatedNotification($project, $user, $prodiModel));
+
+                    // Kirim WhatsApp notification jika ada nomor telepon
+                    $notificationController = new NotificationController();
+                    $phone = $adminUser->phone_number ?? null;
+
+                    if ($phone) {
+                        $projectUrl = config('app.url') . 'projects/' . $project->_id;
+                        $message = "Hi *{$adminUser->name}*,\n\n"
+                            . "🆕 *New Project Created*\n\n"
+                            . "📂 Project: *{$project->name}*\n"
+                            . "👤 Created by: *{$user->name}*\n"
+                            . "🏢 Prodi: *{$prodiModel->name}*\n"
+                            . "📅 Start Date: *" . Carbon::parse($project->startDate)->format('d M Y') . "*\n"
+                            . "📅 End Date: *" . Carbon::parse($project->endDate)->format('d M Y') . "*\n"
+                            . "🔗 *View project here:*\n"
+                            . $projectUrl . "\n\n"
+                            . "💡 Click the link above to monitor the project.";
+
+                        $notificationController->sendWhatsAppNotification($phone, $message);
+                    }
+
+                    \Log::info('Project creation notification sent to admin:', [
+                        'admin_id' => $adminUser->_id,
+                        'admin_name' => $adminUser->name,
+                        'project_id' => $project->_id
+                    ]);
+
+                } catch (\Exception $e) {
+                    \Log::error('Error sending project creation notification to admin:', [
+                        'admin_id' => $adminUser->_id,
+                        'error' => $e->getMessage(),
+                        'project_id' => $project->_id
+                    ]);
+                }
+            }
+
+            \Log::info('Project creation notifications sent to all admins', [
+                'project_id' => $project->_id,
+                'admin_count' => $adminUsers->count()
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error sending project creation notifications:', [
+                'error' => $e->getMessage(),
+                'project_id' => $project->_id,
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+
         return response()->json([
             'status' => 'success',
             'message' => 'Project created successfully',
@@ -166,10 +223,25 @@ class ProjectController extends Controller
     {
         $userId = auth()->user()->_id;
 
+        $user = auth()->user();
+        Log::info('Fetching projects for user: ' . $user);
+
+        // Ambil daftar projectId dari properti projects user
+        $projectIds = collect($user->projects)->pluck('projectId');
+
+        // Logging untuk memastikan projectIds benar
+        \Log::info('Project IDs for user: ', $projectIds->toArray());
+
+        // Ambil proyek yang ID-nya ada dalam daftar projectIds
         $projects = Project::with(['tasklists', 'tasks'])
-            ->where('createdBy', $userId)
+            ->whereIn('_id', $projectIds)
             ->orderBy('created_at', 'desc')
             ->get();
+
+        // $projects = Project::with(['tasklists', 'tasks'])
+        //     ->where('createdBy', $userId)
+        //     ->orderBy('created_at', 'desc')
+        //     ->get();
 
         return response()->json([
             'status' => 'success',
@@ -639,34 +711,24 @@ class ProjectController extends Controller
                 ->map(function ($task) {
                     return [
                         'id' => $task->_id,
-                        'name' => $task->nama,
-                        'status' => $task->status,
                         'no' => $task->ledItem->no,
                         'sub' => $task->ledItem->sub,
                         'project' => [
                             'id' => $task->taskList->project->_id,
                         ],
-                        'owners' => $task->users->map(function ($user) {
-                            return [
-                                'id' => $user->id,
-                                'name' => $user->name
-                            ];
-                        })->values()
                     ];
-                });
+                })->sortBy([
+                        ['no', 'asc'],
+                        ['sub', 'asc'],
+                    ])
+                ->values();
 
             // Bangun response
             return response()->json([
                 'status' => 'success',
                 'data' => [
                     'projectId' => $project->_id,
-                    'projectName' => $project->name,
-                    'prodiName' => $project->prodi->name ?? null,
-                    'prodiId' => $project->prodi->id ?? null,
-                    'createdAt' => $project->created_at,
-                    'statistics' => [
-                        'totalTasks' => $formattedTasks->count()
-                    ],
+                    'totalTasks' => $formattedTasks->count(),
                     'tasks' => $formattedTasks
                 ]
             ]);
@@ -766,6 +828,15 @@ class ProjectController extends Controller
                     $taskDetails = $this->getTaskDetails($task, $ledItems, $lkpsTables);
                     $ownerDetails = isset($taskOwners[$task->_id]) ? $taskOwners[$task->_id] : [];
 
+                    // Calculate different duration metrics
+                    $totalDuration = $this->calculateDuration($task->startDate, $task->endDate);
+                    $remainingDuration = $this->calculateRemainingDuration($task->startDate, $task->endDate, $task->status);
+
+                    // Determine task urgency
+                    $isOverdue = $task->endDate && Carbon::parse($task->endDate)->lt(Carbon::now()) && $task->status !== 'COMPLETED';
+                    $isDueToday = $task->endDate && Carbon::parse($task->endDate)->isSameDay(Carbon::now());
+                    $isDueSoon = $task->endDate && Carbon::parse($task->endDate)->between(Carbon::now(), Carbon::now()->addDays(3));
+
                     $processedTasks[] = [
                         'id' => $task->_id,
                         'ledItemId' => $task->ledItemId,
@@ -777,7 +848,11 @@ class ProjectController extends Controller
                         'progress' => $task->progress,
                         'startDate' => $this->formatDate($task->startDate),
                         'endDate' => $this->formatDate($task->endDate),
-                        'duration' => $this->calculateDuration($task->startDate, $task->endDate),
+                        'duration' => $totalDuration, // Total duration from start to end
+                        'remainingDuration' => $remainingDuration, // Days remaining
+                        'isOverdue' => $isOverdue,
+                        'isDueToday' => $isDueToday,
+                        'isDueSoon' => $isDueSoon,
                         'order' => $task->order,
                         'taskListId' => $task->taskListId,
                         'owners' => $ownerDetails
@@ -1050,7 +1125,7 @@ class ProjectController extends Controller
     }
 
     /**
-     * Calculate duration between dates
+     * Calculate duration between dates in days
      */
     private function calculateDuration($startDate, $endDate)
     {
@@ -1059,19 +1134,80 @@ class ProjectController extends Controller
         }
 
         try {
-            $carbonStartDate = Carbon::parse($startDate);
-            $carbonEndDate = Carbon::parse($endDate);
+            $carbonStartDate = Carbon::parse($startDate)->startOfDay();
+            $carbonEndDate = Carbon::parse($endDate)->startOfDay();
+
+            // Calculate total duration from start to end (including weekends)
+            $totalDuration = $carbonStartDate->diffInDays($carbonEndDate) + 1; // +1 to include both start and end dates
+
+            // If you want to exclude weekends, uncomment the following:
+            // $totalDuration = $this->calculateWorkingDays($carbonStartDate, $carbonEndDate);
+
+            return max(0, $totalDuration); // Ensure duration is never negative
+
+        } catch (\Exception $e) {
+            Log::warning("Failed to calculate duration for dates '{$startDate}' to '{$endDate}': " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Calculate working days between two dates (excluding weekends)
+     * Uncomment this if you want to exclude weekends from duration calculation
+     */
+    private function calculateWorkingDays($startDate, $endDate)
+    {
+        if ($startDate->gt($endDate)) {
+            return 0;
+        }
+
+        $workingDays = 0;
+        $currentDate = $startDate->copy();
+
+        while ($currentDate->lte($endDate)) {
+            // Monday = 1, Sunday = 7
+            if ($currentDate->dayOfWeek >= 1 && $currentDate->dayOfWeek <= 5) {
+                $workingDays++;
+            }
+            $currentDate->addDay();
+        }
+
+        return $workingDays;
+    }
+
+    /**
+     * Calculate remaining duration for active tasks
+     */
+    private function calculateRemainingDuration($startDate, $endDate, $status)
+    {
+        if (empty($startDate) || empty($endDate)) {
+            return 0;
+        }
+
+        try {
+            $carbonStartDate = Carbon::parse($startDate)->startOfDay();
+            $carbonEndDate = Carbon::parse($endDate)->startOfDay();
             $today = Carbon::now()->startOfDay();
 
+            // If task hasn't started yet
             if ($today->lt($carbonStartDate)) {
-                return $carbonStartDate->diffInDays($carbonEndDate);
-            } else if ($today->lte($carbonEndDate)) {
-                return $today->diffInDays($carbonEndDate);
+                return $carbonStartDate->diffInDays($carbonEndDate) + 1;
+            }
+
+            // If task is in progress or overdue
+            if ($today->lte($carbonEndDate)) {
+                return $today->diffInDays($carbonEndDate) + 1;
+            }
+
+            // If task is overdue
+            if ($today->gt($carbonEndDate)) {
+                return 0; // or return negative number for overdue days: $carbonEndDate->diffInDays($today) * -1
             }
 
             return 0;
+
         } catch (\Exception $e) {
-            Log::warning("Failed to calculate duration: " . $e->getMessage());
+            Log::warning("Failed to calculate remaining duration: " . $e->getMessage());
             return 0;
         }
     }
@@ -1337,50 +1473,65 @@ class ProjectController extends Controller
 
     public function update(Request $request, $projectId)
     {
-        $project = Project::where('projectId', $projectId)->firstOrFail();
+        try {
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'startDate' => 'required|date',
+                'endDate' => 'required|date|after:startDate',
+            ]);
 
-        $currentUser = auth()->user();
-        if (!$this->canManageMembers($project, $currentUser->_id)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'You do not have permission to update this project'
-            ], 403);
-        }
+            // Find project by MongoDB ObjectId instead of projectId field
+            $project = Project::find($projectId);
 
-        $request->validate([
-            'name' => 'string|max:255',
-            'description' => 'string',
-            'status' => 'in:ACTIVE',
-            'startDate' => 'date',
-            'endDate' => 'date|after:startDate'
-        ]);
-
-        if ($request->endDate && $request->endDate !== $project->endDate) {
-            $otherActiveProject = Project::where('prodiId', $project->prodiId)
-                ->where('_id', '!=', $project->_id)
-                ->where('endDate', '>', now())
-                ->exists();
-
-            if ($otherActiveProject) {
+            if (!$project) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Cannot update end date: Prodi already has another active project'
-                ], 400);
+                    'message' => 'Project not found'
+                ], 404);
             }
+
+            // Check if user has permission to edit this project
+            $user = auth()->user();
+            if ($user->role !== 'Koordinator Program Studi' && $project->createdBy !== $user->_id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized to edit this project'
+                ], 403);
+            }
+
+            // Additional prodi restriction: Koordinator can only edit projects from their prodi
+            if ($user->role === 'Koordinator Program Studi' && $project->prodiId !== $user->prodiId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You can only edit projects from your prodi'
+                ], 403);
+            }
+
+            $project->update([
+                'name' => $request->name,
+                'startDate' => $request->startDate,
+                'endDate' => $request->endDate,
+                'updated_at' => now(),
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Project updated successfully',
+                'data' => $project
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error updating project:', [
+                'projectId' => $projectId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update project: ' . $e->getMessage()
+            ], 500);
         }
-
-        $project->update([
-            'name' => $request->name ?? $project->name,
-            'status' => $request->status ?? $project->status,
-            'startDate' => $request->startDate ? new Carbon($request->startDate) : $project->startDate,
-            'endDate' => $request->endDate ? new Carbon($request->endDate) : $project->endDate,
-        ]);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Project updated successfully',
-            'data' => $project
-        ]);
     }
 
     public function removeMember(Request $request, $projectId)
@@ -1437,35 +1588,106 @@ class ProjectController extends Controller
 
     public function destroy($projectId)
     {
-        $project = Project::where('projectId', $projectId)->firstOrFail();
-        $currentUserId = auth()->user()->_id;
-        if (!$this->isOwner($project->_id, $currentUserId)) {
+        try {
+            // Find project by MongoDB ObjectId instead of projectId field
+            $project = Project::find($projectId);
+
+            if (!$project) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Project not found'
+                ], 404);
+            }
+
+            $user = auth()->user();
+
+            // Check authorization with prodi restriction
+            if ($user->role !== 'Koordinator Program Studi' && $project->createdBy !== $user->_id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized to delete this project'
+                ], 403);
+            }
+
+            // Additional prodi restriction: Koordinator can only delete projects from their prodi
+            if ($user->role === 'Koordinator Program Studi' && $project->prodiId !== $user->prodiId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You can only delete projects from your prodi'
+                ], 403);
+            }
+
+            // Check if project has active tasks
+            $activeTasks = Task::where('projectId', $project->_id)
+                ->where('status', '!=', 'COMPLETED')
+                ->count();
+
+            if ($activeTasks > 0) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot delete project with active tasks'
+                ], 400);
+            }
+
+            // Get all project members before deletion
+            $projectMembers = ProjectMember::where('projectId', $project->_id)->get();
+
+            // Remove project reference from all users' projects array
+            foreach ($projectMembers as $member) {
+                $memberUser = User::find($member->userId);
+                if ($memberUser && isset($memberUser->projects)) {
+                    $updatedProjects = collect($memberUser->projects)
+                        ->reject(function ($userProject) use ($project) {
+                            return $userProject['projectId'] === $project->_id;
+                        })
+                        ->values()
+                        ->toArray();
+
+                    $memberUser->projects = $updatedProjects;
+                    $memberUser->save();
+                }
+            }
+
+            // Delete related data in correct order
+            // 1. Delete tasks first
+            Task::where('projectId', $project->_id)->delete();
+
+            // 2. Delete task lists
+            TaskList::where('projectId', $project->_id)->delete();
+
+            // 3. Delete project members
+            ProjectMember::where('projectId', $project->_id)->delete();
+
+            // 4. Clear cache if using caching
+            $cacheKeys = [
+                "project_details_{$project->_id}",
+                "project_task_lists_{$project->_id}"
+            ];
+
+            foreach ($cacheKeys as $key) {
+                Cache::forget($key);
+            }
+
+            // 5. Finally delete the project
+            $project->delete();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Project and all related data deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error deleting project:', [
+                'projectId' => $projectId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'status' => 'error',
-                'message' => 'Only project owner can delete the project'
-            ], 403);
+                'message' => 'Failed to delete project: ' . $e->getMessage()
+            ], 500);
         }
-        $members = ProjectMember::where('projectId', $project->_id)->get();
-        foreach ($members as $member) {
-            $user = User::find($member->userId);
-            if ($user && isset($user->projects)) {
-                $updatedProjects = collect($user->projects)
-                    ->reject(function ($userProject) use ($project) {
-                        return $userProject['projectId'] === $project->_id;
-                    })
-                    ->toArray();
-                $user->projects = $updatedProjects;
-                $user->save();
-            }
-        }
-        ProjectMember::where('projectId', $project->_id)->delete();
-        $project->tasklists()->delete();
-        $project->tasks()->delete();
-        $project->delete();
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Project deleted successfully'
-        ]);
     }
 
     public function getProjectStatistics($projectId)

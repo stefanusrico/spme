@@ -10,46 +10,6 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faPlus } from "@fortawesome/free-solid-svg-icons"
 import { ColorLens } from "@mui/icons-material"
 
-<<<<<<< HEAD
-export default function ScrollableTabs({ no, sub, tabsData, allDataNoSub, updateUserTask, onClick, dataColor, allDataVersion }) {
-  const [json, setJson] = useState([])
-  const [value, setValue] = useState(0);
-  const [color, setColor] = useState([])
-  const [open, setOpen] = useState(false); 
-  const [colorBg, setColorBg] = useState([])
-  const [dataVersion, setDataVersion] = useState([])
-  
-  useEffect(() => {
-    if (allDataNoSub && allDataNoSub.length > 0) {
-        setDataVersion(allDataNoSub);
-    }
-  }, [allDataNoSub]);
-
-  useEffect(() => {
-    if(dataColor && dataColor.length > 0){
-      console.log("masukkkkk", dataColor[0].value)
-      setColor(dataColor)
-    }
-    if(allDataVersion && allDataVersion.length > 0){
-      console.log("masukkk", allDataVersion)
-      setJson(allDataVersion)
-    }
-    setBgColor()
-  }, [dataColor, allDataVersion])
-
-  useEffect(() => {
-    if (!open && tabsData.length > 0) {
-      const defaultIndex = tabsData.findIndex((tab) => tab?.no?.toString() === no && tab?.sub === sub);
-      if (defaultIndex >= 0) {
-        setValue(defaultIndex);
-      } else {
-        setValue(0);
-      }
-  
-      setBgColor();
-    }
-  }, [tabsData, no, sub, open]);
-=======
 export default function ScrollableTabs({
   no,
   sub,
@@ -74,6 +34,7 @@ export default function ScrollableTabs({
     }
   }, [allDataTasks])
 
+  // Update data saat props berubah
   useEffect(() => {
     if (dataColor && dataColor.length > 0) {
       setColor(dataColor)
@@ -82,8 +43,19 @@ export default function ScrollableTabs({
       console.log("masukkk", allLedData)
       setJson(allLedData)
     }
-    setBgColor()
   }, [dataColor, allLedData])
+
+  // Set background color hanya setelah semua data siap
+  useEffect(() => {
+    // Pastikan semua data yang diperlukan sudah tersedia
+    if (
+      tabsData.length > 0 && 
+      color.length > 0 && 
+      json.length > 0
+    ) {
+      setBgColor()
+    }
+  }, [tabsData, color, json]) // Dependencies yang tepat
 
   useEffect(() => {
     if (!Array.isArray(tabsData) || tabsData.length === 0) {
@@ -98,33 +70,12 @@ export default function ScrollableTabs({
     if (defaultIndex >= 0) {
       setValue(defaultIndex)
     }
-
-    setBgColor()
   }, [tabsData, no, sub])
-
->>>>>>> dbv2
-
-  useEffect(() => {
-    setBgColor()
-  }, [])
 
   const handleChange = (event, newValue) => {
     setValue(newValue)
   }
 
-<<<<<<< HEAD
-  const handleClick = async (no, sub, index, status) => {
-    if(status === 'plus'){
-      await updateUserTask(no, sub)
-      setOpen(false); // Tutup modal
-      if (onClick) {
-        await onClick(no, sub);
-      }
-      return;
-    }
-    
-    setValue(index); // Update active tab manually
-=======
   const handleClick = async (no, sub, projectId, index, status) => {
     if(status === "plus"){
       await updateUserTask(no, sub, projectId)
@@ -135,7 +86,6 @@ export default function ScrollableTabs({
       return;
     }
     setValue(index) // Update active tab manually
->>>>>>> dbv2
     if (onClick) {
       if (no && sub) {
         console.log(no, sub, index, projectId)
@@ -155,15 +105,12 @@ export default function ScrollableTabs({
   }
 
   const setBgColor = () => {
-<<<<<<< HEAD
-    let bgColorArray = new Array(tabsData.length).fill(color[0]?.value || "#f38383");
-    // const json = allDataVersion
-    console.log("json : ", allDataVersion)
-    console.log("tabsData : ", tabsData)
-    for (let i = 0; i < json.length; i++) {
-      for (let index = 0; index < tabsData.length; index++) {
-        if (json[i]?.task?.no === tabsData[index]?.no && json[i]?.task?.sub === tabsData[index]?.sub) {
-=======
+    // Pastikan data yang diperlukan tersedia
+    if (!tabsData.length || !color.length || !json.length) {
+      console.log("Data belum siap untuk setBgColor")
+      return
+    }
+
     let bgColorArray = new Array(tabsData.length).fill(
       color[0]?.value || "#f38383"
     )
@@ -174,37 +121,24 @@ export default function ScrollableTabs({
 
     for (let i = 0; i < json.length; i++) {
       for (let index = 0; index < tabsData.length; index++) {
-        const ledItem = allLedData[i]?.task?.led_item
+        const ledItem = json[i]?.task?.led_item // Menggunakan json bukan allLedData
         
         if (
           ledItem?.no === String(tabsData[index]?.no) &&
           ledItem?.sub === tabsData[index]?.sub
         ) {
-          const nilaiStr = allLedData[i]?.nilai
+          const nilaiStr = json[i]?.nilai
           const totalScore = parseFloat(nilaiStr)
 
-<<<<<<< HEAD
-          for (let indexDetail = 0; indexDetail < json[i].details.length; indexDetail++) {
-            if (json[i].details[indexDetail].type === "K") {
-              const intScore = parseInt(json[i].details[indexDetail].nilai) || 0; 
-              totalScore += intScore;
-              count++;
-            }
-          }
-  
-=======
->>>>>>> dbv2
-          // Menghitung nilai rata-rata
-          const finalScore = totalScore ? totalScore.toFixed(2) : 0
+          if (!isNaN(totalScore)) {
+            const finalScore = totalScore.toFixed(2)
 
-          // Menentukan warna berdasarkan finalScore
-          for (let indexColor = 0; indexColor < color.length; indexColor++) {
-            if (
-              finalScore >= color[indexColor].rangeStart &&
-              finalScore <= color[indexColor].rangeEnd
-            ) {
-              bgColorArray[index] = color[indexColor].value // Simpan warna di indeks yang sama dengan tabsData
-              break
+            for (let indexColor = 0; indexColor < color.length; indexColor++) {
+              const { rangeStart, rangeEnd, value } = color[indexColor]
+              if (totalScore >= rangeStart && totalScore <= rangeEnd) {
+                bgColorArray[index] = value
+                break
+              }
             }
           }
         }
@@ -233,7 +167,7 @@ export default function ScrollableTabs({
               sx={{
                 padding: "8px 16px",
                 cursor: "pointer",
-                bgcolor: colorBg[index],
+                bgcolor: colorBg[index] || (color[0]?.value || "#f38383"), // Fallback color
                 color: value === index ? "white" : "black",
                 borderRadius: "4px",
                 margin: "0 2px 4px",
@@ -279,8 +213,8 @@ export default function ScrollableTabs({
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: 350, // Lebar modal
-            height: 100, // Tinggi modal
+            width: 350,
+            height: 100,
             bgcolor: "white",
             boxShadow: 24,
             borderRadius: "8px",
@@ -293,8 +227,6 @@ export default function ScrollableTabs({
           <Grid container spacing={1}>
             {dataAllTasks.map((tab, index) => (
               <Grid item xs={12 / 7} key={index}>
-                {" "}
-                {/* 1 baris 7 kotak */}
                 <Box
                   sx={{
                     bgcolor: "grey.300",
@@ -307,11 +239,7 @@ export default function ScrollableTabs({
                       bgcolor: "grey.400",
                     },
                   }}
-<<<<<<< HEAD
-                  onClick={() => handleClick(tab.no, tab.sub, index, 'plus')}
-=======
                   onClick={() => handleClick(tab.no, tab.sub, tab.project.id, index, "plus")}
->>>>>>> dbv2
                 >
                   <Typography variant="caption">{`${tab.no} ${tab.sub}`}</Typography>
                 </Box>

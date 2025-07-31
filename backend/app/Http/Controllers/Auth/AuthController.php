@@ -122,4 +122,27 @@ class AuthController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get authenticated user data
+     */
+    public function user()
+    {
+        try {
+            $user = Auth::user();
+
+            if (!$user) {
+                return response()->json(['error' => 'User not found'], 404);
+            }
+
+            return response()->json([
+                'id' => $user->id,
+                'email' => $user->email,
+                'role' => $user->role,
+                'name' => $user->name ?? null,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to fetch user data'], 500);
+        }
+    }
 }

@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Http\Controllers\Lkps\GoogleSheetController;
+use App\Http\Controllers\Lkps\LkpsImportController;
 use App\Models\Lkps\LkpsTable;
 use App\Models\Lkps\LkpsColumn;
 use Illuminate\Support\Facades\Log;
@@ -20,7 +20,7 @@ class LkpsSyncCommand extends Command
      */
 
     //php artisan lkps:sync --spreadsheet_id=1eTiQOVI5Ac1cHEzkBL1kkUA9uSP2aoM7ntukkLRxND8 --clear
-    protected $signature = 'lkps:sync 
+    protected $signature = 'lkps:sync
                             {--spreadsheet_id= : ID Google Spreadsheet}
                             {--clear : Hapus struktur yang sudah ada sebelum sinkronisasi}
                             {--debug : Tampilkan output debugging lengkap}';
@@ -33,9 +33,9 @@ class LkpsSyncCommand extends Command
     protected $description = 'Sinkronisasi struktur LKPS dari Google Sheets (tabel, kolom) dalam satu command';
 
     /**
-     * GoogleSheetController yang digunakan
+     * LkpsImportController yang digunakan
      */
-    private $googleSheetController;
+    private $lkpsImportController;
 
     /**
      * Spreadsheet ID
@@ -68,7 +68,8 @@ class LkpsSyncCommand extends Command
      */
     public function handle()
     {
-        $this->info('Memulai sinkronisasi struktur LKPS dari Google Sheets...');
+        $this->info('🚀 Memulai sinkronisasi struktur LKPS dari Google Sheets...');
+        $this->info('📝 Kebijakan: Hanya teks merah yang digunakan untuk deteksi strata');
 
         // Set debug mode
         $this->debug = $this->option('debug');
@@ -79,8 +80,8 @@ class LkpsSyncCommand extends Command
             $this->spreadsheetId = $this->ask('Masukkan ID Google Spreadsheet');
         }
 
-        // Inisialisasi GoogleSheetController
-        $this->googleSheetController = new GoogleSheetController(new Request(['spreadsheet_id' => $this->spreadsheetId]));
+        // Inisialisasi LkpsImportController
+        $this->lkpsImportController = new LkpsImportController(new Request(['spreadsheet_id' => $this->spreadsheetId]));
 
         // Cek apakah perlu hapus struktur lama
         if ($this->option('clear')) {
@@ -111,15 +112,25 @@ class LkpsSyncCommand extends Command
             // Step 3: Update data indices untuk kolom dengan menggunakan pendekatan parent-child
             $this->updateColumnDataIndicesWithParent();
 
+            // Step 4: Verifikasi final
+            $finalVerification = $this->performFinalVerification();
+
             // Tampilkan ringkasan
-            $this->info('Sinkronisasi selesai!');
-            $this->info('Total struktur yang dibuat:');
-            $this->info('- Tables: ' . $this->generatedStructure['tables'] . " (Attempted: {$this->attemptedTables}, Success: {$this->successTables}, Failed: {$this->failedTables})");
-            $this->info('- Columns: ' . $this->generatedStructure['columns']);
+            $this->info('✅ Sinkronisasi selesai!');
+            $this->info('📊 Total struktur yang dibuat:');
+            $this->info("   - Tables: {$this->generatedStructure['tables']} (Attempted: {$this->attemptedTables}, Success: {$this->successTables}, Failed: {$this->failedTables})");
+            $this->info("   - Columns: {$this->generatedStructure['columns']}");
+
+            // Tampilkan ringkasan strata (hanya dari teks merah)
+            $this->info('🔴 Ringkasan Strata (dari teks merah saja):');
+            $this->info("   - Sarjana Terapan: {$finalVerification['strata_summary']['sarjana_terapan']}");
+            $this->info("   - Diploma Tiga: {$finalVerification['strata_summary']['diploma_tiga']}");
+            $this->info("   - Kombinasi: {$finalVerification['strata_summary']['kombinasi']}");
+            $this->info("   - Tidak ada teks merah strata: {$finalVerification['strata_summary']['no_strata']}");
 
             return 0;
         } catch (\Exception $e) {
-            $this->error('Terjadi kesalahan: ' . $e->getMessage());
+            $this->error('❌ Terjadi kesalahan: ' . $e->getMessage());
             $this->error($e->getTraceAsString());
 
             Log::error('Error syncing LKPS structure: ' . $e->getMessage());
@@ -155,7 +166,7 @@ class LkpsSyncCommand extends Command
         $this->info('Mengambil data dari Google Sheets...');
 
         $request = new Request(['spreadsheet_id' => $this->spreadsheetId]);
-        $response = $this->googleSheetController->getAvailableTables($request);
+        $response = $this->lkpsImportController->getAvailableTables($request);
 
         if (!isset($response->original)) {
             $this->error('Response tidak memiliki property "original"');
@@ -184,7 +195,7 @@ class LkpsSyncCommand extends Command
                     }
                 }
 
-                // WORKAROUND: Jika kedua table menggunakan sheet name yang sama, 
+                // WORKAROUND: Jika kedua table menggunakan sheet name yang sama,
                 // coba fix dengan mencari nama sheet yang lebih sesuai
                 if (
                     isset($nameSheet) && $nameSheet == "Tabel 7 PkM DTPS yang Melibatkan Mahasiswa" &&
@@ -194,7 +205,7 @@ class LkpsSyncCommand extends Command
                     $this->info("  Mencoba mencari sheet name yang lebih sesuai untuk '$title'...");
 
                     // Coba cari sheet name yang cocok dengan prefix table
-                    foreach ($sheetNames as $sheetTitle => $sheetName) {
+                    foreach ($response->original['sheet_names'] as $sheetTitle => $sheetName) {
                         if (
                             strpos($sheetTitle, "3.b.7") !== false ||
                             strpos($sheetName, "3.b.7") !== false ||
@@ -434,7 +445,7 @@ class LkpsSyncCommand extends Command
                 'table_ref' => $nameSheet
             ]);
 
-            $response = $this->googleSheetController->getColoredCellsByTable($request, $nameSheet);
+            $response = $this->lkpsImportController->getColoredCellsByTable($request, $nameSheet);
 
             if ($this->debug) {
                 $this->info("  Response getColoredCellsByTable untuk {$nameSheet}: " . json_encode($response->original ?? 'No original data'));
@@ -456,9 +467,59 @@ class LkpsSyncCommand extends Command
                 return;
             }
 
-            // PRIORITAS UTAMA: Gunakan first_yellow_row (baris pertama dengan sel kuning)
+            $originalStrata = $table->strata;
+            $isSpecialSheet = $response->original['is_special_sheet'] ?? false;
+
+            // PERBAIKAN: Update strata HANYA dari teks merah
+            if (isset($response->original['detected_strata']) && !empty($response->original['detected_strata'])) {
+                $detectedStrata = $response->original['detected_strata'];
+
+                // Pastikan ini dari red text
+                if (isset($response->original['strata_detection_method']) && $response->original['strata_detection_method'] === 'red_text_only') {
+                    $table->strata = $detectedStrata;
+                    $table->save();
+                    $table->refresh();
+
+                    if ($isSpecialSheet) {
+                        $this->info("  🎯 Tabel khusus (8c/8d1) - Strata dari teks merah: '{$originalStrata}' → '{$detectedStrata}'");
+                    } else {
+                        $this->info("  🔴 Strata dari teks merah: '{$originalStrata}' → '{$detectedStrata}'");
+                    }
+
+                    if ($this->debug && isset($response->original['red_text_strata']) && !empty($response->original['red_text_strata'])) {
+                        $this->info("  📋 Detail teks merah yang terdeteksi:");
+                        foreach ($response->original['red_text_strata'] as $redText) {
+                            $this->info("    - Baris {$redText['row']}: '{$redText['strata']}' dari teks: '{$redText['text']}'");
+                        }
+                    }
+                } else {
+                    $this->warn("  ⚠️  Strata terdeteksi tapi bukan dari teks merah - diabaikan");
+                }
+            } else {
+                $this->info("  ℹ️  Tidak ada teks merah dengan strata yang terdeteksi untuk tabel {$table->kode}");
+
+                // TIDAK ada fallback - hanya teks merah yang digunakan
+                if ($this->debug) {
+                    $this->info("  📝 Kebijakan: Hanya teks merah yang digunakan untuk deteksi strata");
+                }
+            }
+
+            // Log informasi red cells jika ada
+            if (isset($response->original['red_cells']) && !empty($response->original['red_cells'])) {
+                $redCellsCount = count($response->original['red_cells']);
+                $this->info("  🔴 Ditemukan {$redCellsCount} sel dengan teks merah");
+
+                if ($this->debug) {
+                    foreach ($response->original['red_cells'] as $redCell) {
+                        $this->info("    - {$redCell['cell']}: '{$redCell['value']}'");
+                    }
+                }
+            } else {
+                $this->info("  ⚪ Tidak ada sel dengan teks merah ditemukan");
+            }
+
+            // PRIORITAS UTAMA: Gunakan first_yellow_row
             if (isset($response->original['first_yellow_row']) && $response->original['first_yellow_row'] > 0) {
-                // Langsung gunakan first_yellow_row tanpa penambahan
                 $table->barisAwalExcel = $response->original['first_yellow_row'];
                 $table->save();
 
@@ -467,17 +528,16 @@ class LkpsSyncCommand extends Command
                     $yellowInfo = " (semua baris kuning: " . implode(", ", $response->original['yellow_rows_found']) . ")";
                 }
 
-                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (baris pertama dengan sel kuning){$yellowInfo}");
+                $this->info("  📊 barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (baris pertama dengan sel kuning){$yellowInfo}");
             }
-            // PRIORITAS KEDUA: Jika tidak ada yellow row, gunakan data_start_row jika tersedia
+            // PRIORITAS KEDUA: data_start_row
             else if (isset($response->original['data_start_row']) && $response->original['data_start_row'] > 0) {
                 $table->barisAwalExcel = $response->original['data_start_row'];
                 $table->save();
-                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} berdasarkan data_start_row (tidak ada sel kuning ditemukan)");
+                $this->info("  📊 barisAwalExcel diupdate menjadi {$table->barisAwalExcel} berdasarkan data_start_row");
             }
-            // PRIORITAS KETIGA: Gunakan header_row + 1 sebagai fallback
+            // PRIORITAS KETIGA: header_row + 1
             else if (isset($headerData['header_row']) && $headerData['header_row'] > 0) {
-                // Cari baris header terbesar
                 $lastHeaderRow = $headerData['header_row'];
                 if (isset($headerData['subheader_row']) && $headerData['subheader_row'] > $lastHeaderRow) {
                     $lastHeaderRow = $headerData['subheader_row'];
@@ -487,60 +547,67 @@ class LkpsSyncCommand extends Command
                 }
                 $table->barisAwalExcel = $lastHeaderRow + 1;
                 $table->save();
-                $this->info("  barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (header row terakhir + 1, tidak ada sel kuning)");
+                $this->info("  📊 barisAwalExcel diupdate menjadi {$table->barisAwalExcel} (header row terakhir + 1)");
             }
-            // DEFAULT: Jika tidak ada informasi sama sekali
+            // DEFAULT
             else {
-                $table->barisAwalExcel = 2; // Default ke baris 2
+                $table->barisAwalExcel = 2;
                 $table->save();
-                $this->warn("  barisAwalExcel menggunakan default 2 (tidak ada informasi header atau sel kuning)");
+                $this->warn("  📊 barisAwalExcel menggunakan default 2");
             }
 
-            // Proses yellow columns untuk menentukan kolom mana yang fillable
+            // Proses yellow columns
             $yellowColumns = [];
             if (isset($response->original['yellow_columns']) && is_array($response->original['yellow_columns'])) {
                 $yellowColumns = array_keys($response->original['yellow_columns']);
 
                 if ($this->debug) {
-                    $this->info("  Kolom kuning yang terdeteksi: " . implode(", ", $yellowColumns));
+                    $this->info("  🟡 Kolom kuning yang terdeteksi: " . implode(", ", $yellowColumns));
                 }
             }
 
-            // Log jumlah yellow columns yang ditemukan
             if (!empty($yellowColumns)) {
-                $this->info("  Ditemukan " . count($yellowColumns) . " kolom berwarna kuning yang akan di-set fillable");
+                $this->info("  🟡 Ditemukan " . count($yellowColumns) . " kolom berwarna kuning yang akan di-set fillable");
             } else {
-                $this->info("  Tidak ada kolom kuning ditemukan - semua kolom akan di-set tidak fillable");
+                $this->info("  ⚪ Tidak ada kolom kuning ditemukan - semua kolom akan di-set tidak fillable");
             }
 
             // Hapus kolom lama
             $deletedColumns = LkpsColumn::where('kodeTabel', $table->kode)->delete();
-            $this->info("  Menghapus {$deletedColumns} kolom lama untuk tabel {$table->kode}");
+            $this->info("  🗑️  Menghapus {$deletedColumns} kolom lama untuk tabel {$table->kode}");
 
-            // Verifikasi kolom benar-benar dihapus
+            // Verifikasi kolom dihapus
             $remainingColumns = LkpsColumn::where('kodeTabel', $table->kode)->count();
             if ($remainingColumns > 0) {
-                $this->warn("  Masih terdapat {$remainingColumns} kolom yang belum terhapus!");
+                $this->warn("  ⚠️  Masih terdapat {$remainingColumns} kolom yang belum terhapus!");
                 $forceDeleted = LkpsColumn::where('kodeTabel', $table->kode)->forceDelete();
-                $this->info("  Menghapus paksa kolom tersisa: {$forceDeleted}");
+                $this->info("  🗑️  Menghapus paksa kolom tersisa: {$forceDeleted}");
             }
 
-            // Buat kolom baru dengan referensi kodeTabel yang benar dan informasi yellow columns
+            // Buat kolom baru
             $columnCount = $this->createColumnsFromHeaderDataWithFillable($table, $headerData['columns'], null, 0, $yellowColumns);
-            $this->info("  Berhasil membuat {$columnCount} kolom untuk tabel {$table->kode}");
+            $this->info("  ✅ Berhasil membuat {$columnCount} kolom untuk tabel {$table->kode}");
 
             // Hitung kolom fillable dan non-fillable
             $fillableCount = LkpsColumn::where('kodeTabel', $table->kode)->where('fillable', true)->count();
             $nonFillableCount = LkpsColumn::where('kodeTabel', $table->kode)->where('fillable', false)->count();
 
-            $this->info("  Kolom fillable (kuning): {$fillableCount}, Non-fillable: {$nonFillableCount}");
+            $this->info("  📊 Kolom fillable (kuning): {$fillableCount}, Non-fillable: {$nonFillableCount}");
 
-            // Verifikasi kolom benar-benar dibuat
+            // Verifikasi kolom tersimpan
             $actualColumns = LkpsColumn::where('kodeTabel', $table->kode)->count();
-            $this->info("  Konfirmasi: {$actualColumns} kolom tersimpan di database");
+            $this->info("  ✅ Konfirmasi: {$actualColumns} kolom tersimpan di database");
+
+            // Verifikasi strata tersimpan
+            $savedStrata = LkpsTable::where('kode', $table->kode)->value('strata');
+            if ($savedStrata) {
+                $this->info("  ✅ Konfirmasi strata tersimpan: '{$savedStrata}' (hanya dari teks merah)");
+            } else {
+                $this->info("  ℹ️  Tidak ada strata tersimpan (hanya menggunakan teks merah)");
+            }
 
         } catch (\Exception $e) {
-            $this->error("  Gagal membuat kolom untuk tabel {$table->kode}: {$e->getMessage()}");
+            $this->error("  ❌ Gagal membuat kolom untuk tabel {$table->kode}: {$e->getMessage()}");
             Log::error("Error creating columns for table {$table->kode}: {$e->getMessage()}");
             Log::error($e->getTraceAsString());
 
@@ -550,10 +617,6 @@ class LkpsSyncCommand extends Command
         }
     }
 
-    /**
-     * Helper method untuk create columns dengan fillable support
-     * Fillable = true HANYA untuk kolom berwarna kuning
-     */
     private function createColumnsFromHeaderDataWithFillable($table, $columns, $parentId = null, $parentOrder = 0, $yellowColumns = [])
     {
         $columnCount = 0;
@@ -616,73 +679,187 @@ class LkpsSyncCommand extends Command
     }
 
     /**
-     * Buat kolom dari data header yang sudah distrukturisasi
-     * Implementasi dasar untuk membuat kolom, tanpa mengatur indeksData berdasarkan parent
+     * BARU: Deteksi strata manual dari judul tabel
      */
-    private function createColumnsFromHeaderData($table, $columns, $parentId = null, $parentOrder = 0, $greenCells = [])
+    private function detectStrataFromTableTitle($title)
     {
-        $columnCount = 0;
-        $order = 0;
+        $normalizedTitle = strtolower(trim($title));
 
-        foreach ($columns as $column) {
-            try {
-                // Tentukan tipe data dan index
-                $dataType = $this->determineColumnType($column['name']);
-                $dataIndex = $this->createDataIndex($column['name']);
-                $hasChildren = !empty($column['children']);
+        // Pattern untuk Sarjana Terapan
+        $sarjanaTerapanPatterns = [
+            'sarjana terapan',
+            's.tr',
+            'str',
+            'diploma empat',
+            'diploma 4',
+            'd4',
+            'd-4'
+        ];
 
-                // Cek apakah kolom ini berwarna hijau
-                $isFillable = !isset($greenCells[$column['column']]);
+        // Pattern untuk Diploma Tiga
+        $diplomaTigaPatterns = [
+            'diploma tiga',
+            'diploma 3',
+            'd3',
+            'd-3'
+        ];
 
-                // PERBAIKAN: Konsistensi penggunaan kodeTabel
-                $newColumn = LkpsColumn::create([
-                    'kodeTabel' => $table->kode,
-                    'indeksData' => $dataIndex,
-                    'judul' => $column['name'],
-                    'type' => $hasChildren ? 'group' : $dataType,
-                    'lebar' => 150,
-                    'indeksExcel' => $this->columnLetterToIndex($column['column']) - 1,
-                    'order' => $parentId ? $order : $parentOrder + $order,
-                    'align' => 'left',
-                    'isGroup' => $hasChildren,
-                    'parentId' => $parentId,
-                    'fillable' => $isFillable // Set fillable berdasarkan warna
-                ]);
+        $foundSarjana = false;
+        $foundDiploma = false;
 
-                $columnCount++;
-                $this->generatedStructure['columns']++;
-
-                if ($this->debug) {
-                    $fillableInfo = $isFillable ? 'fillable' : 'not fillable';
-                    $this->info("    Kolom dibuat: {$column['name']} (type: " . ($hasChildren ? 'group' : $dataType) . ", {$fillableInfo})");
-                }
-
-                // Rekursif untuk child columns
-                if ($hasChildren) {
-                    $childCount = $this->createColumnsFromHeaderData(
-                        $table,
-                        $column['children'],
-                        $newColumn->_id,
-                        $order,
-                        $greenCells // Pass green cells info ke children
-                    );
-                    $columnCount += $childCount;
-                }
-
-                $order++;
-            } catch (\Exception $e) {
-                $this->error("    Gagal membuat kolom '{$column['name']}': {$e->getMessage()}");
-                Log::error("Error creating column '{$column['name']}': {$e->getMessage()}");
+        foreach ($sarjanaTerapanPatterns as $pattern) {
+            if (strpos($normalizedTitle, $pattern) !== false) {
+                $foundSarjana = true;
+                break;
             }
         }
 
-        return $columnCount;
+        foreach ($diplomaTigaPatterns as $pattern) {
+            if (strpos($normalizedTitle, $pattern) !== false) {
+                $foundDiploma = true;
+                break;
+            }
+        }
+
+        if ($foundSarjana && $foundDiploma) {
+            return 'Sarjana Terapan/Diploma Tiga';
+        } elseif ($foundSarjana) {
+            return 'Sarjana Terapan';
+        } elseif ($foundDiploma) {
+            return 'Diploma Tiga';
+        }
+
+        return null;
+    }
+
+    private function determineColumnType($columnName)
+    {
+        $columnName = strtolower($columnName);
+
+        // Kolom dengan tipe numerik
+        if (
+            strpos($columnName, 'jumlah') !== false ||
+            strpos($columnName, 'total') !== false ||
+            strpos($columnName, 'nilai') !== false ||
+            strpos($columnName, 'skor') !== false ||
+            strpos($columnName, 'durasi') !== false ||
+            strpos($columnName, 'no.') !== false ||
+            preg_match('/ts[-\d]/i', $columnName)
+        ) {
+            return 'number';
+        }
+
+        // Kolom dengan tipe tanggal
+        if (
+            strpos($columnName, 'tanggal') !== false ||
+            strpos($columnName, 'tgl') !== false
+        ) {
+            return 'date';
+        }
+
+        // Kolom dengan tipe boolean
+        if (
+            strpos($columnName, 'status') !== false ||
+            strpos($columnName, 'aktif') !== false ||
+            strpos($columnName, 'internasional') !== false ||
+            strpos($columnName, 'nasional') !== false ||
+            strpos($columnName, 'lokal') !== false
+        ) {
+            return 'boolean';
+        }
+
+        // Kolom dengan tipe URL
+        if (
+            strpos($columnName, 'link') !== false ||
+            strpos($columnName, 'bukti') !== false
+        ) {
+            return 'url';
+        }
+
+        // Default: text
+        return 'text';
     }
 
     /**
-     * Update indeksData untuk semua kolom dengan menggunakan pendekatan parent-child
-     * Metode ini akan dijalankan setelah semua kolom dibuat
+     * PERBAIKAN: Verifikasi final dengan informasi strata dari teks merah saja
      */
+    private function performFinalVerification()
+    {
+        $tables = LkpsTable::all();
+        $verification = [
+            'total_tables_in_db' => $tables->count(),
+            'total_columns_in_db' => LkpsColumn::count(),
+            'tables_detail' => [],
+            'strata_summary' => [
+                'sarjana_terapan' => 0,
+                'diploma_tiga' => 0,
+                'kombinasi' => 0,
+                'no_strata' => 0
+            ],
+            'detection_method' => 'red_text_only'
+        ];
+
+        foreach ($tables as $table) {
+            $columnCount = LkpsColumn::where('kodeTabel', $table->kode)->count();
+            $fillableCount = LkpsColumn::where('kodeTabel', $table->kode)->where('fillable', true)->count();
+
+            // Count strata dengan dukungan kombinasi
+            if ($table->strata === 'Sarjana Terapan/Diploma Tiga') {
+                $verification['strata_summary']['kombinasi']++;
+            } elseif ($table->strata === 'Sarjana Terapan') {
+                $verification['strata_summary']['sarjana_terapan']++;
+            } elseif ($table->strata === 'Diploma Tiga') {
+                $verification['strata_summary']['diploma_tiga']++;
+            } else {
+                $verification['strata_summary']['no_strata']++;
+            }
+
+            $verification['tables_detail'][] = [
+                'table_code' => $table->kode,
+                'table_title' => $table->judul,
+                'strata' => $table->strata ?? 'Tidak ada teks merah strata',
+                'columns_count' => $columnCount,
+                'fillable_columns' => $fillableCount,
+                'non_fillable_columns' => $columnCount - $fillableCount,
+                'baris_awal_excel' => $table->barisAwalExcel
+            ];
+        }
+
+        return $verification;
+    }
+
+    private function createDataIndex($columnName)
+    {
+        // Ubah ke lowercase
+        $dataIndex = strtolower($columnName);
+
+        // Hapus karakter khusus dan ganti spasi dengan underscore
+        $dataIndex = preg_replace('/[^\p{L}\p{N}]+/u', '_', $dataIndex);
+
+        // Hapus underscore berlebih
+        $dataIndex = preg_replace('/_+/', '_', $dataIndex);
+
+        // Hapus underscore di awal dan akhir
+        $dataIndex = trim($dataIndex, '_');
+
+        return $dataIndex;
+    }
+
+    /**
+     * Convert column letter to index (A=1, B=2, Z=26, AA=27, etc.)
+     */
+    private function columnLetterToIndex($column)
+    {
+        $column = strtoupper($column);
+        $result = 0;
+
+        for ($i = 0; $i < strlen($column); $i++) {
+            $result = $result * 26 + (ord($column[$i]) - ord('A') + 1);
+        }
+
+        return $result;
+    }
+
     private function updateColumnDataIndicesWithParent()
     {
         $this->info('Memperbarui indeksData kolom berdasarkan relasi parent-child...');
@@ -789,91 +966,5 @@ class LkpsSyncCommand extends Command
         $formatted = trim($formatted, '_');
 
         return $formatted;
-    }
-
-    /**
-     * Tentukan tipe data kolom berdasarkan nama
-     */
-    private function determineColumnType($columnName)
-    {
-        $columnName = strtolower($columnName);
-
-        // Kolom dengan tipe numerik
-        if (
-            strpos($columnName, 'jumlah') !== false ||
-            strpos($columnName, 'total') !== false ||
-            strpos($columnName, 'nilai') !== false ||
-            strpos($columnName, 'skor') !== false ||
-            strpos($columnName, 'durasi') !== false ||
-            strpos($columnName, 'no.') !== false ||
-            preg_match('/ts[-\d]/i', $columnName)
-        ) {
-            return 'number';
-        }
-
-        // Kolom dengan tipe tanggal
-        if (
-            strpos($columnName, 'tanggal') !== false ||
-            strpos($columnName, 'tgl') !== false
-        ) {
-            return 'date';
-        }
-
-        // Kolom dengan tipe boolean
-        if (
-            strpos($columnName, 'status') !== false ||
-            strpos($columnName, 'aktif') !== false ||
-            strpos($columnName, 'internasional') !== false ||
-            strpos($columnName, 'nasional') !== false ||
-            strpos($columnName, 'lokal') !== false
-        ) {
-            return 'boolean';
-        }
-
-        // Kolom dengan tipe URL
-        if (
-            strpos($columnName, 'link') !== false ||
-            strpos($columnName, 'bukti') !== false
-        ) {
-            return 'url';
-        }
-
-        // Default: text
-        return 'text';
-    }
-
-    /**
-     * Buat index data berdasarkan nama kolom
-     */
-    private function createDataIndex($columnName)
-    {
-        // Ubah ke lowercase
-        $dataIndex = strtolower($columnName);
-
-        // Hapus karakter khusus dan ganti spasi dengan underscore
-        $dataIndex = preg_replace('/[^\p{L}\p{N}]+/u', '_', $dataIndex);
-
-        // Hapus underscore berlebih
-        $dataIndex = preg_replace('/_+/', '_', $dataIndex);
-
-        // Hapus underscore di awal dan akhir
-        $dataIndex = trim($dataIndex, '_');
-
-        return $dataIndex;
-    }
-
-    /**
-     * Convert column letter to index (A=1, B=2, Z=26, AA=27, etc.)
-     */
-    private function columnLetterToIndex($column)
-    {
-        $column = strtoupper($column);
-        $result = 0;
-
-        for ($i = 0; $i < strlen($column); $i++) {
-            $result = $result * 26 + (ord($column[$i]) - ord('A') + 1);
-        }
-
-        return $result;
     }
 }

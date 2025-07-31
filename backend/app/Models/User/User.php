@@ -9,7 +9,7 @@ use MongoDB\Laravel\Eloquent\Model;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Prodi\Prodi;
-use App\Models\DatabaseNotification;
+use App\Models\Notification\Notification;
 use App\Models\Project\Project;
 
 class User extends Model implements JWTSubject, AuthenticatableContract
@@ -76,6 +76,6 @@ class User extends Model implements JWTSubject, AuthenticatableContract
 
     public function notifications()
     {
-        return $this->morphMany(DatabaseNotification::class, 'notifiable')->orderBy('created_at', 'desc');
+        return $this->morphMany(Notification::class, 'notifiable')->orderBy('created_at', 'desc');
     }
 }

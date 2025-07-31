@@ -1,20 +1,18 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
-import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 
 export class DataPelaksanaanKegiatanMBKMPlugin extends BasePlugin {
   constructor() {
     super({
       code: "5b3",
       name: "Data Pelaksanaan Kegiatan MBKM Plugin",
-      description: "Plugin for student satisfaction data processing",
+      description: "Plugin for MBKM activities data processing",
     })
   }
 
   configureSection(config) {
     return {
       ...config,
-      isKepuasanMahasiswaSection: true,
+      isDataPelaksanaanMBKMSection: true,
     }
   }
 
@@ -22,117 +20,106 @@ export class DataPelaksanaanKegiatanMBKMPlugin extends BasePlugin {
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
+  }
 
-    if (rawData.length === 0) return { allRows: [] }
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
+    // Numeric fields
+    if (
+      fieldLower.includes("periode") ||
+      fieldLower.includes("durasi") ||
+      fieldLower.includes("jenis_kegiatan") ||
+      fieldLower.includes("sks") ||
+      fieldLower.includes("jumlah_mahasiswa")
+    ) {
+      return "number"
+    }
 
-    const processedData = filteredData.map((row, index) => {
-      return {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        nama_kegiatan: PluginUtils.normalizeTextField(row[1]),
-        periode_pelaksanaan_durasi: PluginUtils.parseNumber(row[2], 0),
-        jenis_kegiatan_mbkm: PluginUtils.parseNumber(row[3], 0),
-        mata_kuliah_yang_setara_kode_nama: PluginUtils.normalizeTextField(
-          row[4]
-        ),
-        sks_mk_yang_setara: PluginUtils.parseNumber(row[5], 0),
-        jumlah_mahasiswa_ps_yang_mengikuti: PluginUtils.parseNumber(row[6], 0),
-        nama_lembaga_mitra: PluginUtils.normalizeTextField(row[7]),
-        nama_dtps_yang_menjadi_pembimbing: PluginUtils.normalizeTextField(
-          row[8]
-        ),
-      }
-    })
+    return super.detectFieldType(fieldName, value)
+  }
 
+  // ✅ Dynamic field mapping
+  mapMBKMFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      nama_kegiatan: this.findFieldByPattern(sampleItem, [
+        "nama_kegiatan",
+        "kegiatan",
+      ]),
+      periode_pelaksanaan: this.findFieldByPattern(sampleItem, [
+        "periode_pelaksanaan",
+        "periode",
+        "durasi",
+      ]),
+      jenis_kegiatan_mbkm: this.findFieldByPattern(sampleItem, [
+        "jenis_kegiatan",
+        "jenis",
+        "mbkm",
+      ]),
+      mata_kuliah_setara: this.findFieldByPattern(sampleItem, [
+        "mata_kuliah_setara",
+        "mata_kuliah",
+        "setara",
+        "kode_nama",
+      ]),
+      sks_setara: this.findFieldByPattern(sampleItem, ["sks_setara", "sks"]),
+      jumlah_mahasiswa: this.findFieldByPattern(sampleItem, [
+        "jumlah_mahasiswa",
+        "mahasiswa",
+        "mengikuti",
+      ]),
+      lembaga_mitra: this.findFieldByPattern(sampleItem, [
+        "lembaga_mitra",
+        "lembaga",
+        "mitra",
+      ]),
+      dtps_pembimbing: this.findFieldByPattern(sampleItem, [
+        "dtps_pembimbing",
+        "dtps",
+        "pembimbing",
+      ]),
     }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    if (!data || data.length === 0) {
-      return {
-        scores: [
-          {
-            butir: 49,
-            nilai: 0,
-          },
-        ],
-        scoreDetail: {
-          jumlah_total_mahasiswa_mengikuti_mbkm: 0,
-        },
-      }
-    }
-
-    let jumlahTotalMahasiswaMengikutiMBKM = 0
-    data.forEach((item) => {
-      jumlahTotalMahasiswaMengikutiMBKM +=
-        item.jumlah_mahasiswa_ps_yang_mengikuti
-    })
-
-    // TODO: Implement actual scoring logic based on percentage
-    let nilai = 0
-
-    return {
-      scores: [
-        {
-          butir: 49,
-          nilai,
-        },
-      ],
-      scoreDetail: {
-        jumlah_total_mahasiswa_mengikuti_mbkm:
-          jumlahTotalMahasiswaMengikutiMBKM,
-      },
-    }
-  }
-
+  // ✅ Dynamic normalization
   normalizeData(data) {
     return data.map((item) => {
       const result = { ...item }
+      const fieldMap = this.mapMBKMFields(result)
 
-      const textFields = [
-        "nama_kegiatan",
-        "mata_kuliah_yang_setara_kode_nama",
-        "nama_lembaga_mitra",
-        "nama_dtps_yang_menjadi_pembimbing",
-      ]
-
-      const numericFields = [
-        "periode_pelaksanaan_durasi",
-        "jenis_kegiatan_mbkm",
-        "sks_mk_yang_setara",
-        "jumlah_mahasiswa_ps_yang_mengikuti",
-      ]
-
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
-      })
-
-      numericFields.forEach((field) => {
-        result[field] = PluginUtils.parseNumber(result[field], 0)
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          const fieldType = this.detectFieldType(fieldName, result[fieldName])
+          result[fieldName] = this.processFieldValue(
+            fieldName,
+            result[fieldName],
+            fieldType
+          )
+        }
       })
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.nama_kegiatan) {
+      const fieldMap = this.mapMBKMFields(item)
+
+      if (fieldMap.nama_kegiatan && !item[fieldMap.nama_kegiatan]) {
         errors.push(`Row ${index + 1}: Nama kegiatan harus diisi`)
       }
     })
@@ -142,9 +129,22 @@ export class DataPelaksanaanKegiatanMBKMPlugin extends BasePlugin {
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
 export const dataPelaksanaanKegiatanMBKMPlugin =
   new DataPelaksanaanKegiatanMBKMPlugin()
-
 export default dataPelaksanaanKegiatanMBKMPlugin

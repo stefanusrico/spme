@@ -16,41 +16,51 @@ const EditUser = ({ title = "Edit User" }) => {
     username: "",
     phone_number: "",
     profile_picture: "",
-    jurusanId: "",
     prodiId: "",
   })
   const [roles, setRoles] = useState([])
-  const [jurusan, setJurusan] = useState([])
   const [prodi, setProdi] = useState([])
-  const [errors, setErrors] = useState({})
+  // removed unused errors state
   const [isLoading, setIsLoading] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
 
   const fileInputRef = useRef(null)
+
+  // Check if current role needs prodi field only (koordinator program studi & tim penyusun akreditasi)
+  // removed unused needsProdiOnly
+
+  const isAdminRole = user.role && user.role.toLowerCase() === "admin"
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const userResponse = await axiosInstance.get(`/users/${id}`)
         const rolesResponse = await axiosInstance.get("/roles")
-        const jurusanResponse = await axiosInstance.get("/jurusan")
 
         const userData = userResponse.data.data
 
         // Map old fields to new fields if necessary
-        setUser({
+        const mappedUser = {
           ...userData,
-          jurusanId: userData.jurusanId || userData.jurusan,
           prodiId: userData.prodiId || userData.prodi,
-        })
+        }
+        // Remove jurusanId if present
+        delete mappedUser.jurusanId
+        setUser(mappedUser)
 
         setRoles(rolesResponse.data.data)
-        setJurusan(jurusanResponse.data)
         setPreviewImage(userData.profile_picture)
 
-        // If jurusanId exists, fetch corresponding prodi
-        if (userData.jurusanId) {
-          fetchProdi(userData.jurusanId)
+        // Determine the current role type
+        const currentRole = userData.role
+        const currentIsAdmin =
+          currentRole && currentRole.toLowerCase() === "admin"
+        // removed unused currentNeedsProdiOnly
+
+        // If user has prodiId and role needs prodi, fetch prodi data
+        if (!currentIsAdmin) {
+          // For all non-admin roles, fetch all prodi
+          fetchAllProdi()
         }
       } catch (error) {
         console.error("Error fetching data:", error)
@@ -59,23 +69,30 @@ const EditUser = ({ title = "Edit User" }) => {
     fetchData()
   }, [id])
 
-  const fetchProdi = async (jurusanId) => {
+  // Fetch all prodi
+  const fetchAllProdi = async () => {
     try {
-      const prodiResponse = await axiosInstance.get(`/prodi/${jurusanId}`)
+      const prodiResponse = await axiosInstance.get("/prodi")
       setProdi(prodiResponse.data)
     } catch (error) {
-      console.error("Error fetching prodi:", error)
+      console.error("Error fetching all prodi:", error)
       setProdi([])
     }
   }
 
-  const handleJurusanChange = (jurusanId) => {
+  const handleRoleChange = (selectedRole) => {
+    const isNewAdmin = selectedRole.toLowerCase() === "admin"
     setUser((prev) => ({
       ...prev,
-      jurusanId: jurusanId,
+      role: selectedRole,
       prodiId: "",
     }))
-    fetchProdi(jurusanId)
+    // Handle prodi data based on role change
+    if (isNewAdmin) {
+      setProdi([])
+    } else {
+      fetchAllProdi()
+    }
   }
 
   const handleImageChange = (e) => {
@@ -100,16 +117,14 @@ const EditUser = ({ title = "Edit User" }) => {
     try {
       setIsLoading(true)
 
-      // Validate required fields
-      if (
-        !user.name ||
-        !user.email ||
-        !user.username ||
-        !user.role ||
-        !user.jurusanId ||
-        !user.prodiId
-      ) {
-        alert("Semua field harus diisi")
+      // Validate required fields based on role
+      const requiredFields = ["name", "email", "role"]
+      if (!isAdminRole) {
+        requiredFields.push("prodiId")
+      }
+      const missingFields = requiredFields.filter((field) => !user[field])
+      if (missingFields.length > 0) {
+        alert("Semua field yang diperlukan harus diisi")
         return
       }
 
@@ -140,12 +155,15 @@ const EditUser = ({ title = "Edit User" }) => {
         role: user.role,
         phone_number: user.phone_number,
         profile_picture: newProfilePicture,
-        jurusanId: user.jurusanId,
-        prodiId: user.prodiId,
+      }
+
+      // Only include prodi based on role
+      if (!isAdminRole) {
+        dataToUpdate.prodiId = user.prodiId
       }
 
       try {
-        const response = await axiosInstance.put(`/users/${id}`, dataToUpdate)
+        await axiosInstance.put(`/users/${id}`, dataToUpdate)
         navigate("/user-management")
       } catch (error) {
         console.error("Update error:", error)
@@ -229,7 +247,7 @@ const EditUser = ({ title = "Edit User" }) => {
                     label: role.name,
                   }))}
                   value={user.role}
-                  onChange={(e) => setUser({ ...user, role: e.target.value })}
+                  onChange={(e) => handleRoleChange(e.target.value)}
                   disabled={isLoading}
                   className="mb-6"
                   placeholder={user.role || "Pilih Role"}
@@ -276,43 +294,26 @@ const EditUser = ({ title = "Edit User" }) => {
                   required
                 />
 
-                <Dropdown
-                  label="Jurusan"
-                  name="jurusanId"
-                  options={jurusan.map((j) => ({
-                    id: j.id,
-                    value: j.id,
-                    label: j.name,
-                  }))}
-                  value={user.jurusanId}
-                  onChange={(e) => {
-                    handleJurusanChange(e.target.value)
-                  }}
-                  disabled={isLoading}
-                  className="mb-6"
-                  placeholder={
-                    user.jurusanId ? "Jurusan Terpilih" : "Pilih Jurusan"
-                  }
-                />
-
-                <Dropdown
-                  label="Program Studi"
-                  name="prodiId"
-                  options={prodi.map((p) => ({
-                    id: p.id,
-                    value: p.id,
-                    label: p.name,
-                  }))}
-                  value={user.prodiId}
-                  onChange={(e) =>
-                    setUser({ ...user, prodiId: e.target.value })
-                  }
-                  disabled={isLoading || !user.jurusanId}
-                  className="mb-6"
-                  placeholder={
-                    user.prodiId ? "Prodi Terpilih" : "Pilih Program Studi"
-                  }
-                />
+                {!isAdminRole && (
+                  <Dropdown
+                    label="Program Studi"
+                    name="prodiId"
+                    options={prodi.map((p) => ({
+                      id: p.id,
+                      value: p.id,
+                      label: p.name,
+                    }))}
+                    value={user.prodiId}
+                    onChange={(e) =>
+                      setUser({ ...user, prodiId: e.target.value })
+                    }
+                    disabled={isLoading}
+                    className="mb-6"
+                    placeholder={
+                      user.prodiId ? "Prodi Terpilih" : "Pilih Program Studi"
+                    }
+                  />
+                )}
               </div>
             </div>
             <div className="mt-10 ml-8 flex space-x-96">

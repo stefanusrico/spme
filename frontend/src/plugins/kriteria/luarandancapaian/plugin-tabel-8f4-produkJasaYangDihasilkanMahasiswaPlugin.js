@@ -1,6 +1,6 @@
+import { processExcelDataBase } from "../../../utils/tableUtils"
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 
 export class ProdukJasaYangDihasilkanMahasiswaPlugin extends BasePlugin {
   constructor() {
@@ -72,45 +72,6 @@ export class ProdukJasaYangDihasilkanMahasiswaPlugin extends BasePlugin {
     return {
       allRows: processedData,
       shouldReplaceExisting: true,
-    }
-  }
-
-  async calculateScore(data, config, additionalData = {}) {
-    console.log(
-      "Calculating produk jasa yang dihasilkan mahasiswa with data:",
-      data
-    )
-
-    const isValidField = (field) =>
-      typeof field === "string" && field.trim() !== ""
-
-    const NAPJ = data.filter(
-      (item) =>
-        isValidField(item.nama_mahasiswa) &&
-        isValidField(item.nama_produk_jasa) &&
-        isValidField(item.bukti)
-    ).length
-
-    let score = 2
-    if (NAPJ >= 2) {
-      score = 4
-    } else if (NAPJ === 1) {
-      score = 3
-    }
-
-    console.log("NAPJ:", NAPJ)
-    console.log("Score:", score)
-
-    return {
-      scores: [
-        {
-          butir: 70,
-          nilai: score,
-        },
-      ],
-      scoreDetail: {
-        NAPJ,
-      },
     }
   }
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import {
   Card,
   CardContent,
@@ -41,8 +41,43 @@ const ScoreDisplay = ({ score, scoreDetail }) => {
   console.log("ScoreDisplay rendering with:", { score })
   const [isOpen, setIsOpen] = useState(false)
 
-  // PERBAIKAN: Gunakan OR operator
-  if (!Array.isArray(score) || score.length === 0) return null
+  // ✅ PERBAIKAN: Gunakan useMemo untuk normalisasi data
+  const displayScore = useMemo(() => {
+    console.log("ScoreDisplay useMemo triggered:", { score })
+
+    if (!score) return null
+
+    if (Array.isArray(score)) {
+      return score.length > 0 ? score : null
+    }
+
+    if (typeof score === "number") {
+      return [{ butir: null, nilai: score }]
+    }
+
+    if (typeof score === "object" && score !== null) {
+      return [score]
+    }
+
+    return null
+  }, [score])
+
+  // ✅ PERBAIKAN: Return null jika tidak ada data, tapi lebih permisif
+  if (!displayScore) {
+    console.log("ScoreDisplay: No valid score data to display")
+    return null
+  }
+
+  // ✅ Helper function untuk format label butir
+  const formatButirLabel = (item) => {
+    if (!item.butir && item.butir !== 0) {
+      return "Skor Total"
+    }
+    if (item.sub) {
+      return `Butir ${item.butir}-${item.sub}`
+    }
+    return `Butir ${item.butir}`
+  }
 
   // Helper function to render different value types
   const renderValue = (value, keyName) => {
@@ -149,8 +184,13 @@ const ScoreDisplay = ({ score, scoreDetail }) => {
           <div className="flex justify-between items-center p-4 border-b">
             <div className="flex-1">
               <div className="space-y-2">
-                {score.map((item) => (
-                  <div key={item.butir} className="flex items-center gap-2">
+                {displayScore.map((item, index) => (
+                  <div
+                    key={`${item.butir || "total"}-${
+                      item.sub || "no-sub"
+                    }-${index}`}
+                    className="flex items-center gap-2"
+                  >
                     <div
                       className={`w-2 h-2 rounded-full ${
                         parseFloat(item.nilai) > 3
@@ -159,8 +199,16 @@ const ScoreDisplay = ({ score, scoreDetail }) => {
                       }`}
                     />
                     <span className="text-lg font-medium">
-                      Skor Butir {item.butir} : {item.nilai}
+                      Skor {formatButirLabel(item)} : {item.nilai}
                     </span>
+                    {item.sub && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                      >
+                        Sub {item.sub}
+                      </Badge>
+                    )}
                   </div>
                 ))}
               </div>

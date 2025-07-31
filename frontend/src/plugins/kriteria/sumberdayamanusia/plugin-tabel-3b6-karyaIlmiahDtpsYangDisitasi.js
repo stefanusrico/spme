@@ -1,7 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { ExcelUtils } from "../../utils/ExcelUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
 
 export class KaryaIlmiahDtpsYangDisitasiPlugin extends BasePlugin {
@@ -20,153 +18,94 @@ export class KaryaIlmiahDtpsYangDisitasiPlugin extends BasePlugin {
     }
   }
 
-  // This plugin doesn't have default data
   hasDefaultData() {
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
+  }
 
-    if (rawData.length === 0) return { allRows: [] }
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
+    // Numeric field for jumlah sitasi
+    if (fieldLower.includes("jumlah") && fieldLower.includes("sitasi")) {
+      return "number"
+    }
 
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        nama_dosen: "",
-        judul_artikel_yang_disitasi_jurnal_volume_tahun_nomor_halaman: "",
-        jumlah_sitasi: 0,
-      }
+    return super.detectFieldType(fieldName, value)
+  }
 
-      // Map fields based on detected indices
-      const fieldMapping = {
-        nama_dosen: 1,
-        judul_artikel_yang_disitasi_jurnal_volume_tahun_nomor_halaman: 2,
-        jumlah_sitasi: 3,
-      }
-
-      Object.entries(fieldMapping).forEach(([fieldName, defaultIndex]) => {
-        const colIndex =
-          detectedIndices[fieldName] !== undefined
-            ? detectedIndices[fieldName]
-            : defaultIndex
-        if (
-          colIndex !== undefined &&
-          colIndex >= 0 &&
-          row[colIndex] !== undefined
-        ) {
-          if (fieldName === "jumlah_sitasi") {
-            item[fieldName] = PluginUtils.parseNumber(row[colIndex], 0)
-          } else {
-            item[fieldName] = PluginUtils.normalizeTextField(row[colIndex])
-          }
-        }
-      })
-
-      return item
-    })
-
+  // ✅ Dynamic field mapping
+  mapKaryaIlmiahFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      nama_dosen: this.findFieldByPattern(sampleItem, [
+        "nama_dosen",
+        "nama",
+        "dosen",
+      ]),
+      judul_artikel: this.findFieldByPattern(sampleItem, [
+        "judul",
+        "artikel",
+        "disitasi",
+        "jurnal",
+      ]),
+      jumlah_sitasi: this.findFieldByPattern(sampleItem, ["jumlah", "sitasi"]),
     }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    // NAS = jumlah artikel yang disitasi
-    let NAS = 0
-
-    const isValidField = (value) => {
-      if (typeof value === "string") {
-        return value.trim() !== ""
-      }
-      if (typeof value === "number") {
-        return !isNaN(value)
-      }
-      return false
-    }
-
-    data.forEach((item) => {
-      if (
-        isValidField(item.nama_dosen) &&
-        isValidField(
-          item.judul_artikel_yang_disitasi_jurnal_volume_tahun_nomor_halaman
-        ) &&
-        isValidField(item.jumlah_sitasi)
-      ) {
-        NAS += 1
-      }
-    })
-
-    // Mendapatkan nilai NDTPS
-    const responseScoreDetail = await fetchScoreDetails(
-      "3a1",
-      additionalData.projectId
-    )
-    if (!responseScoreDetail) {
-      console.warn('fetchScoreDetails("3a1") did not return any data')
-      return {
-        scores: [{ butir: 29, nilai: 0 }],
-        scoreDetail: {},
-      }
-    }
-
-    let NDTPS = Number(responseScoreDetail?.NDTPS || 0)
-    let RS = 0
-
-    if (NDTPS === 0) {
-      return {
-        scores: [{ butir: 29, nilai: 0 }],
-        scoreDetail: { NAS, RS: 0 },
-      }
-    }
-
-    RS = Math.round((NAS / NDTPS) * 100) / 100
-
-    // Menghitung score
-    let score = 0
-    if (RS >= 0.5) {
-      score = 4
-    } else if (RS < 0.5) {
-      score = 2 + 2 * RS
-    }
-
-    return {
-      scores: [{ butir: 29, nilai: score }],
-      scoreDetail: { NAS, RS },
-    }
-  }
-
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
     data.forEach((item, index) => {
-      if (!item.nama_dosen?.trim()) {
-        errors.push(`Row ${index + 1}: Nama Dosen harus diisi`)
-      }
-      if (
-        !item.judul_artikel_yang_disitasi_jurnal_volume_tahun_nomor_halaman?.trim()
-      ) {
-        errors.push(`Row ${index + 1}: Judul Artikel yang Disitasi harus diisi`)
-      }
-      if (item.jumlah_sitasi === undefined || item.jumlah_sitasi === null) {
-        errors.push(`Row ${index + 1}: Jumlah sitasi harus diisi`)
-      }
+      const fieldMap = this.mapKaryaIlmiahFields(item)
+
+      const requiredFields = [
+        { field: fieldMap.nama_dosen, name: "Nama Dosen" },
+        { field: fieldMap.judul_artikel, name: "Judul Artikel yang Disitasi" },
+        { field: fieldMap.jumlah_sitasi, name: "Jumlah sitasi" },
+      ]
+
+      requiredFields.forEach(({ field, name }) => {
+        if (
+          field &&
+          (item[field] === undefined ||
+            item[field] === null ||
+            (typeof item[field] === "string" && !item[field].trim()))
+        ) {
+          errors.push(`Row ${index + 1}: ${name} harus diisi`)
+        }
+      })
     })
 
     return {
       valid: errors.length === 0,
       errors,
     }
+  }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
   }
 }
 

@@ -7,26 +7,22 @@ use App\Http\Controllers\Lam\{LamController, JadwalLamController};
 use App\Http\Controllers\Jurusan\{JurusanController};
 use App\Http\Controllers\Prodi\{ProdiController, StrataController};
 use App\Http\Controllers\Project\{ProjectController, TaskController, TaskListController, ButirController};
-use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController};
-use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, WordController};
-use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController};
+use App\Http\Controllers\Lkps\{LkpsDataController, LkpsColumnController, LkpsTableController, LkpsExportController, LkpsImportController, LkpsSyncController};
+use App\Http\Controllers\Led\{LedDataController, LedItemController, GPTController, LedDocumentController};
+use App\Http\Controllers\Data\{SpreadsheetInfoController, GoogleDriveController, KomponenPenilaianController, SyaratPerluTerakreditasiController, SyaratPerluPeringkatController};
 use App\Http\Controllers\Akreditasi\{DataAkreditasiController};
-use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFIleTestController, GeminiDataMappingController, GeminiScoringLedController};
+use App\Http\Controllers\Gemini\{GeminiController, GeminiTestController, GeminiFileTestController, GeminiDataMappingController, GeminiScoringLedController};
+use App\Http\Controllers\Notification\NotificationController;
 
 
 use App\Http\Controllers\{
-    NotificationController,
     DataController,
     ScraperController,
     MenuController,
     RumusController,
     SectionController,
-    JsonController,
     ColorController,
-    MatriksController,
-    StrataController,
-    SpreadsheetInfoController,
-    GoogleDriveController
+
 };
 use App\Http\Middleware\JwtMiddleware;
 
@@ -37,6 +33,21 @@ Route::get('test', function () {
         'path' => request()->path()
     ]);
 });
+
+Route::post('/lkps/debug-magenta', [LkpsImportController::class, 'debugMagentaDetection']);
+
+Route::post('/lkps/test-formula-parser', [LkpsDataController::class, 'testFormulaParser']);
+Route::get('/lkps/table-structure', [LkpsDataController::class, 'getTableStructure']);
+Route::post('/lkps/calculate-rumus', [LkpsDataController::class, 'calculateRumus']);
+Route::post('/lkps/debug-kondisi-evaluation', [LkpsDataController::class, 'debugKondisiEvaluation']);
+Route::get('/lkps/debug-info-structure', [LkpsSyncController::class, 'debugInfoStructure']);
+
+Route::post('/lkps/debug-calculate-table', [LkpsDataController::class, 'debugCalculateTableFormulas']);
+
+Route::post('/lkps/force-recalculate', [LkpsDataController::class, 'forceRecalculateTableFormulas']);
+
+
+Route::post('/lkps/debug-kondisi-columns', [LkpsImportController::class, 'debugKondisiColumns']);
 
 Route::get('/lkps/project-scores', [DataAkreditasiController::class, 'getProjectScores']);
 Route::get('/lkps/score-syarat-perlu', [DataAkreditasiController::class, 'getScoreSyaratPerluPeringkat']);
@@ -49,6 +60,7 @@ Route::get('/test-gemini', [GeminiTestController::class, 'testPrompt']);
 Route::post('/test-image-analysis', [GeminiFileTestController::class, 'testImageAnalysis']);
 Route::post('/data-mapping', [GeminiDataMappingController::class, 'mappingData']);
 Route::post('/scoring-led', [GeminiScoringLedController::class, 'scoringLed']);
+Route::get('models', [GeminiDataMappingController::class, 'testModel']);
 
 Route::post('users', [UserController::class, 'store']);
 
@@ -90,6 +102,15 @@ Route::prefix('lkps')->group(function () {
     Route::get('/tables/{tableCode}/task', [LkpsDataController::class, 'getTaskIdForTable']);
     Route::get('/export/{tableCode?}', [LkpsDataController::class, 'exportData']);
 
+
+    Route::post('/sync', [LkpsSyncController::class, 'syncLkpsStructure']);
+
+    // Get sync status
+    Route::get('/sync/status', [LkpsSyncController::class, 'getSyncStatus']);
+
+    // Debug Google Sheets connection
+    Route::post('/sync/debug', [LkpsSyncController::class, 'debugGoogleSheets']);
+
 });
 
 Route::get('/score-details', [LkpsDataController::class, 'getScoreDetail']);
@@ -107,27 +128,30 @@ Route::get('/lkps/sections/all/data', [LkpsExportController::class, 'getAllSecti
 Route::post('/templates/upload', [LkpsExportController::class, 'uploadTemplate']);
 Route::get('/templates/info', [LkpsExportController::class, 'getTemplateInfo']);
 Route::post('/lkps/export-data', [LkpsExportController::class, 'exportData']);
-Route::post('/led/export-data', [WordController::class, 'exportData']);
-Route::post('/led/import-data', [WordController::class, 'importTemplateLed']);
+Route::post('/led/export-data', [LedDocumentController::class, 'exportData']);
+Route::post('/led/import-data', [LedDocumentController::class, 'importTemplateLed']);
+
+Route::get('/accreditation/summary', [AccreditationController::class, 'summary']);
+Route::post('/accreditation/check-expiry', [AccreditationController::class, 'checkExpiry']);
 
 Route::get('/led/{sheet}', [DataController::class, 'getLembarIsianLed']);
 Route::get('/stortasklist/{projectId}', [TaskListController::class, 'storeFromLed']);
 Route::post('/projects/{projectId}/tasks/led', [TaskController::class, 'storeFromLed']);
-// Route::get('/sheets/colored-cells', [GoogleSheetController::class, 'getColoredCells']);
-Route::get('/available-tables', [GoogleSheetController::class, 'getAvailableTables']);
-Route::get('/colored-cells', [GoogleSheetController::class, 'getColoredCells']);
-Route::get('/colored-cells/table/{tableRef?}', [GoogleSheetController::class, 'getColoredCellsByTable']);
+// Route::get('/sheets/colored-cells', [LkpsImportController::class, 'getColoredCells']);
+Route::get('/available-tables', [LkpsImportController::class, 'getAvailableTables']);
+Route::get('/colored-cells', [LkpsImportController::class, 'getColoredCells']);
+Route::get('/colored-cells/table/{tableRef?}', [LkpsImportController::class, 'getColoredCellsByTable']);
 
 // Legacy route with sheet_gid (keep for backward compatibility)
-Route::get('/colored-cells/gid', [GoogleSheetController::class, 'getColoredCells']);
+Route::get('/colored-cells/gid', [LkpsImportController::class, 'getColoredCells']);
 
 // API version endpoints (optional)
 Route::prefix('v1')->group(function () {
-    Route::get('tables', [GoogleSheetController::class, 'getAvailableTables']);
-    Route::get('tables/{tableRef}/colored-cells', [GoogleSheetController::class, 'getColoredCellsByTable']);
+    Route::get('tables', [LkpsImportController::class, 'getAvailableTables']);
+    Route::get('tables/{tableRef}/colored-cells', [LkpsImportController::class, 'getColoredCellsByTable']);
 });
 
-Route::get('table/{tableRef}', [GoogleSheetController::class, 'getColoredCellsByTable']);
+Route::get('table/{tableRef}', [LkpsImportController::class, 'getColoredCellsByTable']);
 
 Route::get('/scrape/{perguruan_tinggi}/{strata}', [ScraperController::class, 'scrape']);
 Route::post('/jurusan', [JurusanController::class, 'store']);
@@ -144,24 +168,14 @@ Route::controller(LamController::class)->group(function () {
     Route::delete('lam/{id}', 'destroy');
 });
 
-Route::controller(JadwalLamController::class)->group(function () {
-    Route::get('jadwal', 'index');
-    Route::post('jadwal', 'store');
-    Route::get('jadwal/{id}', 'show');
-    Route::put('jadwal/{id}', 'update');
-    Route::delete('jadwal/{id}', 'destroy');
-    Route::get('jadwal/year/{year}', 'getByYear');
-    Route::get('jadwal/name/{name}', 'getByName');
-    Route::get('jadwal/year/{year}/name/{name}', 'getByYearAndName');
-});
-
 
 
 Route::middleware([JwtMiddleware::class])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
-    Route::get('user', [UserController::class, 'getAuthenticatedUserData']);
-    Route::get('tasks', [TaskController::class, 'myTasks']);
+    Route::get('tasks/{projectId}', [TaskController::class, 'myTasks']);
+    Route::get('tasks/get/p2mpp', [TaskController::class, 'p2mppTasks']);
     Route::patch('tasks/updateOwner/{no}/{sub}/{prodiId}', [TaskController::class, 'updateOwners']);
+    Route::get('all-tasks-by-prodi/{prodiId}', [ProjectController::class, 'getProjectDetailsByProdi']);
     Route::get('allTaskByProdi/{prodiId}', [TaskController::class, 'getAllTaskByProdi']);
 
     Route::controller(JurusanController::class)->group(function () {
@@ -174,6 +188,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::controller(ProdiController::class)->group(function () {
         Route::get('prodi', 'index');
         Route::post('prodi', 'store');
+        Route::get('prodi/all', 'getAllProdi');
         Route::get('prodi/{id}', 'show');
         Route::put('prodi/{id}', 'update');
         Route::delete('prodi/{id}', 'destroy');
@@ -185,10 +200,14 @@ Route::middleware([JwtMiddleware::class])->group(function () {
         Route::post('upload', [UserController::class, 'uploadFile']);
         Route::delete('users/{id}/profile-picture', [UserController::class, 'removeProfilePicture']);
         Route::post('project', [ProjectController::class, 'store']);
+        Route::put('project/{projectId}', [ProjectController::class, 'update']);
+        Route::delete('project/{projectId}', [ProjectController::class, 'destroy']);
+
         Route::post('projects/{projectId}/members', [ProjectController::class, 'addMember']);
         Route::get('projects-with-owners', [ProjectController::class, 'projectsWithOwners']);
         Route::get('projects/all', [ProjectController::class, 'index']);
         Route::get('projects', [ProjectController::class, 'myProjects']);
+
         Route::get('projects/{projectId}', [ProjectController::class, 'getProjectDetails']);
         Route::get('projects/{projectId}/members', [ProjectController::class, 'getMembers']);
         Route::get('projects/{projectId}/lists', [ProjectController::class, 'getProjectTaskLists']);
@@ -244,30 +263,56 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::post('/calculate/{nomor}/{sub?}', [RumusController::class, 'calculate']);
         });
 
-        Route::controller(JsonController::class)->group(function () {
-            Route::post('/save-json', 'saveJson');
+        Route::controller(KomponenPenilaianController::class)->group(function () {
+            Route::post('/save-json', 'importLedItem');
+            Route::post('/save-bobot-butir', 'importBobotButir');
+            Route::post('/save-syarat-perlu-terakreditasi', 'importSyaratPerluTerakreditasi');
+            Route::post('/save-syarat-perlu-peringkat', 'importSyaratPerluPeringkat');
             Route::get('/read-json/{fileName}', 'readJson');
         });
 
         Route::controller(GoogleDriveController::class)->group(function () {
             Route::post('/upload-to-drive', 'uploadFile');
+            Route::post('/upload-pdf-to-drive', 'uploadFilePdf');
+            Route::post('/upload-to-drive-supporting-file', 'uploadFileSupporting');
             Route::get('/get-files', 'getFiles');
             Route::delete('/delete-files', 'deleteFile');
+            Route::get('/files', 'getSupportingFiles');
+            Route::post('/download-supporting-file', 'download');
+            Route::delete('/files/{id}', 'deleteSupportingFile');
         });
 
-        Route::controller(VersionController::class)->group(function () {
-            Route::post('/versions/getVersion', 'get');
-            Route::post('/versions', 'store');
+        Route::controller(LedDataController::class)->group(function () {
+            Route::post('/ledData', 'store');
+            Route::get('/led-data/get-all-by-task', 'getAllByTask');
+            Route::get('/led-data/get-by-task', 'getAllByTask');
+            Route::get('/ledData/{taskId}/latest', 'getLatest');
+            Route::get('/led-data-by-prodi/{prodiId}', 'getLedDataByProdi');
+            Route::get('/getScorePerNoSubByProdi/{prodiId}', 'getScorePerNoSubByProdi');
+            Route::get('/get-led-data-by-nosub/:no/:sub', 'getByNoSub');
         });
 
-        Route::controller(MatriksController::class)->group(function () {
-            Route::get('/matriks', 'index');
-            Route::post('/matriks', 'store');
-            Route::get('/matriks/{id}', 'show');
-            Route::get('/matriks/{no}/{sub}', 'showNoSub');
-            Route::put('/matriks/{id}', 'update');
-            Route::delete('/matriks/{id}', 'destroy');
+        Route::post('/analyze-gpt', [GPTController::class, 'analyze']);
+        Route::controller(ButirController::class)->group(function () {
+            Route::get('/projects/get-skor-per-butir/{prodiId}', 'getSkorPerButir');
+            Route::get('/projects/bobot-butir/{prodiId}', '_getBobotRumusCollection');
+            Route::put('/update-butir/{id}', 'updateButir');
+            Route::delete('/delete-butir/{id}', 'deleteButir');
+            Route::get('/get-bobot-butir/{lamId}/{strataId}', 'getBobotButir');
         });
+
+        Route::controller(SyaratPerluTerakreditasiController::class)->group(function () {
+            Route::get('/get-syarat-perlu-terakreditasi/{lamId}/{strataId}', 'getSyaratPerluTerakreditasi');
+            Route::put('/update-syarat-perlu-terakreditasi/{id}', 'updateSyaratPerluTerakreditasi');
+            Route::delete('/delete-syarat-perlu-terakreditasi/{id}', 'deleteSyaratPerluTerakreditasi');
+        });
+
+        Route::controller(SyaratPerluPeringkatController::class)->group(function () {
+            Route::get('/get-syarat-perlu-peringkat/{lamId}/{strataId}', 'getSyaratPerluPeringkat');
+            Route::put('/update-syarat-perlu-peringkat/{id}', 'updateSyaratPerluPeringkat');
+            Route::delete('/delete-syarat-perlu-peringkat/{id}', 'deleteSyaratPerluPeringkat');
+        });
+
 
         Route::controller(LedItemController::class)->group(function () {
             Route::get('/ledItem', 'index');
@@ -275,8 +320,8 @@ Route::middleware([JwtMiddleware::class])->group(function () {
             Route::get('/ledItem/{no}/{sub}', 'showNoSub');
             Route::get('/getLedItemByProdi/{prodiId}', 'getledItemByProdi');
             Route::post('/ledItem', 'store');
-            Route::put('/ledItem/{id}', 'update');
-            Route::delete('/ledItem/{id}', 'destroy');
+            Route::put('/update-led-item/{id}', 'update');
+            Route::delete('/delete-led-item/{id}', 'destroy');
         });
 
 

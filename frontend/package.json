@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node --max-old-space-size=4096 node_modules/vite/bin/vite.js build",
     "start": "vite preview --port 3000",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -36,10 +36,7 @@
     "@radix-ui/react-toast": "^1.2.7",
     "@radix-ui/react-tooltip": "^1.1.8",
     "@react-pdf-viewer/core": "^3.12.0",
-<<<<<<< HEAD
-=======
     "@tailwindcss/vite": "^4.1.4",
->>>>>>> dbv2
     "@tanstack/react-query": "^5.67.3",
     "@tanstack/react-table": "^8.21.2",
     "antd": "^5.22.7",
@@ -50,7 +47,6 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "dayjs": "^1.11.13",
-    "draft-js": "^0.11.7",
     "gojs-react": "^1.1.2",
     "jwt-decode": "^4.0.0",
     "lodash": "^4.17.21",

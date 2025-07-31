@@ -1,14 +1,6 @@
 import React, { useState } from "react"
 import Button from "../Button"
 
-<<<<<<< HEAD
-export function FormToast({ closeToast, dataIsian, noSub, title = "Title", message = "Message", onSubmit }) {
-  const [commit, setCommit] = useState(""); 
-
-  const handleSubmit = async () => {
-    if (onSubmit) {
-      await onSubmit(commit, dataIsian, noSub);
-=======
 export function FormToast({
   closeToast,
   dataIsian,
@@ -22,7 +14,6 @@ export function FormToast({
   const handleSubmit = async () => {
     if (onSubmit) {
       await onSubmit(commit, dataIsian, noSub)
->>>>>>> dbv2
     }
     closeToast()
   }

@@ -1,8 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
-import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
-
 export class PrestasiAkademikMahasiswaPlugin extends BasePlugin {
   constructor() {
     super({
@@ -23,217 +20,226 @@ export class PrestasiAkademikMahasiswaPlugin extends BasePlugin {
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    const result = await super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
 
-    if (rawData.length === 0) return { allRows: [] }
+    return result
+  }
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
-
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        nama_kegiatan: "",
-        waktu_perolehan_hh_bb_tttt: null,
-        tingkat_internasional: false,
-        tingkat_nasional: false,
-        tingkat_lokal_wilayah: false,
-        prestasi_yang_dicapai: "",
-      }
-
-      const defaultMapping = {
-        no: 0,
-        nama_kegiatan: 1,
-        waktu_perolehan_hh_bb_tttt: 2,
-        tingkat_internasional: 3,
-        tingkat_nasional: 4,
-        tingkat_lokal_wilayah: 5,
-        prestasi_yang_dicapai: 6,
-      }
-
-      Object.keys(item).forEach((fieldName) => {
-        if (["key", "selected", "no"].includes(fieldName)) return
-
-        const colIndex =
-          detectedIndices && detectedIndices[fieldName] !== undefined
-            ? detectedIndices[fieldName]
-            : defaultMapping[fieldName]
-
-        if (colIndex === undefined || colIndex < 0 || colIndex >= row.length)
-          return
-
-        const value = row[colIndex]
-
-        if (
-          fieldName === "prestasi_yang_dicapai" ||
-          fieldName === "nama_kegiatan"
-        ) {
-          item[fieldName] = PluginUtils.normalizeTextField(value)
-        } else if (fieldName.startsWith("tingkat_")) {
-          item[fieldName] = this.parseBooleanField(value)
-        } else if (fieldName === "waktu_perolehan_hh_bb_tttt") {
-          item[fieldName] = this.parseDateField(value)
+  // ✅ Helper untuk konversi Excel serial date ke format DD/MM/YYYY
+  excelSerialDateToFormat(serial) {
+    // Jika sudah dalam format DD/MM/YYYY, kembalikan langsung
+    if (
+      typeof serial === "string" &&
+      /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(serial)
+    ) {
+      // Pastikan format sudah dalam DD/MM/YYYY
+      const parts = serial.split("/")
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10)
+        // Jika sudah benar (day <= 31 dan month <= 12), kembalikan langsung
+        if (day <= 31 && month <= 12) {
+          return serial
         }
-      })
+        // Jika ternyata dalam format MM/DD/YYYY, konversi ke DD/MM/YYYY
+        if (month > 12 && day <= 12) {
+          return `${parts[1].padStart(2, "0")}/${parts[0].padStart(2, "0")}/${
+            parts[2]
+          }`
+        }
+      }
+    }
 
-      return item
-    })
+    // Format ISO dari database: YYYY-MM-DD -> DD/MM/YYYY
+    if (typeof serial === "string" && /^\d{4}-\d{2}-\d{2}$/.test(serial)) {
+      const [year, month, day] = serial.split("-")
+      return `${day}/${month}/${year}`
+    }
 
+    // Jika tidak ada nilai atau bukan angka, kembalikan string kosong
+    if (!serial || (typeof serial === "string" && serial.trim() === "")) {
+      return ""
+    }
+
+    // Konversi ke number jika string
+    if (typeof serial === "string") {
+      serial = parseFloat(serial)
+      if (isNaN(serial)) return serial // Kembalikan nilai asli jika bukan angka
+    }
+
+    if (serial > 1000) {
+      // Pastikan ini benar-benar Excel serial date
+      // Konversi Excel serial date ke JavaScript Date
+      const milliseconds = (serial - 25569) * 86400 * 1000
+      const jsDate = new Date(milliseconds)
+
+      if (!isNaN(jsDate.getTime())) {
+        // Format ke DD/MM/YYYY secara eksplisit
+        const day = String(jsDate.getDate()).padStart(2, "0")
+        const month = String(jsDate.getMonth() + 1).padStart(2, "0")
+        const year = jsDate.getFullYear()
+        return `${day}/${month}/${year}`
+      }
+    }
+
+    return serial // Kembalikan nilai asli jika tidak berhasil dikonversi
+  }
+
+  // ✅ Helper untuk memproses nilai checkbox menjadi boolean
+  processCheckboxValue(val) {
+    // Handle already boolean values
+    if (typeof val === "boolean") {
+      return val
+    }
+
+    // Handle numeric values
+    if (typeof val === "number") {
+      return val > 0
+    }
+
+    // Handle string values
+    if (typeof val === "string") {
+      const cleaned = val.trim().toLowerCase()
+
+      // True values
+      if (
+        [
+          "v",
+          "✔",
+          "✓",
+          "check",
+          "ya",
+          "yes",
+          "y",
+          "true",
+          "1",
+          "internasional",
+          "nasional",
+          "lokal",
+          "wilayah",
+        ].includes(cleaned)
+      ) {
+        return true
+      }
+
+      // False values
+      if (["x", "tidak", "no", "n", "false", "0", "", "-"].includes(cleaned)) {
+        return false
+      }
+
+      // If it's a non-empty string that doesn't match our patterns
+      return cleaned !== ""
+    }
+
+    // Default - falsy values return false
+    return Boolean(val)
+  }
+
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
+
+    // Boolean fields for tingkat
+    if (
+      fieldLower.includes("tingkat_") ||
+      fieldLower.includes("internasional") ||
+      fieldLower.includes("nasional") ||
+      fieldLower.includes("lokal") ||
+      fieldLower.includes("wilayah")
+    ) {
+      return "text"
+    }
+
+    // Date field
+    if (fieldLower.includes("waktu") && fieldLower.includes("perolehan")) {
+      return "date"
+    }
+
+    return super.detectFieldType(fieldName, value)
+  }
+
+  // ✅ Proses field value berdasarkan tipe
+  processFieldValue(fieldName, value, fieldType = "auto") {
+    if (fieldType === "auto") {
+      fieldType = this.detectFieldType(fieldName, value)
+    }
+
+    if (fieldType === "boolean") {
+      return this.processCheckboxValue(value)
+    }
+
+    if (fieldType === "date") {
+      return this.excelSerialDateToFormat(value)
+    }
+
+    // Default text normalization untuk field non-boolean
+    return PluginUtils.normalizeTextField(value)
+  }
+
+  // ✅ Dynamic field mapping
+  mapPrestasiAkademikFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      nama_kegiatan: this.findFieldByPattern(sampleItem, [
+        "nama_kegiatan",
+        "kegiatan",
+        "nama",
+      ]),
+      waktu_perolehan: this.findFieldByPattern(sampleItem, [
+        "waktu_perolehan",
+        "waktu",
+        "perolehan",
+      ]),
+      tingkat_internasional: this.findFieldByPattern(sampleItem, [
+        "tingkat_internasional",
+        "internasional",
+      ]),
+      tingkat_nasional: this.findFieldByPattern(sampleItem, [
+        "tingkat_nasional",
+        "nasional",
+      ]),
+      tingkat_lokal_wilayah: this.findFieldByPattern(sampleItem, [
+        "tingkat_lokal",
+        "lokal",
+        "wilayah",
+      ]),
+      prestasi_yang_dicapai: this.findFieldByPattern(sampleItem, [
+        "prestasi_yang_dicapai",
+        "prestasi",
+        "dicapai",
+      ]),
     }
   }
 
-  parseBooleanField(value) {
-    if (typeof value === "boolean") return value
-    if (typeof value === "string") {
-      const normalized = value.toLowerCase().trim()
-      return ["ya", "yes", "v", "1", "true", "√", "✓"].includes(normalized)
-    }
-    if (typeof value === "number") return value > 0
-    return false
-  }
-
-  parseDateField(value) {
-    if (typeof value === "number" && value > 20000 && value < 60000) {
-      return value
-    }
-
-    if (value instanceof Date) {
-      const excelDate = Math.floor(
-        (value.getTime() - new Date(1899, 11, 30).getTime()) /
-          (24 * 60 * 60 * 1000)
-      )
-      return excelDate > 0 ? excelDate : null
-    }
-
-    if (typeof value === "string" && value.trim() !== "") {
-      const date = new Date(value)
-      if (!isNaN(date.getTime())) {
-        const excelDate = Math.floor(
-          (date.getTime() - new Date(1899, 11, 30).getTime()) /
-            (24 * 60 * 60 * 1000)
-        )
-        return excelDate > 0 ? excelDate : null
-      }
-    }
-
-    return null
-  }
-
-  async calculateScore(data, config, additionalData = {}) {
-    const { projectId } = additionalData
-    const allRows =
-      data && data.allRows ? data.allRows : Array.isArray(data) ? data : []
-    let NM = 0
-
-    let NI = 0,
-      NN = 0,
-      NW = 0
-
-    if (projectId) {
-      try {
-        const scoreDetail2a1 = await fetchScoreDetails("2a1", projectId)
-        NM = scoreDetail2a1?.NM || 0
-      } catch (error) {
-        console.warn("Failed to fetch NDTT:", error)
-      }
-    }
-
-    if (!allRows || allRows.length === 0) {
-      console.warn("Prestasi Akademik: Tidak ada data prestasi untuk diproses.")
-    } else {
-      allRows.forEach((item) => {
-        if (item.tingkat_internasional === true) NI++
-        else if (item.tingkat_nasional === true) NN++
-        else if (item.tingkat_lokal_wilayah === true) NW++
-      })
-    }
-
-    if (typeof NM !== "number" || NM <= 0) {
-      console.warn(
-        `Prestasi Akademik: Jumlah Mahasiswa TS (NM) tidak valid: ${NM}`
-      )
-      return {
-        scores: [{ butir: 59, nilai: 0 }],
-        scoreDetail: { NI, NN, NW, NM: NM || 0 },
-      }
-    }
-
-    const RI = NI / NM
-    const RN = NN / NM
-    const RW = NW / NM
-
-    const a = 0.001 // 0.1%
-    const b = 0.01 // 1%
-    const c = 0.02 // 2%
-
-    let skor = 0
-    if (RI > a && RN > b) {
-      skor = 4
-    } else {
-      const nilaiKompleks =
-        3.75 *
-        (RI / a +
-          RN / b +
-          RW / c / 2 -
-          (RI / a) * (RN / b) -
-          ((RI / a) * (RW / c)) / 2 -
-          ((RN / b) * (RW / c)) / 2 +
-          ((RI / a) * (RN / b) * (RW / c)) / 2)
-      skor = Math.max(0, nilaiKompleks)
-    }
-
-    const skorFinal = parseFloat(Math.max(0, Math.min(4, skor)).toFixed(2))
-
-    console.log("NI:", NI, "NN:", NN, "NW:", NW, "NM:", NM)
-    console.log("RI:", RI, "RN:", RN, "RW:", RW)
-    console.log("Score:", skorFinal)
-
-    return {
-      scores: [{ butir: 59, nilai: skorFinal }],
-      scoreDetail: {
-        NI,
-        NN,
-        NW,
-        RI: parseFloat(RI.toFixed(5)),
-        RN: parseFloat(RN.toFixed(5)),
-        RW: parseFloat(RW.toFixed(5)),
-      },
-    }
-  }
-
+  // ✅ Dynamic normalization dengan konversi tanggal dan boolean
   normalizeData(data) {
     return data.map((item) => {
       const result = { ...item }
+      const fieldMap = this.mapPrestasiAkademikFields(result)
 
-      const textFields = ["nama_kegiatan", "prestasi_yang_dicapai"]
-      const booleanFields = [
-        "tingkat_nasional",
-        "tingkat_internasional",
-        "tingkat_lokal_wilayah",
-      ]
-
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
-      })
-
-      booleanFields.forEach((field) => {
-        result[field] = this.parseBooleanField(result[field])
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          const fieldType = this.detectFieldType(fieldName, result[fieldName])
+          result[fieldName] = this.processFieldValue(
+            fieldName,
+            result[fieldName],
+            fieldType
+          )
+        }
       })
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
@@ -243,20 +249,30 @@ export class PrestasiAkademikMahasiswaPlugin extends BasePlugin {
     }
 
     data.forEach((item, index) => {
-      if (!item.nama_kegiatan || String(item.nama_kegiatan).trim() === "") {
+      const fieldMap = this.mapPrestasiAkademikFields(item)
+
+      if (
+        fieldMap.nama_kegiatan &&
+        (!item[fieldMap.nama_kegiatan] ||
+          String(item[fieldMap.nama_kegiatan]).trim() === "")
+      ) {
         errors.push(`Baris ${index + 1}: Nama Kegiatan harus diisi.`)
       }
 
-      const nasional = item.tingkat_nasional === true
-      const internasional = item.tingkat_internasional === true
-      const lokal = item.tingkat_lokal_wilayah === true
+      // Pastikan menggunakan processCheckboxValue untuk memeriksa nilai boolean
+      const nasional =
+        this.processCheckboxValue(item[fieldMap.tingkat_nasional]) === true
+      const internasional =
+        this.processCheckboxValue(item[fieldMap.tingkat_internasional]) === true
+      const lokal =
+        this.processCheckboxValue(item[fieldMap.tingkat_lokal_wilayah]) === true
 
       if (!nasional && !internasional && !lokal) {
         errors.push(
           `Baris ${
             index + 1
           }: Minimal satu tingkat harus dipilih untuk prestasi '${
-            item.nama_kegiatan
+            item[fieldMap.nama_kegiatan]
           }'.`
         )
       }
@@ -267,9 +283,14 @@ export class PrestasiAkademikMahasiswaPlugin extends BasePlugin {
       if (selectedLevels > 1) {
         errors.push(
           `Baris ${index + 1}: Prestasi '${
-            item.nama_kegiatan
+            item[fieldMap.nama_kegiatan]
           }' hanya boleh untuk satu tingkat.`
         )
+      }
+
+      // Validasi tanggal
+      if (fieldMap.waktu_perolehan && !item[fieldMap.waktu_perolehan]) {
+        errors.push(`Baris ${index + 1}: Waktu perolehan harus diisi.`)
       }
     })
 
@@ -278,9 +299,22 @@ export class PrestasiAkademikMahasiswaPlugin extends BasePlugin {
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
 export const prestasiAkademikMahasiswaPlugin =
   new PrestasiAkademikMahasiswaPlugin()
-
 export default prestasiAkademikMahasiswaPlugin

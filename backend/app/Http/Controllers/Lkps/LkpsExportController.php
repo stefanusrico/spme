@@ -13,32 +13,25 @@ use App\Models\Project\Project;
 use App\Models\Project\Task;
 use App\Models\Project\TaskList;
 use Illuminate\Support\Facades\Auth;
-
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 
 class LkpsExportController extends Controller
 {
-    /**
-     * Export data using uploaded template with all sheets
-     * Uses EXACT SAME LOGIC as getTableData for consistency
-     */
+
     public function exportData(Request $request)
     {
         try {
-            // Set higher execution time and memory limits
-            set_time_limit(900); // 15 minutes
+            set_time_limit(900);
             ini_set('memory_limit', '1G');
 
-            // Log initial memory for debugging
             Log::info('Initial memory usage: ' . round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB');
 
-            // Get parameters
             $projectId = $request->input('projectId');
             $debugMode = $request->input('debug_mode', false);
 
-            // Log request info
             Log::info('Export data requested', [
                 'project_id' => $projectId,
                 'user_id' => Auth::id() ?? null,
@@ -46,13 +39,11 @@ class LkpsExportController extends Controller
                 'debug_mode' => $debugMode
             ]);
 
-            // Validate projectId is provided (unless in debug mode)
             if (empty($projectId) && !$debugMode) {
                 Log::error('Project ID not provided');
                 return response()->json(['message' => 'Project ID is required'], 400);
             }
 
-            // Verify project exists (same as getTableData)
             if (!$debugMode) {
                 $project = Project::find($projectId);
                 if (!$project) {
@@ -60,7 +51,6 @@ class LkpsExportController extends Controller
                 }
             }
 
-            // Get array of table codes to export
             $tableCodes = [];
 
             if ($request->has('table_code')) {
@@ -72,40 +62,33 @@ class LkpsExportController extends Controller
                 $tableCodes = is_array($sections) ? $sections : [$sections];
                 Log::info('Using sections parameter: ' . implode(', ', $tableCodes));
             } else {
-                $tableCodes = ['1-1']; // Default
+                $tableCodes = ['1-1'];
                 Log::info('No table specified, defaulting to: 1-1');
             }
 
-            // Load template
             $templatePath = storage_path('app/public/templates/LKPS_template.xlsx');
             if (!file_exists($templatePath)) {
                 Log::error('Template file not found: ' . $templatePath);
                 return response()->json(['message' => 'Template not found'], 404);
             }
 
-            // Load spreadsheet with all sheets
             $reader = IOFactory::createReader('Xlsx');
-            $reader->setReadDataOnly(false); // Preserve formatting and styles
+            $reader->setReadDataOnly(false);
             $spreadsheet = $reader->load($templatePath);
 
-            // Log available sheets
             $availableSheets = $spreadsheet->getSheetNames();
             Log::info('Template loaded with ' . count($availableSheets) . ' sheets');
 
-            // Process each requested section
             $processedSections = [];
 
             foreach ($tableCodes as $tableCode) {
-                // ✅ EXACT SAME LOGIC AS getTableData
 
-                // 1. Find the table (same validation as getTableData)
                 $table = LkpsTable::where('kode', $tableCode)->first();
                 if (!$table) {
                     Log::warning("Table not found: {$tableCode}, skipping");
                     continue;
                 }
 
-                // 2. Find the task (EXACT SAME LOGIC as getTableData)
                 $taskId = null;
                 $taskLists = TaskList::where('projectId', $projectId)->get();
 
@@ -124,7 +107,6 @@ class LkpsExportController extends Controller
                     }
                 }
 
-                // 3. Get the LkpsData (EXACT SAME LOGIC as getTableData)
                 if (!$taskId) {
                     Log::warning("No task found for table {$tableCode} in the project, skipping");
                     continue;
@@ -140,7 +122,6 @@ class LkpsExportController extends Controller
                     continue;
                 }
 
-                // 4. Extract data (same as getTableData response)
                 $data = $lkpsData->data ?? [];
 
                 if (empty($data)) {
@@ -150,17 +131,13 @@ class LkpsExportController extends Controller
 
                 Log::info("Found " . count($data) . " rows for table {$tableCode}");
 
-                // 5. Find the corresponding Excel sheet
                 $sheet = null;
 
-                // Try exact match first
                 if ($spreadsheet->sheetNameExists($tableCode)) {
                     $sheet = $spreadsheet->getSheetByName($tableCode);
                     Log::info("Found exact sheet match for table {$tableCode}");
                 } else {
-                    // Try alternative naming patterns
                     foreach ($availableSheets as $sheetName) {
-                        // Check for various formats like "Tabel 1 Bagian-1" that might match section code "1-1"
                         if (strpos(strtolower($sheetName), strtolower(str_replace('-', ' ', $tableCode))) !== false) {
                             $sheet = $spreadsheet->getSheetByName($sheetName);
                             Log::info("Found matching sheet: {$sheetName} for table: {$tableCode}");
@@ -169,17 +146,14 @@ class LkpsExportController extends Controller
                     }
                 }
 
-                // If still no match, skip this section
                 if (!$sheet) {
                     Log::warning("No matching sheet found for table {$tableCode}, skipping");
                     continue;
                 }
 
-                // Get sheet name for logging
                 $sheetName = $sheet->getTitle();
                 Log::info("Using sheet: {$sheetName} for data from table: {$tableCode}");
 
-                // 6. Fill Excel data
                 $startRow = $this->getStartRowForSection($tableCode);
                 $columnMapping = $this->getColumnMappingForSection($tableCode);
 
@@ -190,29 +164,28 @@ class LkpsExportController extends Controller
                     $currentRow = $startRow + $rowIndex;
 
                     try {
-                        // Apply the appropriate column mapping for this section
                         $this->fillRowData($sheet, $currentRow, $rowData, $columnMapping);
                         $rowCount++;
                     } catch (\Exception $e) {
                         Log::error("Error processing row {$rowIndex} for table {$tableCode}: " . $e->getMessage());
-                        // Continue to next row if there's an error
                     }
+                }
+
+                if ($rowCount > 0) {
+                    $this->applyConsistentFormatting($sheet, $startRow, $startRow + $rowCount - 1, $columnMapping);
                 }
 
                 Log::info("Successfully filled {$rowCount} rows in sheet {$sheetName} for table {$tableCode}");
                 $processedSections[] = $tableCode;
             }
 
-            // Check if we processed any sections
             if (empty($processedSections)) {
                 Log::warning("No data was processed for any requested tables");
                 return response()->json(['message' => 'No data found for the requested tables'], 404);
             }
 
-            // Log summary
             Log::info("Processed tables: " . implode(', ', $processedSections));
 
-            // Save to temporary file
             $tempFileName = 'LKPS_Export_' . uniqid() . '.xlsx';
             $tempFile = storage_path('app/temp/' . $tempFileName);
             $tempDir = dirname($tempFile);
@@ -220,19 +193,16 @@ class LkpsExportController extends Controller
                 mkdir($tempDir, 0755, true);
             }
 
-            // Write with optimizations
             $writer = new Xlsx($spreadsheet);
-            $writer->setPreCalculateFormulas(false); // Performance optimization
+            $writer->setPreCalculateFormulas(false);
 
             Log::info('Writing file to disk');
             $writer->save($tempFile);
 
-            // Free memory
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
-            gc_collect_cycles(); // Force garbage collection
+            gc_collect_cycles();
 
-            // Set headers
             $headers = [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'Content-Disposition' => 'attachment; filename=LKPS_Data_Export.xlsx',
@@ -241,7 +211,6 @@ class LkpsExportController extends Controller
                 'Expires' => '0'
             ];
 
-            // Add CORS headers
             foreach (['Access-Control-Allow-Origin' => '*', 'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers' => 'Content-Type, Authorization'] as $key => $value) {
                 $headers[$key] = $value;
             }
@@ -260,13 +229,9 @@ class LkpsExportController extends Controller
         }
     }
 
-    /**
-     * Get the starting row for a specific section from database
-     */
     private function getStartRowForSection($tableCode)
     {
         try {
-            // Use Eloquent instead of raw MongoDB
             $table = LkpsTable::where('kode', $tableCode)->first();
 
             if ($table && isset($table->barisAwalExcel)) {
@@ -274,82 +239,15 @@ class LkpsExportController extends Controller
                 return (int) $table->barisAwalExcel;
             }
 
-            // Default fallback values if not found in database
-            $defaultStartRows = [
-                '1-1' => 12,
-                '1-2' => 12,
-                '1-3' => 12,
-                '2a1' => 7,
-                '2a2' => 7,
-                '2a3' => 7,
-                '2a4' => 7,
-                '2b' => 7,
-                '3a1' => 14,
-                '3a2' => 9,
-                '3a3' => 11,
-                '3a4' => 14,
-                '3a5' => 7,
-                '3b1' => 11,
-                '3b2' => 9,
-                '3b3' => 10,
-                '3b4' => 7,
-                '3b5' => 7,
-                '3b6' => 6,
-                '3b7' => 6,
-                '3b8-1' => 6,
-                '3b8-2' => 6,
-                '3b8-3' => 15,
-                '3b8-4' => 6,
-                '3c' => 8,
-                '4a' => 6,
-                '4b' => 9,
-                '4c' => 9,
-                '5a-1' => 10,
-                '5a-2' => 10,
-                '5a-3' => 9,
-                '5a-4' => 9,
-                '5b-1' => 15,
-                '5b-2' => 16,
-                '5b-3' => 14,
-                '5c' => 13,
-                '5d' => 6,
-                '6a' => 11,
-                '6b' => 6,
-                '7' => 6,
-                '8a' => 6,
-                '8b1' => 10,
-                '8b2' => 11,
-                '8c' => 7,
-                '8d1' => 7,
-                '8d2' => 7,
-                '8e1' => 7,
-                '8e2' => 7,
-                '8f1' => 7,
-                '8f2' => 7,
-                '8f3' => 6,
-                '8f4' => 6,
-                '8f5-1' => 11,
-                '8f5-2' => 7,
-                '8f5-3' => 17,
-                '8f5-4' => 7,
-                '9a' => 7,
-                '9b' => 5
-            ];
-
-            $startRow = $defaultStartRows[$tableCode] ?? 12;
-            Log::info("Using default start row for table {$tableCode}: {$startRow}");
-
-            return $startRow;
+            Log::warning("No start row defined for table {$tableCode}, using default 12");
+            return 12;
 
         } catch (\Exception $e) {
             Log::error("Error getting start row for table {$tableCode}: " . $e->getMessage());
-            return 12; // Default fallback value
+            return 12;
         }
     }
 
-    /**
-     * Convert a numeric index (0, 1, 2, ...) to Excel column letter (A, B, C, ...)
-     */
     private function convertToColumnLetter($index)
     {
         $baseChar = ord('A');
@@ -363,18 +261,77 @@ class LkpsExportController extends Controller
         }
     }
 
-    /**
-     * Get column mapping for a specific section from database
-     */
     private function getColumnMappingForSection($tableCode)
     {
         try {
             Log::info("Getting column mapping for table {$tableCode}");
 
-            // Use Eloquent instead of raw MongoDB - assuming you have LkpsColumn model
-            // If you don't have this model, you can create it or use raw queries as fallback
+            $table = LkpsTable::where('kode', $tableCode)->first();
+            if (!$table) {
+                Log::warning("Table not found for code: {$tableCode}");
+                return [];
+            }
 
-            // For now, let's use a simple approach - generate mapping from sample data
+            $columns = \App\Models\Lkps\LkpsColumn::where('lkpsTableId', (string) $table->_id)
+                ->where('isGroup', false)
+                ->orderBy('order')
+                ->get();
+
+            if ($columns->isEmpty()) {
+                Log::warning("No columns found for table {$tableCode}, fallback to sample data");
+                return $this->getColumnMappingFromSampleData($tableCode);
+            }
+
+            $columnMapping = [];
+            foreach ($columns as $column) {
+                if ($column->indeksExcel === null || $column->indeksData === null) {
+                    continue;
+                }
+
+                $excelColumn = $this->convertIndexToColumnLetter($column->indeksExcel);
+                $fieldName = $column->indeksData;
+
+                $columnMapping[$fieldName] = $excelColumn;
+
+                Log::debug("Mapped field '{$fieldName}' to column '{$excelColumn}' (index: {$column->indeksExcel})");
+            }
+
+            Log::info("Built column mapping for table {$tableCode} from LkpsColumn", [
+                'columns_count' => count($columnMapping),
+                'mapping' => $columnMapping
+            ]);
+
+            return $columnMapping;
+
+        } catch (\Exception $e) {
+            Log::error("Error getting column mapping for table {$tableCode}: " . $e->getMessage());
+            return $this->getColumnMappingFromSampleData($tableCode);
+        }
+    }
+
+    private function convertIndexToColumnLetter($index)
+    {
+        if ($index < 0) {
+            return 'A';
+        }
+
+        $column = '';
+        $index++;
+
+        while ($index > 0) {
+            $index--;
+            $column = chr(65 + ($index % 26)) . $column;
+            $index = intval($index / 26);
+        }
+
+        return $column;
+    }
+
+    private function getColumnMappingFromSampleData($tableCode)
+    {
+        try {
+            Log::info("Using fallback method - generating mapping from sample data");
+
             $lkpsData = LkpsData::where('kodeTabel', $tableCode)->first();
 
             if ($lkpsData && !empty($lkpsData->data)) {
@@ -384,18 +341,166 @@ class LkpsExportController extends Controller
                 }
             }
 
-            Log::warning("No column mapping available for table {$tableCode}");
+            Log::warning("No sample data available for table {$tableCode}");
             return [];
 
         } catch (\Exception $e) {
-            Log::error("Error getting column mapping for table {$tableCode}: " . $e->getMessage());
+            Log::error("Error in fallback mapping for table {$tableCode}: " . $e->getMessage());
             return [];
         }
     }
 
-    /**
-     * Generate column mapping from data structure
-     */
+    private function fillRowData($sheet, $currentRow, $rowData, $columnMapping)
+    {
+        Log::debug("Processing row at position {$currentRow}");
+
+        if (empty($columnMapping)) {
+            Log::warning("No column mapping available for this table");
+            return;
+        }
+
+        foreach ($columnMapping as $fieldName => $excelColumn) {
+            if (in_array($fieldName, ['key', 'selected', '_timestamp', 'rowIndex', 'no', '_id'])) {
+                continue;
+            }
+
+            if (!isset($rowData[$fieldName])) {
+                Log::debug("Field '{$fieldName}' not found in row data, skipping");
+                continue;
+            }
+
+            $value = $rowData[$fieldName];
+
+            $processedValue = $this->processValueForExcel($value, $fieldName);
+
+            try {
+                if ($this->isPotentiallyAnIdentifier($processedValue)) {
+                    $sheet->setCellValueExplicit(
+                        "{$excelColumn}{$currentRow}",
+                        $processedValue,
+                        \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+                    );
+                    Log::debug("Set cell {$excelColumn}{$currentRow} as STRING = {$processedValue}");
+                } else {
+                    $sheet->setCellValue("{$excelColumn}{$currentRow}", $processedValue);
+
+                    if ($this->isPercentageField($fieldName)) {
+                        $sheet->getStyle("{$excelColumn}{$currentRow}")
+                            ->getNumberFormat()
+                            ->setFormatCode('0.00%');
+                    }
+                    Log::debug("Set cell {$excelColumn}{$currentRow} = {$processedValue} (field: {$fieldName})");
+                }
+
+                $sheet->getStyle("{$excelColumn}{$currentRow}")
+                    ->getFont()
+                    ->setSize(10);
+
+            } catch (\Exception $e) {
+                Log::error("Error setting cell {$excelColumn}{$currentRow}: " . $e->getMessage());
+            }
+        }
+    }
+
+    private function processValueForExcel($value, $fieldName = '')
+    {
+        if (is_bool($value)) {
+            return $value ? 'V' : '';
+        }
+
+        if ($value === true) {
+            return 'V';
+        }
+
+        if ($value === false) {
+            return '';
+        }
+
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value);
+        }
+
+        if (is_null($value)) {
+            return '';
+        }
+
+        if ($this->isPercentageField($fieldName) && is_numeric($value)) {
+            return floatval($value) / 100;
+        }
+
+        return $value;
+    }
+
+    private function isPercentageField($fieldName)
+    {
+        $percentageFields = [
+            'tingkat_kepuasan_mahasiswa_sangat_baik',
+            'tingkat_kepuasan_mahasiswa_baik',
+            'tingkat_kepuasan_mahasiswa_cukup',
+            'tingkat_kepuasan_mahasiswa_kurang',
+        ];
+
+        if (in_array($fieldName, $percentageFields)) {
+            return true;
+        }
+
+        $percentagePatterns = [
+            'persentase',
+            'persen',
+            'tingkat_kepuasan',
+            '_pct',
+            'percentage'
+        ];
+
+        foreach ($percentagePatterns as $pattern) {
+            if (strpos(strtolower($fieldName), $pattern) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isPotentiallyAnIdentifier($value)
+    {
+        if (is_string($value) && ctype_digit($value) && strlen($value) > 11) {
+            return true;
+        }
+
+        if (is_numeric($value) && !str_contains((string) $value, '.') && strlen((string) $value) > 11) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function getCurrentTableCode($sheet)
+    {
+        return $sheet->getTitle();
+    }
+
+    private function getValidFieldsForTable($tableCode)
+    {
+        try {
+            $table = LkpsTable::where('kode', $tableCode)->first();
+            if (!$table) {
+                return [];
+            }
+
+            $columns = \App\Models\Lkps\LkpsColumn::where('lkpsTableId', (string) $table->_id)
+                ->where('isGroup', false)
+                ->whereNotNull('indeksData')
+                ->pluck('indeksData')
+                ->toArray();
+
+            return $columns;
+
+        } catch (\Exception $e) {
+            Log::error("Error getting valid fields for table {$tableCode}: " . $e->getMessage());
+            return [];
+        }
+    }
+
     private function generateMappingFromData($sampleData)
     {
         Log::info("Generating dynamic column mapping from data structure");
@@ -403,8 +508,7 @@ class LkpsExportController extends Controller
         $columnIndex = 0;
 
         foreach (array_keys($sampleData) as $field) {
-            // Skip metadata fields
-            if (in_array($field, ['key', 'selected', '_timestamp', 'rowIndex'])) {
+            if (in_array($field, ['key', 'selected', '_timestamp', 'rowIndex', 'no', '_id'])) {
                 continue;
             }
 
@@ -417,124 +521,34 @@ class LkpsExportController extends Controller
         return $columnMapping;
     }
 
-    /**
-     * Fill row data based on column mapping
-     */
-    private function fillRowData($sheet, $currentRow, $rowData, $columnMapping)
-    {
-        // Debug log struktur data
-        Log::debug("Processing row at position {$currentRow}");
-
-        // Jika column mapping kosong, coba buat otomatis
-        if (empty($columnMapping) && !empty($rowData)) {
-            Log::info("No mapping available, creating mapping from row data");
-            $columnMapping = $this->generateMappingFromData($rowData);
-        }
-
-        if (empty($columnMapping)) {
-            Log::warning("No column mapping available, data will not be written to Excel");
-            return;
-        }
-
-        // Process each field according to mapping
-        foreach ($columnMapping as $field => $column) {
-            if (isset($rowData[$field])) {
-                $value = $rowData[$field];
-
-                // Handle different value types
-                if (is_bool($value)) {
-                    $value = $value ? 'V' : '';
-                } else if ($value === true) {
-                    $value = 'V';
-                } else if ($value === false) {
-                    $value = '';
-                } else if (is_array($value) || is_object($value)) {
-                    // Convert to string representation
-                    $value = json_encode($value);
-                }
-
-                // Set cell value
-                try {
-                    $sheet->setCellValue("{$column}{$currentRow}", $value);
-                    Log::debug("Set cell {$column}{$currentRow} = {$value}");
-                } catch (\Exception $e) {
-                    Log::error("Error setting cell {$column}{$currentRow}: " . $e->getMessage());
-                }
-            }
-        }
-    }
-
-    /**
-     * Get template information
-     */
-    public function getTemplateInfo()
+    private function applyConsistentFormatting($sheet, $startRow, $endRow, $columnMapping)
     {
         try {
-            $filePath = 'templates/LKPS_template.xlsx';
-            $fullPath = storage_path('app/public/' . $filePath);
+            $columns = array_values($columnMapping);
 
-            // Check if template exists
-            if (!File::exists($fullPath)) {
-                Log::info('No template available at: ' . $fullPath);
-
-                return response()->json([
-                    'message' => 'No template available',
-                    'exists' => false
-                ]);
+            if (empty($columns)) {
+                return;
             }
 
-            // Get template metadata
-            $lastUpdated = date('Y-m-d H:i:s', File::lastModified($fullPath));
-            $fileSize = $this->formatFileSize(File::size($fullPath));
+            $firstColumn = min($columns);
+            $lastColumn = max($columns);
+            $range = "{$firstColumn}{$startRow}:{$lastColumn}{$endRow}";
 
-            // Get sheet information
-            $sheets = [];
-            try {
-                $zip = new \ZipArchive();
-                if ($zip->open($fullPath) === TRUE) {
-                    if (($index = $zip->locateName('xl/workbook.xml')) !== false) {
-                        $data = $zip->getFromIndex($index);
-                        $xml = simplexml_load_string($data);
-                        $xml->registerXPathNamespace('ns', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
-                        $sheetNodes = $xml->xpath('//ns:sheet');
-                        foreach ($sheetNodes as $sheet) {
-                            $sheets[] = (string) $sheet['name'];
-                        }
-                    }
-                    $zip->close();
-                }
-            } catch (\Exception $e) {
-                Log::warning('Error extracting sheet information: ' . $e->getMessage());
-            }
+            $sheet->getStyle($range)
+                ->getFont()
+                ->setSize(10);
 
-            Log::info('Template info requested', [
-                'exists' => true,
-                'path' => $fullPath,
-                'lastModified' => $lastUpdated,
-                'size' => $fileSize,
-                'sheet_count' => count($sheets)
-            ]);
+            $sheet->getStyle($range)
+                ->getFont()
+                ->setName('Calibri');
 
-            return response()->json([
-                'exists' => true,
-                'lastUpdated' => $lastUpdated,
-                'fileSize' => $fileSize,
-                'uploadedBy' => 'System',
-                'sheets' => $sheets
-            ]);
+            Log::info("Applied consistent formatting to range: {$range}");
+
         } catch (\Exception $e) {
-            Log::error('Error getting template information: ' . $e->getMessage());
-
-            return response()->json([
-                'message' => 'Error getting template information',
-                'error' => $e->getMessage()
-            ], 500);
+            Log::error("Error applying formatting: " . $e->getMessage());
         }
     }
 
-    /**
-     * Upload template Excel file
-     */
     public function uploadTemplate(Request $request)
     {
         try {
@@ -646,9 +660,6 @@ class LkpsExportController extends Controller
         }
     }
 
-    /**
-     * Helper function to format file size
-     */
     private function formatFileSize($bytes)
     {
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];

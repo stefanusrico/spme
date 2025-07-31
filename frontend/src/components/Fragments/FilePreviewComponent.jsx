@@ -1,30 +1,4 @@
 // src/components/FileViewerComponent.jsx
-<<<<<<< HEAD
-import React from "react";
-import { Worker, Viewer } from "@react-pdf-viewer/core";
-import "@react-pdf-viewer/core/lib/styles/index.css";
-import { read, utils } from "xlsx";
-
-const FilePreviewComponent = ({ file }) => {
-  if (!file) return null;
-
-  const getGoogleDriveDirectLink = (fileUrl) => {
-    const match = fileUrl.match(/(?:\/d\/|id=)([a-zA-Z0-9_-]+)/);
-    return match ? `https://drive.google.com/file/d/${match[1]}/preview` : fileUrl;
-  };
-
-  
-  const fileType = file.name.split(".").pop().toLowerCase();
-  
-  // Tampilkan Gambar
-  if (["png", "jpg", "jpeg"].includes(fileType)) {
-    const isLocalFile = !!file.originFileObj;
-    const fileUrl = file.originFileObj ? URL.createObjectURL(file.originFileObj) : getGoogleDriveDirectLink(file.url);
-
-    console.log("Nama File:", file.name);
-    console.log("Tipe File:", fileType);
-    console.log("File URL:", fileUrl);
-=======
 import React from "react"
 import { Worker, Viewer } from "@react-pdf-viewer/core"
 import "@react-pdf-viewer/core/lib/styles/index.css"
@@ -52,7 +26,6 @@ const FilePreviewComponent = ({ file }) => {
     console.log("Nama File:", file.name)
     console.log("Tipe File:", fileType)
     console.log("File URL:", fileUrl)
->>>>>>> dbv2
 
     return (
       <div className="flex justify-center">
@@ -70,23 +43,11 @@ const FilePreviewComponent = ({ file }) => {
           ></iframe>
         )}
       </div>
-<<<<<<< HEAD
-    );
-=======
     )
->>>>>>> dbv2
   }
 
   // Tampilkan PDF
   if (fileType === "pdf") {
-<<<<<<< HEAD
-    console.log("Nama File pdf:", file.name);
-    return (
-      <div className="flex justify-center">
-        <iframe src={file.originFileObj ? URL.createObjectURL(file.originFileObj) : getGoogleDriveDirectLink(file.url)} type="application/pdf" width="100%" height="600px"></iframe>
-      </div>
-    );
-=======
     console.log("Nama File pdf:", file.name)
     return (
       <div className="flex justify-center">
@@ -102,7 +63,6 @@ const FilePreviewComponent = ({ file }) => {
         ></iframe>
       </div>
     )
->>>>>>> dbv2
   }
 
   // Tampilkan Data Excel
@@ -111,30 +71,6 @@ const FilePreviewComponent = ({ file }) => {
       <div>
         <ExcelViewer file={file} />
       </div>
-<<<<<<< HEAD
-    );
-  }
-
-  return <p>Format file tidak didukung</p>;
-};
-
-// Komponen untuk menampilkan isi file Excel
-const ExcelViewer = ({ file }) => {
-  const [excelData, setExcelData] = React.useState(null);
-
-  React.useEffect(() => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const data = new Uint8Array(e.target.result);
-      const workbook = read(data, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const jsonData = utils.sheet_to_json(sheet);
-      setExcelData(jsonData);
-    };
-    reader.readAsArrayBuffer(file);
-  }, [file]);
-=======
     )
   }
 
@@ -157,20 +93,12 @@ const ExcelViewer = ({ file }) => {
     }
     reader.readAsArrayBuffer(file)
   }, [file])
->>>>>>> dbv2
 
   return (
     <pre style={{ whiteSpace: "pre-wrap" }}>
       {excelData ? JSON.stringify(excelData, null, 2) : "Memuat data..."}
     </pre>
-<<<<<<< HEAD
-  );
-};
-
-export default FilePreviewComponent;
-=======
   )
 }
 
 export default FilePreviewComponent
->>>>>>> dbv2

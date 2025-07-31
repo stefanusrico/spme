@@ -307,15 +307,47 @@ export const generateColumns = (
           </EditableCell>
         )
       }
-    } else if (columnType === "date") {
+    } else if (
+      columnType === "date" ||
+      dataIndex.includes("tanggal") ||
+      dataIndex.includes("hh_bb_tttt")
+    ) {
       baseColumn.render = (text, record) => {
         const isEditing = record.key === editingKey
-        const formattedDate = text ? dayjs(text).format("D/M/YYYY") : "-"
+
+        let formattedDate = "-"
+        if (text) {
+          // Deteksi apakah sudah dalam format DD/MM/YYYY
+          if (
+            typeof text === "string" &&
+            /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(text)
+          ) {
+            // Pastikan format sudah benar (DD/MM/YYYY)
+            const parts = text.split("/")
+            const day = parseInt(parts[0], 10)
+            const month = parseInt(parts[1], 10)
+
+            if (day <= 31 && month <= 12) {
+              // Sudah dalam format yang benar, gunakan langsung
+              formattedDate = text
+            } else {
+              // Format salah (mungkin MM/DD/YYYY), konversi ke DD/MM/YYYY
+              formattedDate = `${parts[1].padStart(2, "0")}/${parts[0].padStart(
+                2,
+                "0"
+              )}/${parts[2]}`
+            }
+          } else {
+            // Format lain (ISO, angka, dll) - gunakan dayjs
+            const date = dayjs(text)
+            formattedDate = date.isValid() ? date.format("DD/MM/YYYY") : text
+          }
+        }
 
         return isEditing && isFillable ? (
           <DatePicker
             defaultValue={text ? dayjs(text) : null}
-            format="D/M/YYYY"
+            format="DD/MM/YYYY"
             onChange={(date) => {
               // Store as ISO string for consistency
               const dateValue = date ? date.toISOString() : null
@@ -541,7 +573,9 @@ export const generateColumns = (
       return dataIndex !== "source"
     })
     .map((col) => {
-      const isCalculated = calculatedFields.includes(col.dataIndex)
+      const isCalculated = calculatedFields.includes(
+        col.dataIndex || col.data_index || col.indeksData
+      )
       const column = processColumn(col)
 
       // Skip if processColumn returned null
@@ -557,8 +591,13 @@ export const generateColumns = (
             return <span className="calculated-value">{text}</span>
           }
 
+          // Use the original render function if it exists
+          if (column.render) {
+            return column.render(text, record)
+          }
+
           // Default rendering for editable fields
-          return column.render(text, record)
+          return text
         },
       }
     })

@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useState } from "react"
 import { message } from "antd"
 import * as XLSX from "xlsx"
 import { isSelectionAllowedForTable } from "../constants/tableStructure"
@@ -17,65 +17,199 @@ export const useFileUpload = (
   calculateScoreData,
   plugin
 ) => {
+  const [programSelectorState, setProgramSelectorState] = useState({
+    visible: false,
+    availablePrograms: [],
+    pendingWorkbook: null,
+    pendingTableCode: null,
+  })
+
+  const processPendingUpload = useCallback(
+    async (selectedProgram) => {
+      console.log("🔄 Processing pending upload for program:", selectedProgram)
+
+      if (!programSelectorState.pendingWorkbook) {
+        console.error("❌ No pending workbook found")
+        return
+      }
+
+      try {
+        console.log("🔧 Processing Excel data for program:", selectedProgram)
+
+        // **FIX**: Pass selectedProgram to processExcelData
+        const result = await plugin.processExcelData(
+          programSelectorState.pendingWorkbook,
+          programSelectorState.pendingTableCode || tableCode,
+          config,
+          prodiName,
+          "",
+          selectedProgram // **NEW**: Pass the selected program
+        )
+
+        console.log("🎯 Plugin processing result:", result)
+
+        if (result.allRows && result.allRows.length > 0) {
+          const tableCodeToUpdate =
+            programSelectorState.pendingTableCode || tableCode
+
+          console.log(
+            `📊 Setting table data for ${tableCodeToUpdate}:`,
+            result.allRows.length,
+            "rows"
+          )
+
+          setAllExcelData((prev) => ({
+            ...prev,
+            [tableCodeToUpdate]: result.allRows,
+          }))
+
+          if (result.shouldReplaceExisting) {
+            setTableData((prev) => ({
+              ...prev,
+              [tableCodeToUpdate]: result.allRows,
+            }))
+          } else {
+            setSelectionData((prev) => ({
+              ...prev,
+              [tableCodeToUpdate]: result.allRows,
+            }))
+            setShowSelectionMode((prev) => ({
+              ...prev,
+              [tableCodeToUpdate]: true,
+            }))
+          }
+
+          setIsUploaded((prev) => ({
+            ...prev,
+            [tableCodeToUpdate]: true,
+          }))
+
+          calculateScoreData()
+
+          console.log(
+            "✅ Upload completed successfully for program:",
+            selectedProgram
+          )
+          message.success(`Data ${selectedProgram} berhasil dimuat!`)
+        } else {
+          console.warn("⚠️ No data found in result")
+          message.warning("Tidak ada data yang ditemukan dalam file Excel")
+        }
+      } catch (error) {
+        console.error("❌ Error processing Excel data:", error)
+        message.error(`Error processing Excel data: ${error.message}`)
+      } finally {
+        // Close program selector
+        setProgramSelectorState({
+          visible: false,
+          availablePrograms: [],
+          pendingWorkbook: null,
+          pendingTableCode: null,
+        })
+      }
+    },
+    [
+      programSelectorState,
+      plugin,
+      config,
+      prodiName,
+      setAllExcelData,
+      setTableData,
+      setSelectionData,
+      setShowSelectionMode,
+      setIsUploaded,
+      setProgramSelectorState,
+      tableCode,
+      calculateScoreData,
+    ]
+  )
+
   const handleUpload = useCallback(
     (info, tableCode) => {
+      console.log("🚀 Upload started:", { fileName: info.file.name, tableCode })
+
       if (!plugin) {
+        console.error("❌ Plugin not available")
         message.error("Plugin not available")
         return
       }
 
       const file = info.file
-      console.log("Uploading file:", file.name, "for table:", tableCode)
+      console.log("📁 Processing file:", file.name, "for table:", tableCode)
 
       const reader = new FileReader()
 
       reader.onload = async (e) => {
         try {
-          console.log("File loaded, parsing Excel...")
+          console.log("📖 File loaded, parsing Excel...")
           const workbook = XLSX.read(e.target.result, { type: "array" })
-          console.log("Excel workbook parsed, sheets:", workbook.SheetNames)
+          console.log("📊 Excel workbook parsed, sheets:", workbook.SheetNames)
 
-          // Extract raw sheet data for logging
-          const firstSheetName = workbook.SheetNames[0]
-          const worksheet = workbook.Sheets[firstSheetName]
-          const rawData = XLSX.utils.sheet_to_json(worksheet)
+          console.log("🔧 Processing Excel data using plugin...")
 
-          console.log("===== RAW EXCEL DATA (ROW BY ROW) =====")
-          rawData.forEach((row, index) => {
-            console.log(`Row ${index + 1} JSON:`, JSON.stringify(row, null, 2))
-          })
-          console.log("=======================================")
-
-          console.log("Processing Excel data using plugin...")
-
-          // Use plugin to process Excel data
+          // Process Excel data without selected program first
           const result = await plugin.processExcelData(
             workbook,
             tableCode,
             config,
             prodiName,
             tableCode
+            // Don't pass selectedProgram initially
           )
 
-          // Extract data and check if we should replace existing data
+          console.log("🎯 Plugin processing result:", result)
+          console.log(
+            "🔍 Checking requiresProgramSelection:",
+            result?.requiresProgramSelection
+          )
+
+          // **FIX**: Add more detailed logging and check
+          if (result && result.requiresProgramSelection === true) {
+            console.log(
+              "🔔 Multiple programs detected, showing program selector"
+            )
+            console.log("📋 Available programs:", result.availablePrograms)
+
+            if (
+              !result.availablePrograms ||
+              result.availablePrograms.length === 0
+            ) {
+              console.warn("⚠️ No available programs in result")
+              message.error(
+                "Multiple programs detected but no program list available"
+              )
+              return
+            }
+
+            setProgramSelectorState({
+              visible: true,
+              availablePrograms: result.availablePrograms,
+              pendingWorkbook: workbook,
+              pendingTableCode: tableCode,
+            })
+
+            message.info(
+              `Multiple programs detected (${result.availablePrograms.length} programs). Please select which program to import.`
+            )
+            return
+          }
+
+          // **FIX**: Add explicit check for single table
+          if (
+            !result ||
+            (!result.requiresProgramSelection &&
+              (!result.allRows || result.allRows.length === 0))
+          ) {
+            console.warn("⚠️ No data returned from plugin processing")
+            message.warning("No data found in the uploaded file")
+            return
+          }
+
+          console.log("📄 Single table processing...")
+
+          // Single table - process normally
           const { allRows = [], shouldReplaceExisting = false } = result || {}
 
-          // Add safety check before logging
-          console.log("===== REPLACEMENT DEBUG INFO =====")
-          console.log("Table code:", tableCode)
-          console.log("Plugin result:", result)
-          console.log("shouldReplaceExisting:", shouldReplaceExisting)
-          console.log(
-            "Selection allowed:",
-            isSelectionAllowedForTable(tableCode)
-          )
-          console.log(
-            "Rows count:",
-            Array.isArray(allRows) ? allRows.length : "allRows is not an array"
-          )
-          console.log("================================")
-
-          // Log processed data
           console.log("===== PROCESSED DATA =====")
           console.log(`Processed ${allRows.length} rows`)
           if (allRows.length > 0) {
@@ -83,47 +217,34 @@ export const useFileUpload = (
               "First row sample:",
               JSON.stringify(allRows[0], null, 2)
             )
-            allRows.forEach((row, index) => {
-              console.log(`Row ${index + 1}:`, row)
-            })
           }
           console.log("===========================")
 
-          // Update state with new data
+          // Update state with new data (existing logic)
           setAllExcelData((prev) => ({
             ...prev,
             [tableCode]: allRows,
           }))
 
-          // For tables with selection allowed, separate data into tableData and selectionData
+          // Handle table data updates (existing logic)
           if (isSelectionAllowedForTable(tableCode)) {
             if (shouldReplaceExisting) {
-              // Create modified rows with selected=true
               const modifiedRows = allRows.map((row) => ({
                 ...row,
-                selected: true, // Mark all as selected
-                _replacementFlag: true, // Add a flag to identify replaced data
+                selected: true,
+                _replacementFlag: true,
               }))
 
-              console.log("Replacing tableData with:", modifiedRows)
+              setTableData((prev) => ({
+                ...prev,
+                [tableCode]: modifiedRows,
+              }))
 
-              // Replace existing table data completely
-              setTableData((prev) => {
-                const result = {
-                  ...prev,
-                  [tableCode]: modifiedRows,
-                }
-                console.log("New tableData state:", result[tableCode])
-                return result
-              })
-
-              // Clear selection data
               setSelectionData((prev) => ({
                 ...prev,
                 [tableCode]: [],
               }))
 
-              // Force selection mode off
               setShowSelectionMode((prev) => ({
                 ...prev,
                 [tableCode]: false,
@@ -133,16 +254,14 @@ export const useFileUpload = (
                 `Data successfully replaced with ${allRows.length} rows! Don't forget to save to calculate score.`
               )
             } else {
-              // Place all new data from Excel into selectionData (traditional behavior)
               setSelectionData((prev) => ({
                 ...prev,
                 [tableCode]: allRows.map((row) => ({
                   ...row,
-                  selected: false, // Ensure all rows are initially unselected
+                  selected: false,
                 })),
               }))
 
-              // Show selection mode if we have data to select
               if (allRows.length > 0) {
                 setShowSelectionMode((prev) => ({
                   ...prev,
@@ -154,9 +273,8 @@ export const useFileUpload = (
               }
             }
           } else {
-            // For non-selectable tables, add all data directly to tableData
+            // Non-selectable tables (existing logic)
             if (shouldReplaceExisting) {
-              // Replace existing data
               setTableData((prev) => ({
                 ...prev,
                 [tableCode]: allRows.map((row) => ({
@@ -165,7 +283,6 @@ export const useFileUpload = (
                 })),
               }))
             } else {
-              // Add to existing data
               setTableData((prev) => {
                 const currentTableData = prev[tableCode] || []
                 return {
@@ -174,14 +291,13 @@ export const useFileUpload = (
                     ...currentTableData,
                     ...allRows.map((row) => ({
                       ...row,
-                      selected: true, // Mark all as selected for non-selection tables
+                      selected: true,
                     })),
                   ],
                 }
               })
             }
 
-            // No selection data for non-selectable tables
             setSelectionData((prev) => ({
               ...prev,
               [tableCode]: [],
@@ -198,31 +314,11 @@ export const useFileUpload = (
               `File uploaded successfully with ${allRows.length} rows of data! Don't forget to save to calculate score.`
             )
           }
-
-          // Validate data if plugin provides validation function
-          if (plugin.validateData) {
-            // Validate the newly processed data
-            const dataToValidate = isSelectionAllowedForTable(tableCode)
-              ? shouldReplaceExisting
-                ? allRows.map((row) => ({ ...row, selected: true }))
-                : [] // For selection tables with no replace, initially there's no selected data
-              : allRows.map((row) => ({ ...row, selected: true }))
-
-            const { valid, errors } = plugin.validateData(dataToValidate)
-
-            if (!valid && errors.length > 0) {
-              message.warning("Data uploaded with validation warnings:")
-              errors.forEach((error) => {
-                message.warning(error)
-              })
-            }
-          }
         } catch (error) {
           console.error("Error processing uploaded file:", error)
           message.error(
             "Invalid file format: " + (error.message || "An error occurred")
           )
-          console.error("Error stack:", error.stack)
         }
       }
 
@@ -244,11 +340,14 @@ export const useFileUpload = (
       setAllExcelData,
       tableCode,
       prodiName,
-      configRef,
       plugin,
-      tableData,
     ]
   )
 
-  return { handleUpload }
+  return {
+    handleUpload,
+    programSelectorState,
+    setProgramSelectorState,
+    processPendingUpload,
+  }
 }

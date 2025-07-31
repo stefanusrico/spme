@@ -14,8 +14,11 @@ class ProdiController extends Controller
     public function index()
     {
         return response()->json(
-            Prodi::with('lam')
-                ->with('strata')
+            Prodi::with(['lam', 'strata'])
+                ->where(function ($query) {
+                    $query->where('name', 'like', 'D-IV Teknik%')
+                        ->orWhere('name', 'like', '%P2MPP%');
+                })
                 ->orderBy('akreditasi.tanggalKedaluwarsa', 'asc')
                 ->get()
         );
@@ -23,8 +26,25 @@ class ProdiController extends Controller
 
     public function show($id)
     {
-        $prodi = $prodi = Prodi::where('jurusanId', '=', $id)->get();
+        $prodi = Prodi::where('jurusanId', '=', $id)->get();
         return $prodi ? response()->json($prodi) : response()->json(['message' => 'Prodi not found'], 404);
+    }
+
+    public function getAllProdi()
+    {
+        try {
+            $prodis = Prodi::with(['jurusan', 'lam'])
+                ->orderBy('akreditasi.tanggalKedaluwarsa', 'asc')
+                ->get();
+
+            return response()->json($prodis);
+        } catch (\Exception $e) {
+            \Log::error("Error in getAllProdi: " . $e->getMessage());
+            return response()->json([
+                'error' => 'Server Error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function store(Request $request)

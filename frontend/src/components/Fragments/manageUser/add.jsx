@@ -49,8 +49,8 @@ const AddUser = ({ title = "Add User" }) => {
       } catch (error) {
         console.error("Error fetching initial data:", error)
         if (error.response && error.response.config.url.includes("/prodi")) {
-            setProdi([]) // Gagal fetch prodi, set ke array kosong
-            console.error("Khususnya, error fetching prodi data.")
+          setProdi([]) // Gagal fetch prodi, set ke array kosong
+          console.error("Khususnya, error fetching prodi data.")
         }
       }
     }
@@ -69,7 +69,7 @@ const AddUser = ({ title = "Add User" }) => {
       prodiId: selectedRole === ADMIN_ROLE_NAME ? "" : prev.prodiId, // Reset prodiId jika role Admin
     }))
     // Reset error prodi jika role berubah
-    setError(prev => ({...prev, prodiId: ""}));
+    setError((prev) => ({ ...prev, prodiId: "" }))
   }
 
   const handleImageChange = (e) => {
@@ -100,18 +100,19 @@ const AddUser = ({ title = "Add User" }) => {
       const validationErrors = {
         role: !user.role ? "Role harus dipilih" : "",
         // prodiId tidak divalidasi di sini jika Admin, tapi backend-mu MEWAJIBKANNYA. Ini akan jadi masalah.
-        prodiId: user.role !== ADMIN_ROLE_NAME && !user.prodiId ? "Program Studi harus dipilih" : "",
+        prodiId:
+          user.role !== ADMIN_ROLE_NAME && !user.prodiId
+            ? "Program Studi harus dipilih"
+            : "",
       }
 
       const requiredFields = [
         "name",
         "email",
-        "username",
         "role",
         "password",
         "verifPass",
         "phone_number",
-        // "jurusanId", // Dihapus
       ]
       // ProdiId menjadi kondisional
       if (user.role !== ADMIN_ROLE_NAME) {
@@ -132,7 +133,10 @@ const AddUser = ({ title = "Add User" }) => {
         return
       }
 
-      if (validationErrors.role || (user.role !== ADMIN_ROLE_NAME && validationErrors.prodiId)) {
+      if (
+        validationErrors.role ||
+        (user.role !== ADMIN_ROLE_NAME && validationErrors.prodiId)
+      ) {
         setError(validationErrors)
         setIsLoading(false)
         return
@@ -140,9 +144,15 @@ const AddUser = ({ title = "Add User" }) => {
 
       let newProfilePicture = user.profile_picture
       if (user.profile_picture instanceof File) {
-        const uploadResponse = await uploadFile(user.profile_picture, "profile_pictures")
+        const uploadResponse = await uploadFile(
+          user.profile_picture,
+          "profile_pictures"
+        )
         if (uploadResponse.status === "success") {
-          newProfilePicture = uploadResponse.file_path || uploadResponse.path || uploadResponse.url
+          newProfilePicture =
+            uploadResponse.file_path ||
+            uploadResponse.path ||
+            uploadResponse.url
         } else {
           throw new Error("Gagal mengunggah foto profil")
         }
@@ -163,14 +173,17 @@ const AddUser = ({ title = "Add User" }) => {
       } else {
         delete dataToStore.prodiId // Hapus prodiId jika Admin
       }
-      
+
       // **CATATAN PENTING SEKALI:**
       // Berdasarkan info API-mu:
       // 1. `jurusanId` adalah `required`. Menghapusnya dari `dataToStore` akan menyebabkan ERROR dari backend.
       // 2. `prodiId` adalah `required`. Jika `user.role` adalah `ADMIN_ROLE_NAME`, `dataToStore` di atas tidak akan punya `prodiId`, ini juga akan ERROR.
       // Kamu PERLU menangani ini, entah dengan mengubah backend atau mengirim nilai default yang valid.
 
-      console.log("Data yang akan dikirim:", JSON.stringify(dataToStore, null, 2))
+      console.log(
+        "Data yang akan dikirim:",
+        JSON.stringify(dataToStore, null, 2)
+      )
 
       try {
         const response = await axiosInstance.post(`/users`, dataToStore)
@@ -186,7 +199,11 @@ const AddUser = ({ title = "Add User" }) => {
           status: error.response?.status,
           headers: error.response?.headers,
         })
-        alert(`Gagal membuat user: ${error.response?.data?.message || "Silakan coba lagi."}`)
+        alert(
+          `Gagal membuat user: ${
+            error.response?.data?.message || "Silakan coba lagi."
+          }`
+        )
       }
     } catch (error) {
       console.error("Handle update error:", error)
@@ -206,7 +223,8 @@ const AddUser = ({ title = "Add User" }) => {
               <img
                 src={
                   previewImage ||
-                  (user.profile_picture && typeof user.profile_picture === 'string' // Cek jika string (path dari DB)
+                  (user.profile_picture &&
+                  typeof user.profile_picture === "string" // Cek jika string (path dari DB)
                     ? `http://localhost:8000/storage/${user.profile_picture}`
                     : user.profile_picture instanceof File // Cek jika File (belum diupload)
                     ? URL.createObjectURL(user.profile_picture) // Ini akan direvoke oleh previewImage, tapi sbg fallback
@@ -239,8 +257,8 @@ const AddUser = ({ title = "Add User" }) => {
                     }
                     setPreviewImage(null)
                     setUser({ ...user, profile_picture: "" })
-                    if(fileInputRef.current) {
-                      fileInputRef.current.value = ""; // Reset file input
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = "" // Reset file input
                     }
                   }}
                   aria-label="Remove"
@@ -280,7 +298,7 @@ const AddUser = ({ title = "Add User" }) => {
                 />
 
                 <InputForm
-                  label="Username"
+                  label="Username (Opsional)"
                   type="text"
                   placeholder="Mon"
                   name="username"
@@ -290,7 +308,7 @@ const AddUser = ({ title = "Add User" }) => {
                     setUser({ ...user, username: e.target.value })
                   }
                   disabled={isLoading}
-                  required
+                  required={false}
                 />
 
                 <InputForm
@@ -378,7 +396,9 @@ const AddUser = ({ title = "Add User" }) => {
                 />
               </div>
             </div>
-            <div className="mt-10 ml-8 flex space-x-96 pb-10"> {/* Tambah pb-10 untuk padding bawah */}
+            <div className="mt-10 ml-8 flex space-x-96 pb-10">
+              {" "}
+              {/* Tambah pb-10 untuk padding bawah */}
               <Button
                 className="bg-red w-40 hover:bg-white hover:text-red"
                 aria-label="Cancel"

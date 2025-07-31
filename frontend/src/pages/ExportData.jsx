@@ -26,17 +26,24 @@ const ExportData = ({ projectId }) => {
   const [selectedTables, setSelectedTables] = useState([])
   const [tableStructure, setTableStructure] = useState([])
   const [ledCriteria, setLedCriteria] = useState([
-    { code: "C1", name: "Kriteria 1: Visi, Misi, Tujuan, dan Strategi" },
+    { code: "A", name: "Elemen A: Kondisi Eksternal" },
+    { code: "B", name: "Elemen B: Profil Unit Pengelola Program Studi" },
+    { code: "C1", name: "Kriteria C1: Visi, Misi, Tujuan, dan Strategi" },
     {
-      code: "C2", name: "Kriteria 2: Tata Pamong, Tata Kelola, dan Kerjasama",
+      code: "C2", name: "Kriteria C2: Tata Pamong, Tata Kelola, dan Kerjasama",
     },
-    { code: "C3", name: "Kriteria 3: Mahasiswa" },
-    { code: "C4", name: "Kriteria 4: Sumber Daya Manusia" },
-    { code: "C5", name: "Kriteria 5: Keuangan, Sarana, dan Prasarana" },
-    { code: "C6", name: "Kriteria 6: Pendidikan" },
-    { code: "C7", name: "Kriteria 7: Penelitian" },
-    { code: "C8", name: "Kriteria 8: Pengabdian kepada Masyarakat" },
-    { code: "C9", name: "Kriteria 9: Luaran dan Capaian Tridharma" },
+    { code: "C3", name: "Kriteria C3: Mahasiswa" },
+    { code: "C4", name: "Kriteria C4: Sumber Daya Manusia" },
+    { code: "C5", name: "Kriteria C5: Keuangan, Sarana, dan Prasarana" },
+    { code: "C6", name: "Kriteria C6: Pendidikan" },
+    { code: "C7", name: "Kriteria C7: Penelitian" },
+    { code: "C8", name: "Kriteria C8: Pengabdian kepada Masyarakat" },
+    { code: "C9", name: "Kriteria C9: Luaran dan Capaian Tridharma" },
+    { code: "D1", name: "Elemen D1: Keberadaan Unit Penjaminan dan komitmen pimpinan" },
+    { code: "D2", name: "Elemen D2: Ketersediaan Dokumen dan Pengakuan Mutu Eksternal" },
+    { code: "D3", name: "Elemen D3: Keterlaksanaan Penjaminan Mutu dan Audit Mutu Internal" },
+    { code: "D4", name: "Elemen D4: Kepuasan Pemangku Kepentingan" },
+    { code: "E", name: "Elemen E: Analisis SWOT, Tujuan Strategi Pengembangan, Program Pengembangan Keberlanjutan" }
   ])
 
   useEffect(() => {
