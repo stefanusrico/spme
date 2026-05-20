@@ -1,5 +1,5 @@
 import { ChevronRight } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useState } from "react"
 import {
   Collapsible,
   CollapsibleContent,
@@ -16,22 +16,35 @@ import {
 } from "@/components/ui/sidebar"
 
 export function NavMain({ items }) {
-  const navigate = useNavigate()
+  const [imageError, setImageError] = useState(false)
 
   const handleNavigation = (url) => {
-    // Navigate to the exact path, ignoring current location
-    navigate(`/${url}`, { replace: true })
+    // Pastikan URL dimulai dengan /
+    const absoluteUrl = url.startsWith("/") ? url : `/${url}`
+    window.location.href = absoluteUrl
+  }
+
+  const handleImageError = () => {
+    setImageError(true)
   }
 
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="flex items-center gap-2 text-zinc-400 mb-8 mt-5">
-        <img
-          src="https://www.polban.ac.id/wp-content/uploads/2018/06/logo-polban-80.png"
-          alt="SPME Logo"
-          className="w-12 h-16"
-        />
-        <span className="p-5 text-2xl">SIAPS</span>
+        {!imageError ? (
+          <img
+            src="/polban-title.png"
+            alt="Polban Logo"
+            className="w-12 h-16"
+            onError={handleImageError}
+            loading="eager"
+          />
+        ) : (
+          <div className="w-12 h-16 bg-zinc-600 rounded flex items-center justify-center">
+            <span className="text-white text-xs font-bold">P</span>
+          </div>
+        )}
+        <span className="p-5 text-2xl">SIMPEL</span>
       </SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
@@ -56,18 +69,15 @@ export function NavMain({ items }) {
                     {item.subItems.map((subItem) => (
                       <SidebarMenuSubItem key={`sub-item-${subItem.id}`}>
                         <SidebarMenuButton
-                          asChild
-                          className="pl-9 hover:bg-[#1E293B] text-zinc-200"
+                          className="pl-9 hover:bg-[#1E293B] text-zinc-200 w-full"
+                          onClick={() => handleNavigation(subItem.url)}
                         >
-                          <button
-                            onClick={() => handleNavigation(subItem.url)}
-                            className="flex items-center text-left w-full"
-                          >
+                          <div className="flex items-center text-left w-full">
                             {subItem.icon && (
                               <subItem.icon className="w-4 h-4 mr-2" />
                             )}
                             <span>{subItem.title}</span>
-                          </button>
+                          </div>
                         </SidebarMenuButton>
                       </SidebarMenuSubItem>
                     ))}
@@ -77,16 +87,13 @@ export function NavMain({ items }) {
             ) : (
               <SidebarMenuButton
                 key={`button-${item.id}`}
-                asChild
                 className="w-full hover:bg-[#1E293B] text-zinc-200"
+                onClick={() => handleNavigation(item.url)}
               >
-                <button
-                  onClick={() => handleNavigation(item.url)}
-                  className="flex items-center text-left w-full"
-                >
+                <div className="flex items-center text-left w-full">
                   <item.icon className="w-4 h-4" />
                   <span className="ml-2">{item.title}</span>
-                </button>
+                </div>
               </SidebarMenuButton>
             )}
           </SidebarMenuItem>

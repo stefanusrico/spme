@@ -43,12 +43,19 @@ const Projects = () => {
   }
 
   const ProjectTabs = ({ activeTab, onTabChange }) => {
-    const tabs = [
+    let tabs = [
       { name: "Dashboard", value: "dashboard" },
       { name: "Tasks", value: "tasks" },
       { name: "Members", value: "members" },
       { name: "Export", value: "export" },
-    ]
+    ];
+    if (userData?.role === "Admin") {
+      tabs = [
+        { name: "Dashboard", value: "dashboard" },
+        { name: "Members", value: "members" },
+        { name: "Export", value: "export" },
+      ];
+    }
 
     return (
       <div>

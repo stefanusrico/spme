@@ -31,18 +31,8 @@ const JsonGenerator = () => {
 
   const fetchData = async () => {
     try {
-      // const responseSpreadsheet_info = await axiosInstance.get("/spreadsheet-info/67cbcdaec9b2a57b2e019192");
       const responseLam = await axiosInstance.get("/lam")
       const responseStrata = await axiosInstance.get("/strata")
-
-      // const spreadsheet_info = responseSpreadsheet_info.data
-      // if (spreadsheet_info) {
-      //   setTitle(spreadsheet_info.name || "");
-      //   setUrlSpreadsheet(spreadsheet_info.spreadsheetId || "");
-      //   setSelectedLAM(spreadsheet_info.lamId || "");
-      //   setSelectedStrata(spreadsheet_info.strataId || "");
-      //   setSheets(spreadsheet_info.sheets && spreadsheet_info.sheets.length > 0 ? spreadsheet_info.sheets : [""]);
-      // }
 
       setLamOptions(responseLam.data || [])
       setStrataOptions(responseStrata.data?.data || [])
@@ -61,7 +51,7 @@ const JsonGenerator = () => {
         "Unknown Strata"
 
       const responsePost = await axiosInstance.post("/save-json", {
-        name: `${lamName} ${strataName}`, // Gabungkan nama LAM dan Strata
+        name: `${lamName} ${strataName}`, 
         strataId: selectedStrata,
         lamId: selectedLAM,
         spreadsheetId: urlSpreadsheet,

@@ -31,4 +31,9 @@ class LedItem extends Model
     {
         return $this->belongsTo(Strata::class, 'strataId', '_id');
     }
+
+    public function lam()
+    {
+        return $this->belongsTo(Lam::class, 'lamId', '_id');
+    }
 }

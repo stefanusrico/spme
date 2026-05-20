@@ -8,9 +8,14 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote')->hourly();
 
-Schedule::command('scrape:banpt')->cron('0 0 1,15 * *'); //jalan tiap tanggal 1 dan 15
-
 Schedule::command('projects:update-status')->everyMinute();
+
+Schedule::command('scrape:banpt')->cron('0 0 1,15 * *');
+
+Schedule::command('accreditation:check-expiry')->dailyAt('09:00');
+
+// Schedule::command('scrape:banpt')->cron('*/1 * * * *');
+
 
 Artisan::command('logs:clear', function () {
 

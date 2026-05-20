@@ -30,6 +30,8 @@ export const handleLogin = async (
     } else {
       localStorage.removeItem("rememberMe")
     }
+
+    // Load user data akan handle prodi_id dengan safe checking
     await loadUserData()
     navigate("/dashboard")
   } catch (error) {
@@ -47,12 +49,11 @@ export const handleLogout = async () => {
   try {
     const token = localStorage.getItem("token")
 
-    // Dapatkan pathname aktual (tidak termasuk basename)
-    const pathname = window.location.pathname.replace(/^\/siaps/, "")
-
     if (
       !token &&
-      (pathname === "/login" || pathname === "/register" || pathname === "/")
+      (window.location.pathname === "/login" ||
+        window.location.pathname === "/register" ||
+        window.location.pathname === "/")
     ) {
       isLoggingOut = false
       return
@@ -80,10 +81,9 @@ const cleanupStorage = () => {
   localStorage.removeItem("rememberMe")
   localStorage.removeItem("role")
   localStorage.removeItem("user")
+  localStorage.removeItem("prodi_id") // Clean up prodi_id too
 }
 
 const redirectToLogin = () => {
-  window.location.href = "/siaps/login"
+  window.location.href = "/login"
 }
-
-//auth

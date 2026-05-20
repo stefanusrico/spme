@@ -1,7 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
-import { fetchScoreDetails } from "../../../utils/fetchScoreDetail.js"
 
 export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
   constructor() {
@@ -24,6 +22,18 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
     return true
   }
 
+  getJenisKemampuanOptions() {
+    return [
+      "Etika",
+      "Keahlian pada bidang ilmu (kompetensi utama)",
+      "Kemampuan berbahasa asing",
+      "Penggunaan teknologi informasi",
+      "Kemampuan berkomunikasi",
+      "Kerjasama tim",
+      "Pengembangan diri",
+    ]
+  }
+
   getDefaultData(tableCode, config = {}) {
     const now = Date.now()
     const jenisKemampuanList = this.getJenisKemampuanOptions()
@@ -43,236 +53,174 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
     }))
   }
 
-  getJenisKemampuanOptions() {
-    return [
-      "Etika",
-      "Keahlian pada bidang ilmu (kompetensi utama)",
-      "Kemampuan berbahasa asing",
-      "Penggunaan teknologi informasi",
-      "Kemampuan berkomunikasi",
-      "Kerjasama tim",
-      "Pengembangan diri",
-    ]
-  }
-
-  mergeWithDefaults(existingData, tableCode, config = {}) {
-    if (!this.hasDefaultData()) {
-      return existingData
-    }
-
-    const defaultData = this.getDefaultData(tableCode, config)
-
-    if (!existingData || existingData.length === 0) {
-      return defaultData
-    }
-
-    const existingJenisKemampuan = existingData.map(
-      (row) => row.jenis_kemampuan
-    )
-    const requiredJenisKemampuan = this.getJenisKemampuanOptions()
-
-    const missingJenisKemampuan = requiredJenisKemampuan.filter(
-      (jenis) =>
-        !existingJenisKemampuan.some(
-          (existing) =>
-            existing && existing.toLowerCase().includes(jenis.toLowerCase())
-        )
-    )
-
-    if (missingJenisKemampuan.length === 0) {
-      // All required jenis kemampuan exist, return existing data with updated row numbers
-      return existingData.map((row, index) => ({
-        ...row,
-        no: index + 1,
-      }))
-    }
-
-    // Add missing jenis kemampuan
-    const missingDefaults = defaultData.filter((row) =>
-      missingJenisKemampuan.includes(row.jenis_kemampuan)
-    )
-
-    // Combine existing data with missing defaults
-    const combined = [...existingData, ...missingDefaults]
-
-    // Update row numbers
-    return combined.map((row, index) => ({
-      ...row,
-      no: index + 1,
-    }))
-  }
-
+  // ✅ Use dynamic base processing dengan konversi persentase seperti 5d
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    const result = await super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
 
-    if (rawData.length === 0) return { allRows: [] }
+    // Konversi nilai persentase dari Excel jika ada - sama seperti 5d
+    if (result && result.allRows) {
+      result.allRows = result.allRows.map((item) => {
+        const fieldMap = this.mapKepuasanPenggunaFields(item)
 
-    const filteredData = PluginUtils.filterDataRows(rawData)
+        // Konversi semua field tingkat kepuasan ke persentase
+        const percentageFields = [
+          fieldMap.tingkat_sangat_baik,
+          fieldMap.tingkat_baik,
+          fieldMap.tingkat_cukup,
+          fieldMap.tingkat_kurang,
+        ]
 
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        jenis_kemampuan: "",
-        tingkat_sangat_baik: 0,
-        tingkat_baik: 0,
-        tingkat_cukup: 0,
-        tingkat_kurang: 0,
-        rencana_tindak_lanjut_oleh_upps_ps: "",
+        percentageFields.forEach((field) => {
+          if (field && item[field] !== undefined) {
+            const rawPercentage = this.convertToPercentage(item[field])
+            // ✅ Format ke 2 digit desimal menggunakan PluginUtils
+            item[field] = PluginUtils.formatNumber(rawPercentage, 2)
+          }
+        })
+
+        return item
+      })
+    }
+
+    return result
+  }
+
+  // ✅ Helper untuk konversi ke persentase dengan 2 digit desimal - sama seperti 5d
+  convertToPercentage(value) {
+    if (value === null || value === undefined || value === "") {
+      return 0
+    }
+
+    let result = 0
+
+    // Jika sudah berupa number
+    if (typeof value === "number") {
+      // Jika nilai > 1 tapi <= 100, asumsikan sudah persentase
+      if (value > 1 && value <= 100) {
+        result = value
+      }
+      // Jika nilai <= 1, asumsikan proporsi (konversi ke persentase)
+      else if (value >= 0 && value <= 1) {
+        result = value * 100
+      } else {
+        result = value
+      }
+    }
+    // Konversi string ke number
+    else if (typeof value === "string") {
+      // Hapus karakter % jika ada
+      const cleanValue = value.replace(/\s*%\s*$/, "")
+
+      const numValue = parseFloat(cleanValue)
+      if (isNaN(numValue)) {
+        return 0
       }
 
-      Object.entries(detectedIndices).forEach(([fieldName, colIndex]) => {
-        if (colIndex === undefined || colIndex < 0) return
+      // Jika ada simbol % di string asal, nilai sudah persentase
+      if (value.includes("%")) {
+        result = numValue
+      }
+      // Jika nilai > 1 tapi <= 100, asumsikan sudah persentase
+      else if (numValue > 1 && numValue <= 100) {
+        result = numValue
+      }
+      // Jika nilai <= 1, asumsikan proporsi (konversi ke persentase)
+      else if (numValue >= 0 && numValue <= 1) {
+        result = numValue * 100
+      } else {
+        result = numValue
+      }
+    }
 
-        const value = row[colIndex]
+    // ✅ Format hasil ke 2 digit desimal
+    return parseFloat(PluginUtils.formatNumber(result, 2))
+  }
 
-        if (
-          fieldName === "jenis_kemampuan" ||
-          fieldName === "rencana_tindak_lanjut_oleh_upps_ps"
-        ) {
-          item[fieldName] = PluginUtils.normalizeTextField(value)
-        } else {
-          // For percentage fields, parse as number with 2 decimal places
-          item[fieldName] = PluginUtils.parseNumber(value, 0, true, 2)
-        }
-      })
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-      return item
-    })
+    // Percentage fields
+    if (
+      fieldLower.includes("tingkat_") ||
+      fieldLower.includes("sangat_baik") ||
+      fieldLower.includes("baik") ||
+      fieldLower.includes("cukup") ||
+      fieldLower.includes("kurang")
+    ) {
+      return "percentage"
+    }
 
+    return super.detectFieldType(fieldName, value)
+  }
+
+  // ✅ Process field value berdasarkan type - sama seperti 5d
+  processFieldValue(fieldName, value, fieldType = "auto") {
+    if (fieldType === "auto") {
+      fieldType = this.detectFieldType(fieldName, value)
+    }
+
+    if (fieldType === "percentage") {
+      const rawPercentage = this.convertToPercentage(value)
+      // ✅ Format ke 2 digit desimal
+      return PluginUtils.formatNumber(rawPercentage, 2)
+    }
+
+    return super.processFieldValue(fieldName, value, fieldType)
+  }
+
+  // ✅ Dynamic field mapping
+  mapKepuasanPenggunaFields(sampleItem) {
     return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
+      jenis_kemampuan: this.findFieldByPattern(sampleItem, [
+        "jenis_kemampuan",
+        "kemampuan",
+        "jenis",
+        "aspek",
+      ]),
+      tingkat_sangat_baik: this.findFieldByPattern(sampleItem, [
+        "tingkat_sangat_baik",
+        "sangat_baik",
+        "sangat baik",
+      ]),
+      tingkat_baik:
+        this.findFieldByPattern(sampleItem, ["tingkat_baik", "baik"]) &&
+        !this.findFieldByPattern(sampleItem, ["sangat_baik"]),
+      tingkat_cukup: this.findFieldByPattern(sampleItem, [
+        "tingkat_cukup",
+        "cukup",
+      ]),
+      tingkat_kurang: this.findFieldByPattern(sampleItem, [
+        "tingkat_kurang",
+        "kurang",
+      ]),
+      rencana_tindak_lanjut_oleh_upps_ps: this.findFieldByPattern(sampleItem, [
+        "rencana_tindak_lanjut_oleh_upps_ps",
+        "rencana_tindak_lanjut",
+        "rencana",
+        "tindak_lanjut",
+        "upps_ps",
+      ]),
     }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    console.log("Calculating kepuasan pengguna score with data:", data)
-
-    // Fetch data from 8e1 plugin
-    const scoreDetailsResponse = await fetchScoreDetails(
-      "8e1",
-      additionalData.projectId
-    )
-    console.log("Fetched score details from 8e1:", scoreDetailsResponse)
-
-    let NL = 0
-    let NJ = 0
-
-    if (scoreDetailsResponse) {
-      NL = PluginUtils.parseNumber(scoreDetailsResponse.NL, 0)
-      NJ = PluginUtils.parseNumber(scoreDetailsResponse.PR, 0) // PR from 8e1 is the number of respondents
-    } else {
-      NL = PluginUtils.parseNumber(additionalData.jumlahLulusan, 0)
-      NJ = PluginUtils.parseNumber(additionalData.jumlahResponden, 0)
-    }
-
-    // Calculate PJ using PluginUtils.roundToDecimal with 2 digits
-    const PJ = NL > 0 ? PluginUtils.roundToDecimal((NJ / NL) * 100, 2) : 0
-
-    // Calculate Prmin using PluginUtils.roundToDecimal with 2 digits
-    let Prmin
-    if (NL >= 300) {
-      Prmin = 30
-    } else {
-      Prmin = PluginUtils.roundToDecimal(50 - (NL / 300) * 20, 2)
-    }
-
-    console.log(`Using values: NL=${NL}, NJ=${NJ}, PJ=${PJ}%, Prmin=${Prmin}%`)
-
-    // Calculate TKi for each capability type according to the correct formula
-    const tkiValues = data.map((item, index) => {
-      const a = PluginUtils.parseNumber(item.tingkat_sangat_baik, 0) // Persentase Sangat Baik
-      const b = PluginUtils.parseNumber(item.tingkat_baik, 0) // Persentase Baik
-      const c = PluginUtils.parseNumber(item.tingkat_cukup, 0) // Persentase Cukup
-      const d = PluginUtils.parseNumber(item.tingkat_kurang, 0) // Persentase Kurang
-
-      // TKi = (4 × a) + (3 × b) + (2 × c) + (1 × d)
-      // Ini menghasilkan skor tertimbang dalam bentuk persentase
-      const tki = PluginUtils.roundToDecimal(4 * a + 3 * b + 2 * c + 1 * d, 2)
-
-      console.log(
-        `TKi ${index + 1} (${
-          item.jenis_kemampuan
-        }): 4×${a} + 3×${b} + 2×${c} + 1×${d} = ${tki}`
-      )
-
-      return tki
-    })
-
-    console.log("TKI values (percentage weighted scores):", tkiValues)
-
-    // Calculate sum of all TKi values
-    const totalTKi = tkiValues.reduce((sum, tki) => sum + tki, 0)
-
-    // Calculate average TKi and convert to 4-point scale by dividing by (7 × 100)
-    // 7 = number of aspects, 100 = to convert percentage to scale
-    const avgTKi =
-      tkiValues.length > 0
-        ? PluginUtils.roundToDecimal(totalTKi / (tkiValues.length * 100), 2)
-        : 0
-
-    console.log(
-      `Total TKi: ${totalTKi}, Average TKi (on 4-point scale): ${avgTKi}`
-    )
-
-    // Apply adjustment if response percentage doesn't meet minimum requirement
-    let finalScore = avgTKi
-    if (PJ < Prmin) {
-      finalScore = PluginUtils.roundToDecimal((PJ / Prmin) * avgTKi, 2)
-      console.log(
-        `Adjusted score due to low response rate: (${PJ}/${Prmin}) × ${avgTKi} = ${finalScore}`
-      )
-    }
-
-    // Ensure score is between 0 and 4
-    finalScore = PluginUtils.roundToDecimal(
-      Math.max(0, Math.min(4, finalScore)),
-      2
-    )
-
-    console.log("Score Detail:", {
-      NL,
-      NJ,
-      PJ,
-      Prmin,
-      totalTKi,
-      avgTKi,
-      finalScore,
-    })
-
-    return {
-      scores: [
-        {
-          butir: 68,
-          nilai: finalScore,
-        },
-      ],
-      scoreDetail: {
-        NL,
-        NJ,
-        PJ: PJ + "%",
-        Prmin: Prmin + "%",
-        totalTKi: totalTKi,
-        avgTKi: avgTKi,
-      },
-    }
-  }
-
+  // ✅ Dynamic normalization - sekarang menangani persentase dan memformatnya seperti 5d
   normalizeData(data, config = {}) {
     if (!Array.isArray(data)) return []
 
     return data
       .filter((item) => {
-        // Filter out any invalid rows
-        if (!item.jenis_kemampuan) return true
-        const normalized = String(item.jenis_kemampuan).toLowerCase().trim()
+        const fieldMap = this.mapKepuasanPenggunaFields(item)
+        if (!item[fieldMap.jenis_kemampuan]) return true
+        const normalized = String(item[fieldMap.jenis_kemampuan])
+          .toLowerCase()
+          .trim()
         return !["jumlah", "total", "sum", "rata-rata", "average"].includes(
           normalized
         )
@@ -285,56 +233,39 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
           no: index + 1,
         }
 
-        result.jenis_kemampuan = PluginUtils.normalizeTextField(
-          result.jenis_kemampuan
-        )
-        result.rencana_tindak_lanjut_oleh_upps_ps =
-          PluginUtils.normalizeTextField(
-            result.rencana_tindak_lanjut_oleh_upps_ps
-          )
+        const fieldMap = this.mapKepuasanPenggunaFields(result)
 
-        // Parse percentage fields with 2 decimal places
-        const percentageFields = [
-          "tingkat_sangat_baik",
-          "tingkat_baik",
-          "tingkat_cukup",
-          "tingkat_kurang",
-        ]
-
-        percentageFields.forEach((field) => {
-          result[field] = PluginUtils.parseNumber(result[field], 0, true, 2)
+        // ✅ Process semua field berdasarkan mapping
+        Object.entries(fieldMap).forEach(([key, fieldName]) => {
+          if (fieldName && result[fieldName] !== undefined) {
+            const fieldType = this.detectFieldType(fieldName, result[fieldName])
+            result[fieldName] = this.processFieldValue(
+              fieldName,
+              result[fieldName],
+              fieldType
+            )
+          }
         })
 
         return result
       })
   }
 
-  prepareDataForSaving(data, config = {}) {
-    return data
-      .filter((item) => {
-        if (!item.jenis_kemampuan) return true
-        const normalized = String(item.jenis_kemampuan).toLowerCase().trim()
-        return !["jumlah", "total", "sum", "rata-rata", "average"].includes(
-          normalized
-        )
-      })
-      .map((item, index) => {
-        const { id, key, _editing, _selected, ...cleanRow } = item
-        return {
-          ...cleanRow,
-          no: index + 1,
-          selected: true,
-        }
-      })
-  }
-
+  // ✅ Dynamic validation - update untuk memvalidasi persentase seperti 5d
   validateData(data) {
     const errors = []
     const requiredCapabilities = this.getJenisKemampuanOptions()
 
+    if (!Array.isArray(data)) {
+      errors.push("Data utama harus berupa array.")
+      return { valid: false, errors }
+    }
+
+    const fieldMap = this.mapKepuasanPenggunaFields(data[0] || {})
+
     // Check if all required capabilities are present
     const existingCapabilities = data.map((item) =>
-      String(item.jenis_kemampuan || "")
+      String(item[fieldMap.jenis_kemampuan] || "")
         .toLowerCase()
         .trim()
     )
@@ -353,30 +284,46 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
 
     // Validate each row
     data.forEach((item, index) => {
-      if (!item.jenis_kemampuan || String(item.jenis_kemampuan).trim() === "") {
+      if (
+        fieldMap.jenis_kemampuan &&
+        (!item[fieldMap.jenis_kemampuan] ||
+          String(item[fieldMap.jenis_kemampuan]).trim() === "")
+      ) {
         errors.push(`Baris ${index + 1}: Jenis kemampuan harus diisi`)
       }
 
-      const sangat_baik = PluginUtils.parseNumber(item.tingkat_sangat_baik, 0)
-      const baik = PluginUtils.parseNumber(item.tingkat_baik, 0)
-      const cukup = PluginUtils.parseNumber(item.tingkat_cukup, 0)
-      const kurang = PluginUtils.parseNumber(item.tingkat_kurang, 0)
+      // ✅ Validasi field persentase - sama seperti 5d
+      const percentageFields = [
+        { field: fieldMap.tingkat_sangat_baik, name: "Tingkat Sangat Baik" },
+        { field: fieldMap.tingkat_baik, name: "Tingkat Baik" },
+        { field: fieldMap.tingkat_cukup, name: "Tingkat Cukup" },
+        { field: fieldMap.tingkat_kurang, name: "Tingkat Kurang" },
+      ].filter((x) => x.field)
 
-      // Validate percentage values are non-negative
-      if (sangat_baik < 0 || baik < 0 || cukup < 0 || kurang < 0) {
-        errors.push(`Baris ${index + 1}: Nilai persentase tidak boleh negatif`)
-      }
+      percentageFields.forEach(({ field, name }) => {
+        const val = parseFloat(item[field] || 0)
+        if (val < 0 || val > 100) {
+          errors.push(
+            `Baris ${
+              index + 1
+            }: '${name}' harus berupa persentase antara 0-100%. Ditemukan: ${val}%`
+          )
+        }
+      })
 
-      // Validate total percentage equals 100%
-      const totalPercentage = PluginUtils.roundToDecimal(
-        sangat_baik + baik + cukup + kurang,
-        2
-      )
-      if (Math.abs(totalPercentage - 100) > 0.01) {
+      // Validasi total persentase mendekati 100%
+      const totalPersen = percentageFields.reduce((sum, { field }) => {
+        return sum + parseFloat(item[field] || 0)
+      }, 0)
+
+      if (totalPersen > 0 && Math.abs(totalPersen - 100) > 5) {
         errors.push(
           `Baris ${
             index + 1
-          }: Total persentase (${totalPercentage}%) harus sama dengan 100%`
+          }: Total persentase tingkat kepuasan seharusnya 100%. Ditemukan: ${PluginUtils.formatNumber(
+            totalPersen,
+            2
+          )}%`
         )
       }
     })
@@ -387,49 +334,20 @@ export class KepuasanPenggunaLulusanPlugin extends BasePlugin {
     }
   }
 
-  // Add method to handle field value processing
-  processFieldValue(field, value, sectionCode) {
-    // For jenis_kemampuan, ensure it's from valid options
-    if (field === "jenis_kemampuan") {
-      const validOptions = this.getJenisKemampuanOptions()
-      const normalizedValue = PluginUtils.normalizeTextField(value)
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
 
-      // If empty, return first option as default
-      if (!normalizedValue) {
-        return validOptions[0]
-      }
-
-      // Check if value is valid or similar
-      const match = validOptions.find(
-        (option) =>
-          option.toLowerCase().includes(normalizedValue.toLowerCase()) ||
-          normalizedValue.toLowerCase().includes(option.toLowerCase())
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
       )
-
-      return match || normalizedValue
+      if (field) return field
     }
 
-    // For percentage fields with 2 decimal places
-    if (
-      [
-        "tingkat_sangat_baik",
-        "tingkat_baik",
-        "tingkat_cukup",
-        "tingkat_kurang",
-      ].includes(field)
-    ) {
-      return PluginUtils.parseNumber(value, 0, true, 2)
-    }
-
-    // For text fields
-    if (field === "rencana_tindak_lanjut_oleh_upps_ps") {
-      return PluginUtils.normalizeTextField(value)
-    }
-
-    return value
+    return null
   }
 }
 
 export const kepuasanPenggunaLulusanPlugin = new KepuasanPenggunaLulusanPlugin()
-
 export default kepuasanPenggunaLulusanPlugin

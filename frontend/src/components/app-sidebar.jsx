@@ -12,6 +12,7 @@ import {
   Settings,
   User,
   User2,
+  Database
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useSidebarMenu } from "../hooks/useSideBarMenu"
@@ -31,6 +32,7 @@ const getIcon = (iconName) => {
     bell: Bell,
     logout: LogOut,
     user: User,
+    database: Database
   }
 
   return icons[iconName.toLowerCase()] || Home

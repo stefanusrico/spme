@@ -25,7 +25,6 @@ export class PluginRegistry {
       "getInfo",
       "processExcelData",
       "initializeData",
-      "calculateScore",
       "normalizeData",
       "prepareDataForSaving",
       "validateData",

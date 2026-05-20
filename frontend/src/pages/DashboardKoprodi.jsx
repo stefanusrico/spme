@@ -134,28 +134,6 @@ const DashboardKoprodi = () => {
     return userProjects[userProjects.length - 1].projectId
   }, [userProjects])
 
-  const activities = useMemo(
-    () => [
-      {
-        description: "Butir 1-A submitted by wowow",
-        timestamp: "2025-04-15T10:30:00",
-      },
-      {
-        description: "Butir 6-A marked as in progress",
-        timestamp: "2025-04-14T14:20:00",
-      },
-      {
-        description: "Butir 13-A assigned to wowow",
-        timestamp: "2025-04-14T09:45:00",
-      },
-      {
-        description: "Project created",
-        timestamp: "2025-04-13T08:30:00",
-      },
-    ],
-    []
-  )
-
   useEffect(() => {
     const fetchProjectData = async () => {
       if (!projectId) {
@@ -240,38 +218,37 @@ const DashboardKoprodi = () => {
     )
   }, [projectData])
 
-  // Update task count for members based on task assignments
-  useEffect(() => {
-    if (members.length > 0 && getAllTasks.length > 0) {
-      // Create a map to count tasks for each member
-      const taskCountMap = new Map()
+  // HAPUS useEffect yang bermasalah dan GANTI dengan useMemo:
+  const membersWithTaskCount = useMemo(() => {
+    if (members.length === 0 || getAllTasks.length === 0) return members
 
-      // Initialize with 0 for all members
-      members.forEach((member) => {
-        taskCountMap.set(member._id, 0)
-      })
+    // Create a map to count tasks for each member
+    const taskCountMap = new Map()
 
-      // Count tasks for each member
-      getAllTasks.forEach((task) => {
-        if (task.owners && task.owners.length > 0) {
-          task.owners.forEach((owner) => {
-            if (taskCountMap.has(owner.id)) {
-              taskCountMap.set(owner.id, taskCountMap.get(owner.id) + 1)
-            }
-          })
-        }
-      })
+    // Initialize with 0 for all members
+    members.forEach((member) => {
+      taskCountMap.set(member._id, 0)
+    })
 
-      // Update the members array with task counts
-      const updatedMembers = members.map((member) => ({
-        ...member,
-        tasksCount: taskCountMap.get(member._id) || 0,
-      }))
+    // Count tasks for each member
+    getAllTasks.forEach((task) => {
+      if (task.owners && task.owners.length > 0) {
+        task.owners.forEach((owner) => {
+          if (taskCountMap.has(owner.id)) {
+            taskCountMap.set(owner.id, taskCountMap.get(owner.id) + 1)
+          }
+        })
+      }
+    })
 
-      setMembers(updatedMembers)
-    }
+    // Return updated members with task counts
+    return members.map((member) => ({
+      ...member,
+      tasksCount: taskCountMap.get(member._id) || 0,
+    }))
   }, [members, getAllTasks])
 
+  // DAN gunakan membersWithTaskCount di render instead of members
   // Filter tasks based on selected status
   const getFilteredTasks = useMemo(() => {
     if (taskStatusFilter === "ALL") return getAllTasks
@@ -442,7 +419,6 @@ const DashboardKoprodi = () => {
     targetDate: latestEndDate?.toISOString().split("T")[0] || null,
     progress: taskStats.completionPercentage,
     daysLeft,
-    activities,
   }
 
   return (
@@ -555,9 +531,6 @@ const DashboardKoprodi = () => {
                   <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm">
-                Assign Tasks
-              </Button>
             </div>
           </div>
 
@@ -582,9 +555,6 @@ const DashboardKoprodi = () => {
                             </h5>
                             <StatusBadge status={task.status} />
                           </div>
-                          <p className="text-xs md:text-sm text-muted-foreground">
-                            ID: {task.taskId || "N/A"}
-                          </p>
                         </div>
                         <div className="flex flex-col sm:flex-row sm:items-end gap-2 md:gap-4 text-right">
                           <div className="text-xs md:text-sm text-muted-foreground flex items-center gap-1 justify-end">
@@ -643,10 +613,6 @@ const DashboardKoprodi = () => {
               <div>
                 <CardTitle>Project Team</CardTitle>
               </div>
-              <Button size="sm" variant="outline">
-                <Users className="h-4 w-4 mr-2" />
-                Add Member
-              </Button>
             </CardHeader>
             <CardContent>
               {membersLoading ? (
@@ -682,8 +648,8 @@ const DashboardKoprodi = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {members.length > 0 ? (
-                        members.map((member) => (
+                      {membersWithTaskCount.length > 0 ? (
+                        membersWithTaskCount.map((member) => (
                           <tr key={member._id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center gap-2">
@@ -851,37 +817,7 @@ const DashboardKoprodi = () => {
 
             {/* Right Column Cards (Activity & Progress) */}
             <div className="space-y-6">
-              {/* Recent Activity Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
-                    {project.activities?.length > 0 ? (
-                      project.activities.slice(0, 10).map((activity, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <div className="mt-1 w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-                          <div className="flex-1">
-                            <p className="text-sm leading-snug">
-                              {activity.description}
-                            </p>
-                            <div className="flex items-center text-xs text-muted-foreground mt-0.5">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {formatDate(activity.timestamp)}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No recent activity recorded.
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
+              {" "}
               {/* Completion Progress Card */}
               <Card>
                 <CardHeader>

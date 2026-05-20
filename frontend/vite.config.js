@@ -8,32 +8,9 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 export default defineConfig({
-  base: "/siaps/",
-  plugins: [
-    react(),
-    tailwindcss(),
-    {
-      name: "redirect-middleware",
-      configureServer(server) {
-        server.middlewares.use((req, res, next) => {
-          const url = req.originalUrl || req.url
-
-          if (url === "/" || url === "/siaps") {
-            res.writeHead(302, { Location: "/siaps/" })
-            res.end()
-            return
-          }
-
-          next()
-        })
-      },
-    },
-  ],
+  plugins: [react(), tailwindcss()],
   define: {
     global: "window",
-  },
-  optimizeDeps: {
-    include: ["jwt-decode", "mathjs"],
   },
   resolve: {
     alias: {
@@ -65,11 +42,8 @@ export default defineConfig({
       host: "localhost",
       port: 4000,
     },
-    allowedHosts: ["polban-space.cloudias79.com"],
-    historyApiFallback: {
-      disableDotRule: true,
-      index: "/siaps/",
-    },
+    allowedHosts: ["simpel.polban.ac.id"],
+    historyApiFallback: true,
   },
   preview: {
     watch: {

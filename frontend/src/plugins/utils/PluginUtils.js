@@ -12,13 +12,26 @@ export const PluginUtils = {
 
       if (nonEmptyValues.length <= 1) return false
 
-      // Skip baris jika semua nilai adalah angka
-      const allNumbers = nonEmptyValues.every(
-        (val) =>
-          typeof val === "number" ||
-          (typeof val === "string" && !isNaN(val) && val.trim() !== "")
-      )
-      if (allNumbers && nonEmptyValues.length > 0) return false
+      // Deteksi pola baris informasi/metadata yang tidak valid sebagai data
+      const isInfoRow = this.detectInfoRow(row, nonEmptyValues)
+      if (isInfoRow) return false
+
+      // Skip baris jika semua nilai non-empty adalah angka (lebih ketat)
+      const allNumbers = nonEmptyValues.every((val) => {
+        const str = String(val).trim()
+        // Pastikan bukan string kosong dan benar-benar angka
+        return str !== "" && !isNaN(str) && !isNaN(parseFloat(str))
+      })
+
+      if (allNumbers && nonEmptyValues.length > 0) {
+        // Double check: pastikan tidak ada teks sama sekali
+        const hasAnyText = nonEmptyValues.some((val) => {
+          const str = String(val).trim()
+          return isNaN(str) || isNaN(parseFloat(str))
+        })
+
+        if (!hasAnyText) return false
+      }
 
       // Skip baris summary
       const summaryLabels = ["jumlah", "total", "sum", "rata-rata", "average"]
@@ -30,28 +43,96 @@ export const PluginUtils = {
       })
       if (hasSummaryLabel) return false
 
-      // Tambahan: jika baris mengandung sel "info" dan sisanya seluruhnya angka,
-      // maka skip baris tersebut.
-      const containsInfo = row.some(
-        (cell) =>
-          String(cell || "")
-            .toLowerCase()
-            .trim() === "info"
-      )
-      if (containsInfo) {
-        const otherCells = nonEmptyValues.filter(
-          (val) => String(val).toLowerCase().trim() !== "info"
-        )
-        const othersAllNumeric = otherCells.every(
-          (val) =>
-            typeof val === "number" ||
-            (typeof val === "string" && !isNaN(val) && val.trim() !== "")
-        )
-        if (othersAllNumeric && otherCells.length > 0) return false
+      // Tambahan: Skip baris yang sel pertamanya adalah angka murni
+      const firstCell = String(row[0] || "").trim()
+      if (firstCell && !isNaN(firstCell) && !isNaN(parseFloat(firstCell))) {
+        // Jika sel pertama adalah angka, periksa apakah ada teks deskriptif di sel kedua
+        const secondCell = String(row[1] || "").trim()
+        if (
+          !secondCell ||
+          (!isNaN(secondCell) && !isNaN(parseFloat(secondCell)))
+        ) {
+          return false // Skip jika sel kedua juga angka atau kosong
+        }
       }
 
       return true
     })
+  },
+
+  /**
+   * Deteksi apakah baris merupakan baris informasi/metadata
+   */
+  detectInfoRow(row, nonEmptyValues) {
+    // Pattern 1: Baris dengan hanya 1-2 kolom berisi data dan salah satunya adalah label info
+    if (nonEmptyValues.length <= 2) {
+      const firstNonEmpty = nonEmptyValues[0]
+      const firstStr = String(firstNonEmpty || "")
+        .toLowerCase()
+        .trim()
+
+      // Jika hanya ada 1-2 data dan yang pertama adalah label info
+      const infoLabels = [
+        "info",
+        "info:",
+        "catatan",
+        "note",
+        "link data",
+        "daftar tabel",
+        "sumber",
+        "diisi oleh",
+      ]
+
+      const isInfoLabel = infoLabels.some(
+        (label) => firstStr === label || firstStr.startsWith(label)
+      )
+
+      if (isInfoLabel) return true
+    }
+
+    // Pattern 2: Baris yang mengandung "Info:" di kolom pertama/kedua DAN tidak memiliki data numerik yang cukup
+    const firstTwoCells = row.slice(0, 2)
+    const hasInfoInFirstTwo = firstTwoCells.some((cell) => {
+      const str = String(cell || "")
+        .toLowerCase()
+        .trim()
+      return str === "info:" || str.startsWith("info:")
+    })
+
+    if (hasInfoInFirstTwo) {
+      // Hitung berapa banyak data numerik/valid yang ada
+      const numericData = row.filter((cell) => {
+        const val = String(cell || "").trim()
+        return val !== "" && !isNaN(val) && val !== "0"
+      })
+
+      // Jika ada "Info:" di awal dan data numerik sedikit, maka ini baris info
+      if (numericData.length < 3) {
+        return true
+      }
+    }
+
+    // Pattern 3: Baris yang pattern-nya seperti header/info berdasarkan konten
+    const firstCell = String(row[0] || "")
+      .toLowerCase()
+      .trim()
+
+    // Skip jika sel pertama mengandung pattern header
+    const headerPatterns = [
+      "program studi",
+      "no.",
+      "jumlah mahasiswa",
+      "tabel",
+      "daftar",
+    ]
+
+    const isHeaderPattern = headerPatterns.some((pattern) =>
+      firstCell.includes(pattern)
+    )
+
+    if (isHeaderPattern) return true
+
+    return false
   },
 
   /**
@@ -266,6 +347,39 @@ export const PluginUtils = {
     return !isNaN(value) && !isNaN(parseFloat(value)) && value.trim() !== ""
   },
 
+  excelSerialDateToFormat(serial) {
+    if (!serial || (typeof serial === "string" && serial.trim() === "")) {
+      return ""
+    }
+
+    if (typeof serial === "string") {
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(serial)) {
+        const parts = serial.split("/")
+        return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(
+          2,
+          "0"
+        )}`
+      }
+
+      serial = parseFloat(serial)
+      if (isNaN(serial)) return serial
+    }
+
+    if (serial > 1000) {
+      const milliseconds = (serial - 25569) * 86400 * 1000
+      const jsDate = new Date(milliseconds)
+
+      if (!isNaN(jsDate.getTime())) {
+        const year = jsDate.getFullYear()
+        const month = String(jsDate.getMonth() + 1).padStart(2, "0")
+        const day = String(jsDate.getDate()).padStart(2, "0")
+        return `${year}-${month}-${day}`
+      }
+    }
+
+    return serial
+  },
+
   parseDateValue(value, defaultValue = "") {
     if (value === null || value === undefined || value === "") {
       return defaultValue
@@ -392,5 +506,32 @@ export const PluginUtils = {
     } catch (e) {
       return ""
     }
+  },
+
+  parseDateField(value) {
+    if (typeof value === "number" && value > 20000 && value < 60000) {
+      return value
+    }
+
+    if (value instanceof Date) {
+      const excelDate = Math.floor(
+        (value.getTime() - new Date(1899, 11, 30).getTime()) /
+          (24 * 60 * 60 * 1000)
+      )
+      return excelDate > 0 ? excelDate : null
+    }
+
+    if (typeof value === "string" && value.trim() !== "") {
+      const date = new Date(value)
+      if (!isNaN(date.getTime())) {
+        const excelDate = Math.floor(
+          (date.getTime() - new Date(1899, 11, 30).getTime()) /
+            (24 * 60 * 60 * 1000)
+        )
+        return excelDate > 0 ? excelDate : null
+      }
+    }
+
+    return null
   },
 }

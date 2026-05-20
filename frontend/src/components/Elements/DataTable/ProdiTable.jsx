@@ -15,18 +15,15 @@ const LoadingBar = () => (
   </div>
 )
 
-const LoadingRow = ({ columnLength }) => {
+const LoadingRow = ({ colSpan }) => {
   const skeletonData = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-
   return (
     <>
       {skeletonData.map((_, index) => (
         <tr key={index} className="animate-pulse">
-          {Array.from({ length: columnLength }).map((__, colIndex) => (
-            <td key={colIndex} className="px-4 py-2">
-              <div className="h-8 bg-gray rounded" />
-            </td>
-          ))}
+          <td colSpan={colSpan} className="px-4 py-2">
+            <div className="h-8 bg-gray rounded"></div>
+          </td>
         </tr>
       ))}
     </>
@@ -106,7 +103,8 @@ const ProdiTable = () => {
 
   const fetchProdi = async () => {
     try {
-      const response = await axiosInstance.get("/prodi")
+      setLoading(true)
+      const response = await axiosInstance.get("prodi/all")
       setProdiData(response.data)
       setLoading(false)
     } catch (error) {
@@ -125,8 +123,6 @@ const ProdiTable = () => {
       <h1 className="text-2xl font-bold mb-6">Data Program Studi</h1>
 
       <div className="bg-white rounded-xl shadow-lg p-4 w-full relative">
-        {loading && <LoadingBar />}
-
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px] border-collapse">
             <thead>
@@ -153,9 +149,18 @@ const ProdiTable = () => {
                 </tr>
               ))}
             </thead>
+            {loading && (
+              <thead>
+                <tr>
+                  <td colSpan={columns.length} className="p-0">
+                    <LoadingBar />
+                  </td>
+                </tr>
+              </thead>
+            )}
             <tbody>
               {loading ? (
-                <LoadingRow columnLength={columns.length} />
+                <LoadingRow colSpan={columns.length} />
               ) : error ? (
                 <tr>
                   <td

@@ -1,12 +1,11 @@
 import { pluginRegistry } from "./core/PluginRegistry.js"
-import { DefaultSectionPlugin } from "./defaultSectionPlugin.js"
 
 import { TridharmaPlugin } from "./kriteria/kerjasama/plugin-tabel-kerjasama"
 
 import { SeleksiMahasiswaPlugin } from "./kriteria/mahasiswa/plugin-tabel-2a1-seleksiMahasiswa.js"
 import { MahasiswaAsingPlugin } from "./kriteria/mahasiswa/plugin-tabel-2b-mahasiswaAsingPlugin.js"
 
-import { DosenTetapPlugin } from "./kriteria/sumberdayamanusia/plugin-tabel-3a1-dosenTetapPerguruanTinggiPlugin.js"
+import { DosenTetapPerguruanTinggiPlugin } from "./kriteria/sumberdayamanusia/plugin-tabel-3a1-dosenTetapPerguruanTinggiPlugin.js"
 import { DosenPembimbingTugasAkhirPlugin } from "./kriteria/sumberdayamanusia/plugin-tabel-3a2-dosenPembimbingTugasAkhir.js"
 import { EkuivalenWaktuMengajarPenuhDosenPlugin } from "./kriteria/sumberdayamanusia/plugin-tabel-3a3-ekuivalenWaktuMengajarPenuh(EWMP)Dosen.js"
 import { DosenTidakTetapPlugin } from "./kriteria/sumberdayamanusia/plugin-tabel-3a4-dosenTidakTetap.js"
@@ -21,6 +20,7 @@ import { LuaranPenelitianPkmLainnyaHKIPatenPatenSederhanPlugin } from "./kriteri
 import { LuaranPenelitianPkmLainnyaHKIHakCiptaPlugin } from "./kriteria/sumberdayamanusia/plugin-tabel-3b8-2-LuaranPenelitianPkmLainnyaHKIHakCiptaDesainProdukIndustriDll"
 import { LuaranPenelitianPkmLainnyaTeknologiTepatGunaPlugin } from "./kriteria/sumberdayamanusia/plugin-tabel-3b8-3-LuaranPenelitianPkmLainnyaTeknologiCepatGunaProdukKaryaSeniRekayasaSosial"
 import { LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin } from "./kriteria/sumberdayamanusia/plugin-tabel-3b8-4-LuaranPenelitianPkmLainnyaBukuBerIsbnBookChapter"
+import { DataTenagaKependidikanPlugin } from "./kriteria/sumberdayamanusia/plugin-tabel-3c-dataTenagaKependidikan.js"
 
 import { PenggunaanDanaPlugin } from "./kriteria/keuangansaranaprasarana/plugin-tabel-4a-penggunaanDana.js"
 import { PrasaranaDanPeralatanUtamaPlugin } from "./kriteria/keuangansaranaprasarana/plugin-tabel-4b-prasaranaDanPeralatanUtamaPlugin.js"
@@ -62,9 +62,6 @@ export function registerAllPlugins() {
   console.log("Registering LKPS plugins...")
 
   try {
-    // Default and existing plugins
-    const defaultPlugin = new DefaultSectionPlugin()
-
     // kerjasama
     const tridharmaPlugin = new TridharmaPlugin()
 
@@ -73,7 +70,7 @@ export function registerAllPlugins() {
     const mahasiswaAsingPlugin = new MahasiswaAsingPlugin()
 
     // Dosen plugins (3a)
-    const dosenTetapPlugin = new DosenTetapPlugin()
+    const dosenTetapPlugin = new DosenTetapPerguruanTinggiPlugin()
     const dosenPembimbingTugasAkhir = new DosenPembimbingTugasAkhirPlugin()
     const ewmpDosenPlugin = new EkuivalenWaktuMengajarPenuhDosenPlugin()
     const dosenTidakTetapPlugin = new DosenTidakTetapPlugin()
@@ -100,6 +97,9 @@ export function registerAllPlugins() {
       new LuaranPenelitianPkmLainnyaTeknologiTepatGunaPlugin()
     const luaranPenelitianPkmLainnyaBukuBerIsbnPlugin =
       new LuaranPenelitianPkmLainnyaBukuBerIsbnPlugin()
+
+    // (3c)
+    const dataTenagaKependidikanPlugin = new DataTenagaKependidikanPlugin()
 
     // Keuangan dan sarana prasarana plugins (4)
     const penggunaanDanaPlugin = new PenggunaanDanaPlugin()
@@ -156,9 +156,6 @@ export function registerAllPlugins() {
     const evaluasiDanPengendalianPlugin = new EvaluasiDanPengendalianPlugin()
     const ketersediaanDokumenPlugin = new KetersediaanDokumenPlugin()
 
-    // Default plugin
-    pluginRegistry.register("default", defaultPlugin)
-
     // Kerjasama plugins (1)
     pluginRegistry.register("1-*", tridharmaPlugin)
 
@@ -204,6 +201,9 @@ export function registerAllPlugins() {
       "3b8-4",
       luaranPenelitianPkmLainnyaBukuBerIsbnPlugin
     )
+
+    // (3c)
+    pluginRegistry.register("3c", dataTenagaKependidikanPlugin)
 
     // Keuangan dan sarana prasarana plugins (4)
     pluginRegistry.register("4a", penggunaanDanaPlugin)

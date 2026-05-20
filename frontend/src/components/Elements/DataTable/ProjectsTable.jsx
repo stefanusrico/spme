@@ -10,10 +10,11 @@ import { Link } from "react-router-dom"
 import axiosInstance from "../../../utils/axiosConfig"
 import ProgressBar from "../Chart/ProgressBar"
 import AddProjectModal from "../Modals/AddProjectModal"
+import EditProjectModal from "../Modals/EditProjectModal"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
+import { useUser } from "../../../context/userContext"
 
-// Komponen LoadingBar dan LoadingRow tetap sama (tidak perlu diubah)
 const LoadingBar = () => (
   <div className="relative h-1 bg-gray-100 overflow-hidden">
     <div className="absolute top-0 h-1 bg-blue loading-bar"></div>
@@ -64,7 +65,14 @@ const ProjectsTable = ({ isCollapsed }) => {
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingProject, setEditingProject] = useState(null)
   const [formData, setFormData] = useState({
+    name: "",
+    startDate: "",
+    endDate: "",
+  })
+  const [editFormData, setEditFormData] = useState({
     name: "",
     startDate: "",
     endDate: "",
@@ -72,8 +80,27 @@ const ProjectsTable = ({ isCollapsed }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const columnHelper = createColumnHelper()
+  const { userData: user } = useUser()
 
-  // Definisi kolom tetap sama
+  // Handler untuk input change pada edit form - pindahkan ke dalam komponen
+  const handleEditInputChange = (e) => {
+    const { name, value } = e.target
+    setEditFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
+  }
+
+  // Fungsi handleInputChange untuk add modal
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
+  }
+
+  // Definisi kolom dengan tambahan action column
   const columns = useMemo(
     () => [
       columnHelper.accessor("projectId", {
@@ -84,8 +111,6 @@ const ProjectsTable = ({ isCollapsed }) => {
         header: "PROJECT NAME",
         cell: ({ row }) => (
           <div className="flex items-center justify-between gap-2 group">
-            {" "}
-            {/* Tambahkan 'group' di sini */}
             <span className="truncate" title={row.original.name}>
               {row.original.name}
             </span>
@@ -107,19 +132,16 @@ const ProjectsTable = ({ isCollapsed }) => {
         header: "OWNER",
         size: 150,
         cell: ({ row }) => (
-          // Perbaiki tampilan owner agar lebih rapi
           <div className="flex items-center gap-2">
-            {row.original.owner.profile_picture ? ( // Cek null/undefined
+            {row.original.owner.profile_picture ? (
               <img
                 src={row.original.owner.profile_picture}
                 alt="Profile"
-                className="w-8 h-8 rounded-full object-cover flex-shrink-0" // Tambahkan flex-shrink-0
+                className="w-8 h-8 rounded-full object-cover flex-shrink-0"
               />
             ) : (
-              // Placeholder jika tidak ada gambar
               <div className="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0"></div>
             )}
-            {/* Tambahkan truncate jika nama panjang */}
             <span className="truncate">{row.original.owner.name}</span>
           </div>
         ),
@@ -162,8 +184,63 @@ const ProjectsTable = ({ isCollapsed }) => {
         header: "END DATE",
         size: 200,
       }),
+      ...(user?.role === "Koordinator Program Studi"
+        ? [
+            {
+              id: "actions",
+              header: "ACTIONS",
+              size: 100,
+              cell: ({ row }) => (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleEditProject(row.original)} // Fix: use row.original instead of row.original.mobm
+                    className="p-2 bg-yellow hover:bg-yellow-600 text-white rounded transition-colors duration-200"
+                    title="Edit Project"
+                  >
+                    {/* Edit Icon */}
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProject(row.original.mongoId)} // Use mongoId (MongoDB ObjectId) for delete
+                    className="p-2 bg-red hover:bg-red-600 text-white rounded transition-colors duration-200"
+                    title="Delete Project"
+                  >
+                    {/* Delete Icon */}
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              ),
+            },
+          ]
+        : []),
     ],
-    [columnHelper]
+    [columnHelper, user?.role]
   )
 
   const table = useReactTable({
@@ -173,15 +250,18 @@ const ProjectsTable = ({ isCollapsed }) => {
     getFilteredRowModel: getFilteredRowModel(),
   })
 
-  // Fungsi handleInputChange dan handleSubmit tetap sama
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+  // Handler untuk edit project
+  const handleEditProject = (project) => {
+    setEditingProject(project)
+    setEditFormData({
+      name: project.name,
+      startDate: project.originalStartDate || project.startDate,
+      endDate: project.originalEndDate || project.endDate,
+    })
+    setShowEditModal(true)
   }
 
+  // Fungsi handleSubmit dan handleEditSubmit tetap sama
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -221,11 +301,84 @@ const ProjectsTable = ({ isCollapsed }) => {
     }
   }
 
-  // --- PERBAIKAN UTAMA DI SINI ---
+  // Handler untuk submit edit
+  const handleEditSubmit = async (e) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    try {
+      // Use mongoId from editingProject instead of projectId
+      const response = await axiosInstance.put(
+        `/project/${editingProject.mongoId}`, // Use mongoId (MongoDB ObjectId)
+        editFormData
+      )
+      if (response.data.status === "success") {
+        setEditFormData({ name: "", startDate: "", endDate: "" })
+        fetchProjects() // Refresh data
+        toast.success("Project berhasil diupdate!", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        })
+        setShowEditModal(false)
+        setEditingProject(null)
+      } else {
+        toast.error(response.data.message || "Gagal mengupdate project", {
+          position: "top-right",
+          autoClose: 3000,
+        })
+      }
+    } catch (err) {
+      console.error("Error updating project:", err)
+      toast.error(err.response?.data?.message || "Gagal mengupdate project", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Handler untuk delete project
+  const handleDeleteProject = async (projectId) => {
+    if (window.confirm("Are you sure you want to delete this project?")) {
+      try {
+        const response = await axiosInstance.delete(`/project/${projectId}`)
+        if (response.data.status === "success") {
+          toast.success("Project berhasil dihapus!", {
+            position: "top-right",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          })
+          fetchProjects() // Refresh data
+        }
+      } catch (err) {
+        console.error("Error deleting project:", err)
+        toast.error(err.response?.data?.message || "Gagal menghapus project", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        })
+      }
+    }
+  }
+
+  // Update fetchProjects untuk menyimpan projectId yang benar
   const fetchProjects = async () => {
     setLoading(true)
     try {
-      // 1. Ambil semua data project
       const projectsResponse = await axiosInstance.get("/projects")
 
       if (
@@ -234,88 +387,81 @@ const ProjectsTable = ({ isCollapsed }) => {
       ) {
         const rawProjects = projectsResponse.data.data
 
-        // 2. Kumpulkan semua ID unik dari 'createdBy'
         const uniqueUserIds = [
           ...new Set(
             rawProjects.map((project) => project.createdBy).filter(Boolean)
-          ), // filter(Boolean) untuk menghapus null/undefined
+          ),
         ]
 
-        let usersMap = {} // Peta untuk menyimpan data user { userId: userData }
+        let usersMap = {}
 
-        // 3. Hanya fetch data user jika ada ID unik yang ditemukan
         if (uniqueUserIds.length > 0) {
-          // Buat array promise untuk mengambil data setiap user unik
           const userPromises = uniqueUserIds.map((userId) =>
             axiosInstance
               .get(`/users/${userId}`)
               .then((res) => {
                 if (res.data.status === "success" && res.data.data) {
-                  // Pastikan respons valid sebelum menggunakannya
-                  return { id: userId, data: res.data.data } // Kembalikan ID bersama data
+                  return { id: userId, data: res.data.data }
                 }
                 console.warn(`User data not found or invalid for ID: ${userId}`)
-                return { id: userId, data: null } // Kembalikan null jika data tidak valid
+                return { id: userId, data: null }
               })
               .catch((err) => {
                 console.error(`Error fetching user data for ID ${userId}:`, err)
-                return { id: userId, data: null } // Kembalikan null jika terjadi error
+                return { id: userId, data: null }
               })
           )
 
-          // Jalankan semua promise secara bersamaan
           const usersResults = await Promise.all(userPromises)
 
-          // 4. Buat map dari hasil fetch user untuk akses cepat
           usersMap = usersResults.reduce((acc, result) => {
             if (result && result.data) {
-              // Cek jika result dan data ada
-              acc[result.id] = result.data // Gunakan ID asli sebagai key
+              acc[result.id] = result.data
             }
             return acc
           }, {})
         }
 
-        // 5. Gabungkan data project dengan data user dari map
         const projectsWithUserData = rawProjects.map((project) => {
-          const userData = usersMap[project.createdBy] || {} // Ambil data user, fallback ke objek kosong jika tidak ada
+          const userData = usersMap[project.createdBy] || {}
 
           return {
-            projectId: project.projectId,
+            projectId: project.projectId, // Keep this for display (PRJ-001)
+            mongoId: project.id, // MongoDB ObjectId for operations
             name: project.name,
             progress: project.progress || 0,
             owner: {
               userId: project.createdBy,
-              // Fallback ke ID jika nama tidak ditemukan
               name:
                 userData?.name ||
                 `User ID: ${project.createdBy}` ||
                 "Unknown Owner",
-              profile_picture: userData?.profile_picture || null, // Fallback ke null
+              profile_picture: userData?.profile_picture || null,
             },
             status: project.status,
-            task: project.progress || 0, // Asumsi task sama dengan progress
+            task: project.progress || 0,
             startDate: new Date(project.startDate).toLocaleDateString(),
             endDate: new Date(project.endDate).toLocaleDateString(),
-            id: project.id,
+            originalStartDate: project.startDate,
+            originalEndDate: project.endDate,
+            id: project.id, // Use MongoDB ObjectId for routing
           }
         })
 
         setProjects(projectsWithUserData)
       } else {
-        // Tangani jika /projects tidak sukses atau tidak ada data
         console.error(
           "Failed to fetch projects or no projects data received:",
           projectsResponse.data
         )
-        setProjects([]) // Set ke array kosong jika gagal
+        setProjects([])
         toast.error("Gagal memuat data project.", {
-          position: "top-right" /* ... */,
+          position: "top-right",
         })
       }
     } catch (err) {
       console.error("Error fetching projects:", err)
-      setProjects([]) // Set ke array kosong jika error
+      setProjects([])
       toast.error("Gagal memuat data project.", {
         position: "top-right",
         autoClose: 3000,
@@ -328,11 +474,11 @@ const ProjectsTable = ({ isCollapsed }) => {
       setLoading(false)
     }
   }
-  // --- AKHIR PERBAIKAN ---
 
   useEffect(() => {
+    if (!user) return
     fetchProjects()
-  }, []) // Dependency array kosong agar hanya dijalankan sekali saat mount
+  }, [user]) // Dependency array user agar hanya dijalankan ketika user berubah
 
   // Render JSX sisanya tetap sama
   return (
@@ -348,21 +494,22 @@ const ProjectsTable = ({ isCollapsed }) => {
         draggable
         pauseOnHover
         theme="light"
+        style={{ zIndex: 11001 }}
       />
 
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-3xl font-bold">Projects</h1>
-        <button
-          className="bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 hover:bg-blue-700" // Tambahkan hover effect
-          onClick={() => setShowModal(true)}
-        >
-          Add project
-        </button>
+        {user?.role === "Koordinator Program Studi" && (
+          <button
+            className="bg-base text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 hover:bg-blue-700" // Tambahkan hover effect
+            onClick={() => setShowModal(true)}
+          >
+            Add project
+          </button>
+        )}
       </div>
       <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
         <div className="overflow-x-auto overflow-y-hidden relative">
-          {/* Loading Bar di atas tabel */}
-          {loading && <LoadingBar />}
           <table className="w-full">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -396,8 +543,16 @@ const ProjectsTable = ({ isCollapsed }) => {
                 </tr>
               ))}
             </thead>
-            {/* Hapus div loading absolut sebelumnya, karena LoadingBar sudah ada */}
-            {/* <tbody className="mt-4"> */} {/* Hapus mt-4 dari tbody */}
+            {/* Loading Bar dipindahkan ke bawah header */}
+            {loading && (
+              <thead>
+                <tr>
+                  <td colSpan={columns.length} className="p-0">
+                    <LoadingBar />
+                  </td>
+                </tr>
+              </thead>
+            )}
             <tbody>
               {loading ? (
                 <LoadingRow colSpan={columns.length} />
@@ -447,6 +602,19 @@ const ProjectsTable = ({ isCollapsed }) => {
         formData={formData}
         onInputChange={handleInputChange}
         onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+      />
+
+      {/* Edit Project Modal - menggunakan komponen terpisah */}
+      <EditProjectModal
+        showModal={showEditModal}
+        onClose={() => {
+          setShowEditModal(false)
+          setEditingProject(null)
+        }}
+        formData={editFormData}
+        onInputChange={handleEditInputChange}
+        onSubmit={handleEditSubmit}
         isSubmitting={isSubmitting}
       />
     </div>

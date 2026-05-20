@@ -7,134 +7,216 @@ use Gemini\Laravel\Facades\Gemini;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
-/**
- * Controller for handling data mapping operations with Gemini AI.
- */
 class GeminiDataMappingController extends Controller
 {
-  /**
-   * Map Excel headers to database columns using Gemini AI.
-   *
-   * @param Request $request The HTTP request containing database columns and Excel headers
-   * @return JsonResponse The mapping results or error response
-   */
-  public function mappingData(Request $request): JsonResponse
-  {
-    try {
-      // Validate request input
-      $request->validate([
-        'database_columns' => 'required|array',
-        'excel_headers' => 'required|array',
-      ]);
+    public function mappingData(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'database_columns' => 'required|array',
+                'excel_headers' => 'required|array',
+                'semantic_threshold' => 'nullable|numeric|min:0|max:1',
+            ]);
 
-      // Extract request data
-      $dbColumns = $request->input('database_columns');
-      $excelHeaders = $request->input('excel_headers');
+            $dbColumns = $request->input('database_columns');
+            $excelHeaders = $request->input('excel_headers');
 
-      // Filter out empty Excel headers
-      $excelHeaders = array_filter($excelHeaders, fn($header) => !empty(trim($header)));
+            $semanticThreshold = $request->input('semantic_threshold', 0.65);
 
-      // Build the Gemini prompt
-      $prompt = $this->buildPrompt($dbColumns, $excelHeaders);
+            // Filter header Excel yang kosong
+            $excelHeaders = array_filter($excelHeaders, fn($header) => !empty(trim($header)));
 
-      // Generate mapping using Gemini AI
-      $result = Gemini::generativeModel(model: 'gemini-2.0-flash')
-        ->generateContent($prompt);
+            $prompt = $this->buildPrompt($dbColumns, $excelHeaders, $semanticThreshold);
 
-      // Process the Gemini response
-      $responseText = $result->text();
-      $jsonResult = $this->extractJsonFromText($responseText);
+            $result = Gemini::generativeModel(model: 'gemini-2.0-flash')
+                ->generateContent($prompt);
 
-      // Check if valid JSON was extracted
-      if (!$jsonResult) {
-        return $this->errorResponse(
-          'Failed to extract valid JSON mapping from Gemini response',
-          ['rawResponse' => $responseText]
-        );
-      }
+            $responseText = $result->text();
+            $jsonResult = $this->extractJsonFromText($responseText);
 
-      // Return successful response with mapping
-      return response()->json([
-        'success' => true,
-        'mapping' => $jsonResult
-      ]);
+            if (!$jsonResult) {
+                return $this->errorResponse(
+                    'Gagal mengekstrak JSON yang valid dari respons Gemini.',
+                    ['rawResponse' => $responseText]
+                );
+            }
 
-    } catch (\Exception $e) {
-      return $this->errorResponse($e->getMessage());
-    }
-  }
+            $validatedMapping = $this->validateConfidenceLevels($jsonResult, $semanticThreshold, $dbColumns);
 
-  /**
-   * Build the prompt for Gemini AI.
-   *
-   * @param array $dbColumns Database column definitions
-   * @param array $excelHeaders Excel column headers
-   * @return string The formatted prompt
-   */
-  private function buildPrompt(array $dbColumns, array $excelHeaders): string
-  {
-    return "You are a data mapping assistant. I need you to match Excel column headers to database column names based on semantic understanding.
+            if (empty($validatedMapping) && !empty($jsonResult)) {
+                return $this->errorResponse(
+                    'Pemetaan gagal karena beberapa hasil dari AI memiliki tingkat keyakinan di bawah ambang batas yang ditetapkan atau tidak semua kolom berhasil dipetakan.',
+                    ['rawResponse' => $jsonResult]
+                );
+            }
 
-        ## Task
-        Match each database column (indeksData) to the most appropriate Excel column header based on meaning and context. Don't just rely on text similarity - understand what each column represents.
+            return response()->json([
+                'success' => true,
+                'mapping' => $validatedMapping,
+                'threshold_used' => $semanticThreshold
+            ]);
 
-        ## Input
-        1. DATABASE_COLUMNS: " . json_encode($dbColumns) . "
-        2. EXCEL_HEADERS: " . json_encode($excelHeaders) . "
-
-        ## Expected Output Format
-        Return a JSON object where:
-        - Keys are the database column indeksData values
-        - Values are objects containing:
-          - excelIndex: The index of the matched Excel header (0-based)
-          - excelHeader: The matched Excel header text
-
-        Format your response as ONLY the JSON without any additional text, code blocks, or markdown.";
-  }
-
-  /**
-   * Extract JSON from text that might be formatted with markdown.
-   *
-   * @param string $text The text potentially containing JSON
-   * @return array|null The extracted JSON as an array, or null if extraction failed
-   */
-  private function extractJsonFromText(string $text): ?array
-  {
-    // Try to extract JSON between backticks if present
-    preg_match('/```(?:json)?\s*([\s\S]*?)```/', $text, $matches);
-
-    if (!empty($matches[1])) {
-      $jsonText = trim($matches[1]);
-    } else {
-      // If no backticks, take the whole text
-      $jsonText = trim($text);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
     }
 
-    // Try to decode the JSON
-    $decoded = json_decode($jsonText, true);
+    /**
+     * Validasi:
+     * - Semua kolom database (kecuali 'no') harus ada di mapping dan lolos threshold.
+     * - Jika ada satu saja yang tidak, return [].
+     * - Kolom 'no' diabaikan.
+     */
+    private function validateConfidenceLevels(array $mapping, float $threshold, array $dbColumns): array
+    {
+        // Ambil semua key yang wajib ada (kecuali 'no')
+        $requiredKeys = [];
+        foreach ($dbColumns as $col) {
+            if (
+                isset($col['indeksData']) &&
+                strtolower($col['indeksData']) !== 'no'
+            ) {
+                $requiredKeys[] = $col['indeksData'];
+            }
+        }
 
-    // Return the decoded JSON or null if decoding failed
-    return (json_last_error() === JSON_ERROR_NONE) ? $decoded : null;
-  }
+        // Cek semua requiredKeys ada di mapping dan lolos threshold
+        foreach ($requiredKeys as $dbColumn) {
+            if (!isset($mapping[$dbColumn])) {
+                return [];
+            }
+            $mappingData = $mapping[$dbColumn];
+            if (!is_array($mappingData) || !isset($mappingData['confidence'])) {
+                return [];
+            }
+            $confidence = (float) $mappingData['confidence'];
+            if ($confidence < $threshold) {
+                return [];
+            }
+        }
 
-  /**
-   * Create a standardized error response.
-   *
-   * @param string $message The error message
-   * @param array $additionalData Additional data to include in the response
-   * @return JsonResponse The formatted error response
-   */
-  private function errorResponse(string $message, array $additionalData = []): JsonResponse
-  {
-    $response = [
-      'success' => false,
-      'error' => $message,
-    ];
+        // Hapus kolom "no" dari hasil mapping jika ada
+        if (isset($mapping['no'])) {
+            unset($mapping['no']);
+        }
 
-    if (!empty($additionalData)) {
-      $response = array_merge($response, $additionalData);
+        return $mapping;
     }
 
-    return response()->json($response, 500);
+    private function buildPrompt(array $dbColumns, array $excelHeaders, float $semanticThreshold): string
+    {
+        $thresholdPercentage = round($semanticThreshold * 100);
+
+        return "Anda adalah asisten pemetaan data dengan kemampuan pemahaman semantik. Tugas Anda adalah mencocokkan header kolom Excel dengan nama kolom database berdasarkan makna dan konteks.
+
+## Tugas
+Cocokkan setiap kolom database (indeksData) dengan header kolom Excel yang paling sesuai berdasarkan pemahaman semantik. Anda harus mengevaluasi tingkat keyakinan/kemiripan untuk setiap potensi kecocokan.
+
+## Ambang Batas Keyakinan (Confidence Threshold)
+- KEYAKINAN MINIMUM YANG DIBUTUHKAN: {$thresholdPercentage}% ({$semanticThreshold})
+- Hanya buat pemetaan jika tingkat keyakinan Anda >= {$thresholdPercentage}% ({$semanticThreshold}).
+- Jika tidak ada header Excel yang memenuhi ambang batas keyakinan untuk sebuah kolom database, JANGAN sertakan kolom tersebut dalam pemetaan.
+- Pertimbangkan makna semantik, bukan hanya kemiripan teks.
+- Berlaku KETAT dalam penilaian keyakinan - hanya kecocokan berkualitas tinggi yang boleh melampaui ambang batas.
+
+## Kriteria Evaluasi
+1.  **Kecocokan semantik persis** (keyakinan 95-100%): Header Excel memiliki arti yang sama persis.
+2.  **Kecocokan semantik kuat** (keyakinan 80-94%): Arti sangat mirip dengan sedikit perbedaan.
+3.  **Kecocokan semantik sedang** (keyakinan {$thresholdPercentage}-79%): Konsep terkait tetapi ada beberapa perbedaan.
+4.  **Kecocokan lemah** (di bawah {$thresholdPercentage}%): Hubungan tidak cukup kuat - JANGAN DISERTAKAN.
+
+## Data Input
+1.  KOLOM_DATABASE: " . json_encode($dbColumns) . "
+2.  HEADER_EXCEL: " . json_encode($excelHeaders) . "
+
+## Format Output yang Diharapkan
+Kembalikan sebuah objek JSON di mana:
+- Key adalah nilai `indeksData` dari kolom database (hanya untuk pemetaan dengan keyakinan >= {$semanticThreshold}).
+- Value adalah objek yang berisi:
+  - `excelIndex`: Indeks dari header Excel yang cocok (berbasis 0).
+  - `excelHeader`: Teks header Excel yang cocok.
+  - `confidence`: Skor keyakinan Anda (0.0 - 1.0) - HARUS >= {$semanticThreshold}.
+  - `reasoning`: Penjelasan singkat mengapa pemetaan ini dipilih.
+
+## Catatan Penting
+- PERSYARATAN KETAT: Hanya sertakan pemetaan dengan keyakinan >= {$semanticThreshold}.
+- Setiap header Excel hanya boleh dipetakan ke SATU kolom database (pilih yang paling cocok).
+- Jika beberapa kolom database dapat cocok dengan header Excel yang sama, pilih yang memiliki keyakinan tertinggi.
+- Bersikaplah konservatif dengan skor keyakinan - lebih baik memiliki lebih sedikit pemetaan berkualitas tinggi daripada banyak pemetaan berkualitas rendah.
+
+## Contoh Format Output
+```json
+{
+  \"kolom_satu\": {
+    \"excelIndex\": 0,
+    \"excelHeader\": \"Nama Siswa\",
+    \"confidence\": 0.95,
+    \"reasoning\": \"Kecocokan semantik langsung untuk identifikasi siswa.\"
+  },
+  \"kolom_dua\": {
+    \"excelIndex\": 3,
+    \"excelHeader\": \"Tahun Ajaran 2023/2024\",
+    \"confidence\": 0.85,
+    \"reasoning\": \"Tahun ajaran cocok dengan konteks akademik temporal.\"
   }
+}
+```
+";
+    }
+
+    private function extractJsonFromText(string $text): ?array
+    {
+        preg_match('/```(?:json)?\s*([\s\S]*?)```/', $text, $matches);
+
+        $jsonText = !empty($matches[1]) ? trim($matches[1]) : trim($text);
+
+        $decoded = json_decode($jsonText, true);
+
+        return (json_last_error() === JSON_ERROR_NONE) ? $decoded : null;
+    }
+
+    public function testModel()
+    {
+        try {
+            $response = Gemini::models()->list();
+
+            // Convert the response to array format
+            $models = [];
+            if (isset($response->models)) {
+                foreach ($response->models as $model) {
+                    $models[] = [
+                        'name' => $model->name ?? '',
+                        'display_name' => $model->displayName ?? '',
+                        'description' => $model->description ?? '',
+                        'version' => $model->version ?? '',
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'models' => $models
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    private function errorResponse(string $message, array $additionalData = []): JsonResponse
+    {
+        $response = [
+            'success' => false,
+            'error' => $message,
+        ];
+
+        if (!empty($additionalData)) {
+            $response = array_merge($response, $additionalData);
+        }
+
+        return response()->json($response, 500);
+    }
 }

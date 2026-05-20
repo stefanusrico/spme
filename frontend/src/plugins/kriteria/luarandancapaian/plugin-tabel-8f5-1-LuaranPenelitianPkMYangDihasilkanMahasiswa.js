@@ -1,6 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 
 export class LuaranPenelitianPkmYangDihasilkanMahasiswaHKIPatenPlugin extends BasePlugin {
   constructor() {
@@ -23,121 +22,132 @@ export class LuaranPenelitianPkmYangDihasilkanMahasiswaHKIPatenPlugin extends Ba
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
-
-    if (rawData.length === 0) return { allRows: [] }
-
-    const filteredData = PluginUtils.filterDataRows(rawData)
-
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        luaran_penelitian_dan_pkm: "",
-        tanggal_hh_bb_tttt: "",
-        status_registered_granted_komersial: "",
-        nomor_registrasi_paten: "",
-      }
-
-      // Map based on column indices
-      if (row[1] !== undefined)
-        item.luaran_penelitian_dan_pkm = PluginUtils.normalizeTextField(row[1])
-      if (row[2] !== undefined)
-        item.tanggal_hh_bb_tttt = PluginUtils.normalizeTextField(row[2])
-      if (row[3] !== undefined)
-        item.status_registered_granted_komersial =
-          PluginUtils.normalizeTextField(row[3])
-      if (row[4] !== undefined)
-        item.nomor_registrasi_paten = PluginUtils.normalizeTextField(row[4])
-
-      return item
-    })
-
-    return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
-    }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    let NA = 0
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    const isValidField = (value) => {
-      if (typeof value === "string") {
-        return value.trim() !== ""
-      }
-      if (typeof value === "number") {
-        return !isNaN(value)
-      }
-      return false
+    // Date field
+    if (fieldLower.includes("tanggal")) {
+      return "text" // Will be processed as date string
     }
 
-    data.forEach((item) => {
-      if (
-        isValidField(item.luaran_penelitian_dan_pkm) &&
-        isValidField(item.tanggal_hh_bb_tttt) &&
-        isValidField(item.nomor_registrasi_paten)
-      ) {
-        NA += 1
-      }
-    })
-
-    return {
-      scores: [
-        {
-          butir: 71,
-          nilai: "Score ada di 8f5-4",
-        },
-      ],
-      scoreDetail: {
-        NA,
-      },
-    }
+    return super.detectFieldType(fieldName, value)
   }
 
-  normalizeData(data) {
-    return data.map((item) => {
-      const result = { ...item }
-
-      const textFields = [
+  // ✅ Dynamic field mapping
+  mapLuaranPatenFields(sampleItem) {
+    return {
+      luaran_penelitian_dan_pkm: this.findFieldByPattern(sampleItem, [
         "luaran_penelitian_dan_pkm",
+        "luaran",
+        "penelitian",
+        "pkm",
+        "judul",
+      ]),
+      tanggal_hh_bb_tttt: this.findFieldByPattern(sampleItem, [
         "tanggal_hh_bb_tttt",
+        "tanggal",
+        "hh_bb_tttt",
+        "date",
+      ]),
+      status_registered_granted_komersial: this.findFieldByPattern(sampleItem, [
         "status_registered_granted_komersial",
+        "status",
+        "registered",
+        "granted",
+        "komersial",
+      ]),
+      nomor_registrasi_paten: this.findFieldByPattern(sampleItem, [
         "nomor_registrasi_paten",
-      ]
+        "nomor_registrasi",
+        "nomor_paten",
+        "registrasi",
+        "paten",
+      ]),
+    }
+  }
 
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
+  // ✅ Helper untuk validasi field
+  isValidField(value) {
+    if (typeof value === "string") {
+      return value.trim() !== ""
+    }
+    if (typeof value === "number") {
+      return !isNaN(value)
+    }
+    return false
+  }
+
+  // ✅ Dynamic normalization
+  normalizeData(data) {
+    if (!Array.isArray(data)) return []
+
+    return data.map((item, index) => {
+      const result = {
+        ...item,
+        id: item.id || `row-${Math.random().toString(36).substring(2, 9)}`,
+        key: item.key || `row-${Math.random().toString(36).substring(2, 9)}`,
+        no: index + 1,
+      }
+
+      const fieldMap = this.mapLuaranPatenFields(result)
+
+      // ✅ Process semua field berdasarkan mapping
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          result[fieldName] = PluginUtils.normalizeTextField(result[fieldName])
+        }
       })
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
+    if (!Array.isArray(data)) {
+      errors.push("Data utama harus berupa array.")
+      return { valid: false, errors }
+    }
+
     data.forEach((item, index) => {
-      if (!item.luaran_penelitian_dan_pkm) {
+      const fieldMap = this.mapLuaranPatenFields(item)
+
+      if (
+        fieldMap.luaran_penelitian_dan_pkm &&
+        !item[fieldMap.luaran_penelitian_dan_pkm]
+      ) {
         errors.push(
-          `Row ${index + 1}: Judul Luaran Penelitian dan PkM harus diisi`
+          `Baris ${index + 1}: Judul Luaran Penelitian dan PkM harus diisi`
         )
       }
-      if (!item.tanggal_hh_bb_tttt) {
-        errors.push(`Row ${index + 1}: Tanggal (HH/BB/TTTT) harus diisi`)
+      if (fieldMap.tanggal_hh_bb_tttt && !item[fieldMap.tanggal_hh_bb_tttt]) {
+        errors.push(`Baris ${index + 1}: Tanggal (HH/BB/TTTT) harus diisi`)
       }
-      if (!item.status_registered_granted_komersial) {
-        errors.push(`Row ${index + 1}: Status harus diisi`)
+      if (
+        fieldMap.status_registered_granted_komersial &&
+        !item[fieldMap.status_registered_granted_komersial]
+      ) {
+        errors.push(`Baris ${index + 1}: Status harus diisi`)
       }
-      if (!item.nomor_registrasi_paten) {
-        errors.push(`Row ${index + 1}: Nomor Registrasi/Paten harus diisi`)
+      if (
+        fieldMap.nomor_registrasi_paten &&
+        !item[fieldMap.nomor_registrasi_paten]
+      ) {
+        errors.push(`Baris ${index + 1}: Nomor Registrasi/Paten harus diisi`)
       }
     })
 
@@ -145,6 +155,20 @@ export class LuaranPenelitianPkmYangDihasilkanMahasiswaHKIPatenPlugin extends Ba
       valid: errors.length === 0,
       errors,
     }
+  }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
   }
 }
 

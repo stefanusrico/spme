@@ -4,7 +4,7 @@ export const tablesWithDataSelection = ["1-1", "1-2", "1-3"]
 
 // Helper function for checking if a table allows selection
 export const isSelectionAllowedForTable = (tableCode) => {
-  return tablesWithDataSelection.includes(tableCode)
+  return tablesWithDataSelection.includes(String(tableCode))
 }
 
 // Fallback structure when API fails
@@ -47,8 +47,8 @@ function getParentTitle(parentCode, subtableTitle) {
   }
 
   // Try to extract parent title from subtable title
-  if (subtableTitle && subtableTitle.includes("-")) {
-    return subtableTitle.split("-")[0].trim()
+  if (subtableTitle && String(subtableTitle).includes("-")) {
+    return String(subtableTitle).split("-")[0].trim()
   }
 
   return `Table ${parentCode}`
@@ -59,9 +59,13 @@ const buildTableStructureFromTables = (tables) => {
   const groupedTables = {}
 
   tables.forEach((table) => {
-    // Extract table code from table code
-    // Assuming table codes follow pattern like "1-1" or "3a5"
-    const tableCode = table.kode
+    // FIX: Ensure table.kode is a string
+    const tableCode = String(table.kode || '')
+
+    if (!tableCode) {
+      console.warn('Table with missing kode:', table)
+      return
+    }
 
     // Extract parent code (everything before dash or first character if no dash)
     const parentCode = tableCode.includes("-")
@@ -80,7 +84,7 @@ const buildTableStructureFromTables = (tables) => {
     // Add table as subtable
     groupedTables[parentCode].subTables.push({
       code: tableCode,
-      title: table.judul,
+      title: String(table.judul || ''),
     })
   })
 
@@ -149,14 +153,16 @@ export const findTableByCodeSync = (code, structure) => {
     structure = fallbackStructure
   }
 
+  const codeString = String(code)
+
   // First check if it's a main table
-  const mainTable = structure.find((table) => table.code === code)
+  const mainTable = structure.find((table) => String(table.code) === codeString)
   if (mainTable) return mainTable
 
   // Then look in subtables
   for (const table of structure) {
     if (table.subTables) {
-      const subTable = table.subTables.find((sub) => sub.code === code)
+      const subTable = table.subTables.find((sub) => String(sub.code) === codeString)
       if (subTable) {
         return {
           ...subTable,
@@ -176,17 +182,19 @@ export const getAdjacentTablesSync = (currentCode, structure) => {
     structure = fallbackStructure
   }
 
+  const currentCodeString = String(currentCode)
+
   // Flatten the table structure
   const flatTables = []
   structure.forEach((table) => {
     if (table.subTables && table.subTables.length > 0) {
-      table.subTables.forEach((sub) => flatTables.push(sub.code))
+      table.subTables.forEach((sub) => flatTables.push(String(sub.code)))
     } else {
-      flatTables.push(table.code)
+      flatTables.push(String(table.code))
     }
   })
 
-  const currentIndex = flatTables.indexOf(currentCode)
+  const currentIndex = flatTables.indexOf(currentCodeString)
   if (currentIndex === -1) return { prev: null, next: null }
 
   return {
@@ -209,15 +217,15 @@ export const getAllTablesSync = (structure) => {
     if (mainTable.subTables && mainTable.subTables.length > 0) {
       mainTable.subTables.forEach((sub) => {
         tables.push({
-          code: sub.code,
-          title: `${sub.code} - ${sub.title}`,
-          parent: mainTable.title,
+          code: String(sub.code),
+          title: `${String(sub.code)} - ${String(sub.title)}`,
+          parent: String(mainTable.title),
         })
       })
     } else {
       tables.push({
-        code: mainTable.code,
-        title: `${mainTable.code} - ${mainTable.title}`,
+        code: String(mainTable.code),
+        title: `${String(mainTable.code)} - ${String(mainTable.title)}`,
         parent: null,
       })
     }

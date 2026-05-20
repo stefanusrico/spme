@@ -73,7 +73,6 @@ class UserController extends Controller
                 'projects' => $request->projects ?? null,
             ]);
 
-            // Reload with relationships
             $user->load('prodi');
 
             return response()->json([

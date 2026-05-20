@@ -1,6 +1,5 @@
 import { BasePlugin } from "../../core/BasePlugin.js"
 import { PluginUtils } from "../../utils/PluginUtils.js"
-import { processExcelDataBase } from "../../../utils/tableUtils"
 
 export class KetersediaanDokumenPlugin extends BasePlugin {
   constructor() {
@@ -23,121 +22,157 @@ export class KetersediaanDokumenPlugin extends BasePlugin {
     return false
   }
 
+  // ✅ Use dynamic base processing
   async processExcelData(workbook, tableCode, config, prodiName, sectionCode) {
-    const { rawData, detectedIndices } = await processExcelDataBase(
+    return super.processExcelData(
       workbook,
       tableCode,
       config,
-      prodiName
+      prodiName,
+      sectionCode
     )
-
-    if (rawData.length === 0) return { allRows: [] }
-
-    const filteredData = PluginUtils.filterDataRows(rawData)
-
-    const processedData = filteredData.map((row, index) => {
-      const item = {
-        key: `excel-${index + 1}-${Date.now()}`,
-        no: index + 1,
-        selected: true,
-        jenis_dokumen_penjaminan_mutu: PluginUtils.normalizeTextField(row[1]),
-        no_dokumen: PluginUtils.normalizeTextField(row[2]),
-        tanggal_dokumen: PluginUtils.normalizeTextField(row[3]),
-      }
-
-      return item
-    })
-
-    return {
-      allRows: processedData,
-      shouldReplaceExisting: true,
-    }
   }
 
-  async calculateScore(data, config, additionalData = {}) {
-    const allRows =
-      data && data.allRows ? data.allRows : Array.isArray(data) ? data : []
+  // ✅ Override field type detection
+  detectFieldType(fieldName, value) {
+    const fieldLower = fieldName.toLowerCase()
 
-    if (!allRows || allRows.length === 0) {
-      return {
-        scores: [{ butir: 73, nilai: 0 }],
-        scoreDetail: {
-          kebijakan_spmi: false,
-          manual_spmi: false,
-          standar_spmi: false,
-          formulir_spmi: false,
-        },
-      }
+    // Date fields
+    if (
+      fieldLower.includes("tanggal") ||
+      fieldLower.includes("date") ||
+      fieldLower.includes("hh_bb_tttt")
+    ) {
+      return "text" // Treated as date string
     }
 
-    const kebijakanSPMI = allRows.some((row) =>
-      row.jenis_dokumen_penjaminan_mutu.toLowerCase().includes("kebijakan spmi")
-    )
-    const manualSPMI = allRows.some((row) =>
-      row.jenis_dokumen_penjaminan_mutu.toLowerCase().includes("manual spmi")
-    )
-    const standarSPMI = allRows.some((row) =>
-      row.jenis_dokumen_penjaminan_mutu.toLowerCase().includes("standar spmi")
-    )
-    const formulirSPMI = allRows.some((row) =>
-      row.jenis_dokumen_penjaminan_mutu.toLowerCase().includes("formulir spmi")
-    )
-
-    let nilai = 0
-    if (kebijakanSPMI && manualSPMI && standarSPMI && formulirSPMI) {
-      nilai = 4
-    } else if (kebijakanSPMI && manualSPMI && standarSPMI) {
-      nilai = 3
-    } else if (kebijakanSPMI && manualSPMI) {
-      nilai = 2
-    } else if (kebijakanSPMI) {
-      nilai = 1
+    // Document number fields
+    if (
+      fieldLower.includes("no_dokumen") ||
+      fieldLower.includes("nomor") ||
+      fieldLower.includes("number")
+    ) {
+      return "text"
     }
 
-    console.log("Kebijakan SPMI:", kebijakanSPMI)
-    console.log("Manual SPMI:", manualSPMI)
-    console.log("Standar SPMI:", standarSPMI)
-    console.log("Formulir SPMI:", formulirSPMI)
-    console.log("Score:", nilai)
-
-    return {
-      scores: [{ butir: 73, nilai }],
-      scoreDetail: {
-        kebijakan_spmi: kebijakanSPMI,
-        manual_spmi: manualSPMI,
-        standar_spmi: standarSPMI,
-        formulir_spmi: formulirSPMI,
-      },
-    }
+    return super.detectFieldType(fieldName, value)
   }
 
-  normalizeData(data) {
-    return data.map((item) => {
-      const result = { ...item }
-
-      const textFields = [
+  // ✅ Dynamic field mapping
+  mapKetersediaanDokumenFields(sampleItem) {
+    return {
+      jenis_dokumen_penjaminan_mutu: this.findFieldByPattern(sampleItem, [
         "jenis_dokumen_penjaminan_mutu",
+        "jenis_dokumen",
+        "dokumen_penjaminan",
+        "dokumen",
+        "jenis",
+        "penjaminan_mutu",
+        "type",
+      ]),
+      no_dokumen: this.findFieldByPattern(sampleItem, [
         "no_dokumen",
+        "nomor_dokumen",
+        "nomor",
+        "number",
+        "doc_number",
+      ]),
+      tanggal_dokumen: this.findFieldByPattern(sampleItem, [
         "tanggal_dokumen",
-      ]
+        "tanggal",
+        "date",
+        "hh_bb_tttt",
+      ]),
+    }
+  }
 
-      textFields.forEach((field) => {
-        result[field] = PluginUtils.normalizeTextField(result[field])
+  // ✅ Dynamic normalization
+  normalizeData(data) {
+    if (!Array.isArray(data)) return []
+
+    return data.map((item, index) => {
+      const result = {
+        ...item,
+        id: item.id || `row-${Math.random().toString(36).substring(2, 9)}`,
+        key: item.key || `row-${Math.random().toString(36).substring(2, 9)}`,
+        no: index + 1,
+      }
+
+      const fieldMap = this.mapKetersediaanDokumenFields(result)
+
+      // ✅ Process semua field berdasarkan mapping
+      Object.entries(fieldMap).forEach(([key, fieldName]) => {
+        if (fieldName && result[fieldName] !== undefined) {
+          result[fieldName] = PluginUtils.normalizeTextField(result[fieldName])
+        }
       })
 
       return result
     })
   }
 
+  // ✅ Dynamic validation
   validateData(data) {
     const errors = []
 
+    if (!Array.isArray(data)) {
+      errors.push("Data utama harus berupa array.")
+      return { valid: false, errors }
+    }
+
     data.forEach((item, index) => {
+      const fieldMap = this.mapKetersediaanDokumenFields(item)
+
       if (
-        !item.jenis_dokumen_penjaminan_mutu ||
-        item.jenis_dokumen_penjaminan_mutu.trim() === ""
+        fieldMap.jenis_dokumen_penjaminan_mutu &&
+        (!item[fieldMap.jenis_dokumen_penjaminan_mutu] ||
+          String(item[fieldMap.jenis_dokumen_penjaminan_mutu]).trim() === "")
       ) {
-        errors.push(`Row ${index + 1}: Jenis Dokumen Penjaminan harus diisi.`)
+        errors.push(`Baris ${index + 1}: Jenis Dokumen Penjaminan harus diisi`)
+      }
+
+      if (
+        fieldMap.no_dokumen &&
+        (!item[fieldMap.no_dokumen] ||
+          String(item[fieldMap.no_dokumen]).trim() === "")
+      ) {
+        errors.push(`Baris ${index + 1}: No Dokumen harus diisi`)
+      }
+
+      if (
+        fieldMap.tanggal_dokumen &&
+        (!item[fieldMap.tanggal_dokumen] ||
+          String(item[fieldMap.tanggal_dokumen]).trim() === "")
+      ) {
+        errors.push(`Baris ${index + 1}: Tanggal Dokumen harus diisi`)
+      }
+
+      // Validate document type
+      if (
+        fieldMap.jenis_dokumen_penjaminan_mutu &&
+        item[fieldMap.jenis_dokumen_penjaminan_mutu]
+      ) {
+        const jenisDoc = String(
+          item[fieldMap.jenis_dokumen_penjaminan_mutu]
+        ).toLowerCase()
+        const validTypes = [
+          "kebijakan spmi",
+          "manual spmi",
+          "standar spmi",
+          "formulir spmi",
+        ]
+
+        const isValidType = validTypes.some(
+          (type) => jenisDoc.includes(type) || type.includes(jenisDoc)
+        )
+
+        if (!isValidType) {
+          errors.push(
+            `Baris ${
+              index + 1
+            }: Jenis dokumen harus salah satu dari: Kebijakan SPMI, Manual SPMI, Standar SPMI, atau Formulir SPMI`
+          )
+        }
       }
     })
 
@@ -146,8 +181,21 @@ export class KetersediaanDokumenPlugin extends BasePlugin {
       errors,
     }
   }
+
+  // ✅ Helper method
+  findFieldByPattern(item, patterns) {
+    const fields = Object.keys(item)
+
+    for (const pattern of patterns) {
+      const field = fields.find((f) =>
+        f.toLowerCase().includes(pattern.toLowerCase())
+      )
+      if (field) return field
+    }
+
+    return null
+  }
 }
 
 export const ketersediaanDokumenPlugin = new KetersediaanDokumenPlugin()
-
 export default ketersediaanDokumenPlugin

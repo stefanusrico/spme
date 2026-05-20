@@ -111,14 +111,152 @@ class GoogleDriveController extends Controller
         ]);
     }
 
+    /**
+     * Upload PDF file to Google Drive
+     */
+    public function uploadPdfToDrive(Request $request)
+    {
+        try {
+            // Validasi request
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|array',
+                'file.*' => 'required|file|mimes:pdf|max:10240', // max 10MB
+                'noKriteria' => 'required|array',
+                'subFolder' => 'required|string',
+                'noSub' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'error' => 'Validation failed',
+                    'messages' => $validator->errors()
+                ], 400);
+            }
+
+            $files = $request->file('file');
+            $noKriterias = $request->input('noKriteria');
+            $subFolder = $request->input('subFolder');
+            $noSub = $request->input('noSub');
+
+            $uploadedFiles = [];
+
+            foreach ($files as $index => $file) {
+                $noKriteria = $noKriterias[$index] ?? 'unknown';
+                
+                // Generate unique filename
+                $originalName = $file->getClientOriginalName();
+                $cleanName = preg_replace('/[^A-Za-z0-9\-_\.+]/', '_', $originalName);
+                $extension = $file->getClientOriginalExtension();
+                $filename = $cleanName;
+
+                // Upload to Google Drive
+                $driveResult = $this->uploadToGoogleDrive($file, $filename, $subFolder, $noSub, $noKriteria);
+                
+                if ($driveResult['success']) {
+                    $uploadedFiles[] = [
+                        'name' => $originalName,
+                        'filename' => $filename,
+                        'local_url' => $driveResult['local_url'],
+                        'drive_id' => $driveResult['drive_id'],
+                        'drive_url' => $driveResult['drive_url'],
+                        'no_kriteria' => $noKriteria,
+                        'mime_type' => 'application/pdf',
+                        'size' => $file->getSize(),
+                        'uploaded_at' => now()->toISOString(),
+                    ];
+                } else {
+                    return response()->json([
+                        'error' => 'Failed to upload to Google Drive',
+                        'message' => $driveResult['message']
+                    ], 500);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'PDF files uploaded successfully',
+                'files' => $uploadedFiles
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('PDF Upload Error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'File gagal diunggah ke Google Drive',
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function uploadFileSupporting(Request $request)
+    {
+        $request->validate([
+            'file.*' => 'required|file',
+            'folder' => 'required|string'
+        ]);
+
+        $files = $request->file('file');
+        $subFolderName = $request->input('folder');
+
+        $parentFolderId = env('GOOGLE_DRIVE_SUPPORTING_FILE_FOLDER_ID');
+
+        $service = $this->getDriveService();
+
+        // Pastikan subfolder dan noSub folder tersedia
+        $folderId = $this->getOrCreateFolder($subFolderName, $parentFolderId, $service);
+
+        $uploadedFiles = [];
+
+        foreach ($files as $index => $file) {
+             // Upload juga ke storage lokal
+            $noSub = "";
+            $noKriteria = "";
+            $localUrl = $this->uploadToLocalStorage($file, $subFolderName, $noSub, $noKriteria);
+
+            $fileMetadata = new DriveFile([
+                'name' => $file->getClientOriginalName(),
+                'parents' => [$folderId],
+            ]);
+
+            $uploadedFile = $service->files->create($fileMetadata, [
+                'data' => file_get_contents($file->path()),
+                'mimeType' => $file->getClientMimeType(),
+                'uploadType' => 'multipart',
+                'fields' => 'id, name',
+            ]);
+
+            $fileDetails = $service->files->get($uploadedFile->id, [
+                'fields' => 'id, name, webViewLink'
+            ]);
+
+            // Simpan informasi file yang diunggah
+            $uploadedFiles[] = [
+                'file_id' => $fileDetails->id,
+                'file_name' => $fileDetails->name,
+                'file_url' => $fileDetails->webViewLink,
+                'local_url' => $localUrl,
+            ];
+        }
+
+        return response()->json([
+            'message' => 'File berhasil diunggah ke Google Drive',
+            'files' => $uploadedFiles,
+        ]);
+    }
+
     private function uploadToLocalStorage($file, $subFolderName, $noSub, $noKriteria)
     {
         try {
             // Buat nama file unik
-            $fileName = time() . '-' . $file->getClientOriginalName();
+            
 
             // Buat path penyimpanan
-            $path = "uploads/{$subFolderName}/{$noSub}/{$noKriteria}";
+            if ($subFolderName && $noSub && $noKriteria){
+                $fileName = $file->getClientOriginalName();
+                $path = "uploads/{$subFolderName}/{$noSub}/{$noKriteria}";
+            }else{
+                $fileName = $file->getClientOriginalName();
+                $path = "uploads/{$subFolderName}/";
+            }
 
             // Simpan file ke storage publik
             $storedPath = $file->storeAs($path, $fileName, 'public');
@@ -212,5 +350,112 @@ class GoogleDriveController extends Controller
         } catch (Exception $e) {
             return response()->json(['error' => 'Gagal menghapus file', 'details' => $e->getMessage()], 500);
         }
+    }
+
+    public function getSupportingFiles(Request $request)
+    {
+        $folderName = $request->query('folder') ?? 'Supporting File';
+
+        if (!$folderName) {
+            \Log::warning('getSupportingFiles: Parameter folder tidak diberikan');
+            return response()->json(['error' => 'Parameter folder diperlukan'], 400);
+        }
+
+        \Log::info("getSupportingFiles: Memulai pencarian file untuk folder: {$folderName}");
+
+        try {
+            $service = $this->getDriveService();
+            $parentFolderId = env('GOOGLE_DRIVE_SUPPORTING_FILE_FOLDER_ID');
+
+            $folderId = $this->getOrCreateFolder($folderName, $parentFolderId, $service);
+            \Log::info("getSupportingFiles: Folder ID ditemukan/terbuat: {$folderId}");
+
+            $query = sprintf("'%s' in parents and trashed=false and name != 'Folder Sampah'", $folderId);
+            $files = $service->files->listFiles(['q' => $query, 'fields' => 'files(id, name, webViewLink)'])->getFiles();
+
+            if (empty($files)) {
+                \Log::info("getSupportingFiles: Tidak ada file ditemukan di folder {$folderName}");
+                return response()->json(['message' => 'Tidak ada file dalam folder ini']);
+            }
+
+            $fileList = array_map(function ($file) use ($folderName) {
+                $localPath = "uploads/{$folderName}/" . $file->getName();
+                $localUrl = asset('storage/' . $localPath);
+
+                return [
+                    'id' => $file->getId(),
+                    'name' => $file->getName(),
+                    'url' => $file->getWebViewLink(),
+                    'local_url' => $localUrl,
+                ];
+            }, $files);
+
+            \Log::info("getSupportingFiles: Jumlah file ditemukan: " . count($fileList));
+
+            return response()->json(['files' => $fileList]);
+        } catch (\Exception $e) {
+            \Log::error('getSupportingFiles: Gagal mengambil file', [
+                'folder' => $folderName,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['error' => 'Gagal mengambil file', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+
+    public function deleteSupportingFile(Request $request, $fileId)
+    {
+        $request->validate([
+            'localUrl' => 'nullable|string',
+        ]);
+
+        $folderName = $request->query('folder') ?? 'Supporting File';
+        $localUrl = $request->input('localUrl');
+
+        $service = $this->getDriveService();
+        $parentFolderId = env('GOOGLE_DRIVE_SUPPORTING_FILE_FOLDER_ID');
+
+        $folderId = $this->getOrCreateFolder($folderName, $parentFolderId, $service);
+        $trashId = $this->getOrCreateFolder("Folder Sampah", $folderId, $service);
+
+        try {
+            // Pindahkan ke folder sampah di Google Drive
+            $file = $service->files->get($fileId, ['fields' => 'parents']);
+            $previousParents = join(',', $file->getParents());
+
+            $service->files->update($fileId, new DriveFile(), [
+                'addParents' => $trashId,
+                'removeParents' => $previousParents,
+                'fields' => 'id, parents'
+            ]);
+
+            // Hapus file dari local storage
+            if ($localUrl) {
+                $relativePath = str_replace(asset('storage/') . '/', '', $localUrl);
+                if (Storage::disk('public')->exists($relativePath)) {
+                    Storage::disk('public')->delete($relativePath);
+                }
+            }
+
+            return response()->json(['message' => "File berhasil dihapus dari Google Drive dan local storage"]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Gagal menghapus file', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    public function download(Request $request)
+    {
+        $filename = $request->input('filename');
+
+        // Validasi tambahan bisa ditambahkan di sini
+        $path = storage_path("app/public/uploads/Supporting File/{$filename}");
+
+        if (!file_exists($path)) {
+            return response()->json([
+                'message' => "File tidak ditemukan di path: {$path}"
+            ], 404);
+        }
+
+        return response()->download($path);
     }
 }

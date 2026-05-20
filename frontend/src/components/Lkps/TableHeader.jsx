@@ -10,6 +10,7 @@ import {
   Spin,
 } from "antd"
 import { HomeOutlined } from "@ant-design/icons"
+import { useParams } from "react-router-dom"
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -23,83 +24,122 @@ const TableHeader = ({
   navigate,
   loading = false,
 }) => {
-  // Fixed parent tables
-  const parentTables = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
-
-  // Track the currently expanded parent table
+  const { projectId } = useParams() // Get projectId from URL
   const [expandedParent, setExpandedParent] = useState(null)
 
-  // Get the parent code of the current table (extract the first digit)
+  // Get parent code dari table code
   const getCurrentParentCode = (code) => {
     if (!code) return null
-
-    // Extract the first digit
     const match = code.match(/^(\d)/)
     return match ? match[1] : null
   }
 
   const currentParentCode = getCurrentParentCode(tableCode)
 
-  // Set the current parent as expanded on initial load and when changing tables
   useEffect(() => {
     if (currentParentCode) {
       setExpandedParent(currentParentCode)
     }
   }, [currentParentCode])
 
-  // Create flattened list of all tables for the dropdown
+  // Get parent tables dari tableStructure secara dinamis
+  const getParentTables = () => {
+    if (!tableStructure || !Array.isArray(tableStructure)) {
+      return []
+    }
+
+    // Extract unique parent codes dari struktur yang ada
+    const parentCodes = new Set()
+
+    tableStructure.forEach((table) => {
+      if (table.code) {
+        parentCodes.add(table.code)
+      }
+
+      // Juga ambil dari children/subTables
+      const subTables = table.subTables || table.children || []
+      subTables.forEach((sub) => {
+        if (sub.code) {
+          const parentMatch = sub.code.match(/^(\d)/)
+          if (parentMatch) {
+            parentCodes.add(parentMatch[1])
+          }
+        }
+      })
+    })
+
+    return Array.from(parentCodes).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true })
+    )
+  }
+
+  const parentTables = getParentTables()
+
+  // Create flattened list untuk dropdown
   const getAllFlattenedTables = () => {
     const flattenedTables = []
+
     if (tableStructure && tableStructure.length > 0) {
       tableStructure.forEach((mainTable) => {
-        // Check for both subTables and children properties
         const subTables = mainTable.subTables || mainTable.children || []
 
         if (subTables && subTables.length > 0) {
+          // Jika ada subtables, tampilkan subtables
           subTables.forEach((subTable) => {
             flattenedTables.push({
               code: subTable.code,
               title: `${subTable.code} - ${subTable.title}`,
             })
           })
+        } else if (mainTable.code && mainTable.title) {
+          // Jika tidak ada subtables, tampilkan main table itu sendiri
+          flattenedTables.push({
+            code: mainTable.code,
+            title: `${mainTable.code} - ${mainTable.title}`,
+          })
         }
       })
     }
+
     return flattenedTables
   }
 
-  // Handle click on parent table
+  // Handle parent button click
   const handleParentClick = (parentCode) => {
-    setExpandedParent(expandedParent === parentCode ? null : parentCode)
+    // Cek apakah parent ini punya subtables atau tidak
+    const hasSubtables = getSubtablesForParent(parentCode).length > 0
+    const parentTable = tableStructure.find(
+      (table) => table.code === parentCode
+    )
+
+    if (!hasSubtables && parentTable) {
+      // Jika tidak ada subtables, langsung navigate ke parent table
+      navigate(`/projects/${projectId}/lkps/${parentCode}`)
+    } else {
+      // Jika ada subtables, toggle expand/collapse
+      setExpandedParent(expandedParent === parentCode ? null : parentCode)
+    }
   }
 
-  // Get subtables for a parent - filter all subtables to match the first digit
+  // Get subtables untuk parent tertentu
   const getSubtablesForParent = (parentCode) => {
     const allSubtables = []
 
-    // Collect all subtables from all main tables
     if (tableStructure && Array.isArray(tableStructure)) {
       tableStructure.forEach((table) => {
-        // Support both subTables and children properties
         const subTables = table.subTables || table.children || []
 
-        if (subTables && subTables.length) {
+        if (subTables && subTables.length > 0) {
           allSubtables.push(...subTables)
         }
       })
     }
 
-    // Filter to include subtables where the first digit is the parent code
-    // This handles all formats: "1-1", "3a1", "2b", etc.
+    // Filter berdasarkan parent code
     return allSubtables.filter((sub) => {
       if (!sub || !sub.code) return false
-
-      // Extract the first digit from the subtable code
       const match = sub.code.match(/^(\d)/)
-      if (!match) return false
-
-      // Check if the first digit matches the parent code
-      return match[1] === parentCode
+      return match && match[1] === parentCode
     })
   }
 
@@ -131,7 +171,9 @@ const TableHeader = ({
             </Breadcrumb.Item>
             <Breadcrumb.Item>LKPS</Breadcrumb.Item>
             {currentTable?.parentCode && (
-              <Breadcrumb.Item href={`/lkps/${currentTable.parentCode}`}>
+              <Breadcrumb.Item
+                href={`/projects/${projectId}/lkps/${currentTable.parentCode}`}
+              >
                 {currentTable.parentTitle}
               </Breadcrumb.Item>
             )}
@@ -171,21 +213,33 @@ const TableHeader = ({
 
       <Divider />
 
-      {/* Fixed parent table buttons (1-9) */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {parentTables.map((parentCode) => (
-          <Button
-            key={parentCode}
-            type={expandedParent === parentCode ? "primary" : "default"}
-            onClick={() => handleParentClick(parentCode)}
-          >
-            {parentCode}
-          </Button>
-        ))}
-      </div>
+      {/* Dynamic parent table buttons - sepenuhnya berdasarkan tableStructure */}
+      {parentTables.length > 0 ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {parentTables.map((parentCode) => {
+            const hasSubtables = getSubtablesForParent(parentCode).length > 0
+            const isCurrentParent = currentParentCode === parentCode
+            const isExpanded = expandedParent === parentCode
 
-      {/* Show subtables only for the expanded parent */}
-      {expandedParent && (
+            return (
+              <Button
+                key={parentCode}
+                type={isCurrentParent ? "primary" : "default"}
+                onClick={() => handleParentClick(parentCode)}
+              >
+                {parentCode}
+              </Button>
+            )
+          })}
+        </div>
+      ) : (
+        <div style={{ fontSize: "12px", color: "#999" }}>
+          No parent tables found in structure
+        </div>
+      )}
+
+      {/* Show subtables hanya jika ada subtables dan parent di-expand */}
+      {expandedParent && getSubtablesForParent(expandedParent).length > 0 && (
         <div
           style={{
             marginTop: 8,
@@ -194,7 +248,7 @@ const TableHeader = ({
             gap: 8,
             padding: "8px",
             borderRadius: "4px",
-            animation: "fadeIn 0.3s ease-in-out",
+            backgroundColor: "#f5f5f5",
           }}
         >
           {getSubtablesForParent(expandedParent).map((subTable) => (
@@ -202,7 +256,9 @@ const TableHeader = ({
               key={subTable.code}
               type={tableCode === subTable.code ? "primary" : "default"}
               size="small"
-              onClick={() => navigate(`/lkps/${subTable.code}`)}
+              onClick={() =>
+                navigate(`/projects/${projectId}/lkps/${subTable.code}`)
+              }
             >
               {subTable.code}
               {savedTables.includes(subTable.code) && " ✓"}
@@ -210,19 +266,6 @@ const TableHeader = ({
           ))}
         </div>
       )}
-
-      <style jsx="true">{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </Card>
   )
 }

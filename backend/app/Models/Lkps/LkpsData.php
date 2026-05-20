@@ -22,48 +22,30 @@ class LkpsData extends Model
         'detailNilai',
     ];
 
-    /**
-     * Get the table this data belongs to
-     */
     public function tabel()
     {
         return $this->belongsTo(LkpsTable::class, 'lkpsTableId', '_id');
     }
 
-    /**
-     * Get the tasks associated with this LKPS data
-     */
     public function tasks()
     {
         return $this->hasMany(Task::class, 'lkpsDataId', '_id');
     }
 
-    /**
-     * Get the task for this specific LKPS data
-     */
     public function task()
     {
         return $this->belongsTo(Task::class, 'taskId', '_id');
     }
 
-    /**
-     * Find task ID for a table in active project
-     * 
-     * @param string $kodeTabel Table code
-     * @param string|null $prodiId Prodi ID (optional)
-     * @return string|null Task ID if found
-     */
     public static function findTaskIdForTable($kodeTabel, $prodiId = null)
     {
         try {
-            // Find the table
             $table = LkpsTable::where('kode', $kodeTabel)->first();
             if (!$table) {
                 Log::warning("LkpsTable not found with kode: {$kodeTabel}");
                 return null;
             }
 
-            // If prodiId is not provided, try to get it from the current user
             if (!$prodiId) {
                 $user = auth()->user();
                 if ($user && $user->prodiId) {
@@ -74,7 +56,6 @@ class LkpsData extends Model
                 }
             }
 
-            // Find active project for this prodi
             $project = Project::where('prodiId', $prodiId)
                 ->where('status', 'ACTIVE')
                 ->where('endDate', '>', now())
@@ -85,7 +66,6 @@ class LkpsData extends Model
                 return null;
             }
 
-            // Find LKPS task list in the project
             $taskList = TaskList::where('projectId', $project->_id)
                 ->where('kriteria', 'LKPS')
                 ->first();
@@ -95,7 +75,6 @@ class LkpsData extends Model
                 return null;
             }
 
-            // Find the task for this table
             $task = Task::where('taskListId', $taskList->_id)
                 ->where('lkpsTableId', $table->_id)
                 ->first();
@@ -113,56 +92,95 @@ class LkpsData extends Model
         }
     }
 
-    /**
-     * Save data for a specific table
-     * 
-     * @param string $kodeTabel Table code
-     * @param array $data The data to save
-     * @param float|null $nilai Score
-     * @param array $detailNilai Score details
-     * @param string|null $taskId Task ID (optional)
-     * @return LkpsData|null
-     */
-    public static function saveData($kodeTabel, $data, $nilai = null, $detailNilai = [], $taskId = null)
+    public static function saveData($tableCode, $data, $nilai = null, $detailNilai = [], $taskId = null)
     {
-        // Get the table ID from the code
-        $table = LkpsTable::where('kode', $kodeTabel)->first();
-        if (!$table) {
-            return null;
+        try {
+            $divStrata = \App\Models\Prodi\Strata::where('name', 'D-IV')->first();
+            if (!$divStrata) {
+                throw new \Exception('D-IV strata not found');
+            }
+
+            $table = LkpsTable::where('kode', $tableCode)
+                ->where('strataId', $divStrata->_id)
+                ->first();
+
+            if (!$table) {
+                throw new \Exception("Table {$tableCode} not found for D-IV strata");
+            }
+
+            $tableIdString = (string) $table->_id;
+            $taskIdString = (string) $taskId;
+
+            \Log::info("Saving LkpsData for table {$tableCode} (D-IV) with tableId: {$tableIdString} and taskId: {$taskIdString}");
+
+            if ($taskId) {
+                $task = \App\Models\Project\Task::find($taskId);
+                if ($task && $task->lkpsTableId) {
+                    $taskTableId = $task->lkpsTableId;
+                    \Log::info("Task {$taskIdString} has lkpsTableId: {$taskTableId}, our table _id: {$tableIdString}");
+
+                    if ($taskTableId !== $tableIdString) {
+                        \Log::warning("Mismatch: Task lkpsTableId ({$taskTableId}) != Table _id ({$tableIdString})");
+                        $lkpsTableIdToUse = $taskTableId;
+                    } else {
+                        $lkpsTableIdToUse = $tableIdString;
+                    }
+                } else {
+                    $lkpsTableIdToUse = $tableIdString;
+                }
+            } else {
+                $lkpsTableIdToUse = $tableIdString;
+            }
+
+            \Log::info("Using lkpsTableId: {$lkpsTableIdToUse} for save operation");
+
+            $existingData = null;
+            if ($taskId) {
+                $existingData = self::where('lkpsTableId', $lkpsTableIdToUse)
+                    ->where('taskId', $taskIdString)
+                    ->first();
+            } else {
+                $existingData = self::where('lkpsTableId', $lkpsTableIdToUse)
+                    ->whereNull('taskId')
+                    ->first();
+            }
+
+            if ($existingData) {
+                \Log::info("Updating existing LkpsData record: {$existingData->_id}");
+
+                $existingData->data = $data;
+                if ($nilai !== null) {
+                    $existingData->nilai = $nilai;
+                }
+                if (!empty($detailNilai)) {
+                    $existingData->detailNilai = $detailNilai;
+                }
+                $existingData->save();
+
+                return $existingData;
+            } else {
+                \Log::info("Creating new LkpsData record");
+
+                $lkpsData = new self();
+                $lkpsData->lkpsTableId = $lkpsTableIdToUse;
+                $lkpsData->data = $data;
+                $lkpsData->nilai = $nilai;
+                $lkpsData->detailNilai = $detailNilai;
+
+                if ($taskId) {
+                    $lkpsData->taskId = $taskIdString;
+                }
+
+                $lkpsData->save();
+
+                return $lkpsData;
+            }
+        } catch (\Exception $e) {
+            \Log::error("Error in LkpsData::saveData: " . $e->getMessage());
+            throw $e;
         }
-
-        $updateData = [
-            'data' => $data,
-            'nilai' => $nilai,
-            'detailNilai' => $detailNilai,
-            'lkpsTableId' => $table->_id 
-        ];
-
-        if ($taskId) {
-            $updateData['taskId'] = $taskId;
-        }
-
-        $lkpsData = self::updateOrCreate(
-            [
-                'lkpsTableId' => $table->_id,
-            ],
-            $updateData
-        );
-
-        // If we have a taskId and the record has an _id, update the task with the lkpsDataId
-        if ($taskId && $lkpsData->_id) {
-            Task::where('_id', $taskId)->update(['lkpsDataId' => $lkpsData->_id]);
-        }
-
-        return $lkpsData;
     }
 
-    /**
-     * Get data for a specific table
-     * 
-     * @param string $kodeTabel Table code
-     * @return array|null
-     */
     public static function getData($kodeTabel)
     {
         $table = LkpsTable::where('kode', $kodeTabel)->first();
@@ -174,27 +192,17 @@ class LkpsData extends Model
         return $record ? $record->data : null;
     }
 
-    /**
-     * Get all data with table information
-     * 
-     * @return \Illuminate\Support\Collection
-     */
     public static function getAllWithTableInfo()
     {
         $records = self::all();
 
         return $records->map(function ($record) {
-            $tabel = $record->tabel;  // Use the relationship
+            $tabel = $record->tabel;
             $record->tableTitle = $tabel ? $tabel->judul : null;
             return $record;
         });
     }
 
-    /**
-     * Check if this data has valid score
-     * 
-     * @return bool
-     */
     public function hasValidScore()
     {
         return $this->nilai !== null && is_numeric($this->nilai);
